@@ -145,6 +145,10 @@ fun CryptoMonitorScreen() {
         error = null
         try {
             rows = if (exchange == "XT") XTMonitor.scan() else BinanceMonitor.scan()
+            val memoryStats = WolfLearningMemory.processScan(context, rows)
+            learningSamples = memoryStats.samples
+            learningWins = memoryStats.wins
+            learningLosses = memoryStats.losses
             updated = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             if (selectedSymbol.isBlank() || rows.none { it.symbol == selectedSymbol }) {
                 selectedSymbol = rows.firstOrNull()?.symbol.orEmpty()
@@ -394,6 +398,11 @@ fun CryptoMonitorScreen() {
                                             }
                                             Divider(color = Color(0xFF30415C))
                                             Text("شبکه عصبی عمیق گرگ • ۷ ورودی، ۲ لایه پنهان، ۲۴ نورون", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("حافظه یادگیری پایدار روی گوشی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            val memoryStats = WolfLearningMemory.stats(context)
+                                            Text("نمونه‌های ارزیابی‌شده: " + memoryStats.samples + " • موفق: " + memoryStats.wins + " • ناموفق: " + memoryStats.losses, color = Muted, fontSize = 10.sp)
+                                            Text("در انتظار ارزیابی ۴ ساعته: " + memoryStats.pending + " • آموزش خودکار امروز: " + memoryStats.learnedToday, color = Blue, fontSize = 10.sp)
+                                            Text("سیستم سیگنال‌های جهت‌دار را ذخیره می‌کند و پس از گذشت ۴ ساعت، نتیجه حرکت قیمت را می‌سنجد؛ وزن‌های شبکه عصبی در حافظه داخلی برنامه نگهداری می‌شوند.", color = Muted, fontSize = 9.sp)
                                             Text("بازخورد ذخیره‌شده: " + learningSamples + " • درست: " + learningWins + " • نادرست: " + learningLosses, color = Muted, fontSize = 10.sp)
                                             Text("خروجی شبکه عصبی (امتیاز آزمایشی): " + String.format(Locale.US, "%.1f%%", WolfDeepNeuralNetwork.predict(learningPrefs, selectedSignal) * 100.0), color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                             Text("شبکه با بازخورد دستی آموزش می‌بیند و وزن‌هایش روی گوشی ذخیره می‌شود؛ مدل از پیش‌آموزش‌دیده نیست.", color = Muted, fontSize = 9.sp)
