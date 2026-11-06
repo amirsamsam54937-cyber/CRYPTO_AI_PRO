@@ -1,13 +1,13 @@
-# CRYPTO AI PRO ULTIMATE
+# AMIRARSALAN TRADER WOLF
 
-**Android app version: 2.0.0**  
+**Android app version: 2.1.0**  
 A Persian-first, modular crypto-futures market intelligence and paper-trading application. The Android client is built with Kotlin and Jetpack Compose; the Python package provides research, risk, and backtesting utilities.
 
 > This is experimental trading software. Market signals are not investment advice and do not guarantee outcomes. Real-money order execution is not production-certified. Keep live trading disabled until the readiness gates in `docs/LIVE_TRADING_READINESS.md` are independently completed.
 
 ## Android application
 
-The 2.0.0 interface is organized into six functional sections:
+The 2.1.0 interface is organized into six functional sections:
 
 - **خانه** — market overview, session context, scan counts, and leading candidates.
 - **بازار** — XT Futures / Binance Futures selector, bullish/bearish filters, manual refresh, and ranked market cards.
@@ -16,7 +16,7 @@ The 2.0.0 interface is organized into six functional sections:
 - **حساب** — encrypted on-device XT credential storage and authenticated connection check.
 - **تنظیمات** — user-started foreground monitoring service and scanner configuration summary.
 
-The visual system uses a dark navy base with blue and violet accents. The launcher icon has been refreshed for the ULTIMATE identity.
+The visual system uses a dark navy base with electric blue and violet accents. Version 2.1.0 brands the app as **AMIRARSALAN TRADER WOLF**, with a custom angular wolf-head launcher emblem and an enhanced chart view that overlays visible support/resistance plus reference entry, stop-loss, and first target levels on the latest 54 closed 15-minute candles.
 
 ### Market analysis currently implemented
 
