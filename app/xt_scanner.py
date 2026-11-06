@@ -9,6 +9,7 @@ import ccxt
 import pandas as pd
 
 from app.indicators import build_signal, atr
+from app.advanced_analysis import analyze_ohlcv
 
 
 def _frame(rows: list[list[float]]) -> pd.DataFrame:
@@ -53,6 +54,7 @@ def scan_xt_usdt_perpetuals(limit: int = 20, min_quote_volume: float = 100_000,
                 candles = exchange.fetch_ohlcv(symbol, timeframe=tf, limit=160)
                 frame = _frame(candles)
                 signals[tf] = build_signal(frame)
+                signals[tf]["advanced"] = analyze_ohlcv(frame)
             directions = [signals[tf]["direction"] for tf in timeframes]
             long_votes = directions.count("LONG_BIAS")
             short_votes = directions.count("SHORT_BIAS")
@@ -69,6 +71,9 @@ def scan_xt_usdt_perpetuals(limit: int = 20, min_quote_volume: float = 100_000,
             results.append({
                 "symbol": symbol, "quote_volume_24h": quote_volume,
                 "direction": direction, "agreement": f"{max(long_votes, short_votes)}/{len(timeframes)}",
+                "advanced_consensus": {tf: signals[tf]["advanced"]["direction"] for tf in timeframes},
+                "market_regime": primary_regime if (primary_regime := signals[timeframes[0]]["advanced"]["regime"]) else "UNKNOWN",
+                "volume_ratio": signals[timeframes[0]]["advanced"]["volume_ratio"],
                 "entry_reference": entry, "stop_loss_reference": stop if direction != "NO_TRADE" else None,
                 "take_profit_references": targets if direction != "NO_TRADE" else [],
                 "leverage_ceiling_estimate": min(5, max(1, round(entry / max(stop_distance, 1e-12), 1))) if direction != "NO_TRADE" else 1,
