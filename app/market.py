@@ -2,7 +2,7 @@
 import ccxt
 import pandas as pd
 
-def make_exchange(exchange_id: str="binance"):
+def make_exchange(exchange_id: str="binanceusdm"):
     exchange_cls=getattr(ccxt,exchange_id,None)
     if exchange_cls is None: raise ValueError(f"Unsupported exchange: {exchange_id}")
     return exchange_cls({"enableRateLimit":True,"timeout":15000})
