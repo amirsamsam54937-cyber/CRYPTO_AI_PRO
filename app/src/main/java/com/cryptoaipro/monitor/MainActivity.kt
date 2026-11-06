@@ -101,7 +101,9 @@ fun CryptoMonitorScreen() {
     var error by remember { mutableStateOf<String?>(null) }
     var updated by remember { mutableStateOf("هنوز اسکن انجام نشده") }
     var filter by remember { mutableStateOf("همه") }
-    var exchange by remember { mutableStateOf("XT") }
+    var scanProgress by remember { mutableStateOf("آماده اسکن") }
+    var scannedCount by remember { mutableIntStateOf(0) }
+    var totalContracts by remember { mutableIntStateOf(0) }
     var selectedTab by remember { mutableStateOf("خانه") }
     var selectedSymbol by remember { mutableStateOf("") }
     var voiceTranscript by remember { mutableStateOf("") }
@@ -145,8 +147,18 @@ fun CryptoMonitorScreen() {
         loading = true
         error = null
         try {
-            val scanned = if (exchange == "XT") XTMonitor.scan() else BinanceMonitor.scan()
+            val scanned = BinanceMonitor.scan { partial, completed, total, failed ->
+                withContext(Dispatchers.Main) {
+                    rows = WolfFlowNewsRepository.enrichSignals(context, partial)
+                    scannedCount = completed
+                    totalContracts = total
+                    scanProgress = "بررسی $completed از $total قرارداد • خطاهای داده: $failed"
+                    if (selectedSymbol.isBlank() || rows.none { it.symbol == selectedSymbol }) selectedSymbol = rows.firstOrNull()?.symbol.orEmpty()
+                }
+            }
             rows = WolfFlowNewsRepository.enrichSignals(context, scanned)
+            scannedCount = totalContracts
+            scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
             val memoryStats = WolfLearningMemory.processScan(context, rows)
@@ -164,7 +176,7 @@ fun CryptoMonitorScreen() {
         }
     }
 
-    LaunchedEffect(exchange) {
+    LaunchedEffect(Unit) {
         while (true) {
             performScan()
             delay(180_000)
@@ -248,7 +260,7 @@ fun CryptoMonitorScreen() {
                         shape = RoundedCornerShape(20.dp)
                     ) {
                         Text(
-                            if (loading) "در حال اسکن" else "● " + exchange,
+                            if (loading) "در حال اسکن" else "● BINANCE",
                             color = if (loading) Color(0xFFFFD166) else Green,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
                             fontSize = 10.sp
@@ -300,12 +312,12 @@ fun CryptoMonitorScreen() {
 
                     "بازار" -> {
                         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-                                FilterChip(selected = exchange == "XT", onClick = { if (exchange != "XT") exchange = "XT" }, label = { Text("XT Futures") })
-                                FilterChip(selected = exchange == "BINANCE", onClick = { if (exchange != "BINANCE") exchange = "BINANCE" }, label = { Text("Binance Futures") })
-                                Spacer(Modifier.weight(1f))
-                                Text("تمام قراردادهای USDT", color = Blue, fontSize = 10.sp)
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text("BINANCE USDⓈ-M • قراردادهای دائمی USDT", color = Blue, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                                Text(rows.size.toString() + " نتیجه", color = Muted, fontSize = 10.sp)
                             }
+                            if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Blue)
+                            Text(scanProgress, color = Muted, fontSize = 10.sp)
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                                 listOf("همه", "صعودی", "نزولی").forEach { option ->
                                     FilterChip(selected = filter == option, onClick = { filter = option }, label = { Text(option) })
@@ -814,84 +826,7 @@ private fun formatPrice(value: Double): String = when {
 }
 
 
-/** XT USDT-M public market scanner. API keys are not needed for public quotes. */
-private object XTMonitor {
-    private const val BASE = "https://fapi.xt.com"
-
-    private fun get(path: String): String {
-        val c = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"; connectTimeout = 12000; readTimeout = 15000
-            setRequestProperty("User-Agent", "CryptoAIPro-Android/1.3")
-            setRequestProperty("Accept", "application/json")
-        }
-        try {
-            val code = c.responseCode
-            val stream = if (code in 200..299) c.inputStream else c.errorStream
-            val body = stream.bufferedReader().use { it.readText() }
-            if (code !in 200..299) throw IllegalStateException("XT پاسخ HTTP $code داد")
-            return body
-        } finally { c.disconnect() }
-    }
-
-    private fun array(json: JSONObject): JSONArray {
-        val code = json.optString("returnCode", "0")
-        if (code != "0" && code != "200") {
-            val detail = json.optJSONObject("error")?.optString("msg")
-                ?: json.optString("msgInfo", "خطای API صرافی XT")
-            throw IllegalStateException("XT: $detail")
-        }
-        return json.optJSONArray("result")
-            ?: throw IllegalStateException("پاسخ فهرست بازار XT آرایه نیست")
-    }
-
-    suspend fun scan(): List<MarketSignal> = withContext(Dispatchers.IO) {
-        val tickers = array(JSONObject(get("/future/market/v1/public/q/agg-tickers")))
-        val ranked = (0 until tickers.length()).mapNotNull { i ->
-            val t = tickers.optJSONObject(i) ?: return@mapNotNull null
-            val symbol = t.optString("s")
-            if (!symbol.lowercase(Locale.US).endsWith("_usdt")) return@mapNotNull null
-            val price = t.optString("c").toDoubleOrNull() ?: t.optDouble("c")
-            val open = t.optString("o").toDoubleOrNull() ?: t.optDouble("o")
-            val turnover = t.optString("v").toDoubleOrNull() ?: t.optDouble("v")
-            if (price <= 0.0 || open <= 0.0 || turnover <= 0.0) return@mapNotNull null
-            Triple(t, price, turnover)
-        }.sortedByDescending { it.third }
-        if (ranked.isEmpty()) throw IllegalStateException("XT هیچ قرارداد USDT Perpetual قابل اسکن برنگرداند")
-        val semaphore = Semaphore(permits = 3)
-        coroutineScope {
-            ranked.map { item ->
-                async {
-                    semaphore.withPermit {
-                        runCatching {
-                            val t = item.first
-                            val symbol = t.optString("s")
-                            val open = t.optString("o").toDoubleOrNull() ?: t.optDouble("o")
-                            val change = (item.second / open - 1.0) * 100.0
-                            val a = candles(symbol, "15m")
-                            val b = candles(symbol, "1h")
-                            val c = candles(symbol, "4h")
-                            BinanceMonitor.analyzeWithCandles(symbol, item.second, change, item.third, a, b, c)
-                        }.getOrNull()
-                    }
-                }
-            }.awaitAll().filterNotNull().sortedByDescending { abs(it.score) }
-        }
-    }
-
-    private fun candles(symbol: String, interval: String): List<DoubleArray> {
-        val encoded = java.net.URLEncoder.encode(symbol.lowercase(Locale.US), "UTF-8")
-        val rows = array(JSONObject(get("/future/market/v1/public/q/kline?symbol=$encoded&interval=$interval&limit=250")))
-        if (rows.length() < 56) throw IllegalStateException("کندل کافی برای $symbol در $interval دریافت نشد")
-        return (0 until rows.length() - 1).mapNotNull { i ->
-            val row = rows.optJSONObject(i) ?: return@mapNotNull null
-            fun n(key: String): Double = row.optString(key).toDoubleOrNull() ?: row.optDouble(key)
-            doubleArrayOf(n("o"), n("h"), n("l"), n("c"), n("a"))
-        }.filter { it.all { value -> value.isFinite() } && it[3] > 0.0 }
-    }
-}
-
-/** Signed XT futures requests. Orders are never retried automatically. */
-
+/** Binance USDⓈ-M public futures scanner; public endpoints only. */
 
 private object BinanceMonitor {
     private const val BASE = "https://fapi.binance.com"
@@ -913,39 +848,35 @@ private object BinanceMonitor {
         }
     }
 
-    suspend fun scan(): List<MarketSignal> = withContext(Dispatchers.IO) {
+    suspend fun scan(onProgress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { _, _, _, _ -> }): List<MarketSignal> = withContext(Dispatchers.IO) {
         val exchangeInfo = JSONObject(get("/fapi/v1/exchangeInfo"))
         val allowed = mutableSetOf<String>()
         val symbols = exchangeInfo.getJSONArray("symbols")
         for (i in 0 until symbols.length()) {
             val s = symbols.getJSONObject(i)
-            if (s.optString("status") == "TRADING" &&
-                s.optString("quoteAsset") == "USDT" &&
-                s.optString("contractType") == "PERPETUAL") {
-                allowed.add(s.optString("symbol"))
-            }
+            if (s.optString("status") == "TRADING" && s.optString("quoteAsset") == "USDT" && s.optString("contractType") == "PERPETUAL") allowed.add(s.optString("symbol"))
         }
         val tickers = JSONArray(get("/fapi/v1/ticker/24hr"))
         val ranked = (0 until tickers.length()).map { tickers.getJSONObject(it) }
-            .filter { allowed.contains(it.optString("symbol")) }
+            .filter { allowed.contains(it.optString("symbol")) && it.optDouble("quoteVolume", 0.0) > 0.0 }
             .sortedByDescending { it.optDouble("quoteVolume", 0.0) }
-        val semaphore = Semaphore(permits = 4)
-        coroutineScope {
-            ranked.map { ticker ->
-                async {
-                    semaphore.withPermit {
-                        runCatching {
-                            analyze(
-                                ticker.optString("symbol"),
-                                ticker.optDouble("lastPrice"),
-                                ticker.optDouble("priceChangePercent"),
-                                ticker.optDouble("quoteVolume")
-                            )
-                        }.getOrNull()
-                    }
-                }
-            }.awaitAll().filterNotNull().sortedByDescending { abs(it.score) }
+        if (ranked.isEmpty()) throw IllegalStateException("Binance هیچ قرارداد دائمی USDT قابل اسکن برنگرداند")
+        val semaphore = Semaphore(permits = 8)
+        val results = mutableListOf<MarketSignal>()
+        var completed = 0
+        var failed = 0
+        for (batch in ranked.chunked(12)) {
+            val batchResults = coroutineScope {
+                batch.map { ticker -> async {
+                    semaphore.withPermit { runCatching { analyze(ticker.optString("symbol"), ticker.optDouble("lastPrice"), ticker.optDouble("priceChangePercent"), ticker.optDouble("quoteVolume")) } }
+                } }.awaitAll()
+            }
+            batchResults.forEach { result -> result.onSuccess { results.add(it) }.onFailure { failed++ } }
+            completed += batch.size
+            onProgress(results.sortedByDescending { abs(it.score) }, completed, ranked.size, failed)
         }
+        if (results.isEmpty()) throw IllegalStateException("هیچ کندلی دریافت نشد؛ خطا در " + failed + " نماد. اتصال اینترنت، محدودیت منطقه‌ای یا پاسخ Binance را بررسی کن.")
+        results.sortedByDescending { abs(it.score) }
     }
 
     private suspend fun analyze(symbol: String, price: Double, change: Double, volume: Double): MarketSignal {
@@ -1232,30 +1163,20 @@ private object BinanceMonitor {
 class MarketMonitorService : Service() {
     private var worker: kotlinx.coroutines.Job? = null
     private val serviceScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
-    private var selectedExchange: String = "XT"
     override fun onCreate() { super.onCreate(); createChannel() }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val config = getSharedPreferences("market_monitor_config", Context.MODE_PRIVATE)
-        if (intent != null) {
-            selectedExchange = intent.getStringExtra("exchange") ?: selectedExchange
-            config.edit()
-                .putString("exchange", selectedExchange)
-                .apply()
-        } else {
-            selectedExchange = config.getString("exchange", selectedExchange) ?: selectedExchange
-        }
         startForeground(NOTIFICATION_ID, buildNotification("در حال آماده‌سازی پایش بازار"))
         if (worker?.isActive != true) {
             worker = serviceScope.launch {
                 while (kotlin.coroutines.coroutineContext.isActive) {
                     val result = runCatching {
-                        val signals = if (selectedExchange == "XT") XTMonitor.scan() else BinanceMonitor.scan()
+                        val signals = BinanceMonitor.scan()
                         WolfLearningMemory.processScan(applicationContext, signals)
                         WolfSignalOutcomeJournal.processScan(applicationContext, signals)
                         WolfFlowNewsRepository.refreshForEngine(applicationContext, signals)
                         val active = signals.count { it.direction != "NEUTRAL" }
-                        "اسکن ${signals.size} قرارداد • سیگنال‌های جهت‌دار: $active • $selectedExchange • فقط تحلیل تکنیکال"
-                    }.getOrElse { "خطای اسکن $selectedExchange: ${it.message ?: "نامشخص"}" }
+                        "اسکن ${signals.size} قرارداد Binance • سیگنال‌های جهت‌دار: $active • فقط تحلیل تکنیکال"
+                    }.getOrElse { "خطای اسکن Binance: ${it.message ?: "نامشخص"}" }
                     val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     manager.notify(NOTIFICATION_ID, buildNotification(result))
                     delay(180_000L)
