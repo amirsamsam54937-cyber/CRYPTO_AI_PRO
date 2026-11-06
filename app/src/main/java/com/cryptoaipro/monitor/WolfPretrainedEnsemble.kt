@@ -47,13 +47,11 @@ internal object WolfPretrainedEnsemble {
         val rsi=((signal.rsi-50.0)/50.0).coerceIn(-1.0,1.0)
         val adx=(t.adx/50.0).coerceIn(0.0,1.0)
         val volume=((t.relativeVolume-1.0)/2.0).coerceIn(-1.0,1.0)
-        val pattern=when {
-            t.candlePattern.contains("صعودی")||t.candlePattern.contains("چکش")->1.0
-            t.candlePattern.contains("نزولی")||t.candlePattern.contains("ثاقب")->-1.0
-            else->0.0
-        }
+        val candle=signal.candles.lastOrNull()
+        val body=if(candle!=null && candle.size>=4) (candle[3]-candle[0])/((candle[1]-candle[2]).coerceAtLeast(1e-9)) else 0.0
+        val bodyFeature=when { body>.25 -> 1.0; body<-.25 -> -1.0; else -> 0.0 }
         val volatility=((t.atrPercent-2.0)/5.0).coerceIn(-1.0,1.0)
-        val raw=doubleArrayOf(trend*direction,rsi*direction,adx,volume,pattern*direction,volatility,(signal.score/100.0).coerceIn(-1.0,1.0))
+        val raw=doubleArrayOf(trend*direction,rsi*direction,adx,volume,bodyFeature*direction,volatility,(signal.score/100.0).coerceIn(-1.0,1.0))
         val x=DoubleArray(7){i->((raw[i]-mean[i])/scale[i]).coerceIn(-8.0,8.0)}
         val outputs=members.map { m ->
             val h1=DoubleArray(m.b1.size){i->tanh(m.b1[i]+x.indices.sumOf{j->m.w1[i][j]*x[j]})}
