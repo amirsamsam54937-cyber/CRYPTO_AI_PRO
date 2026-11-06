@@ -83,7 +83,8 @@ internal object WolfFlowNewsRepository {
             val flow = (0 until flows.length()).mapNotNull { flows.optJSONObject(it) }.firstOrNull { it.optString("symbol") == signal.symbol.replace("/", "").replace(":USDT", "") }
             val flowNote = flow?.let { "جریان معاملات درشت: " + it.optString("summary") + "؛ عدم‌تعادل " + String.format(Locale.US, "%.1f%%", it.optDouble("imbalance") * 100) } ?: "جریان نهنگ هنوز داده تأییدشده‌ای برای این نماد ندارد"
             val newsNote = if (newsContext.isBlank()) "اخبار بازار هنوز دریافت نشده" else "زمینه خبری عمومی: " + newsContext
-            signal.copy(reason = signal.reason + " | " + flowNote + " | " + newsNote)
+            val researchNote = prefs.getString("auto_research", "").orEmpty().take(900)
+            signal.copy(reason = signal.reason + " | " + flowNote + " | " + newsNote + if (researchNote.isBlank()) "" else " | یادداشت پژوهش خودکار: " + researchNote)
         }
     }
 
