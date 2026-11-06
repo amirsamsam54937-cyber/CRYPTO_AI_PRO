@@ -23,7 +23,8 @@ def get_json(path):
 
 def get_history(symbol):
     rows=[]
-    start=None
+    # Start far enough back to cover the requested history; Binance otherwise returns only the latest page.
+    start=int(time.time()*1000)-HISTORY_BARS*60*60*1000
     while len(rows)<HISTORY_BARS:
         query=f"/fapi/v1/klines?symbol={symbol}&interval={INTERVAL}&limit={PAGE_LIMIT}"
         if start is not None:
@@ -105,9 +106,12 @@ def main():
     X,y=X[order],y[order]
     if len(X)<500 or len(np.unique(y))<2:
         raise SystemExit("Insufficient labeled history or only one class; no model exported.")
-    split=int(len(X)*.8)
-    X_train,X_test=X[:split],X[split:]
-    y_train,y_test=y[:split],y[split:]
+    unique_times=np.unique(timestamps)
+    cutoff=unique_times[min(len(unique_times)-1,int(len(unique_times)*.8))]
+    train_mask=timestamps<cutoff
+    test_mask=timestamps>=cutoff
+    X_train,X_test=X[train_mask],X[test_mask]
+    y_train,y_test=y[train_mask],y[test_mask]
     scaler=StandardScaler().fit(X_train)
     A,B=scaler.transform(X_train),scaler.transform(X_test)
     members,metrics=[],[]
