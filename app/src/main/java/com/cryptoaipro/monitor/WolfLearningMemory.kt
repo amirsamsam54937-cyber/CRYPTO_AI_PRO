@@ -9,7 +9,7 @@ import kotlin.math.abs
 
 /**
  * Durable, outcome-based learning journal. It stores signal snapshots locally and
- * only trains after a four-hour market outcome can be measured from later public prices.
+ * trains from closed journal outcomes (TP/SL/expiry) and retains a four-hour fallback horizon.
  * This is online fine-tuning of the app's small DNN, not a pretrained foundation model.
  */
 internal object WolfLearningMemory {
@@ -26,7 +26,7 @@ internal object WolfLearningMemory {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     @Synchronized
-    fun processScan(context: Context, signals: List<MarketSignal>, now: Long = System.currentTimeMillis()): Stats {
+    fun processScan(context: Context, signals: List<MarketSignal>, outcomes: List<WolfSignalOutcomeJournal.Record> = emptyList(), now: Long = System.currentTimeMillis()): Stats {
         val p = prefs(context)
         val queue = runCatching { p.getString(PENDING, "[]")?.let(::JSONArray) ?: JSONArray() }.getOrElse { JSONArray() }
         val retained = JSONArray()
@@ -40,6 +40,21 @@ internal object WolfLearningMemory {
             val symbol = item.optString("symbol")
             val age = now - item.optLong("time")
             val current = bySymbol[symbol]
+            val createdAt = item.optLong("time")
+            val closedOutcome = outcomes.firstOrNull {
+                it.symbol == symbol && it.closed && abs(it.created - createdAt) <= 10_000L
+            }
+            if (closedOutcome != null) {
+                val savedSignal = decodeSignal(item)
+                if (savedSignal != null && abs(closedOutcome.pnlPct) >= 0.05) {
+                    val outcome = if (closedOutcome.pnlPct > 0.0) 1.0 else 0.0
+                    WolfDeepNeuralNetwork.learn(p, savedSignal, outcome)
+                    samples++
+                    if (outcome > 0.5) wins++ else losses++
+                    learned++
+                }
+                continue
+            }
             if (age >= HORIZON_MS && current != null && current.price > 0.0) {
                 val entry = item.optDouble("entry", 0.0)
                 val side = item.optString("side")
