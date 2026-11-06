@@ -7,6 +7,9 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Build
 import android.os.IBinder
 import androidx.activity.ComponentActivity
@@ -103,6 +106,12 @@ fun CryptoMonitorScreen() {
     var selectedTab by remember { mutableStateOf("خانه") }
     var selectedSymbol by remember { mutableStateOf("") }
     var marketChart by remember { mutableStateOf("PAIR") }
+    var voiceTranscript by remember { mutableStateOf("") }
+    var voiceReply by remember { mutableStateOf("") }
+    val learningPrefs = remember(context) { context.getSharedPreferences("wolf_learning_memory", Context.MODE_PRIVATE) }
+    var learningSamples by remember { mutableIntStateOf(learningPrefs.getInt("samples", 0)) }
+    var learningWins by remember { mutableIntStateOf(learningPrefs.getInt("wins", 0)) }
+    var learningLosses by remember { mutableIntStateOf(learningPrefs.getInt("losses", 0)) }
     var orderContracts by remember { mutableStateOf("1") }
     var orderLeverage by remember { mutableStateOf("2") }
     var liveTradingArmed by remember { mutableStateOf(false) }
@@ -117,6 +126,30 @@ fun CryptoMonitorScreen() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val credentialVault = remember(context) { ExchangeCredentialVault(context) }
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
+        if (spoken.isNotBlank()) {
+            voiceTranscript = spoken
+            val current = rows.firstOrNull { it.symbol == selectedSymbol } ?: rows.firstOrNull()
+            voiceReply = if (current == null) "هنوز داده زنده‌ای برای تحلیل ندارم؛ ابتدا اسکن بازار را اجرا کن."
+            else if (spoken.contains("استاپ") || spoken.contains("حد ضرر")) "حد ضرر مرجع " + formatPrice(current.stop) + " و ورود مرجع " + formatPrice(current.entry) + " است."
+            else if (spoken.contains("الگو") || spoken.contains("کندل") || spoken.contains("چارت")) "الگوی کندلی: " + current.technical.candlePattern + "؛ ساختار: " + current.technical.marketStructure
+            else if (spoken.contains("لانگ") || spoken.contains("خرید")) "وضعیت خرید: " + if (current.direction == "LONG_BIAS") "تمایل صعودی با اطمینان " + current.confidence + " درصد" else "سیگنال خرید تأیید نشده است"
+            else if (spoken.contains("شورت") || spoken.contains("فروش")) "وضعیت فروش: " + if (current.direction == "SHORT_BIAS") "تمایل نزولی با اطمینان " + current.confidence + " درصد" else "سیگنال فروش تأیید نشده است"
+            else "قیمت " + formatPrice(current.price) + "، RSI " + String.format(Locale.US, "%.1f", current.rsi) + "، ADX " + String.format(Locale.US, "%.1f", current.technical.adx) + ". " + current.reason
+        }
+    }
+    val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            val speechIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fa-IR")
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "سوالت را درباره بازار بپرس")
+            }
+            speechLauncher.launch(speechIntent)
+        } else voiceReply = "برای گفت‌وگوی صوتی، اجازه میکروفون را فعال کن."
+    }
+
     var apiKeyInput by remember { mutableStateOf("") }
     var secretKeyInput by remember { mutableStateOf("") }
     var credentialsSaved by remember { mutableStateOf(credentialVault.hasCredentials()) }
@@ -294,10 +327,26 @@ fun CryptoMonitorScreen() {
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             item {
-                                Text("موتور تحلیل چندعاملی", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                Text("انتخاب برترین سیگنال فعلی؛ مقادیر بر پایه کندل‌های بسته‌شده محاسبه می‌شوند.", color = Muted, fontSize = 10.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("مغز تکنیکال گرگ", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                        Text("تحلیل کندل، ساختار، چندتایم‌فریم و حافظه یادگیری محلی", color = Muted, fontSize = 10.sp)
+                                    }
+                                    Button(onClick = { microphonePermission.launch(android.Manifest.permission.RECORD_AUDIO) }) { Text("🎙 صحبت") }
+                                }
                             }
-                            item { TradingViewMarketPanel(selectedSymbol = selectedSignal?.symbol ?: "BTCUSDT", selectedExchange = exchange, chartSelection = marketChart, onSelection = { marketChart = it }) }
+                            item { TradingViewPairChart(selectedSymbol = selectedSignal?.symbol ?: "BTCUSDT") }
+                            if (voiceTranscript.isNotBlank() || voiceReply.isNotBlank()) {
+                                item {
+                                    Surface(color = Color(0xFF132640), shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text("گفت‌وگوی صوتی", color = Blue, fontWeight = FontWeight.Bold)
+                                            if (voiceTranscript.isNotBlank()) Text("تو: " + voiceTranscript, color = Color.White, fontSize = 12.sp)
+                                            if (voiceReply.isNotBlank()) Text("گرگ: " + voiceReply, color = Muted, fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
                             if (selectedSignal == null) {
                                 item { Text(if (loading) "در حال دریافت داده بازار..." else "هنوز داده‌ای برای تحلیل وجود ندارد. ابتدا اسکن بازار را اجرا کن.", color = Muted) }
                             } else {
@@ -334,7 +383,24 @@ fun CryptoMonitorScreen() {
                                                 SmallStat("مقاومت", formatPrice(selectedSignal.technical.resistance), Red)
                                             }
                                             Text("الگوی کندلی: " + selectedSignal.technical.candlePattern, color = Blue, fontSize = 11.sp)
+                                            Text("الگوی هارمونیک: " + detectHarmonicPattern(selectedSignal.candles), color = Purple, fontSize = 11.sp)
                                             Text("ساختار: " + selectedSignal.technical.marketStructure + " • رژیم: " + selectedSignal.technical.regime, color = Muted, fontSize = 10.sp)
+                                            Divider(color = Color(0xFF30415C))
+                                            Text("حافظه یادگیری تطبیقی روی دستگاه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("بازخورد ذخیره‌شده: " + learningSamples + " • درست: " + learningWins + " • نادرست: " + learningLosses, color = Muted, fontSize = 10.sp)
+                                            Text("بعد از مشخص‌شدن نتیجه حرکت قیمت، بازخورد را ثبت کن؛ داده‌ها پس از بستن برنامه باقی می‌مانند.", color = Muted, fontSize = 9.sp)
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                OutlinedButton(onClick = {
+                                                    learningSamples += 1
+                                                    learningWins += 1
+                                                    learningPrefs.edit().putInt("samples", learningSamples).putInt("wins", learningWins).putInt("losses", learningLosses).putString("last_symbol", selectedSignal.symbol).putString("last_feedback", "correct").apply()
+                                                }, modifier = Modifier.weight(1f)) { Text("✓ تحلیل درست بود", fontSize = 10.sp) }
+                                                OutlinedButton(onClick = {
+                                                    learningSamples += 1
+                                                    learningLosses += 1
+                                                    learningPrefs.edit().putInt("samples", learningSamples).putInt("wins", learningWins).putInt("losses", learningLosses).putString("last_symbol", selectedSignal.symbol).putString("last_feedback", "wrong").apply()
+                                                }, modifier = Modifier.weight(1f)) { Text("✕ تحلیل نادرست بود", fontSize = 10.sp) }
+                                            }
                                             if (selectedSignal.candles.isNotEmpty()) {
                                                 Text("نمودار کندل ژاپنی • ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                                 CandleChart(selectedSignal.candles)
@@ -822,28 +888,60 @@ private fun CandleChart(candles: List<DoubleArray>) {
 }
 
 @Composable
-private fun TradingViewMarketPanel(selectedSymbol: String, selectedExchange: String, chartSelection: String, onSelection: (String) -> Unit) {
-    val symbol = when (chartSelection) {
-        "TOTAL" -> "CRYPTOCAP:TOTAL"
-        "TOTAL2" -> "CRYPTOCAP:TOTAL2"
-        "TOTAL3" -> "CRYPTOCAP:TOTAL3"
-        else -> "BINANCE:" + selectedSymbol.replace("/", "").replace(":USDT", "").replace("_", "") + ".P"
-    }
+
+@Composable
+private fun TradingViewPairChart(selectedSymbol: String) {
+    val symbol = "BINANCE:" + selectedSymbol.replace("/", "").replace(":USDT", "").replace("_", "") + ".P"
     Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text("نمودار TradingView • قرارداد مرجع Binance Perpetual", color = Color.White, fontWeight = FontWeight.Bold)
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf("PAIR" to "ارز انتخابی", "TOTAL" to "TOTAL 1", "TOTAL2" to "TOTAL 2", "TOTAL3" to "TOTAL 3").forEach { (key, label) ->
-                    FilterChip(selected = chartSelection == key, onClick = { onSelection(key) }, label = { Text(label, fontSize = 9.sp) })
-                }
-            }
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("چارت آنلاین " + selectedSymbol + " • TradingView", color = Color.White, fontWeight = FontWeight.Bold)
+            Text("فقط نمودار همان ارزی که سیگنال آن انتخاب شده نمایش داده می‌شود.", color = Muted, fontSize = 9.sp)
             AndroidView(modifier = Modifier.fillMaxWidth().height(320.dp),
                 factory = { context -> WebView(context).apply { settings.javaScriptEnabled = true; settings.domStorageEnabled = true; webViewClient = WebViewClient() } },
                 update = { it.loadUrl("https://www.tradingview.com/chart/?symbol=" + java.net.URLEncoder.encode(symbol, "UTF-8")) })
-            Text(when (chartSelection) { "TOTAL" -> "TOTAL 1 • ارزش کل بازار"; "TOTAL2" -> "TOTAL 2 • ارزش بازار بدون بیت‌کوین"; "TOTAL3" -> "TOTAL 3 • ارزش بازار بدون بیت‌کوین و اتریوم"; else -> "نمودار قرارداد انتخاب‌شده" }, color = Muted, fontSize = 10.sp)
+            Text("نمودار مرجع TradingView است؛ محاسبات سیگنال از کندل‌های صرافی انجام می‌شود.", color = Muted, fontSize = 9.sp)
         }
     }
 }
+
+private fun detectHarmonicPattern(candles: List<DoubleArray>): String {
+    if (candles.size < 35) return "داده کافی برای تشخیص هارمونیک نیست"
+    val pivots = mutableListOf<Pair<Int, Double>>()
+    val start = maxOf(2, candles.size - 100)
+    for (i in start until candles.size - 2) {
+        val high = candles[i][1]
+        val low = candles[i][2]
+        val isHigh = (i - 2..i + 2).all { candles[it][1] <= high }
+        val isLow = (i - 2..i + 2).all { candles[it][2] >= low }
+        if (isHigh) pivots.add(i to high) else if (isLow) pivots.add(i to low)
+    }
+    val clean = pivots.fold(mutableListOf<Pair<Int, Double>>()) { acc, p ->
+        if (acc.isEmpty() || kotlin.math.abs(acc.last().second - p.second) / p.second.coerceAtLeast(1e-12) > 0.002) acc.add(p)
+        else if (p.second > acc.last().second || p.second < acc.last().second) acc[acc.lastIndex] = p
+        acc
+    }
+    if (clean.size < 5) return "الگوی هارمونیک تأیید نشد"
+    val p = clean.takeLast(5).map { it.second }
+    val xa = kotlin.math.abs(p[1] - p[0])
+    val ab = kotlin.math.abs(p[2] - p[1])
+    val bc = kotlin.math.abs(p[3] - p[2])
+    val cd = kotlin.math.abs(p[4] - p[3])
+    if (xa <= 0.0 || ab <= 0.0 || bc <= 0.0) return "الگوی هارمونیک تأیید نشد"
+    val rAB = ab / xa
+    val rBC = bc / ab
+    val rCD = cd / bc
+    val rAD = kotlin.math.abs(p[4] - p[1]) / xa
+    fun near(v: Double, target: Double, tolerance: Double = 0.12) = kotlin.math.abs(v - target) <= tolerance
+    val side = if (p[4] < p[3]) "صعودی" else "نزولی"
+    return when {
+        near(rAB, 0.618, 0.10) && rBC in 0.382..0.886 && near(rCD, 1.272, 0.22) && near(rAD, 0.786, 0.10) -> "گارتلی " + side + " • ناحیه احتمالی تکمیل"
+        rAB in 0.382..0.50 && rBC in 0.382..0.886 && near(rCD, 1.618, 0.28) && near(rAD, 0.886, 0.12) -> "خرچنگ " + side + " • ناحیه احتمالی تکمیل"
+        near(rAB, 0.786, 0.10) && rBC in 0.382..0.886 && rCD in 1.50..2.20 && near(rAD, 1.27, 0.16) -> "باترفلای " + side + " • ناحیه احتمالی تکمیل"
+        rAB in 0.382..0.618 && rBC in 0.382..0.886 && rCD in 2.0..3.0 -> "احتمال خفاش/خرچنگ " + side + " • نیازمند تأیید بیشتر"
+        else -> "الگوی هارمونیک تأیید نشد"
+    }
+}
+
 @Composable
 private fun MarketSessionsPanel() {
     val utc = ZonedDateTime.now(ZoneId.of("UTC"))
