@@ -151,12 +151,7 @@ internal fun WolfFlowNewsScreen(symbol: String) {
                 Text("منابع عمومی CoinDesk و Cointelegraph • آخرین دریافت: $refreshed", color = Color(0xFF9AAAC2), fontSize = 9.sp)
             }
             items(news) { n ->
-                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF151F33)), onClick = {
-                    if (n.link.startsWith("https://")) {
-                        // Open article in the system browser.
-                        val context = androidx.compose.ui.platform.LocalContext.current
-                    }
-                }) {
+                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF151F33))) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(n.title, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 12.sp)
                         Text(n.source + " • " + n.date, color = Color(0xFF9AAAC2), fontSize = 9.sp)
