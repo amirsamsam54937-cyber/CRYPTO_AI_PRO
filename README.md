@@ -143,3 +143,9 @@ public-data-only; the paper broker is simulation-only. This prevents an
 unattended process from opening positions before contract sizing, order
 precision, attached protective-order behavior, restart recovery, and
 exchange-side position reconciliation have been validated end-to-end.
+
+## Advanced explainable analysis
+
+The research API now includes `GET /api/analysis/advanced/{symbol}?timeframe=1h`. It reports a multi-factor view built from completed OHLCV candles: EMA trend structure, RSI, MACD histogram, ATR and ATR%, ADX trend strength/regime, Bollinger width/position, rolling VWAP, relative volume, confidence and human-readable reasons. The XT universe scanner also attaches these diagnostics for 15m/1h/4h. These are deterministic technical features, not ten independent AI models and not a profitability guarantee.
+
+Before relying on any strategy, run the test suite and a realistic walk-forward backtest with fees, slippage, funding, contract multipliers, and delisted symbols. The live execution gate in `docs/LIVE_TRADING_READINESS.md` remains mandatory; live orders are not enabled.
