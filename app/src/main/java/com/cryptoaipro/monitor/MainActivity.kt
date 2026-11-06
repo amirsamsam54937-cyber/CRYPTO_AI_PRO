@@ -161,7 +161,7 @@ fun CryptoMonitorScreen() {
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
-            val memoryStats = WolfLearningMemory.processScan(context, rows)
+            val memoryStats = WolfLearningMemory.processScan(context, rows, outcomeSnapshot.records)
             learningSamples = memoryStats.samples
             learningWins = memoryStats.wins
             learningLosses = memoryStats.losses
@@ -299,7 +299,7 @@ fun CryptoMonitorScreen() {
                             }
                             item {
                                 ActiveCommandSignals(
-                                    records = outcomeSnapshot.records.filter { it.expiresAt > System.currentTimeMillis() },
+                                    records = outcomeSnapshot.records.filter { !it.closed },
                                     onOpenJournal = { selectedTab = "دفترچه" }
                                 )
                             }
@@ -585,6 +585,18 @@ private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
                         SmallStat("TP3", snapshot.tp3.toString(), Green)
                         SmallStat("SL", snapshot.stopped.toString(), Red)
                     }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        SmallStat("نرخ برد", String.format(Locale.US, "%.1f%%", snapshot.winRate), Green)
+                        SmallStat("بازده تخمینی کل", String.format(Locale.US, "%+.2f%%", snapshot.totalPnlPct), if (snapshot.totalPnlPct >= 0) Green else Red)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        SmallStat("میانگین برد", String.format(Locale.US, "%+.2f%%", snapshot.averageWinPct), Green)
+                        SmallStat("میانگین باخت", String.format(Locale.US, "%+.2f%%", snapshot.averageLossPct), Red)
+                    }
+                    snapshot.bestRecord?.let { best ->
+                        Text("بیشترین بازده: " + best.symbol + " • " + (if (best.side == "LONG_BIAS") "LONG" else "SHORT") +
+                            " • " + String.format(Locale.US, "%+.2f%%", best.pnlPct), color = Green, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         listOf("همه", "باز", "بسته").forEach { option ->
                             FilterChip(selected = filter == option, onClick = { filter = option }, label = { Text(option) })
@@ -626,12 +638,18 @@ private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
                             SmallStat("قدرت سیگنال", record.confidence.toString() + "%", tint)
                         }
                         Text("امتیاز: " + record.score + " • اهرم پیشنهادی تحلیلی: " + record.leverage + "x • تغییر ۲۴ساعت: " + String.format(Locale.US, "%.2f%%", record.change), color = Muted, fontSize = 9.sp)
+                        if (record.closed) {
+                            Text("قیمت خروج: " + formatPrice(record.exitPrice) + " • بازده تخمینی با اهرم: " +
+                                String.format(Locale.US, "%+.2f%%", record.pnlPct), color = if (record.pnlPct >= 0) Green else Red,
+                                fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                            Text("زمان بسته‌شدن: " + iranDateTime(record.closedAt), color = Muted, fontSize = 9.sp)
+                        }
                         if (record.reason.isNotBlank()) Text(record.reason, color = Muted, fontSize = 9.sp, maxLines = 3)
                     }
                 }
             }
         }
-        item { Text("نتایج دفترچه از کندل‌های عمومی بعدی برآورد می‌شوند؛ قیمت ورود و خروج واقعی یا سفارش صرافی نیستند.", color = Muted, fontSize = 9.sp) }
+        item { Text("سود/ضرر بر اساس قیمت عمومی و اهرم پیشنهادی به‌صورت تخمینی محاسبه می‌شود؛ کارمزد، فاندینگ، لغزش قیمت و اجرای سفارش واقعی لحاظ نشده‌اند. مدل کوچک داخلی پس از بسته‌شدن سیگنال‌ها به‌طور خودکار از نتایج برچسب‌دار یاد می‌گیرد.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp) }
     }
 }
 
@@ -790,7 +808,7 @@ private fun SignalOutcomePanel(snapshot: WolfSignalOutcomeJournal.Snapshot) {
             Text("آخرین نتایج", color = Muted, fontSize = 10.sp)
             if (snapshot.recent.isEmpty()) Text("هنوز نتیجه‌ای ثبت نشده؛ پس از سیگنال و دریافت کندل‌های بعدی، وضعیت به‌روزرسانی می‌شود.", color = Muted, fontSize = 10.sp)
             snapshot.recent.forEach { line -> Text(line, color = Color.White, fontSize = 10.sp) }
-            Text("اگر حد سود و حد ضرر در یک کندل لمس شوند، برای جلوگیری از خوش‌بینی کاذب، حد ضرر زودتر فرض می‌شود.", color = Muted, fontSize = 9.sp)
+            Text("سیگنال با اولین برخورد قیمت به TP یا SL فوراً از مرکز فرماندهی به دفترچه منتقل می‌شود؛ در غیر این صورت تا پایان ۱۵ دقیقه فعال می‌ماند. خروجی‌ها بر اساس قیمت عمومی و اسکن دوره‌ای تخمین زده می‌شوند.", color = Muted, fontSize = 9.sp)
         }
     }
 }
@@ -1324,8 +1342,8 @@ class MarketMonitorService : Service() {
                 while (kotlin.coroutines.coroutineContext.isActive) {
                     val result = runCatching {
                         val signals = BinanceMonitor.scan()
-                        WolfLearningMemory.processScan(applicationContext, signals)
-                        WolfSignalOutcomeJournal.processScan(applicationContext, signals)
+                        val journalSnapshot = WolfSignalOutcomeJournal.processScan(applicationContext, signals)
+                        WolfLearningMemory.processScan(applicationContext, signals, journalSnapshot.records)
                         WolfFlowNewsRepository.refreshForEngine(applicationContext, signals)
                         val active = signals.count { it.direction != "NEUTRAL" }
                         "اسکن ${signals.size} قرارداد Binance • سیگنال‌های جهت‌دار: $active • فقط تحلیل تکنیکال"
