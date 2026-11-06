@@ -528,7 +528,7 @@ fun CryptoMonitorScreen() {
                                     Text("تایم‌فریم اصلی: ۱۵ دقیقه • تأیید: ۱ ساعت و ۴ ساعت", color = Muted, fontSize = 11.sp)
                                     Text("دامنه اسکن: تمام قراردادهای دائمی USDT فعال؛ مرتب‌شده بر اساس حجم معاملات", color = Muted, fontSize = 11.sp)
                                     Text("چرخه اسکن پیوسته: پس از پایان هر دور، ۳ دقیقه مکث و دور بعدی خودکار آغاز می‌شود؛ محدودیت API یا اینترنت می‌تواند وقفه ایجاد کند.", color = Muted, fontSize = 11.sp)
-                                    Text("نسخه: 2.10.0 • Binance USDⓈ-M • تحلیل فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.11.0 • Binance USDⓈ-M • تحلیل فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                             Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← CRYPTO AI PRO ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
