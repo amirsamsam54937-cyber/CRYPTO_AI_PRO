@@ -448,15 +448,18 @@ fun CryptoMonitorScreen() {
                                                 }
                                             }
                                             Divider(color = Color(0xFF30415C))
-                                            Text("شبکه عصبی عمیق گرگ • ۷ ورودی، ۲ لایه پنهان، ۲۴ نورون", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                            Text("حافظه یادگیری پایدار روی گوشی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("مغز عصبی AMIR WOLF • گروه ۱۰ شبکه پیش‌آموزش‌دیده", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
+                                            Text(if (pretrainedStatus.loaded) "مدل تاریخی فعال • ۱۰ از ۱۰ شبکه • نمونه آموزش: " + pretrainedStatus.samples + " • دقت آزمون تاریخی: " + String.format(Locale.US, "%.1f%%", pretrainedStatus.testAccuracy * 100.0) else "مدل پیش‌آموزش‌دیده هنوز در این بسته بارگذاری نشده؛ امتیاز شبکه محلی در حالت پشتیبان است.", color = if (pretrainedStatus.loaded) Green else Gold, fontSize = 10.sp)
+                                            Text("تاریخ آموزش UTC: " + if (pretrainedStatus.trainedAt.isBlank()) "نامشخص" else pretrainedStatus.trainedAt, color = Muted, fontSize = 9.sp)
+                                            Text("حافظه یادگیری تطبیقی و پایدار روی گوشی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                             val memoryStats = WolfLearningMemory.stats(context)
                                             Text("نمونه‌های ارزیابی‌شده: " + memoryStats.samples + " • موفق: " + memoryStats.wins + " • ناموفق: " + memoryStats.losses, color = Muted, fontSize = 10.sp)
                                             Text("در انتظار ارزیابی ۴ ساعته: " + memoryStats.pending + " • آموزش خودکار امروز: " + memoryStats.learnedToday, color = Blue, fontSize = 10.sp)
                                             Text("شبکه عصبی از نتایج واقعیِ قابل‌مشاهده سیگنال‌های ثبت‌شده (TP، SL یا انقضای ۱۵ دقیقه‌ای) به‌طور خودکار آموزش می‌بیند؛ افق ارزیابی ۴ ساعته نیز برای نمونه‌های بدون نتیجه بسته‌شده باقی است. وزن‌ها روی گوشی ذخیره می‌شوند.", color = Muted, fontSize = 9.sp)
                                             Text("بازخورد ذخیره‌شده: " + learningSamples + " • درست: " + learningWins + " • نادرست: " + learningLosses, color = Muted, fontSize = 10.sp)
-                                            Text("خروجی شبکه عصبی (امتیاز آزمایشی): " + String.format(Locale.US, "%.1f%%", WolfDeepNeuralNetwork.predict(learningPrefs, selectedSignal) * 100.0), color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                            Text("آموزش خودکار با نتیجه سیگنال‌های بسته‌شده انجام می‌شود؛ مدل کوچک داخلی از پیش‌آموزش‌دیده نیست و تضمین‌کننده سود یا پیش‌بینی قطعی نیست. بازخورد دستی نیز اختیاری است.", color = Muted, fontSize = 9.sp)
+                                            Text("امتیاز اجماع عصبی ۱۰مدلی: " + selectedSignal.neuralScore + " از ۱۰۰", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            Text("ده شبکه با داده‌های تاریخی فیوچرز آموزش می‌بینند؛ حافظه آنلاین نیز از نتیجه سیگنال‌های بسته‌شده یاد می‌گیرد. معیار آزمون گذشته‌نگر، تضمین سود یا پیش‌بینی قطعی آینده نیست.", color = Muted, fontSize = 9.sp)
                                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                 OutlinedButton(onClick = {
                                                     learningSamples += 1
