@@ -655,8 +655,11 @@ private fun SignalOutcomePanel(snapshot: WolfSignalOutcomeJournal.Snapshot) {
 private fun SignalLevelsChart(signal: MarketSignal) {
     val candles = signal.candles.takeLast(64)
     val allPrices = candles.flatMap { listOf(it[1], it[2]) } + listOf(signal.entry, signal.stop, signal.tp1, signal.tp2, signal.tp3)
-    val low = allPrices.filter { it > 0.0 && it.isFinite() }.minOrNull() ?: signal.price * 0.98
-    val high = allPrices.filter { it > 0.0 && it.isFinite() }.maxOrNull() ?: signal.price * 1.02
+    val rawLow = allPrices.filter { it > 0.0 && it.isFinite() }.minOrNull() ?: signal.price * 0.98
+    val rawHigh = allPrices.filter { it > 0.0 && it.isFinite() }.maxOrNull() ?: signal.price * 1.02
+    val padding = (rawHigh - rawLow).coerceAtLeast(signal.price * 0.001) * 0.06
+    val low = rawLow - padding
+    val high = rawHigh + padding
     val range = (high - low).coerceAtLeast(signal.price * 0.001)
     Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
