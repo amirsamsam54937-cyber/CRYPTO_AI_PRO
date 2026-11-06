@@ -101,19 +101,6 @@ def backtest(symbol: str, timeframe: str = Query(default="1h"),
         raise HTTPException(status_code=502, detail="Backtest data provider unavailable; retry later.")
 
 
-@app.get("/api/xt/scan")
-def xt_scan(limit: int = Query(default=20, ge=1, le=50),
-            min_quote_volume: float = Query(default=100000, gt=0)):
-    """Scan liquid XT USDT perpetuals using closed 15m/1h/4h candles."""
-    try:
-        rows = scan_xt_usdt_perpetuals(limit=limit, min_quote_volume=min_quote_volume)
-        return {"exchange": "XT", "market_type": "USDT perpetual",
-                "count": len(rows), "results": rows,
-                "mode": "public-data-research-only"}
-    except Exception:
-        raise HTTPException(status_code=502, detail="XT public market scanner unavailable; retry later.")
-
-
 @app.get("/api/consensus/{symbol:path}")
 def consensus_analysis(symbol: str,
                        timeframe: str = Query(default="1h"),
@@ -123,8 +110,8 @@ def consensus_analysis(symbol: str,
     if timeframe not in allowed:
         raise HTTPException(status_code=400, detail="Unsupported timeframe")
     selected_exchange = (exchange_id or settings.exchange_id).lower()
-    if selected_exchange not in {"binance", "xt"}:
-        raise HTTPException(status_code=400, detail="Exchange must be binance or xt")
+    if selected_exchange not in {"binanceusdm"}:
+        raise HTTPException(status_code=400, detail="Only Binance USDⓈ-M public futures data is supported")
     try:
         frame = fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=300,
                             exchange_id=selected_exchange)
