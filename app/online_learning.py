@@ -100,6 +100,7 @@ class OnlineLearner:
             raise ValueError("outcome must be 1 for win or 0 for loss")
         symbol = symbol.strip().upper()
         direction = direction.strip().upper()
+        direction = {"LONG_BIAS": "LONG", "SHORT_BIAS": "SHORT"}.get(direction, direction)
         if not symbol or direction not in ("LONG", "SHORT"):
             raise ValueError("symbol and LONG/SHORT direction are required")
         x = feature_vector(metrics)
