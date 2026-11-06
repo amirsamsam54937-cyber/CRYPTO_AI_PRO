@@ -18,7 +18,7 @@ internal object WolfSignalOutcomeJournal {
     fun processScan(context: Context, signals: List<MarketSignal>): Snapshot {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val old = runCatching { JSONArray(prefs.getString(KEY, "[]")) }.getOrDefault(JSONArray())
-        val rows = (0 until old.length()).mapNotNull { old.optJSONObject(it) }
+        val rows = (0 until old.length()).mapNotNull { old.optJSONObject(it) }.toMutableList()
         val now = System.currentTimeMillis()
         val current = signals.associateBy { it.symbol }
         rows.forEach { record ->
