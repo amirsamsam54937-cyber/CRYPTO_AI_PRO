@@ -143,7 +143,7 @@ fun CryptoMonitorScreen() {
         }
         while (true) {
             performScan()
-            delay(180_000)
+            delay(60_000)
         }
     }
 
@@ -163,7 +163,7 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Panel, contentColor = Color.White) {
-                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "معاملات" to "⇄", "حساب" to "◎", "تنظیمات" to "⚙").forEach { entry ->
+                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "سیگنال‌ها" to "◉", "تنظیمات" to "⚙").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry.first,
                             onClick = { selectedTab = entry.first },
@@ -968,9 +968,9 @@ private object XTMonitor {
             val turnover = t.optString("v").toDoubleOrNull() ?: t.optDouble("v")
             if (price <= 0.0 || open <= 0.0 || turnover <= 0.0) return@mapNotNull null
             Triple(t, price, turnover)
-        }.sortedByDescending { it.third }.take(100)
+        }.sortedByDescending { it.third }
         if (ranked.isEmpty()) throw IllegalStateException("XT هیچ قرارداد USDT Perpetual قابل اسکن برنگرداند")
-        val semaphore = Semaphore(permits = 3)
+        val semaphore = Semaphore(permits = 10)
         coroutineScope {
             ranked.map { item ->
                 async {
@@ -993,7 +993,7 @@ private object XTMonitor {
 
     private fun candles(symbol: String, interval: String): List<DoubleArray> {
         val encoded = java.net.URLEncoder.encode(symbol.lowercase(Locale.US), "UTF-8")
-        val rows = array(JSONObject(get("/future/market/v1/public/q/kline?symbol=$encoded&interval=$interval&limit=250")))
+        val rows = array(JSONObject(get("/future/market/v1/public/q/kline?symbol=$encoded&interval=$interval&limit=120")))
         if (rows.length() < 56) throw IllegalStateException("کندل کافی برای $symbol در $interval دریافت نشد")
         return (0 until rows.length() - 1).mapNotNull { i ->
             val row = rows.optJSONObject(i) ?: return@mapNotNull null
@@ -1217,8 +1217,8 @@ private object BinanceMonitor {
         val ranked = (0 until tickers.length()).map { tickers.getJSONObject(it) }
             .filter { allowed.contains(it.optString("symbol")) }
             .sortedByDescending { it.optDouble("quoteVolume", 0.0) }
-            .take(100)
-        val semaphore = Semaphore(permits = 4)
+            .take(180)
+        val semaphore = Semaphore(permits = 8)
         coroutineScope {
             ranked.map { ticker ->
                 async {
@@ -1274,7 +1274,7 @@ private object BinanceMonitor {
     }
 
     private fun candles(symbol: String, interval: String): List<DoubleArray> {
-        val raw = JSONArray(get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval + "&limit=250"))
+        val raw = JSONArray(get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval + "&limit=120"))
         return (0 until (raw.length() - 1).coerceAtLeast(0)).map { i ->
             val row = raw.getJSONArray(i)
             doubleArrayOf(row.getString(1).toDouble(), row.getString(2).toDouble(), row.getString(3).toDouble(), row.getString(4).toDouble(), row.getString(5).toDouble())
