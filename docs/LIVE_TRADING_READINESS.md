@@ -16,14 +16,14 @@ Any XT API key/secret pasted into a chat or other shared surface must be treated
 - Public XT USDT perpetual market scanner: implemented.
 - Closed-candle multi-timeframe signal evaluation: implemented.
 - XT authenticated account/balance reads: implemented.
-- Paper-trading simulator: implemented; its state is currently in-memory.
+- Android autonomous paper-trading engine: implemented with persistent positions/journal, risk-sized entries, staged exits, break-even and ATR trailing stop, estimated costs, cooldowns and circuit breakers. Paper mode never sends exchange orders.
 - XT contract metadata lookup: implemented (public read-only).
 - Protected market-order adapter: implemented behind two explicit server-side gates; not exposed as a public API route and not enabled.
-- Automated strategy-to-order orchestration, position reconciliation, durable execution journal, leverage/margin setup, and independent stop-order verification: NOT implemented.
+- Automated LIVE strategy-to-order orchestration, exchange position reconciliation, durable live-order journal, leverage/margin setup, and independent stop-order verification: NOT implemented. The Android paper journal is not a live execution journal.
 - Live order placement: disabled by default.
 - `LIVE_TRADING_ENABLED` must remain `false`.
 
-## Mandatory engineering gates before live execution
+## Paper autopilot limits in Android 2.0.0\n\nThe Android background service can automatically open and manage simulated positions only when the user explicitly enables paper mode. It uses polling snapshots, not exchange tick streams. Estimated fees and slippage are applied. Risk guardrails: 1% maximum planned equity risk per trade, 3% aggregate open risk, three concurrent paper positions, eight entries per UTC day, 60-minute per-symbol cooldown, 2% realized daily loss stop, and 8% peak-to-valley equity stop. These controls reduce simulated exposure only; they do not protect a live account. Restart persistence is local SharedPreferences and is not tamper-resistant accounting.\n\n## Mandatory engineering gates before live execution
 
 Live execution is a separate subsystem and must not be enabled merely because API credentials exist. It requires:
 
