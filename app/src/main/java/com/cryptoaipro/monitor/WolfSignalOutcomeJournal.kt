@@ -22,7 +22,7 @@ internal object WolfSignalOutcomeJournal {
         val symbol: String, val side: String, val created: Long, val expiresAt: Long,
         val timeframe: String, val entry: Double, val stop: Double,
         val tp1: Double, val tp2: Double, val tp3: Double,
-        val status: String, val closed: Boolean, val confidence: Int, val score: Int,
+        val status: String, val closed: Boolean, val confidence: Int, val neuralScore: Int, val score: Int,
         val reason: String, val leverage: Int, val change: Double,
         val exitPrice: Double, val pnlPct: Double, val closedAt: Long
     )
@@ -106,7 +106,7 @@ internal object WolfSignalOutcomeJournal {
                     put("entry", s.entry); put("stop", s.stop)
                     put("tp1", s.tp1); put("tp2", s.tp2); put("tp3", s.tp3)
                     put("status", "ACTIVE"); put("closed", false)
-                    put("confidence", s.confidence); put("score", s.score)
+                    put("confidence", s.confidence); put("neuralScore", s.neuralScore); put("score", s.score)
                     put("reason", s.reason); put("leverage", s.leverage); put("change", s.change)
                     put("lastPrice", s.price); put("lastChecked", now)
                 })
@@ -147,7 +147,7 @@ internal object WolfSignalOutcomeJournal {
                     r.optString("timeframe", SIGNAL_TIMEFRAME),
                     r.optDouble("entry"), r.optDouble("stop"), r.optDouble("tp1"),
                     r.optDouble("tp2"), r.optDouble("tp3"), r.optString("status", "ACTIVE"),
-                    r.optBoolean("closed"), r.optInt("confidence"), r.optInt("score"),
+                    r.optBoolean("closed"), r.optInt("confidence"), r.optInt("neuralScore", 50), r.optInt("score"),
                     r.optString("reason"), r.optInt("leverage", 1), r.optDouble("change"),
                     r.optDouble("exitPrice"), r.optDouble("pnlPct"), r.optLong("closedAt")
                 )
