@@ -87,12 +87,12 @@ internal object WolfMarketKnowledge {
     fun answer(question: String): Pair<String, String>? {
         val q = tokens(question)
         if (q.isEmpty()) return null
-        val ranked = notes.map { note ->
+        val ranked: List<Pair<Note, Int>> = notes.map { note: Note ->
             val titleTokens = tokens(note.title)
             val tagTokens = tokens(note.tags)
             val bodyTokens = tokens(note.body)
-            val score = q.sumOf { token ->
-                when {
+            val score = q.fold(0) { total: Int, token: String ->
+                total + when {
                     token in titleTokens -> 5
                     token in tagTokens -> 4
                     token in bodyTokens -> 1
@@ -100,7 +100,7 @@ internal object WolfMarketKnowledge {
                 }
             }
             note to score
-        }.filter { it.second >= 4 }.sortedByDescending { it.second }.take(2)
+        }.filter { pair -> pair.second >= 4 }.sortedByDescending { pair -> pair.second }.take(2)
         if (ranked.isEmpty()) return null
         val answer = ranked.joinToString("\n\n") { (note, _) ->
             "【${note.title}】\n${note.body}"
