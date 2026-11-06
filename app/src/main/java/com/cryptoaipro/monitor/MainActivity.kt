@@ -879,7 +879,6 @@ private object BinanceMonitor {
             .filter { allowed.contains(it.optString("symbol")) && it.optDouble("quoteVolume", 0.0) > 0.0 }
             .sortedByDescending { it.optDouble("quoteVolume", 0.0) }
         if (ranked.isEmpty()) throw IllegalStateException("Binance هیچ قرارداد دائمی USDT قابل اسکن برنگرداند")
-        val semaphore = Semaphore(permits = 8)
         val results = mutableListOf<MarketSignal>()
         var completed = 0
         var failed = 0
