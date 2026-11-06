@@ -1,6 +1,6 @@
 # CRYPTO AI PRO ULTIMATE
 
-**Android app version: 2.0.0**  
+**Android app version: 2.1.0 (development)**  
 A Persian-first, modular crypto-futures market intelligence and paper-trading application. The Android client is built with Kotlin and Jetpack Compose; the Python package provides research, risk, and backtesting utilities.
 
 > This is experimental trading software. Market signals are not investment advice and do not guarantee outcomes. Real-money order execution is not production-certified. Keep live trading disabled until the readiness gates in `docs/LIVE_TRADING_READINESS.md` are independently completed.
@@ -24,8 +24,13 @@ The visual system uses a dark navy base with blue and violet accents. The launch
 - Binance USDⓈ-M public market scanner.
 - EMA 9/20/50/100/200, RSI, MACD, ATR, ADX, Bollinger context, VWAP, relative volume, stochastic RSI, market regime, candle pattern, and market-structure diagnostics.
 - Reference entry, ATR-based stop, and three reference targets.
+- TradingView chart panel in the analysis screen with the selected futures pair and CRYPTOCAP:TOTAL, TOTAL2, and TOTAL3 chart presets.
 - A ten-voter **technical ensemble**. These are deterministic technical voting modules, not ten independent generative AI systems.
 - Automatic refresh while the screen is open; user-started Android foreground monitoring can continue with a persistent notification. Android battery policies, force-stop, network loss, and OS restrictions can still interrupt it.
+
+### TradingView and total-market context
+
+The analysis screen embeds TradingView charts for the selected pair and the three total-market benchmarks: TOTAL (entire crypto market), TOTAL2 (excluding BTC), and TOTAL3 (excluding BTC and ETH). These charts provide visual macro context alongside the app's locally calculated multi-timeframe indicators. The current release does **not** ingest TradingView indicator values into the signal score; TradingView does not expose those embedded chart values as a supported public data feed. Automated TOTAL/TOTAL2/TOTAL3 scoring requires a separately sourced and validated OHLC/global-market data feed before it can safely affect LONG/SHORT decisions.
 
 ### Exchange connectivity and execution boundaries
 
