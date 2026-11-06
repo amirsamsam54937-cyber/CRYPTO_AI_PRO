@@ -470,7 +470,6 @@ fun CryptoMonitorScreen() {
                                     Button(
                                         onClick = {
                                             val intent = Intent(context, MarketMonitorService::class.java)
-                                                .putExtra("exchange", exchange)
                                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
                                             else context.startService(intent)
                                         },
@@ -485,9 +484,9 @@ fun CryptoMonitorScreen() {
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
-                                    Text("بازار: " + exchange + " Futures", color = Muted, fontSize = 11.sp)
+                                    Text("بازار: Binance USDⓈ-M Futures", color = Muted, fontSize = 11.sp)
                                     Text("تایم‌فریم اصلی: ۱۵ دقیقه • تأیید: ۱ ساعت و ۴ ساعت", color = Muted, fontSize = 11.sp)
-                                    Text("دامنه اسکن: حداکثر ۱۰۰ قرارداد پرحجم USDT", color = Muted, fontSize = 11.sp)
+                                    Text("دامنه اسکن: تمام قراردادهای دائمی USDT فعال؛ مرتب‌شده بر اساس حجم معاملات", color = Muted, fontSize = 11.sp)
                                     Text("بروزرسانی خودکار: هر ۳ دقیقه", color = Muted, fontSize = 11.sp)
                                     Text("نسخه: 1.6.0 • رابط ماژولار", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
