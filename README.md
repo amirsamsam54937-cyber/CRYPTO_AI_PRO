@@ -32,6 +32,8 @@ The visual system uses a dark navy base with electric blue and violet accents. V
 - Public market scanning does not require API keys.
 - XT credentials entered in the Android app are stored using Android Keystore-backed encryption.
 - XT authenticated connection verification is implemented.
+- A new CCXT-based read-only XT account dashboard loads markets, USDT futures balance, non-zero positions, and open orders; an empty wallet is reported as zero balance rather than a connection failure.
+- The new API route is `GET /api/xt/ccxt/dashboard`; configure `XT_API_KEY` and `XT_API_SECRET` only as server environment secrets. The provided code snippet contains variable placeholders, not actual credentials.
 - The Android code contains a manually confirmed XT market-order path that requests leverage and attaches stop/first-target trigger fields. **This route has not been validated end-to-end against a real account and must not be considered production-safe.**
 - Live order controls are off by default and require a saved XT credential, a successful account check, an explicit arming action, and a separate per-order confirmation.
 - Automatic live trading is not enabled. The new autonomous mode is paper-only and has no code path to XT/Binance order endpoints.
