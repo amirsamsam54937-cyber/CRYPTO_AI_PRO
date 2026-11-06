@@ -428,10 +428,10 @@ fun CryptoMonitorScreen() {
                                             val memoryStats = WolfLearningMemory.stats(context)
                                             Text("نمونه‌های ارزیابی‌شده: " + memoryStats.samples + " • موفق: " + memoryStats.wins + " • ناموفق: " + memoryStats.losses, color = Muted, fontSize = 10.sp)
                                             Text("در انتظار ارزیابی ۴ ساعته: " + memoryStats.pending + " • آموزش خودکار امروز: " + memoryStats.learnedToday, color = Blue, fontSize = 10.sp)
-                                            Text("سیستم سیگنال‌های جهت‌دار را ذخیره می‌کند و پس از گذشت ۴ ساعت، نتیجه حرکت قیمت را می‌سنجد؛ وزن‌های شبکه عصبی در حافظه داخلی برنامه نگهداری می‌شوند.", color = Muted, fontSize = 9.sp)
+                                            Text("شبکه عصبی از نتایج واقعیِ قابل‌مشاهده سیگنال‌های ثبت‌شده (TP، SL یا انقضای ۱۵ دقیقه‌ای) به‌طور خودکار آموزش می‌بیند؛ افق ارزیابی ۴ ساعته نیز برای نمونه‌های بدون نتیجه بسته‌شده باقی است. وزن‌ها روی گوشی ذخیره می‌شوند.", color = Muted, fontSize = 9.sp)
                                             Text("بازخورد ذخیره‌شده: " + learningSamples + " • درست: " + learningWins + " • نادرست: " + learningLosses, color = Muted, fontSize = 10.sp)
                                             Text("خروجی شبکه عصبی (امتیاز آزمایشی): " + String.format(Locale.US, "%.1f%%", WolfDeepNeuralNetwork.predict(learningPrefs, selectedSignal) * 100.0), color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                            Text("آموزش خودکار پس از تکمیل افق ارزیابی ۴ ساعته از داده‌های عمومی انجام می‌شود؛ بازخورد دستی اختیاری است. وزن‌ها محلی ذخیره می‌شوند و مدل از پیش‌آموزش‌دیده نیست.", color = Muted, fontSize = 9.sp)
+                                            Text("آموزش خودکار با نتیجه سیگنال‌های بسته‌شده انجام می‌شود؛ مدل کوچک داخلی از پیش‌آموزش‌دیده نیست و تضمین‌کننده سود یا پیش‌بینی قطعی نیست. بازخورد دستی نیز اختیاری است.", color = Muted, fontSize = 9.sp)
                                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                 OutlinedButton(onClick = {
                                                     learningSamples += 1
