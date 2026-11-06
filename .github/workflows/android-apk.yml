@@ -1,40 +1,41 @@
 name: Build Android APK
 on:
- workflow_dispatch:
- push:
-  paths:
-   - "app/**"\n   - "tools/train_wolf_ensemble.py"
-   - "*.gradle.kts"
-   - "settings.gradle.kts"
-   - "gradle.properties"
-   - ".github/workflows/android-apk.yml"
+  workflow_dispatch:
+  push:
+    paths:
+      - "app/**"
+      - "tools/train_wolf_ensemble.py"
+      - "*.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/android-apk.yml"
 jobs:
- build:
-  runs-on: ubuntu-latest
-  timeout-minutes: 45
-  steps:
-   - uses: actions/checkout@v4
-   - uses: actions/setup-java@v4
-     with:
-      distribution: temurin
-      java-version: "17"
-   - uses: actions/setup-python@v5
-     with:
-      python-version: "3.11"
-   - name: Train and package the ten-model historical ensemble
-     run: |
-      python -m pip install --upgrade pip numpy scikit-learn
-      python tools/train_wolf_ensemble.py
-   - uses: gradle/actions/setup-gradle@v4
-     with:
-      gradle-version: "8.9"
-   - name: Build debug APK
-     run: gradle assembleDebug
-   - uses: actions/upload-artifact@v4
-     with:
-      name: AMIR-ARSALAN-TRADER-WOLF-pretrained
-      path: |
-       app/build/outputs/apk/debug/app-debug.apk
-       wolf_model_training_report.json
-      if-no-files-found: error
-      retention-days: 30
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Train and package ten pretrained neural networks
+        run: |
+          python -m pip install --upgrade pip numpy scikit-learn
+          python tools/train_wolf_ensemble.py
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build Android APK
+        run: gradle assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AMIR-ARSALAN-TRADER-WOLF-pretrained
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            wolf_model_training_report.json
+          if-no-files-found: error
+          retention-days: 30
