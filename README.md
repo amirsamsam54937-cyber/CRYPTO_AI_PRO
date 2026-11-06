@@ -1,22 +1,22 @@
 # CRYPTO AI PRO ULTIMATE
 
-**Android app version: 2.1.0 (development)**  
+**Android app version: 2.2.0 (development)**  
 A Persian-first, modular crypto-futures market intelligence and paper-trading application. The Android client is built with Kotlin and Jetpack Compose; the Python package provides research, risk, and backtesting utilities.
 
 > This is experimental trading software. Market signals are not investment advice and do not guarantee outcomes. Real-money order execution is not production-certified. Keep live trading disabled until the readiness gates in `docs/LIVE_TRADING_READINESS.md` are independently completed.
 
 ## Android application
 
-The 2.0.0 interface is organized into six functional sections:
+The 2.2.0 interface focuses on live technical analysis and is organized into five primary sections:
 
 - **خانه** — market overview, session context, scan counts, and leading candidates.
 - **بازار** — XT Futures / Binance Futures selector, bullish/bearish filters, manual refresh, and ranked market cards.
-- **تحلیل** — selected candidate, multi-indicator diagnostics, market structure, support/resistance, and candlestick view.
+- **تحلیل** — selected candidate, single-symbol TradingView chart, multi-indicator diagnostics, candlestick and harmonic-pattern recognition, persistent feedback learning, and Persian voice interaction.
 - **معاملات** — autonomous paper-trading dashboard, persistent trade journal, risk limits, staged exits, trailing stops, and individually confirmed XT manual order ticket.
 - **حساب** — encrypted on-device XT credential storage and authenticated connection check.
-- **تنظیمات** — user-started foreground monitoring service and scanner configuration summary.
+- **تنظیمات** — scanner configuration summary. Trading and paper-autopilot controls are disabled in this analysis-focused build.
 
-The visual system uses a dark navy base with blue and violet accents. The launcher icon has been refreshed for the ULTIMATE identity.
+The visual system uses a dark navy base with blue and violet accents, a subtle geometric wolf watermark, and AMIR ARSALAN TRADER WOLF branding.
 
 ### Market analysis currently implemented
 
@@ -24,7 +24,7 @@ The visual system uses a dark navy base with blue and violet accents. The launch
 - Binance USDⓈ-M public market scanner.
 - EMA 9/20/50/100/200, RSI, MACD, ATR, ADX, Bollinger context, VWAP, relative volume, stochastic RSI, market regime, candle pattern, and market-structure diagnostics.
 - Reference entry, ATR-based stop, and three reference targets.
-- TradingView chart panel in the analysis screen with the selected futures pair and CRYPTOCAP:TOTAL, TOTAL2, and TOTAL3 chart presets.
+- Single-pair TradingView chart in the analysis screen. Only the currently selected signal's chart is displayed; TOTAL/TOTAL2/TOTAL3 panels are intentionally omitted from the user interface.
 - A ten-voter **technical ensemble**. These are deterministic technical voting modules, not ten independent generative AI systems.
 - Automatic refresh while the screen is open; user-started Android foreground monitoring can continue with a persistent notification. Android battery policies, force-stop, network loss, and OS restrictions can still interrupt it.
 
