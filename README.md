@@ -81,3 +81,33 @@ authentication and account responses against a small test environment before
 building further execution functionality. XT USDT-M API base URL and signing
 rules are documented at [XT Futures API](https://doc.xt.com/docs/futures/Access%20Description/BasicInformationOfTheInterface)
 and [XT Signature Generation](https://doc.xt.com/docs/futures/Access%20Description/SignatureGeneration).
+
+
+## XT paper execution engine (new)
+
+The Python API now includes `app.engine.paper_trader.PaperBroker`, a deterministic
+in-memory simulator for LONG/SHORT position lifecycles. It calculates risk-based
+position size, applies a conservative leverage ceiling, models partial take
+profits (1R / 2R / 3R-style levels), moves the remaining stop to breakeven after
+the first target, and accounts for estimated entry/exit fees. It rejects
+duplicate-symbol positions and enforces portfolio position/risk limits.
+
+This is **paper trading only**. It does not call XT order endpoints, change
+leverage on an exchange, or create real stop/target orders. A simulated stop
+cannot protect a real account. The XT adapter remains account-read-only.
+
+Run tests with:
+
+```bash
+pytest -q
+```
+
+### Credential safety
+
+If an API key or secret was ever pasted into a chat, screenshot, notebook, or
+source file, revoke it at XT and create a replacement. Store replacement
+credentials only in the private environment of a secured server as
+`XT_API_KEY` and `XT_SECRET_KEY`; do not add them to GitHub files, Android
+builds, Colab notebooks, or this repository's Actions logs. For account access,
+use the minimum required permissions and disable withdrawals. Live order
+execution is not implemented or enabled in this version.
