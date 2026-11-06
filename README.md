@@ -1,33 +1,45 @@
 # CRYPTO AI PRO
 
-A modular crypto-market research and paper-trading platform. This foundation prioritizes public market data, transparent signals, portfolio risk controls, and simulation. **Live order execution is disabled** until the system has comprehensive tests and a separate explicit activation process.
+CRYPTO AI PRO is a monitoring-first crypto futures research project. It is designed for observation, market analysis, and paper-trading development. **It does not place trades, connect to user accounts, or require exchange API keys.**
 
-## Included
-- FastAPI service and interactive Persian dashboard
-- CCXT public market-data adapter (no API key needed for public data)
-- RSI, MACD, EMA and ATR indicators
-- Conservative position sizing and portfolio risk limits
-- Unit tests and Docker support
+## Android monitoring app
+The native Android app reads public Binance USDⓈ-M perpetual market data and:
+- Finds active USDT-margined perpetual contracts
+- Ranks markets by 24-hour quote volume and analyzes the top 30
+- Calculates EMA 20/50, RSI 14, and MACD
+- Confirms direction across 15-minute, 1-hour, and 4-hour candles
+- Refreshes automatically every three minutes while the app is open
+- Separates bullish bias, bearish bias, and neutral readings
 
-## Run locally
+These are technical screening signals, not trade instructions or probability forecasts. The app is read-only and has no order-placement code.
+
+### Build APK
+Every push to the Android source triggers the GitHub Actions workflow **Build Android APK**.
+1. Open the repository's Actions tab.
+2. Select the latest successful **Build Android APK** run.
+3. Download the `CRYPTO-AI-PRO-debug-apk` artifact ZIP.
+4. Extract and install `app-debug.apk` on Android. You may need to allow installation from your file manager.
+
+Workflow: `.github/workflows/android-apk.yml`
+
+## Python analysis API
+The repository also contains a FastAPI research API with CCXT public market data, indicators, risk-sizing utilities, and tests.
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+PYTHONPATH=. uvicorn app.main:app --reload
 ```
 Open http://127.0.0.1:8000 and API docs at /docs.
 
-Copy `.env.example` to `.env`. Never commit exchange secrets, wallet keys, or seed phrases.
+Copy `.env.example` to `.env` if you want to customize local defaults. Do not commit credentials, wallet keys, or seed phrases.
 
-## Safety
-Signals are research outputs, not guarantees or financial advice. Begin with simulation. This repository currently has no endpoint that places real orders.
+## Safety and limitations
+- No live execution, exchange login, deposits, withdrawals, or account permissions.
+- Public market-data availability depends on network and exchange regional restrictions.
+- The Android app currently screens the 30 highest-volume eligible USDT perpetuals, not every listed contract.
+- No background service or push alerts are enabled; automatic refresh runs while the app screen is active.
+- Indicators can lag, fail, or disagree. No signal guarantees a market outcome.
 
-## Roadmap
-1. Validate market-data quality and indicator calculations.
-2. Add persistent paper portfolio, trade journal, replay and backtesting.
-3. Add multi-timeframe confirmation and strategy scoring.
-4. Build Android packaging and secure settings.
-5. Consider live execution only after independent testing and explicit risk review.
-
-Crypto derivatives are highly risky; leverage can cause rapid losses. This software is experimental.
+Crypto derivatives are high risk. This software is experimental and is for monitoring and research only.
