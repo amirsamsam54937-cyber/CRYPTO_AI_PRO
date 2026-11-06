@@ -249,7 +249,7 @@ fun CryptoMonitorScreen() {
                             if (loading && rows.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Blue) } }
                             error?.let { msg -> item { Text(msg, color = Red, fontSize = 11.sp) } }
                             items(rows.take(5), key = { it.symbol }) { signal ->
-                                SignalCard(signal, onTrade = { selectedSymbol = signal.symbol; pendingTrade = signal }, canTrade = canTrade)
+                                SignalCard(signal, onTrade = { pendingTrade = signal }, canTrade = canTrade, onSelect = { selectedSymbol = signal.symbol; selectedTab = "تحلیل" })
                             }
                             item { Text("سیگنال‌ها ابزار غربالگری‌اند، نه تضمین سود یا توصیه قطعی معامله.", color = Muted, fontSize = 9.sp) }
                         }
@@ -276,7 +276,7 @@ fun CryptoMonitorScreen() {
                             } else {
                                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
                                     items(shown, key = { it.symbol }) { signal ->
-                                        SignalCard(signal, onTrade = { selectedSymbol = signal.symbol; pendingTrade = signal }, canTrade = canTrade)
+                                        SignalCard(signal, onTrade = { pendingTrade = signal }, canTrade = canTrade, onSelect = { selectedSymbol = signal.symbol; selectedTab = "تحلیل" })
                                     }
                                 }
                             }
