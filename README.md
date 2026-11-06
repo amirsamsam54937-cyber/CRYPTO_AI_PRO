@@ -111,3 +111,35 @@ credentials only in the private environment of a secured server as
 builds, Colab notebooks, or this repository's Actions logs. For account access,
 use the minimum required permissions and disable withdrawals. Live order
 execution is not implemented or enabled in this version.
+
+
+## XT USDT perpetual scanner and paper-trading research
+
+A public-data scanner is available at `GET /api/xt/scan?limit=20`. It filters
+active linear USDT perpetual contracts, ranks them by 24-hour quote volume,
+and evaluates closed 15m, 1h, and 4h candles. It returns only unanimous
+multi-timeframe LONG/SHORT candidates; disagreement is marked NO_TRADE.
+Entry, ATR stop, and 1R/2R/3R levels are reference calculations, not orders.
+The current-forming candle is excluded to reduce signal repainting.
+
+The paper broker is an isolated simulator. Its current in-memory state is
+not durable across process restarts and it must not be mistaken for exchange
+positions. Do not use it to infer that a real account has protective orders.
+
+### API key incident response
+
+API credentials pasted into a chat are considered exposed even if withdrawals
+were disabled. Revoke that key in XT immediately and create a new one only
+after reviewing permissions. Do not send the replacement key or secret in
+chat or commit them to GitHub. Store credentials only as server-side
+environment variables or managed secrets. Disable withdrawal permission,
+restrict IPs where available, and use the minimum permissions required.
+
+### Live execution status
+
+Live order placement is intentionally **not implemented or enabled**.
+XT account endpoints in this repository are read-only; the scanner is
+public-data-only; the paper broker is simulation-only. This prevents an
+unattended process from opening positions before contract sizing, order
+precision, attached protective-order behavior, restart recovery, and
+exchange-side position reconciliation have been validated end-to-end.
