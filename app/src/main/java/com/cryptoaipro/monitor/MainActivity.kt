@@ -914,9 +914,6 @@ private fun CandleChart(candles: List<DoubleArray>) {
 }
 
 @Composable
-
-
-@Composable
 private fun TradingViewPairChart(selectedSymbol: String) {
     val symbol = "BINANCE:" + selectedSymbol.replace("/", "").replace(":USDT", "").replace("_", "") + ".P"
     Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
