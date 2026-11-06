@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Build
@@ -108,10 +109,6 @@ fun CryptoMonitorScreen() {
     var marketChart by remember { mutableStateOf("PAIR") }
     var voiceTranscript by remember { mutableStateOf("") }
     var voiceReply by remember { mutableStateOf("") }
-    val learningPrefs = remember(context) { context.getSharedPreferences("wolf_learning_memory", Context.MODE_PRIVATE) }
-    var learningSamples by remember { mutableIntStateOf(learningPrefs.getInt("samples", 0)) }
-    var learningWins by remember { mutableIntStateOf(learningPrefs.getInt("wins", 0)) }
-    var learningLosses by remember { mutableIntStateOf(learningPrefs.getInt("losses", 0)) }
     var orderContracts by remember { mutableStateOf("1") }
     var orderLeverage by remember { mutableStateOf("2") }
     var liveTradingArmed by remember { mutableStateOf(false) }
@@ -125,7 +122,14 @@ fun CryptoMonitorScreen() {
     var connectionVerified by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val learningPrefs = remember(context) { context.getSharedPreferences("wolf_learning_memory", Context.MODE_PRIVATE) }
+    var learningSamples by remember { mutableIntStateOf(learningPrefs.getInt("samples", 0)) }
+    var learningWins by remember { mutableIntStateOf(learningPrefs.getInt("wins", 0)) }
+    var learningLosses by remember { mutableIntStateOf(learningPrefs.getInt("losses", 0)) }
     val credentialVault = remember(context) { ExchangeCredentialVault(context) }
+    val voiceEngine = remember(context) { TextToSpeech(context) { } }
+    DisposableEffect(voiceEngine) { onDispose { voiceEngine.stop(); voiceEngine.shutdown() } }
+    LaunchedEffect(voiceReply) { if (voiceReply.isNotBlank()) { voiceEngine.language = Locale("fa", "IR"); voiceEngine.speak(voiceReply, TextToSpeech.QUEUE_FLUSH, null, "wolf-voice-reply") } }
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
         if (spoken.isNotBlank()) {
@@ -188,7 +192,7 @@ fun CryptoMonitorScreen() {
         else -> rows
     }
     val selectedSignal = rows.firstOrNull { it.symbol == selectedSymbol } ?: rows.firstOrNull()
-    val canTrade = exchange == "XT" && credentialsSaved && connectionVerified && liveTradingArmed
+    val canTrade = false
 
     MaterialTheme(colorScheme = darkColorScheme(
         primary = Blue, secondary = Purple, background = Navy, surface = Panel,
@@ -198,7 +202,7 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Panel, contentColor = Color.White) {
-                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "معاملات" to "⇄", "حساب" to "◎", "تنظیمات" to "⚙").forEach { entry ->
+                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "حساب" to "◎", "تنظیمات" to "⚙").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry.first,
                             onClick = { selectedTab = entry.first },
@@ -223,19 +227,20 @@ fun CryptoMonitorScreen() {
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (selectedTab != "خانه") TextButton(onClick = { selectedTab = "خانه" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("‹ بازگشت", color = Blue, fontSize = 11.sp) }
                     Surface(
                         color = Color(0xFF142B4B),
                         shape = RoundedCornerShape(13.dp),
                         modifier = Modifier.size(42.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text("◈", color = Blue, fontSize = 26.sp, fontWeight = FontWeight.Black)
+                            Text("🐺", color = Blue, fontSize = 25.sp, fontWeight = FontWeight.Black)
                         }
                     }
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("CRYPTO AI PRO", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
-                        Text("ULTIMATE  •  FUTURES INTELLIGENCE", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
+                        Text("AMIR ARSALAN", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                        Text("TRADER WOLF  •  LIVE TECHNICAL INTELLIGENCE", color = Muted, fontSize = 8.sp, letterSpacing = 0.5.sp)
                     }
                     Surface(
                         color = if (loading) Color(0xFF3A2C17) else Color(0xFF10382F),
@@ -1481,7 +1486,7 @@ class MarketMonitorService : Service() {
         val config = getSharedPreferences("market_monitor_config", Context.MODE_PRIVATE)
         if (intent != null) {
             selectedExchange = intent.getStringExtra("exchange") ?: selectedExchange
-            paperAutoEnabled = intent.getBooleanExtra("paper_auto", paperAutoEnabled)
+            paperAutoEnabled = false
             paperCapital = intent.getDoubleExtra("paper_capital", paperCapital)
             riskPercent = intent.getDoubleExtra("risk_pct", riskPercent)
             paperLeverage = intent.getIntExtra("paper_leverage", paperLeverage)
@@ -1494,7 +1499,7 @@ class MarketMonitorService : Service() {
                 .apply()
         } else {
             selectedExchange = config.getString("exchange", selectedExchange) ?: selectedExchange
-            paperAutoEnabled = config.getBoolean("paper_auto", false)
+            paperAutoEnabled = false
             paperCapital = config.getFloat("paper_capital", 1000f).toDouble()
             riskPercent = config.getFloat("risk_pct", 1f).toDouble()
             paperLeverage = config.getInt("paper_leverage", 2)
