@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Train ten compact MLPs on historical Binance USD-M Futures candles."""
-import json, os, time, urllib.request, io, zipfile, csv, datetime\nfrom concurrent.futures import ThreadPoolExecutor, as_completed
+import json, os, time, urllib.request, io, zipfile, csv, datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
