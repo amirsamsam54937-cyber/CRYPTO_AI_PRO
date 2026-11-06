@@ -27,6 +27,9 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.cryptoaipro.monitor.security.ExchangeCredentialVault
 import androidx.compose.ui.text.style.TextAlign
@@ -99,6 +102,7 @@ fun CryptoMonitorScreen() {
     var exchange by remember { mutableStateOf("XT") }
     var selectedTab by remember { mutableStateOf("خانه") }
     var selectedSymbol by remember { mutableStateOf("") }
+    var marketChart by remember { mutableStateOf("PAIR") }
     var orderContracts by remember { mutableStateOf("1") }
     var orderLeverage by remember { mutableStateOf("2") }
     var liveTradingArmed by remember { mutableStateOf(false) }
@@ -293,6 +297,7 @@ fun CryptoMonitorScreen() {
                                 Text("موتور تحلیل چندعاملی", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                 Text("انتخاب برترین سیگنال فعلی؛ مقادیر بر پایه کندل‌های بسته‌شده محاسبه می‌شوند.", color = Muted, fontSize = 10.sp)
                             }
+                            item { TradingViewMarketPanel(selectedSymbol = selectedSignal?.symbol ?: "BTCUSDT", selectedExchange = exchange, chartSelection = marketChart, onSelection = { marketChart = it }) }
                             if (selectedSignal == null) {
                                 item { Text(if (loading) "در حال دریافت داده بازار..." else "هنوز داده‌ای برای تحلیل وجود ندارد. ابتدا اسکن بازار را اجرا کن.", color = Muted) }
                             } else {
@@ -816,6 +821,29 @@ private fun CandleChart(candles: List<DoubleArray>) {
     }
 }
 
+@Composable
+private fun TradingViewMarketPanel(selectedSymbol: String, selectedExchange: String, chartSelection: String, onSelection: (String) -> Unit) {
+    val symbol = when (chartSelection) {
+        "TOTAL" -> "CRYPTOCAP:TOTAL"
+        "TOTAL2" -> "CRYPTOCAP:TOTAL2"
+        "TOTAL3" -> "CRYPTOCAP:TOTAL3"
+        else -> if (selectedExchange == "BINANCE") "BINANCE:$selectedSymbol.P" else "XT:$selectedSymbol"
+    }
+    Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Text("نمودار TradingView", color = Color.White, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf("PAIR" to "ارز انتخابی", "TOTAL" to "TOTAL 1", "TOTAL2" to "TOTAL 2", "TOTAL3" to "TOTAL 3").forEach { (key, label) ->
+                    FilterChip(selected = chartSelection == key, onClick = { onSelection(key) }, label = { Text(label, fontSize = 9.sp) })
+                }
+            }
+            AndroidView(modifier = Modifier.fillMaxWidth().height(320.dp),
+                factory = { context -> WebView(context).apply { settings.javaScriptEnabled = true; settings.domStorageEnabled = true; webViewClient = WebViewClient() } },
+                update = { it.loadUrl("https://www.tradingview.com/chart/?symbol=" + java.net.URLEncoder.encode(symbol, "UTF-8")) })
+            Text(when (chartSelection) { "TOTAL" -> "TOTAL 1 • ارزش کل بازار"; "TOTAL2" -> "TOTAL 2 • ارزش بازار بدون بیت‌کوین"; "TOTAL3" -> "TOTAL 3 • ارزش بازار بدون بیت‌کوین و اتریوم"; else -> "نمودار قرارداد انتخاب‌شده" }, color = Muted, fontSize = 10.sp)
+        }
+    }
+}
 @Composable
 private fun MarketSessionsPanel() {
     val utc = ZonedDateTime.now(ZoneId.of("UTC"))
