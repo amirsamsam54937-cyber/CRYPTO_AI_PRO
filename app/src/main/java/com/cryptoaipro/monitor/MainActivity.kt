@@ -22,6 +22,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -77,7 +78,7 @@ fun CryptoMonitorScreen() {
         }
     }
 
-    LaunchedEffect(Unit) { performScan() }
+    LaunchedEffect(Unit) { while (true) { performScan(); delay(180_000) } }
     val shown = when (filter) {
         "صعودی" -> rows.filter { it.direction == "LONG_BIAS" }
         "نزولی" -> rows.filter { it.direction == "SHORT_BIAS" }
@@ -135,7 +136,7 @@ fun CryptoMonitorScreen() {
                 }
             }
             Text(
-                "داده عمومی Binance • تایم‌فریم ۱۵ دقیقه و ۱ ساعت • هیچ سفارشی ارسال نمی‌شود",
+                "اسکن خودکار هر ۳ دقیقه • تایم‌فریم ۱۵ دقیقه و ۱ ساعت • بدون ارسال سفارش",
                 color = Muted, fontSize = 10.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
             )
