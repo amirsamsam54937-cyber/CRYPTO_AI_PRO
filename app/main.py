@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.market import fetch_ohlcv
 from app.indicators import build_signal
 from app.exchanges.xt_futures import XTFuturesClient, XTAPIError
+from app.xt_scanner import scan_xt_usdt_perpetuals
 
 class Settings(BaseSettings):
     app_name: str="CRYPTO AI PRO"
@@ -89,3 +90,16 @@ def signal(symbol: str,timeframe: str=Query(default=None)):
         raise HTTPException(status_code=400,detail=str(exc))
     except Exception:
         raise HTTPException(status_code=502,detail="Market data provider unavailable; retry later.")
+
+
+@app.get("/api/xt/scan")
+def xt_scan(limit: int = Query(default=20, ge=1, le=50),
+            min_quote_volume: float = Query(default=100000, gt=0)):
+    """Scan liquid XT USDT perpetuals using closed 15m/1h/4h candles."""
+    try:
+        rows = scan_xt_usdt_perpetuals(limit=limit, min_quote_volume=min_quote_volume)
+        return {"exchange": "XT", "market_type": "USDT perpetual",
+                "count": len(rows), "results": rows,
+                "mode": "public-data-research-only"}
+    except Exception:
+        raise HTTPException(status_code=502, detail="XT public market scanner unavailable; retry later.")
