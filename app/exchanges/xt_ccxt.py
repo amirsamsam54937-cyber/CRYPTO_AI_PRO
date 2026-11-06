@@ -18,10 +18,10 @@ class XTCCXTError(RuntimeError):
 
 def _credentials() -> tuple[str, str]:
     api_key = os.getenv("XT_API_KEY", "").strip()
-    secret = os.getenv("XT_API_SECRET", "").strip()
+    secret = (os.getenv("XT_API_SECRET", "") or os.getenv("XT_SECRET_KEY", "")).strip()
     if not api_key or not secret:
         raise XTCCXTError(
-            "کلیدهای XT روی سرور تنظیم نشده‌اند؛ XT_API_KEY و XT_API_SECRET را در Secret Manager وارد کنید."
+            "کلیدهای XT روی سرور تنظیم نشده‌اند؛ XT_API_KEY و XT_API_SECRET (یا نام قدیمی XT_SECRET_KEY) را در Secret Manager وارد کنید."
         )
     return api_key, secret
 
