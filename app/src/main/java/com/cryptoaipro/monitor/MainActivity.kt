@@ -197,7 +197,7 @@ fun CryptoMonitorScreen() {
                     }
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("CRYPTO AI PRO", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                        Text("AMIRARSALAN TRADER WOLF", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black, maxLines = 1)
                         Text("ULTIMATE  •  FUTURES INTELLIGENCE", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
                     }
                     Surface(
@@ -332,7 +332,7 @@ fun CryptoMonitorScreen() {
                                             Text("ساختار: " + selectedSignal.technical.marketStructure + " • رژیم: " + selectedSignal.technical.regime, color = Muted, fontSize = 10.sp)
                                             if (selectedSignal.candles.isNotEmpty()) {
                                                 Text("نمودار کندل ژاپنی • ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                                CandleChart(selectedSignal.candles)
+                                                CandleChart(selectedSignal.candles, selectedSignal)
                                             }
                                         }
                                     }
@@ -468,10 +468,10 @@ fun CryptoMonitorScreen() {
                                     Text("تایم‌فریم اصلی: ۱۵ دقیقه • تأیید: ۱ ساعت و ۴ ساعت", color = Muted, fontSize = 11.sp)
                                     Text("دامنه اسکن: حداکثر ۱۰۰ قرارداد پرحجم USDT", color = Muted, fontSize = 11.sp)
                                     Text("بروزرسانی خودکار: هر ۳ دقیقه", color = Muted, fontSize = 11.sp)
-                                    Text("نسخه: 1.6.0 • رابط ماژولار", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.1.0 • WOLF CHART INTELLIGENCE", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
-                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← CRYPTO AI PRO ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← AMIRARSALAN TRADER WOLF ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                         }
                     }
                 }
@@ -780,7 +780,7 @@ private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolea
                         Text("ساختار بازار: " + item.technical.marketStructure + " • رژیم: " + item.technical.regime, color = Muted, fontSize = 9.sp)
                         if (item.candles.isNotEmpty()) {
                             Text("نمودار کندل ژاپنی • ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                            CandleChart(item.candles)
+                            CandleChart(item.candles, item)
                         }
                         Text("الگوها احتمالی‌اند؛ هیچ الگویی جهت قیمت را تضمین نمی‌کند.", color = Muted, fontSize = 9.sp)
                     }
@@ -791,28 +791,53 @@ private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolea
 }
 
 @Composable
-private fun CandleChart(candles: List<DoubleArray>) {
+private fun CandleChart(candles: List<DoubleArray>, signal: MarketSignal? = null) {
     val visible = candles.takeLast(54)
     if (visible.isEmpty()) return
-    Canvas(Modifier.fillMaxWidth().height(154.dp)) {
-        val high = visible.maxOf { it[1] }
-        val low = visible.minOf { it[2] }
-        val span = (high - low).coerceAtLeast(1e-12)
+    val high = visible.maxOf { it[1] }
+    val low = visible.minOf { it[2] }
+    val span = (high - low).coerceAtLeast(1e-12)
+    Canvas(Modifier.fillMaxWidth().height(190.dp)) {
         val step = size.width / visible.size
         val bodyWidth = (step * 0.58f).coerceAtLeast(2f)
-        repeat(4) { n ->
-            val y = size.height * n / 3f
-            drawLine(Color(0xFF26364E), Offset(0f, y), Offset(size.width, y), 1f)
+        fun y(price: Double) = size.height - ((price - low) / span * (size.height - 8f) + 4f).toFloat()
+        repeat(5) { n ->
+            val yy = size.height * n / 4f
+            drawLine(Color(0xFF26364E), Offset(0f, yy), Offset(size.width, yy), 1f)
         }
         visible.forEachIndexed { index, candle ->
             val x = step * index + step / 2f
-            fun y(price: Double) = size.height - ((price - low) / span * (size.height - 8f) + 4f).toFloat()
             val tint = if (candle[3] >= candle[0]) Green else Red
             drawLine(tint, Offset(x, y(candle[1])), Offset(x, y(candle[2])), 1.4f)
             val top = minOf(y(candle[0]), y(candle[3]))
             val bottom = maxOf(y(candle[0]), y(candle[3]))
             drawRect(tint, Offset(x - bodyWidth / 2f, top), androidx.compose.ui.geometry.Size(bodyWidth, (bottom - top).coerceAtLeast(2f)))
         }
+        // Reference levels are overlaid only when they fall inside the visible candle range.
+        val levels = signal?.let {
+            listOf(
+                Triple("S", it.technical.support, Green.copy(alpha = .75f)),
+                Triple("R", it.technical.resistance, Red.copy(alpha = .75f)),
+                Triple("E", it.entry, Blue.copy(alpha = .9f)),
+                Triple("SL", it.stop, Red.copy(alpha = .95f)),
+                Triple("TP1", it.tp1, Gold.copy(alpha = .95f))
+            )
+        }.orEmpty()
+        levels.filter { it.second in low..high }.forEach { level ->
+            val yy = y(level.second)
+            drawLine(level.third, Offset(0f, yy), Offset(size.width, yy), 1.5f)
+        }
+    }
+    if (signal != null) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("حمایت", color = Green, fontSize = 9.sp)
+            Text("مقاومت", color = Red, fontSize = 9.sp)
+            Text("ورود", color = Blue, fontSize = 9.sp)
+            Text("حدضرر", color = Red, fontSize = 9.sp)
+            Text("TP1", color = Gold, fontSize = 9.sp)
+        }
+        Text("نمایش ۵۴ کندل بسته‌شده • تایم‌فریم ۱۵ دقیقه • خطوط افقی فقط در محدوده قابل مشاهده رسم می‌شوند.",
+            color = Muted, fontSize = 9.sp)
     }
 }
 
@@ -1395,14 +1420,14 @@ class MarketMonitorService : Service() {
     }
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "پایش بازار CRYPTO AI PRO", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(CHANNEL_ID, "پایش بازار AMIRARSALAN TRADER WOLF", NotificationManager.IMPORTANCE_LOW)
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
         }
     }
     private fun buildNotification(status: String): Notification {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
         return builder.setSmallIcon(android.R.drawable.ic_menu_info_details)
-            .setContentTitle("CRYPTO AI PRO • پایش پس‌زمینه")
+            .setContentTitle("AMIRARSALAN TRADER WOLF • پایش پس‌زمینه")
             .setContentText(status).setOngoing(true).build()
     }
     override fun onDestroy() { worker?.cancel(); serviceScope.cancel(); super.onDestroy() }
