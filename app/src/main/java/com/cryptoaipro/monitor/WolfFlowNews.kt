@@ -23,12 +23,12 @@ import java.net.URLEncoder
 import java.util.Locale
 import javax.xml.parsers.DocumentBuilderFactory
 
-private data class WhaleFlowReport(
+internal data class WhaleFlowReport(
     val symbol: String, val buyUsd: Double, val sellUsd: Double,
     val largeBuys: Int, val largeSells: Int, val imbalance: Double,
     val openInterest: Double, val funding: Double, val summary: String
 )
-private data class MarketNewsItem(val title: String, val source: String, val link: String, val date: String)
+internal data class MarketNewsItem(val title: String, val source: String, val link: String, val date: String)
 
 internal object WolfFlowNewsRepository {
     private fun get(url: String): String {
@@ -88,6 +88,8 @@ internal object WolfFlowNewsRepository {
     }
 
     suspend fun refreshForEngine(context: android.content.Context, signals: List<MarketSignal>) {
+        val last = context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE).getLong("last_refresh", 0L)
+        if (System.currentTimeMillis() - last < 15L * 60L * 1000L) return
         val reports = signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }.sortedByDescending { it.volume }.take(3).mapNotNull { signal -> runCatching { whale(signal.symbol) }.getOrNull() }
         val headlines = runCatching { news() }.getOrDefault(emptyList())
         val json = JSONArray().apply { reports.forEach { r -> put(org.json.JSONObject().apply { put("symbol", r.symbol); put("imbalance", r.imbalance); put("largeBuys", r.largeBuys); put("largeSells", r.largeSells); put("openInterest", r.openInterest); put("funding", r.funding); put("summary", r.summary); put("updatedAt", System.currentTimeMillis()) }) } }
