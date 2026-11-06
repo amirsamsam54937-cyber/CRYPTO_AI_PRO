@@ -163,7 +163,7 @@ def run_backtest(data: pd.DataFrame, leverage: float, risk_pct: float,
 
             # Conservative intrabar ordering: stop is assumed first if both touch.
             if stop_hit:
-                gross_r = -1.0 if not p1 else (0.1 if not p2 else 0.7)
+                gross_r = -1.0 if not p1 else (-0.2 if not p2 else 0.7)
                 exit_reason = "SL"
                 exit_idx = j
                 break
@@ -185,7 +185,8 @@ def run_backtest(data: pd.DataFrame, leverage: float, risk_pct: float,
             if j == exit_idx:
                 close = float(bar["close"])
                 move_r = (close - entry) / stop_dist if side == "LONG" else (entry - close) / stop_dist
-                gross_r += (0.6 if p1 else 1.0) * float(np.clip(move_r, -1, 3))
+                remaining = 0.3 if p2 else (0.6 if p1 else 1.0)
+                gross_r += remaining * float(np.clip(move_r, -1, 3))
 
         # Approximate entry + exit taker fees and slippage in R units.
         fee_r = (2 * fee_rate + 2 * slip) * entry / stop_dist
