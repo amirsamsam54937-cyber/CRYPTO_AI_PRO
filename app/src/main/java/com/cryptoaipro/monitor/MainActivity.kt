@@ -207,7 +207,7 @@ fun CryptoMonitorScreen() {
             }
             Spacer(Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("۳۰ قرارداد پرحجم " + exchange + " Futures", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
+                Text("۱۰۰ قرارداد پرحجم " + exchange + " Futures", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
                 Text("آخرین اسکن: " + updated, color = Muted, fontSize = 10.sp)
             }
             Spacer(Modifier.height(8.dp))
@@ -530,7 +530,7 @@ private object XTMonitor {
             val turnover = t.optString("v").toDoubleOrNull() ?: t.optDouble("v")
             if (price <= 0.0 || open <= 0.0 || turnover <= 0.0) return@mapNotNull null
             Triple(t, price, turnover)
-        }.sortedByDescending { it.third }.take(30)
+        }.sortedByDescending { it.third }.take(100)
         if (ranked.isEmpty()) throw IllegalStateException("XT هیچ قرارداد USDT Perpetual قابل اسکن برنگرداند")
         val semaphore = Semaphore(permits = 3)
         coroutineScope {
@@ -695,7 +695,7 @@ private object BinanceMonitor {
         val ranked = (0 until tickers.length()).map { tickers.getJSONObject(it) }
             .filter { allowed.contains(it.optString("symbol")) }
             .sortedByDescending { it.optDouble("quoteVolume", 0.0) }
-            .take(30)
+            .take(100)
         val semaphore = Semaphore(permits = 4)
         coroutineScope {
             ranked.map { ticker ->
