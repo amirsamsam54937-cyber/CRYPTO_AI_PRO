@@ -182,7 +182,7 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Panel, contentColor = Color.White) {
-                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "هوش مصنوعی" to "✧", "تنظیمات" to "⚙").forEach { entry ->
+                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "جریان نهنگ" to "◉", "هوش مصنوعی" to "✧", "تنظیمات" to "⚙").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry.first,
                             onClick = { selectedTab = entry.first },
@@ -437,6 +437,10 @@ fun CryptoMonitorScreen() {
 
 
 
+
+                    "جریان نهنگ" -> {
+                        WolfFlowNewsScreen(selectedSignal?.symbol ?: "BTCUSDT")
+                    }
 
                     "هوش مصنوعی" -> {
                         WolfAiCompanionScreen()
