@@ -68,6 +68,8 @@ internal object WolfKnowledgeSearch {
     }
 
     suspend fun answer(question: String): Pair<String, String> = withContext(Dispatchers.IO) {
+        // Prefer the curated offline Persian knowledge pack; use web retrieval for uncovered topics.
+        WolfMarketKnowledge.answer(question)?.let { return@withContext it }
         val encoded = URLEncoder.encode(question.take(180), "UTF-8")
         val findings = mutableListOf<String>()
         var source = ""
