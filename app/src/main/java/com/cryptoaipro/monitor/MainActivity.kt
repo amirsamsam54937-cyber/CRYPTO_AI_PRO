@@ -85,6 +85,7 @@ fun CryptoMonitorScreen() {
     var tradeBusy by remember { mutableStateOf(false) }
     var tradeMessage by remember { mutableStateOf<String?>(null) }
     var connectionStatus by remember { mutableStateOf<String?>(null) }
+    var connectionVerified by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val credentialVault = remember(context) { ExchangeCredentialVault(context) }
@@ -144,12 +145,17 @@ fun CryptoMonitorScreen() {
                     connectionStatus = connectionStatus,
                     onTest = {
                         scope.launch {
+                            connectionVerified = false
                             connectionStatus = "در حال بررسی اتصال امن XT..."
-                            connectionStatus = runCatching {
+                            val result = runCatching {
                                 val creds = credentialVault.load() ?: error("ابتدا کلیدها را ذخیره کن")
                                 XTOrderExecutor.checkConnection(creds)
-                                "اتصال احراز هویت‌شده XT موفق بود."
-                            }.fold({ it }, { "اتصال ناموفق: " + (it.message ?: "خطای ناشناخته") })
+                            }
+                            connectionVerified = result.isSuccess
+                            connectionStatus = result.fold(
+                                { "اتصال احراز هویت‌شده XT موفق بود." },
+                                { "اتصال ناموفق: " + (it.message ?: "خطای ناشناخته") }
+                            )
                         }
                     },
                     onSave = {
@@ -157,6 +163,8 @@ fun CryptoMonitorScreen() {
                             credentialVault.save(ExchangeCredentialVault.Credentials(apiKeyInput.trim(), secretKeyInput))
                         }.onSuccess {
                             credentialsSaved = true
+                            connectionVerified = false
+                            connectionStatus = "برای امنیت، پس از ذخیره کلید جدید دوباره اتصال را بررسی کن."
                             apiKeyInput = ""
                             secretKeyInput = ""
                             credentialMessage = "کلیدها به‌صورت رمزگذاری‌شده روی همین دستگاه ذخیره شدند."
@@ -166,6 +174,9 @@ fun CryptoMonitorScreen() {
                         runCatching { credentialVault.clear() }
                             .onSuccess {
                                 credentialsSaved = false
+                                connectionVerified = false
+                                connectionStatus = null
+                                liveTradingArmed = false
                                 apiKeyInput = ""
                                 secretKeyInput = ""
                                 credentialMessage = "کلیدهای ذخیره‌شده از این دستگاه پاک شدند."
@@ -221,7 +232,7 @@ fun CryptoMonitorScreen() {
                     contentPadding = PaddingValues(top = 8.dp, bottom = 18.dp)
                 ) {
                     items(shown, key = { it.symbol }) { item ->
-                        SignalCard(item, onTrade = { pendingTrade = item }, canTrade = exchange == "XT" && credentialsSaved && liveTradingArmed)
+                        SignalCard(item, onTrade = { pendingTrade = item }, canTrade = exchange == "XT" && credentialsSaved && connectionVerified && liveTradingArmed)
                     }
                 }
             }
@@ -347,11 +358,11 @@ private fun ConnectionCard(
             }
             connectionStatus?.let { Text(it, color = if (it.startsWith("اتصال ناموفق")) Red else Green, fontSize = 10.sp) }
             Text(
-                "ذخیره‌سازی با Android Keystore و AES-GCM انجام می‌شود. این بخش فعلاً فقط کلیدها را امن ذخیره می‌کند و هنوز اتصال احراز هویت‌شده یا ارسال سفارش را فعال نمی‌کند.",
+                "کلیدها با Android Keystore و AES-GCM رمزگذاری می‌شوند. برای ارسال سفارش، ابتدا اتصال حساب را بررسی کن؛ سفارش فقط با تأیید جداگانه تو ارسال می‌شود.",
                 color = Muted, fontSize = 10.sp, lineHeight = 15.sp
             )
             Text(
-                "امنیت: مجوز برداشت وجه را فعال نکنید. کلیدهایی که قبلاً در چت یا مخزن عمومی فرستاده‌اید، باطل و با کلید جدید جایگزین کنید.",
+                "امنیت: مجوز برداشت وجه را هرگز فعال نکن. کلیدهای قبلاً افشاشده را باطل کن و کلید جدید را فقط با مجوز خواندن و معامله بساز.",
                 color = Red, fontSize = 10.sp, lineHeight = 15.sp
             )
         }
@@ -563,7 +574,7 @@ private object XTOrderExecutor {
         val original = header + "#POST#" + path + "#" + body
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(secret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
-        return mac.doFinal(original.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+        return mac.doFinal(original.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 0xff) }
     }
 
     private fun post(creds: ExchangeCredentialVault.Credentials, path: String, body: JSONObject): JSONObject {
