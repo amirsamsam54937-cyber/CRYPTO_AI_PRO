@@ -50,7 +50,7 @@ def make_rows(k):
     y=(future>0.0025).astype(int)
     mask=np.arange(len(c))<len(c)-HORIZON
     mask &= np.abs(future)>0.0025
-    return X[mask],y[mask]
+    return X[mask],y[mask],a[:,0][mask]
 
 def main():
     chunks=[]
