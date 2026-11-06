@@ -123,7 +123,8 @@ def main():
             "iterations":int(model.n_iter_)})
         members.append({"w1":model.coefs_[0].T.tolist(),"b1":model.intercepts_[0].tolist(),
             "w2":model.coefs_[1].T.tolist(),"b2":model.intercepts_[1].tolist(),
-            "w3":model.coefs_[2][:,0].tolist(),"b3":float(model.intercepts_[2][0])})
+            "w3":model.coefs_[2].T.tolist(),"b3":model.intercepts_[2].tolist(),
+            "w4":model.coefs_[3][:,0].tolist(),"b4":float(model.intercepts_[3][0])})
         print(f"MODEL {index+1}/10 {metrics[-1]}",flush=True)
     output={"format":"amir-wolf-ensemble-v1","trained_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
         "interval":INTERVAL,"horizon_bars":HORIZON,"symbols":SYMBOLS,"samples":int(len(X)),
