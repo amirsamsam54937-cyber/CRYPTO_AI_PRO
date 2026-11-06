@@ -30,7 +30,7 @@ private data class WhaleFlowReport(
 )
 private data class MarketNewsItem(val title: String, val source: String, val link: String, val date: String)
 
-private object WolfFlowNewsRepository {
+internal object WolfFlowNewsRepository {
     private fun get(url: String): String {
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = 8000
@@ -71,6 +71,15 @@ private object WolfFlowNewsRepository {
             else -> "جریان سفارش متعادل یا بدون برتری روشن؛ منتظر تأیید ساختار قیمت بمان"
         }
         WhaleFlowReport(symbol, buy, sell, bigBuy, bigSell, imbalance, oi, funding, summary)
+    }
+
+
+    suspend fun refreshForEngine(context: android.content.Context, signals: List<MarketSignal>) {
+        val reports = signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }.sortedByDescending { it.volume }.take(3).mapNotNull { signal -> runCatching { whale(signal.symbol) }.getOrNull() }
+        val headlines = runCatching { news() }.getOrDefault(emptyList())
+        val json = JSONArray().apply { reports.forEach { r -> put(org.json.JSONObject().apply { put("symbol", r.symbol); put("imbalance", r.imbalance); put("largeBuys", r.largeBuys); put("largeSells", r.largeSells); put("openInterest", r.openInterest); put("funding", r.funding); put("summary", r.summary); put("updatedAt", System.currentTimeMillis()) }) } }
+        val newsJson = JSONArray().apply { headlines.take(12).forEach { n -> put(org.json.JSONObject().apply { put("title", n.title); put("source", n.source); put("url", n.link); put("date", n.date) }) } }
+        context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE).edit().putString("flow_reports", json.toString()).putString("market_news", newsJson.toString()).putLong("last_refresh", System.currentTimeMillis()).apply()
     }
 
     suspend fun news(): List<MarketNewsItem> = withContext(Dispatchers.IO) {
