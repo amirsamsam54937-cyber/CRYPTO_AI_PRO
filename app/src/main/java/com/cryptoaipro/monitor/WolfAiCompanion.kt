@@ -26,6 +26,24 @@ import java.net.URLEncoder
 
 private data class WolfChatMessage(val text: String, val fromUser: Boolean, val source: String = "")
 
+private fun localPersianReply(question: String): String? {
+    val normalized = question.lowercase()
+        .replace(Regex("[\\u064B-\\u065F\\u0670]"), "")
+        .replace('ي', 'ی').replace('ك', 'ک')
+        .replace(Regex("[\\u200c\\s،,.!؟?]+"), " ")
+        .trim()
+    val words = normalized.split(" ").filter { it.isNotBlank() }
+    if (words.isEmpty()) return "پیامت خالی است؛ هر سؤالی داری بنویس."
+    val greetings = setOf("سلام", "درود", "hi", "hello", "hey")
+    if (words.first() in greetings || normalized.startsWith("سلام علیکم") || normalized.startsWith("علیک سلام")) {
+        return "سلام رفیق! خوش اومدی 🐺 من گرگ، دستیار برنامه‌ات هستم. می‌تونم درباره بازار و تحلیل تکنیکال کمکت کنم. چه چیزی می‌خوای بدونی؟"
+    }
+    if (words.any { it in setOf("ممنون", "مرسی", "سپاس", "متشکرم") }) return "خواهش می‌کنم! هر وقت خواستی من اینجام. 🐺"
+    if (normalized.contains("اسم") && (normalized.contains("تو") || normalized.contains("شما"))) return "من دستیار گرگ در برنامه AMIR ARSALAN TRADER WOLF هستم."
+    if (normalized in setOf("خوبی", "حالت چطوره", "چطوری")) return "ممنون، آماده‌ام کمکت کنم! تو چه کمکی ازم می‌خوای؟"
+    return null
+}
+
 /**
  * Retrieval-first companion: searches public web knowledge endpoints and explains retrieved
  * material. This is not represented as a pretrained generative LLM. No exchange credentials
@@ -161,8 +179,9 @@ internal fun WolfAiCompanionScreen() {
                         messages.add(WolfChatMessage(q, true))
                         busy = true
                         scope.launch {
-                            val result = runCatching { WolfKnowledgeSearch.answer(q) }
-                            val response = result.getOrElse { "جست‌وجوی اینترنتی ناموفق بود: " + (it.message ?: "خطای ناشناخته") to "" }
+                            val response = localPersianReply(q)?.let { it to "" }
+                                ?: runCatching { WolfKnowledgeSearch.answer(q) }
+                                    .getOrElse { ("جست‌وجوی اینترنتی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
                             messages.add(WolfChatMessage(response.first, false, response.second))
                             busy = false
                         }
@@ -183,8 +202,9 @@ internal fun WolfAiCompanionScreen() {
                     messages.add(WolfChatMessage(q, true))
                     busy = true
                     scope.launch {
-                        val result = runCatching { WolfKnowledgeSearch.answer(q) }
-                        val response = result.getOrElse { ("جست‌وجوی اینترنتی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
+                        val response = localPersianReply(q)?.let { it to "" }
+                            ?: runCatching { WolfKnowledgeSearch.answer(q) }
+                                .getOrElse { ("جست‌وجوی اینترنتی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
                         messages.add(WolfChatMessage(response.first, false, response.second))
                         busy = false
                     }
