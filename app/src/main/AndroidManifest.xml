@@ -8,7 +8,7 @@
   android:theme="@android:style/Theme.Material.Light.NoActionBar"
   android:usesCleartextTraffic="false">
   <service android:name=".MarketMonitorService" android:exported="false" android:foregroundServiceType="specialUse">
-   <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started continuous futures market monitoring and simulated trading" />
+   <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started continuous cryptocurrency market-data monitoring and technical analysis" />
   </service>
   <activity android:name=".MainActivity" android:exported="true">
    <intent-filter>
