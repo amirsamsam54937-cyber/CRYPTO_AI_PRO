@@ -1250,6 +1250,9 @@ class MarketMonitorService : Service() {
                 while (kotlin.coroutines.coroutineContext.isActive) {
                     val result = runCatching {
                         val signals = if (selectedExchange == "XT") XTMonitor.scan() else BinanceMonitor.scan()
+                        WolfLearningMemory.processScan(applicationContext, signals)
+                        WolfSignalOutcomeJournal.processScan(applicationContext, signals)
+                        WolfFlowNewsRepository.refreshForEngine(applicationContext, signals)
                         val active = signals.count { it.direction != "NEUTRAL" }
                         "اسکن ${signals.size} قرارداد • سیگنال‌های جهت‌دار: $active • $selectedExchange • فقط تحلیل تکنیکال"
                     }.getOrElse { "خطای اسکن $selectedExchange: ${it.message ?: "نامشخص"}" }
