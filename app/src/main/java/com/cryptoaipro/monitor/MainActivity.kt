@@ -79,7 +79,8 @@ data class MarketSignal(
     val direction: String, val score: Int, val rsi: Double, val confidence: Int,
     val reason: String, val entry: Double, val stop: Double, val tp1: Double, val tp2: Double, val tp3: Double, val leverage: Int, val atr: Double,
     val technical: TechnicalSnapshot,
-    val candles: List<DoubleArray> = emptyList()
+    val candles: List<DoubleArray> = emptyList(),
+    val consensus: WolfConsensus? = null
 )
 
 data class TechnicalSnapshot(
@@ -1251,25 +1252,24 @@ private object BinanceMonitor {
         val b = indicators(confirm)
         val c = indicators(trend)
         val score = a.first + b.first + c.first
-        val direction = when {
-            score >= 11 -> "LONG_BIAS"
-            score <= -11 -> "SHORT_BIAS"
-            else -> "NEUTRAL"
-        }
-        val confidence = (abs(score) * 100 / 16).coerceIn(0, 100)
+        val wolf = WolfConsensusEngine.analyze(listOf(a.technical, b.technical, c.technical), price)
+        val direction = wolf.direction
+        val confidence = wolf.strengthIndex
         val atrValue = atr(short)
         val stopDistance = maxOf(atrValue * 1.5, price * 0.002)
         val isLong = direction == "LONG_BIAS"
-        val stop = if (isLong) price - stopDistance else price + stopDistance
-        val tp1 = if (isLong) price + stopDistance else price - stopDistance
-        val tp2 = if (isLong) price + stopDistance * 2 else price - stopDistance * 2
-        val tp3 = if (isLong) price + stopDistance * 3 else price - stopDistance * 3
+        val isShort = direction == "SHORT_BIAS"
+        val stop = when { isLong -> price - stopDistance; isShort -> price + stopDistance; else -> price }
+        val tp1 = when { isLong -> price + stopDistance; isShort -> price - stopDistance; else -> price }
+        val tp2 = when { isLong -> price + stopDistance * 1.8; isShort -> price - stopDistance * 1.8; else -> price }
+        val tp3 = when { isLong -> price + stopDistance * 2.8; isShort -> price - stopDistance * 2.8; else -> price }
         val stopPct = stopDistance / price * 100.0
-        val leverage = when { stopPct <= 0.8 -> 5; stopPct <= 1.5 -> 3; stopPct <= 3.0 -> 2; else -> 1 }
+        val leverage = when { !isLong && !isShort -> 1; stopPct <= 0.8 -> 5; stopPct <= 1.5 -> 3; stopPct <= 3.0 -> 2; else -> 1 }
+        val agentSummary = wolf.votes.joinToString("، ") { it.name + ":" + it.direction }
         return MarketSignal(
             symbol, price, change, volume, direction, score, a.third, confidence,
-            "۱۵ دقیقه: " + a.second + " | یک‌ساعته: " + b.second + " | چهارساعته: " + c.second,
-            price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical, short.takeLast(80)
+            "اجماع گرگ " + wolf.agreement + "% | ۱۰ تحلیلگر: " + agentSummary + " | ۱۵د: " + a.second + " | ۱س: " + b.second + " | ۴س: " + c.second,
+            price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical, short.takeLast(80), wolf
         )
     }
 
