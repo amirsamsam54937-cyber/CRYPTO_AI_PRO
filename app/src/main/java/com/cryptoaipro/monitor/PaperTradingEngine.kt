@@ -75,8 +75,10 @@ object PaperTradingEngine {
                 val fill = stop * (1.0 - SLIPPAGE * dir)
                 val pnl = (fill - entry) * remaining * dir - (entry + fill) * remaining * FEE
                 equity += pnl; dailyPnl += pnl; closed++
-                if (pnl >= 0) wins++ else losses++
-                exited.add(symbol); note(journal, "حدضرر $symbol • PnL ${fmt(pnl)} USDT")
+                val netTradePnl = p.optDouble("realized_pnl", 0.0) + pnl
+                if (netTradePnl >= 0) wins++ else losses++
+                updateOnlineLearner(prefs, p, netTradePnl)
+                exited.add(symbol); note(journal, "حدضرر $symbol • PnL ${fmt(netTradePnl)} USDT")
                 continue
             }
             var stage = p.optInt("stage", 0)
@@ -91,13 +93,16 @@ object PaperTradingEngine {
                 val fill = target * (1.0 - SLIPPAGE * dir)
                 val pnl = (fill - entry) * part * dir - (entry + fill) * part * FEE
                 equity += pnl; dailyPnl += pnl; cyclePnl += pnl; remaining -= part
+                p.put("realized_pnl", p.optDouble("realized_pnl", 0.0) + pnl)
                 stage++
                 if (stage == 1) { stop = entry; note(journal, "TP1 $symbol • ۴۰٪ خروج؛ استاپ سر به سر شد") }
                 else note(journal, "TP$stage $symbol • خروج مرحله‌ای")
             }
             if (remaining <= originalQty * 0.001) {
-                closed++; if (cyclePnl >= 0) wins++ else losses++
-                exited.add(symbol); note(journal, "تکمیل خروج $symbol • PnL ${fmt(cyclePnl)}")
+                val netTradePnl = p.optDouble("realized_pnl", 0.0)
+                closed++; if (netTradePnl >= 0) wins++ else losses++
+                updateOnlineLearner(prefs, p, netTradePnl)
+                exited.add(symbol); note(journal, "تکمیل خروج $symbol • PnL ${fmt(netTradePnl)}")
                 continue
             }
             if (stage >= 1 && s.atr > 0.0) {
@@ -145,6 +150,8 @@ object PaperTradingEngine {
                         .put("stop", s.stop).put("tp1", entry + dir * d)
                         .put("tp2", entry + dir * d * 2).put("tp3", entry + dir * d * 3)
                         .put("qty", qty).put("remaining", qty).put("stage", 0)
+                        .put("learning_features", learningFeatures(s))
+                        .put("realized_pnl", 0.0)
                         .put("leverage", leverage.coerceIn(1, 3)).put("opened", now))
                     cooldowns.put(s.symbol, now); tradesToday++; riskBudget -= risk
                     note(journal, "ورود خودکار دمو ${s.symbol} ${if (dir > 0) "LONG" else "SHORT"} • ریسک ${fmt(risk)} USDT")
@@ -191,6 +198,49 @@ object PaperTradingEngine {
             if (today) p.getInt("trades_today", 0) else 0,
             if (closed > 0) wins.toDouble() / closed * 100.0 else 0.0,
             peak, reason.isNotEmpty(), reason, entries)
+    }
+
+    @Synchronized
+    fun learningUpdates(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("learning_updates", 0)
+
+    private fun learningFeatures(s: MarketSignal): JSONArray {
+        val values = listOf(
+            (s.score / 10.0).coerceIn(-1.0, 1.0),
+            ((s.rsi - 50.0) / 50.0).coerceIn(-1.0, 1.0),
+            when {
+                s.technical.ema20 > s.technical.ema50 -> 1.0
+                s.technical.ema20 < s.technical.ema50 -> -1.0
+                else -> 0.0
+            },
+            (s.technical.adx / 50.0).coerceIn(0.0, 1.0),
+            (s.technical.relativeVolume / 3.0).coerceIn(0.0, 1.0),
+            ((s.technical.bollingerPosition - 0.5) * 2.0).coerceIn(-1.0, 1.0)
+        )
+        return JSONArray().also { array -> values.forEach { array.put(it) } }
+    }
+
+    private fun updateOnlineLearner(prefs: android.content.SharedPreferences, position: JSONObject, netPnl: Double) {
+        val features = position.optJSONArray("learning_features") ?: return
+        if (features.length() != 6 || !netPnl.isFinite()) return
+        val weightsJson = JSONArray(prefs.getString("learning_weights", "[0.35,0.15,0.15,0.10,0.10,0.15]") ?: "[]")
+        if (weightsJson.length() != 6) return
+        val x = DoubleArray(6) { features.optDouble(it, 0.0).coerceIn(-1.0, 1.0) }
+        val weights = DoubleArray(6) { weightsJson.optDouble(it, 0.0).coerceIn(-3.0, 3.0) }
+        val bias = prefs.getString("learning_bias", "0.0")?.toDoubleOrNull() ?: 0.0
+        val z = (bias + weights.indices.sumOf { weights[it] * x[it] }).coerceIn(-30.0, 30.0)
+        val probability = 1.0 / (1.0 + kotlin.math.exp(-z))
+        val target = if (netPnl > 0.0) 1.0 else 0.0
+        val error = target - probability
+        val rate = 0.03
+        for (i in weights.indices) weights[i] = (weights[i] + rate * error * x[i]).coerceIn(-3.0, 3.0)
+        val nextBias = (bias + rate * error).coerceIn(-3.0, 3.0)
+        val nextWeights = JSONArray().also { array -> weights.forEach { array.put(it) } }
+        prefs.edit()
+            .putString("learning_weights", nextWeights.toString())
+            .putString("learning_bias", nextBias.toString())
+            .putInt("learning_updates", prefs.getInt("learning_updates", 0) + 1)
+            .apply()
     }
 
     private fun markToMarket(positions: JSONArray, quotes: Map<String, MarketSignal>): Double {

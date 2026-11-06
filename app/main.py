@@ -1,12 +1,15 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel, Field
 from app.market import fetch_ohlcv
 from app.indicators import build_signal
 from app.advanced_analysis import analyze_ohlcv
 from app.exchanges.xt_futures import XTFuturesClient, XTAPIError
+from app.exchanges.xt_ccxt import xt_account_snapshot, XTCCXTError
 from app.xt_scanner import scan_xt_usdt_perpetuals
 from app.backtest import run_backtest
+from app.online_learning import OnlineLearner
 
 class Settings(BaseSettings):
     app_name: str="CRYPTO AI PRO"
@@ -17,6 +20,7 @@ class Settings(BaseSettings):
     model_config=SettingsConfigDict(env_file=".env",extra="ignore")
 
 settings=Settings()
+learner = OnlineLearner()
 app=FastAPI(title=settings.app_name,version="0.1.0",
             description="Market research, paper trading, and authenticated XT account read access. No live orders.")
 
@@ -40,6 +44,15 @@ o.textContent=JSON.stringify(j,null,2)}catch(e){o.textContent='خطا: '+e.messa
 @app.get("/health")
 def health():
     return {"status":"ok","app":settings.app_name,"mode":"research-paper-and-xt-read-only"}
+
+@app.get("/api/xt/ccxt/dashboard")
+def xt_ccxt_dashboard():
+    """Authenticated XT futures dashboard via CCXT; read-only, no order endpoints."""
+    try:
+        return xt_account_snapshot(include_positions=True, include_open_orders=True)
+    except XTCCXTError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
 
 @app.get("/api/xt/connection")
 def xt_connection():
@@ -89,6 +102,24 @@ def xt_balances(account_id: str = Query(..., min_length=1)):
         raise HTTPException(status_code=503, detail=str(exc))
 
 
+
+class PaperFeedback(BaseModel):
+    symbol: str = Field(min_length=1, max_length=80)
+    direction: str
+    outcome: int = Field(ge=0, le=1, description="1=win, 0=loss")
+    metrics: dict[str, float]
+
+@app.get("/api/learning/status")
+def learning_status():
+    return learner.status()
+
+@app.post("/api/learning/feedback")
+def learning_feedback(payload: PaperFeedback):
+    try:
+        return learner.record_resolved_trade(payload.symbol, payload.direction, payload.metrics, payload.outcome)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
 @app.get("/api/signal/{symbol:path}")
 def signal(symbol: str,timeframe: str=Query(default=None)):
     try:
@@ -117,8 +148,10 @@ def advanced_analysis(symbol: str, timeframe: str = Query(default="1h")):
         if len(frame) > 60:
             frame = frame.iloc[:-1].reset_index(drop=True)
         result = analyze_ohlcv(frame)
+        adaptive = learner.predict(result)
         return {"symbol": symbol, "timeframe": timeframe,
-                "mode": "research-only", "analysis": result}
+                "mode": "research-only", "analysis": result,
+                "adaptive_learning": adaptive}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception:

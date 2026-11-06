@@ -110,6 +110,8 @@ fun CryptoMonitorScreen() {
     var tradeMessage by remember { mutableStateOf<String?>(null) }
     var connectionStatus by remember { mutableStateOf<String?>(null) }
     var connectionVerified by remember { mutableStateOf(false) }
+    var accountBalanceText by remember { mutableStateOf<String?>(null) }
+    var accountBalanceLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val credentialVault = remember(context) { ExchangeCredentialVault(context) }
@@ -141,7 +143,7 @@ fun CryptoMonitorScreen() {
         }
         while (true) {
             performScan()
-            delay(180_000)
+            delay(60_000)
         }
     }
 
@@ -161,7 +163,7 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Panel, contentColor = Color.White) {
-                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "معاملات" to "⇄", "حساب" to "◎", "تنظیمات" to "⚙").forEach { entry ->
+                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "سیگنال‌ها" to "◉", "تنظیمات" to "⚙").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry.first,
                             onClick = { selectedTab = entry.first },
@@ -197,7 +199,7 @@ fun CryptoMonitorScreen() {
                     }
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("CRYPTO AI PRO", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                        Text("AMIRARSALAN TRADER WOLF", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black, maxLines = 1)
                         Text("ULTIMATE  •  FUTURES INTELLIGENCE", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
                     }
                     Surface(
@@ -255,13 +257,13 @@ fun CryptoMonitorScreen() {
                         }
                     }
 
-                    "بازار" -> {
+                    "بازار", "سیگنال‌ها" -> {
                         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                                 FilterChip(selected = exchange == "XT", onClick = { if (exchange != "XT") exchange = "XT" }, label = { Text("XT Futures") })
                                 FilterChip(selected = exchange == "BINANCE", onClick = { if (exchange != "BINANCE") exchange = "BINANCE" }, label = { Text("Binance Futures") })
                                 Spacer(Modifier.weight(1f))
-                                Text("۱۰۰ قرارداد", color = Blue, fontSize = 10.sp)
+                                Text("${rows.size} قرارداد تحلیل‌شده", color = Blue, fontSize = 10.sp)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                                 listOf("همه", "صعودی", "نزولی").forEach { option ->
@@ -290,8 +292,8 @@ fun CryptoMonitorScreen() {
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             item {
-                                Text("موتور تحلیل چندعاملی", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                Text("انتخاب برترین سیگنال فعلی؛ مقادیر بر پایه کندل‌های بسته‌شده محاسبه می‌شوند.", color = Muted, fontSize = 10.sp)
+                                Text("موتور تحلیل چندعاملی و سیگنال‌ساز", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                Text("اسکن بازار فیوچرز Binance و XT • تحلیل ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • بدون سفارش‌گذاری یا معامله دستی.", color = Muted, fontSize = 10.sp)
                             }
                             if (selectedSignal == null) {
                                 item { Text(if (loading) "در حال دریافت داده بازار..." else "هنوز داده‌ای برای تحلیل وجود ندارد. ابتدا اسکن بازار را اجرا کن.", color = Muted) }
@@ -331,8 +333,8 @@ fun CryptoMonitorScreen() {
                                             Text("الگوی کندلی: " + selectedSignal.technical.candlePattern, color = Blue, fontSize = 11.sp)
                                             Text("ساختار: " + selectedSignal.technical.marketStructure + " • رژیم: " + selectedSignal.technical.regime, color = Muted, fontSize = 10.sp)
                                             if (selectedSignal.candles.isNotEmpty()) {
-                                                Text("نمودار کندل ژاپنی • ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                                CandleChart(selectedSignal.candles)
+                                                Text("نمودار کندل زنده • تایم‌فریم پایه ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                CandleChart(selectedSignal.candles, selectedSignal)
                                             }
                                         }
                                     }
@@ -431,6 +433,32 @@ fun CryptoMonitorScreen() {
                                         .onFailure { credentialMessage = it.message ?: "پاک‌سازی ناموفق بود." }
                                 }
                             )
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        accountBalanceLoading = true
+                                        accountBalanceText = null
+                                        val result = runCatching {
+                                            val creds = credentialVault.load() ?: error("ابتدا کلیدهای XT را ذخیره کن")
+                                            XTOrderExecutor.fetchBalanceSummary(creds)
+                                        }
+                                        accountBalanceText = result.fold(
+                                            { it },
+                                            { "دریافت موجودی ناموفق بود: " + (it.message ?: "خطای ناشناخته") }
+                                        )
+                                        accountBalanceLoading = false
+                                    }
+                                },
+                                enabled = credentialsSaved && !accountBalanceLoading,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (accountBalanceLoading) "در حال دریافت موجودی..." else "دریافت موجودی فیوچرز XT")
+                            }
+                            accountBalanceText?.let { summary ->
+                                Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Text(summary, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(12.dp))
+                                }
+                            }
                             Text("Binance برای اسکن عمومی به کلید API نیاز ندارد. اتصال خصوصی حساب Binance هنوز در این نسخه فعال نیست.", color = Muted, fontSize = 10.sp)
                         }
                     }
@@ -468,10 +496,10 @@ fun CryptoMonitorScreen() {
                                     Text("تایم‌فریم اصلی: ۱۵ دقیقه • تأیید: ۱ ساعت و ۴ ساعت", color = Muted, fontSize = 11.sp)
                                     Text("دامنه اسکن: حداکثر ۱۰۰ قرارداد پرحجم USDT", color = Muted, fontSize = 11.sp)
                                     Text("بروزرسانی خودکار: هر ۳ دقیقه", color = Muted, fontSize = 11.sp)
-                                    Text("نسخه: 1.6.0 • رابط ماژولار", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.1.0 • WOLF CHART INTELLIGENCE", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
-                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← CRYPTO AI PRO ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← AMIRARSALAN TRADER WOLF ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                         }
                     }
                 }
@@ -529,6 +557,7 @@ fun CryptoMonitorScreen() {
 @Composable
 private fun PaperDashboardCard(context: Context, fallbackCapital: Double) {
     var snapshot by remember { mutableStateOf(PaperTradingEngine.snapshot(context, fallbackCapital)) }
+    var learningUpdates by remember { mutableIntStateOf(PaperTradingEngine.learningUpdates(context)) }
     Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -536,7 +565,10 @@ private fun PaperDashboardCard(context: Context, fallbackCapital: Double) {
                     Text("داشبورد معامله‌گر خودکار دمو", color = Color.White, fontWeight = FontWeight.Bold)
                     Text("ثبت پایدار • خروج پله‌ای • توقف‌های حفاظتی", color = Muted, fontSize = 9.sp)
                 }
-                TextButton(onClick = { snapshot = PaperTradingEngine.snapshot(context, fallbackCapital) }) {
+                TextButton(onClick = {
+                    snapshot = PaperTradingEngine.snapshot(context, fallbackCapital)
+                    learningUpdates = PaperTradingEngine.learningUpdates(context)
+                }) {
                     Text("تازه‌سازی", color = Blue, fontSize = 10.sp)
                 }
             }
@@ -552,6 +584,7 @@ private fun PaperDashboardCard(context: Context, fallbackCapital: Double) {
                 SmallStat("نرخ برد", String.format(Locale.US, "%.1f%%", snapshot.winRate), Blue)
             }
             Text("تعداد معاملات امروز: " + snapshot.tradesToday, color = Muted, fontSize = 9.sp)
+            Text("یادگیری آنلاین محلی: " + learningUpdates + " معامله بسته‌شده • وزن‌های مدل فقط از نتیجه معاملات مجازی به‌روزرسانی می‌شوند.", color = Purple, fontSize = 10.sp, lineHeight = 14.sp)
             if (snapshot.halted) Text("توقف حفاظتی: " + snapshot.haltReason, color = Red, fontSize = 10.sp)
             else Text("سقف‌ها: ریسک هر معامله ۱٪ • ریسک کل ۳٪ • زیان روزانه ۲٪ • افت از اوج ۸٪ • حداکثر ۳ موقعیت", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
             if (snapshot.journal.isNotEmpty()) {
@@ -585,14 +618,24 @@ private fun TradeControls(
                 OutlinedTextField(value = leverage, onValueChange = onLeverage, modifier = Modifier.weight(1f),
                     singleLine = true, label = { Text("اهرم ۱ تا ۲۰") }, textStyle = androidx.compose.ui.text.TextStyle(color = Color.White))
             }
+            Surface(color = Color(0xFF101B2D), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("حالت ۱ • تحلیل و سیگنال زنده", color = Blue, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("داده واقعی بازار XT/Binance؛ بدون نیاز به شارژ حساب و بدون ارسال سفارش.", color = Muted, fontSize = 9.sp)
+                    Text("حالت ۲ • معاملات خودکار مجازی", color = Green, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("با سرمایه آزمایشی، کارمزد و لغزش شبیه‌سازی‌شده؛ نتایج در ژورنال ذخیره می‌شوند.", color = Muted, fontSize = 9.sp)
+                    Text("حالت ۳ • معاملات خودکار واقعی", color = Gold, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("فعلاً قفل ایمنی است؛ تا زمان تکمیل آزمون سرتاسری پوزیشن، سفارش‌های حفاظتی، بازیابی پس از قطع اینترنت و کنترل موجودی، خودکار واقعی فعال نمی‌شود.", color = Muted, fontSize = 9.sp, lineHeight = 13.sp)
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("اجازه ارسال سفارش واقعی", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                Text("اجازه سفارش واقعی دستی با تأیید نهایی", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
                 Switch(checked = armed, onCheckedChange = onArmed)
             }
             Divider(color = Color(0xFF2B3A52))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("معامله‌گر خودکار آزمایشی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("معامله‌گر خودکار مجازی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Text("فقط شبیه‌سازی؛ هیچ سفارش واقعی ارسال نمی‌کند", color = Green, fontSize = 10.sp)
                 }
                 Switch(checked = paperAuto, onCheckedChange = onPaperAuto)
@@ -727,7 +770,7 @@ private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolea
                 Spacer(Modifier.height(8.dp))
                 Surface(color = Color(0xFF0E1728), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("ورود مرجع: " + formatPrice(item.entry) + "   |   اهرم سقف: " + item.leverage + "x", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("جهت: " + (if (item.direction == "LONG_BIAS") "لانگ" else "شورت") + "  |  تایم‌فریم: ۱۵m / ۱h / ۴h  |  اهرم پیشنهادی: " + item.leverage + "x", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             SmallStat("حد ضرر", formatPrice(item.stop), Red)
                             SmallStat("TP1 • 1R", formatPrice(item.tp1), Green)
@@ -740,9 +783,7 @@ private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolea
             }
             Spacer(Modifier.height(6.dp))
             if (item.direction != "NEUTRAL") {
-                Button(onClick = onTrade, enabled = canTrade, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (canTrade) "معامله واقعی این سیگنال در XT" else "برای معامله: XT را انتخاب کن، کلید را ذخیره و ارسال واقعی را فعال کن")
-                }
+                Text("سیگنال تحلیلی • فقط نمایش اطلاعات، بدون اجرای سفارش", color = Gold, fontSize = 9.sp)
             }
             Text(item.reason, color = Muted, fontSize = 10.sp)
             TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(0.dp)) {
@@ -780,7 +821,7 @@ private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolea
                         Text("ساختار بازار: " + item.technical.marketStructure + " • رژیم: " + item.technical.regime, color = Muted, fontSize = 9.sp)
                         if (item.candles.isNotEmpty()) {
                             Text("نمودار کندل ژاپنی • ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                            CandleChart(item.candles)
+                            CandleChart(item.candles, item)
                         }
                         Text("الگوها احتمالی‌اند؛ هیچ الگویی جهت قیمت را تضمین نمی‌کند.", color = Muted, fontSize = 9.sp)
                     }
@@ -791,28 +832,53 @@ private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolea
 }
 
 @Composable
-private fun CandleChart(candles: List<DoubleArray>) {
+private fun CandleChart(candles: List<DoubleArray>, signal: MarketSignal? = null) {
     val visible = candles.takeLast(54)
     if (visible.isEmpty()) return
-    Canvas(Modifier.fillMaxWidth().height(154.dp)) {
-        val high = visible.maxOf { it[1] }
-        val low = visible.minOf { it[2] }
-        val span = (high - low).coerceAtLeast(1e-12)
+    val high = visible.maxOf { it[1] }
+    val low = visible.minOf { it[2] }
+    val span = (high - low).coerceAtLeast(1e-12)
+    Canvas(Modifier.fillMaxWidth().height(190.dp)) {
         val step = size.width / visible.size
         val bodyWidth = (step * 0.58f).coerceAtLeast(2f)
-        repeat(4) { n ->
-            val y = size.height * n / 3f
-            drawLine(Color(0xFF26364E), Offset(0f, y), Offset(size.width, y), 1f)
+        fun y(price: Double) = size.height - ((price - low) / span * (size.height - 8f) + 4f).toFloat()
+        repeat(5) { n ->
+            val yy = size.height * n / 4f
+            drawLine(Color(0xFF26364E), Offset(0f, yy), Offset(size.width, yy), 1f)
         }
         visible.forEachIndexed { index, candle ->
             val x = step * index + step / 2f
-            fun y(price: Double) = size.height - ((price - low) / span * (size.height - 8f) + 4f).toFloat()
             val tint = if (candle[3] >= candle[0]) Green else Red
             drawLine(tint, Offset(x, y(candle[1])), Offset(x, y(candle[2])), 1.4f)
             val top = minOf(y(candle[0]), y(candle[3]))
             val bottom = maxOf(y(candle[0]), y(candle[3]))
             drawRect(tint, Offset(x - bodyWidth / 2f, top), androidx.compose.ui.geometry.Size(bodyWidth, (bottom - top).coerceAtLeast(2f)))
         }
+        // Reference levels are overlaid only when they fall inside the visible candle range.
+        val levels = signal?.let {
+            listOf(
+                Triple("S", it.technical.support, Green.copy(alpha = .75f)),
+                Triple("R", it.technical.resistance, Red.copy(alpha = .75f)),
+                Triple("E", it.entry, Blue.copy(alpha = .9f)),
+                Triple("SL", it.stop, Red.copy(alpha = .95f)),
+                Triple("TP1", it.tp1, Gold.copy(alpha = .95f))
+            )
+        }.orEmpty()
+        levels.filter { it.second in low..high }.forEach { level ->
+            val yy = y(level.second)
+            drawLine(level.third, Offset(0f, yy), Offset(size.width, yy), 1.5f)
+        }
+    }
+    if (signal != null) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("حمایت", color = Green, fontSize = 9.sp)
+            Text("مقاومت", color = Red, fontSize = 9.sp)
+            Text("ورود", color = Blue, fontSize = 9.sp)
+            Text("حدضرر", color = Red, fontSize = 9.sp)
+            Text("TP1", color = Gold, fontSize = 9.sp)
+        }
+        Text("نمایش کندل‌های اخیر • آخرین اسکن بازار هر ۶۰ ثانیه • خطوط ورود، استاپ و اهداف روی نمودار.",
+            color = Muted, fontSize = 9.sp)
     }
 }
 
@@ -900,9 +966,9 @@ private object XTMonitor {
             val turnover = t.optString("v").toDoubleOrNull() ?: t.optDouble("v")
             if (price <= 0.0 || open <= 0.0 || turnover <= 0.0) return@mapNotNull null
             Triple(t, price, turnover)
-        }.sortedByDescending { it.third }.take(100)
+        }.sortedByDescending { it.third }
         if (ranked.isEmpty()) throw IllegalStateException("XT هیچ قرارداد USDT Perpetual قابل اسکن برنگرداند")
-        val semaphore = Semaphore(permits = 3)
+        val semaphore = Semaphore(permits = 10)
         coroutineScope {
             ranked.map { item ->
                 async {
@@ -925,7 +991,7 @@ private object XTMonitor {
 
     private fun candles(symbol: String, interval: String): List<DoubleArray> {
         val encoded = java.net.URLEncoder.encode(symbol.lowercase(Locale.US), "UTF-8")
-        val rows = array(JSONObject(get("/future/market/v1/public/q/kline?symbol=$encoded&interval=$interval&limit=250")))
+        val rows = array(JSONObject(get("/future/market/v1/public/q/kline?symbol=$encoded&interval=$interval&limit=120")))
         if (rows.length() < 56) throw IllegalStateException("کندل کافی برای $symbol در $interval دریافت نشد")
         return (0 until rows.length() - 1).mapNotNull { i ->
             val row = rows.optJSONObject(i) ?: return@mapNotNull null
@@ -974,6 +1040,88 @@ private object XTOrderExecutor {
             }
             return json
         } finally { c.disconnect() }
+    }
+
+    private fun signedGet(creds: ExchangeCredentialVault.Credentials, path: String, params: Map<String, String> = emptyMap()): JSONObject {
+        val query = params.toSortedMap().entries.joinToString("&") { entry ->
+            java.net.URLEncoder.encode(entry.key, "UTF-8") + "=" + java.net.URLEncoder.encode(entry.value, "UTF-8")
+        }
+        val timestamp = System.currentTimeMillis().toString()
+        val signatureValue = signature(creds.secretKey, creds.apiKey, timestamp, path, query)
+        val urlText = BASE + path + if (query.isNotEmpty()) "?$query" else ""
+        val c = (URL(urlText).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"; connectTimeout = 12000; readTimeout = 18000
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            setRequestProperty("validate-algorithms", "HmacSHA256")
+            setRequestProperty("validate-appkey", creds.apiKey)
+            setRequestProperty("validate-recvwindow", "5000")
+            setRequestProperty("validate-timestamp", timestamp)
+            setRequestProperty("validate-signature", signatureValue)
+        }
+        try {
+            val code = c.responseCode
+            val stream = if (code in 200..299) c.inputStream else c.errorStream
+            val raw = stream.bufferedReader().use { it.readText() }
+            if (code !in 200..299) throw IllegalStateException("XT HTTP $code")
+            val json = JSONObject(raw)
+            if (json.optString("returnCode", "0") !in setOf("0", "200")) {
+                val detail = json.optJSONObject("error")?.optString("msg")
+                    ?: json.optString("msgInfo", "درخواست حساب توسط XT رد شد")
+                throw IllegalStateException("XT: $detail")
+            }
+            return json
+        } finally { c.disconnect() }
+    }
+
+    private fun findUsdtObject(value: Any?): JSONObject? {
+        when (value) {
+            is JSONObject -> {
+                val currency = value.optString("currency",
+                    value.optString("coin", value.optString("asset", "")))
+                if (currency.equals("USDT", ignoreCase = true)) return value
+                val keys = value.keys()
+                while (keys.hasNext()) {
+                    val found = findUsdtObject(value.opt(keys.next()))
+                    if (found != null) return found
+                }
+            }
+            is JSONArray -> {
+                for (index in 0 until value.length()) {
+                    val found = findUsdtObject(value.opt(index))
+                    if (found != null) return found
+                }
+            }
+        }
+        return null
+    }
+
+    suspend fun fetchBalanceSummary(creds: ExchangeCredentialVault.Credentials): String = withContext(Dispatchers.IO) {
+        val accountJson = signedGet(creds, "/future/user/v1/account/info")
+        val account = accountJson.optJSONObject("result") ?: accountJson.optJSONObject("data")
+            ?: throw IllegalStateException("اطلاعات حساب XT خالی است")
+        val accountId = account.optString("accountId")
+        if (accountId.isBlank()) throw IllegalStateException("شناسه حساب فیوچرز از XT دریافت نشد")
+        val balanceJson = signedGet(
+            creds, "/future/user/v1/compat/balance/list",
+            mapOf("queryAccountId" to accountId)
+        )
+        val root = balanceJson.opt("result") ?: balanceJson.opt("data") ?: balanceJson
+        val usdt = findUsdtObject(root)
+        if (usdt == null) {
+            return@withContext "اتصال حساب موفق است؛ موجودی USDT در پاسخ صرافی پیدا نشد. پاسخ: " + root.toString().take(700)
+        }
+        val fields = listOf("free", "availableBalance", "available", "balance", "total", "equity", "used", "frozen")
+        val lines = fields.mapNotNull { key ->
+            if (!usdt.has(key) || usdt.isNull(key)) null
+            else "$key: " + usdt.opt(key).toString()
+        }
+        val empty = fields.all { key ->
+            !usdt.has(key) || usdt.isNull(key) || usdt.optDouble(key, 0.0) == 0.0
+        }
+        val balanceLabel = if (empty) "صفر (حساب خالی است)" else "اطلاعات دریافت شد"
+        "حساب XT متصل است\nموجودی فیوچرز USDT: " + balanceLabel +
+            if (lines.isNotEmpty()) "\n" + lines.joinToString("\n") else "\n" + usdt.toString().take(500)
     }
 
     suspend fun checkConnection(creds: ExchangeCredentialVault.Credentials) = withContext(Dispatchers.IO) {
@@ -1067,8 +1215,8 @@ private object BinanceMonitor {
         val ranked = (0 until tickers.length()).map { tickers.getJSONObject(it) }
             .filter { allowed.contains(it.optString("symbol")) }
             .sortedByDescending { it.optDouble("quoteVolume", 0.0) }
-            .take(100)
-        val semaphore = Semaphore(permits = 4)
+            .take(180)
+        val semaphore = Semaphore(permits = 8)
         coroutineScope {
             ranked.map { ticker ->
                 async {
@@ -1124,7 +1272,7 @@ private object BinanceMonitor {
     }
 
     private fun candles(symbol: String, interval: String): List<DoubleArray> {
-        val raw = JSONArray(get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval + "&limit=250"))
+        val raw = JSONArray(get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval + "&limit=120"))
         return (0 until (raw.length() - 1).coerceAtLeast(0)).map { i ->
             val row = raw.getJSONArray(i)
             doubleArrayOf(row.getString(1).toDouble(), row.getString(2).toDouble(), row.getString(3).toDouble(), row.getString(4).toDouble(), row.getString(5).toDouble())
@@ -1395,14 +1543,14 @@ class MarketMonitorService : Service() {
     }
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "پایش بازار CRYPTO AI PRO", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(CHANNEL_ID, "پایش بازار AMIRARSALAN TRADER WOLF", NotificationManager.IMPORTANCE_LOW)
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
         }
     }
     private fun buildNotification(status: String): Notification {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
         return builder.setSmallIcon(android.R.drawable.ic_menu_info_details)
-            .setContentTitle("CRYPTO AI PRO • پایش پس‌زمینه")
+            .setContentTitle("AMIRARSALAN TRADER WOLF • پایش پس‌زمینه")
             .setContentText(status).setOngoing(true).build()
     }
     override fun onDestroy() { worker?.cancel(); serviceScope.cancel(); super.onDestroy() }
