@@ -124,18 +124,24 @@ def make_rows(raw):
     mask &= np.abs(future) > .0025
     return X[mask],y[mask],a[:,0][mask]
 
+def fetch_symbol_samples(symbol):
+    raw=get_history(symbol)
+    x,y,t=make_rows(raw)
+    return symbol,x,y,t
+
 def main():
     chunks=[]
-    for symbol in SYMBOLS:
-        try:
-            raw=get_history(symbol)
-            x,y,t=make_rows(raw)
-            if len(x)>100:
-                chunks.append((x,y,t))
-            print(f"{symbol}: {len(x)} labeled samples",flush=True)
-        except Exception as exc:
-            print(f"SKIP {symbol}: {exc}",flush=True)
-        time.sleep(.15)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures={pool.submit(fetch_symbol_samples,symbol):symbol for symbol in SYMBOLS}
+        for future in as_completed(futures):
+            symbol=futures[future]
+            try:
+                _,x,y,t=future.result()
+                if len(x)>100:
+                    chunks.append((x,y,t))
+                print(f"{symbol}: {len(x)} labeled samples",flush=True)
+            except Exception as exc:
+                print(f"SKIP {symbol}: {exc}",flush=True)
     if not chunks:
         raise SystemExit("No real historical data received; refusing to create fake pretrained weights.")
     X=np.vstack([item[0] for item in chunks])
