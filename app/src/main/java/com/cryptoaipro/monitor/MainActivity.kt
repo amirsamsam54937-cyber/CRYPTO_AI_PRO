@@ -490,7 +490,7 @@ fun CryptoMonitorScreen() {
                                     Text("تایم‌فریم اصلی: ۱۵ دقیقه • تأیید: ۱ ساعت و ۴ ساعت", color = Muted, fontSize = 11.sp)
                                     Text("دامنه اسکن: تمام قراردادهای دائمی USDT فعال؛ مرتب‌شده بر اساس حجم معاملات", color = Muted, fontSize = 11.sp)
                                     Text("بروزرسانی خودکار: هر ۳ دقیقه", color = Muted, fontSize = 11.sp)
-                                    Text("نسخه: 1.6.0 • رابط ماژولار", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.8.0 • Binance USDⓈ-M • تحلیل فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                             Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← CRYPTO AI PRO ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
@@ -543,7 +543,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 SmallStat("قیمت", formatPrice(item.price))
                 SmallStat("تغییر ۲۴ساعت", String.format(Locale.US, "%.2f%%", item.change), if (item.change >= 0) Green else Red)
                 SmallStat("RSI", String.format(Locale.US, "%.1f", item.rsi))
-                SmallStat("امتیاز", item.score.toString() + "/9")
+                SmallStat("امتیاز", item.score.toString() + "/30")
             }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -830,23 +830,40 @@ private fun formatPrice(value: Double): String = when {
 /** Binance USDⓈ-M public futures scanner; public endpoints only. */
 
 private object BinanceMonitor {
-    private const val BASE = "https://fapi.binance.com"
+    // Official Binance USDⓈ-M public API mirrors. Fail over on regional/network gateway failures.
+    private val BASES = listOf(
+        "https://fapi.binance.com",
+        "https://fapi1.binance.com",
+        "https://fapi2.binance.com",
+        "https://fapi3.binance.com"
+    )
+    private val requestGate = Semaphore(permits = 8)
 
     private fun get(path: String): String {
-        val connection = URL(BASE + path).openConnection() as HttpURLConnection
-        connection.requestMethod = "GET"
-        connection.connectTimeout = 8000
-        connection.readTimeout = 10000
-        connection.setRequestProperty("User-Agent", "CryptoAIPro-Android/1.0")
-        try {
-            val code = connection.responseCode
-            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-            val body = stream.bufferedReader().use { it.readText() }
-            if (code !in 200..299) throw IllegalStateException("Binance پاسخ HTTP " + code + ": " + body.take(220))
-            return body
-        } finally {
-            connection.disconnect()
+        var lastError = "اتصال به API عمومی Binance برقرار نشد"
+        for (base in BASES) {
+            var connection: HttpURLConnection? = null
+            try {
+                connection = (URL(base + path).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 7000
+                    readTimeout = 9000
+                    setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.8")
+                    setRequestProperty("Accept", "application/json")
+                }
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code in 200..299) return body
+                lastError = "Binance HTTP $code: " + body.take(180)
+                if (code !in listOf(403, 418, 429, 451, 500, 502, 503, 504)) break
+            } catch (e: Exception) {
+                lastError = e.message ?: e.javaClass.simpleName
+            } finally {
+                connection?.disconnect()
+            }
         }
+        throw IllegalStateException("دریافت داده Binance ناموفق بود: $lastError")
     }
 
     suspend fun scan(onProgress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { _, _, _, _ -> }): List<MarketSignal> = withContext(Dispatchers.IO) {
@@ -869,7 +886,7 @@ private object BinanceMonitor {
         for (batch in ranked.chunked(12)) {
             val batchResults = coroutineScope {
                 batch.map { ticker -> async {
-                    semaphore.withPermit { runCatching { analyze(ticker.optString("symbol"), ticker.optDouble("lastPrice"), ticker.optDouble("priceChangePercent"), ticker.optDouble("quoteVolume")) } }
+                    runCatching { analyze(ticker.optString("symbol"), ticker.optDouble("lastPrice"), ticker.optDouble("priceChangePercent"), ticker.optDouble("quoteVolume")) }
                 } }.awaitAll()
             }
             batchResults.forEach { result -> result.onSuccess { results.add(it) }.onFailure { failed++ } }
@@ -940,8 +957,9 @@ private object BinanceMonitor {
         )
     }
 
-    private fun candles(symbol: String, interval: String): List<DoubleArray> {
-        val raw = JSONArray(get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval + "&limit=250"))
+    private suspend fun candles(symbol: String, interval: String): List<DoubleArray> {
+        val rawText = requestGate.withPermit { withContext(Dispatchers.IO) { get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval + "&limit=250") } }
+        val raw = JSONArray(rawText)
         return (0 until (raw.length() - 1).coerceAtLeast(0)).map { i ->
             val row = raw.getJSONArray(i)
             doubleArrayOf(row.getString(1).toDouble(), row.getString(2).toDouble(), row.getString(3).toDouble(), row.getString(4).toDouble(), row.getString(5).toDouble())
