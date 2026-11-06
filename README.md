@@ -57,3 +57,27 @@ Options include `--symbol`, `--days`, `--leverage`, `--risk`, `--fee`, `--slippa
 - Indicators can lag, fail, or disagree. No signal guarantees a market outcome.
 
 Crypto derivatives are high risk. This software is experimental and is for monitoring and research only.
+
+
+## XT USDT-M Futures account connection (read-only foundation)
+
+The project now includes a signed XT USDT-M account adapter. It can authenticate
+against XT, read futures account metadata, and request the futures balance list.
+It does **not** submit, cancel, or modify orders and it does not move funds.
+
+Configure `XT_API_KEY` and `XT_SECRET_KEY` as private environment variables on
+the machine hosting the FastAPI service. Never put real credentials in this
+repository, Android source code, APK resources, notebooks, or chat messages.
+The old credentials previously shared in chat should be revoked and replaced.
+
+Available endpoints:
+- `GET /api/xt/connection` — authenticated account connection check
+- `GET /api/xt/dashboard` — account metadata plus balances when XT returns an account ID
+- `GET /api/xt/balances?account_id=...` — futures balance list
+
+This is a first integration milestone, not a live trading bot. The Android APK
+does not yet connect to XT, and no live order execution is enabled. Verify
+authentication and account responses against a small test environment before
+building further execution functionality. XT USDT-M API base URL and signing
+rules are documented at [XT Futures API](https://doc.xt.com/docs/futures/Access%20Description/BasicInformationOfTheInterface)
+and [XT Signature Generation](https://doc.xt.com/docs/futures/Access%20Description/SignatureGeneration).
