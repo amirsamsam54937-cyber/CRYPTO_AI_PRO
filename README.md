@@ -1,6 +1,6 @@
 # CRYPTO AI PRO ULTIMATE
 
-**Android app version: 2.2.0 (development)**  
+**Android app version: 2.3.0 (development)**  
 A Persian-first, modular crypto-futures technical-analysis application. The Android client is built with Kotlin and Jetpack Compose; the Python package provides research, risk, and backtesting utilities.
 
 > This is experimental trading software. Market signals are not investment advice and do not guarantee outcomes. Real-money order execution is not production-certified. Keep live trading disabled until the readiness gates in `docs/LIVE_TRADING_READINESS.md` are independently completed.
