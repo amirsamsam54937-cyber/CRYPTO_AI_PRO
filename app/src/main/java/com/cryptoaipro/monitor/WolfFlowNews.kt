@@ -92,9 +92,12 @@ internal object WolfFlowNewsRepository {
         if (System.currentTimeMillis() - last < 15L * 60L * 1000L) return
         val reports = signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }.sortedByDescending { it.volume }.take(3).mapNotNull { signal -> runCatching { whale(signal.symbol) }.getOrNull() }
         val headlines = runCatching { news() }.getOrDefault(emptyList())
+        val focus = signals.maxByOrNull { it.volume }
+        val researchQuery = focus?.let { "crypto futures ${it.technical.regime} ${it.technical.candlePattern} market structure order flow risk management research" } ?: "crypto futures market structure volatility risk management research"
+        val research = runCatching { WolfKnowledgeSearch.answer(researchQuery) }.getOrNull()
         val json = JSONArray().apply { reports.forEach { r -> put(org.json.JSONObject().apply { put("symbol", r.symbol); put("imbalance", r.imbalance); put("largeBuys", r.largeBuys); put("largeSells", r.largeSells); put("openInterest", r.openInterest); put("funding", r.funding); put("summary", r.summary); put("updatedAt", System.currentTimeMillis()) }) } }
         val newsJson = JSONArray().apply { headlines.take(12).forEach { n -> put(org.json.JSONObject().apply { put("title", n.title); put("source", n.source); put("url", n.link); put("date", n.date) }) } }
-        context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE).edit().putString("flow_reports", json.toString()).putString("market_news", newsJson.toString()).putLong("last_refresh", System.currentTimeMillis()).apply()
+        context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE).edit().putString("flow_reports", json.toString()).putString("market_news", newsJson.toString()).putString("auto_research", research?.first.orEmpty()).putString("auto_research_source", research?.second.orEmpty()).putLong("last_refresh", System.currentTimeMillis()).apply()
     }
 
     suspend fun news(): List<MarketNewsItem> = withContext(Dispatchers.IO) {
