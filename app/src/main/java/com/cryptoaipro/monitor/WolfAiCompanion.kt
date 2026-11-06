@@ -159,7 +159,7 @@ internal fun WolfAiCompanionScreen() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(18.dp), color = blue, strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
-                    Text("در حال جست‌وجوی وب...", color = muted, fontSize = 11.sp)
+                    Text("در حال آماده‌سازی پاسخ...", color = muted, fontSize = 11.sp)
                 }
             }
         }
