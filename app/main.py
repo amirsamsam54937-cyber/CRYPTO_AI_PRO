@@ -6,6 +6,7 @@ from app.indicators import build_signal
 from app.advanced_analysis import analyze_ohlcv
 from app.exchanges.xt_futures import XTFuturesClient, XTAPIError
 from app.xt_scanner import scan_xt_usdt_perpetuals
+from app.backtest import run_backtest
 
 class Settings(BaseSettings):
     app_name: str="CRYPTO AI PRO"
@@ -122,6 +123,32 @@ def advanced_analysis(symbol: str, timeframe: str = Query(default="1h")):
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception:
         raise HTTPException(status_code=502, detail="Market data provider unavailable; retry later.")
+
+
+
+@app.get("/api/backtest/{symbol:path}")
+def backtest(symbol: str, timeframe: str = Query(default="1h"),
+             candles: int = Query(default=300, ge=150, le=1000),
+             initial_equity: float = Query(default=1000.0, gt=0),
+             risk_per_trade: float = Query(default=0.005, gt=0, le=0.02)):
+    """Run a historical research simulation; never submits exchange orders."""
+    allowed = {"5m", "15m", "30m", "1h", "2h", "4h", "1d"}
+    if timeframe not in allowed:
+        raise HTTPException(status_code=400, detail="Unsupported timeframe")
+    try:
+        frame = fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=candles,
+                            exchange_id=settings.exchange_id)
+        # Remove the live, unfinished candle before simulation.
+        if len(frame) > 1:
+            frame = frame.iloc[:-1].reset_index(drop=True)
+        result = run_backtest(frame, initial_equity=initial_equity,
+                              risk_per_trade=risk_per_trade)
+        return {"symbol": symbol, "timeframe": timeframe,
+                "mode": "historical-research-only", "results": result}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:
+        raise HTTPException(status_code=502, detail="Backtest data provider unavailable; retry later.")
 
 
 @app.get("/api/xt/scan")
