@@ -827,11 +827,11 @@ private fun TradingViewMarketPanel(selectedSymbol: String, selectedExchange: Str
         "TOTAL" -> "CRYPTOCAP:TOTAL"
         "TOTAL2" -> "CRYPTOCAP:TOTAL2"
         "TOTAL3" -> "CRYPTOCAP:TOTAL3"
-        else -> if (selectedExchange == "BINANCE") "BINANCE:$selectedSymbol.P" else "XT:$selectedSymbol"
+        else -> "BINANCE:" + selectedSymbol.replace("/", "").replace(":USDT", "").replace("_", "") + ".P"
     }
     Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text("نمودار TradingView", color = Color.White, fontWeight = FontWeight.Bold)
+            Text("نمودار TradingView • قرارداد مرجع Binance Perpetual", color = Color.White, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 listOf("PAIR" to "ارز انتخابی", "TOTAL" to "TOTAL 1", "TOTAL2" to "TOTAL 2", "TOTAL3" to "TOTAL 3").forEach { (key, label) ->
                     FilterChip(selected = chartSelection == key, onClick = { onSelection(key) }, label = { Text(label, fontSize = 9.sp) })
