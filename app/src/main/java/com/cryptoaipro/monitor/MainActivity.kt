@@ -299,7 +299,7 @@ fun CryptoMonitorScreen() {
                             }
                             item {
                                 ActiveCommandSignals(
-                                    records = outcomeSnapshot.records.filter { !it.closed },
+                                    records = outcomeSnapshot.records.filter { it.expiresAt > System.currentTimeMillis() },
                                     onOpenJournal = { selectedTab = "دفترچه" }
                                 )
                             }
