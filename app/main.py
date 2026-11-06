@@ -47,6 +47,26 @@ def xt_connection():
         raise HTTPException(status_code=503, detail=str(exc))
 
 
+@app.get("/api/xt/dashboard")
+def xt_dashboard():
+    """Fetch XT account metadata and balances in one read-only request flow."""
+    try:
+        client = XTFuturesClient()
+        info = client.account_info()
+        account = info.get("result") or info.get("data") or {}
+        account_id = account.get("accountId") if isinstance(account, dict) else None
+        balance_data = client.balances(str(account_id)) if account_id else None
+        return {"connection": {
+            "connected": True,
+            "account_id": account_id,
+            "account_state": account.get("state") if isinstance(account, dict) else None,
+            "allow_trade": account.get("allowTrade") if isinstance(account, dict) else None,
+            "allow_open_position": account.get("allowOpenPosition") if isinstance(account, dict) else None,
+        }, "balances": balance_data}
+    except XTAPIError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
 @app.get("/api/xt/balances")
 def xt_balances(account_id: str = Query(..., min_length=1)):
     """Read XT futures balances. Account ID comes from the authenticated account."""
