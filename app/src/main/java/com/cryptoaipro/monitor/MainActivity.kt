@@ -36,8 +36,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import com.cryptoaipro.monitor.security.ExchangeCredentialVault
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -98,6 +96,461 @@ class MainActivity : ComponentActivity() {
         setContent { CryptoMonitorScreen() }
     }
 }
+
+@Composable
+fun CryptoMonitorScreen() {
+    var rows by remember { mutableStateOf<List<MarketSignal>>(emptyList()) }
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var updated by remember { mutableStateOf("هنوز اسکن انجام نشده") }
+    var filter by remember { mutableStateOf("همه") }
+    var exchange by remember { mutableStateOf("XT") }
+    var selectedTab by remember { mutableStateOf("خانه") }
+    var selectedSymbol by remember { mutableStateOf("") }
+    var voiceTranscript by remember { mutableStateOf("") }
+    var voiceReply by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val learningPrefs = remember(context) { context.getSharedPreferences("wolf_learning_memory", Context.MODE_PRIVATE) }
+    var learningSamples by remember { mutableIntStateOf(learningPrefs.getInt("samples", 0)) }
+    var learningWins by remember { mutableIntStateOf(learningPrefs.getInt("wins", 0)) }
+    var learningLosses by remember { mutableIntStateOf(learningPrefs.getInt("losses", 0)) }
+    val voiceEngine = remember(context) { TextToSpeech(context) { } }
+    DisposableEffect(voiceEngine) { onDispose { voiceEngine.stop(); voiceEngine.shutdown() } }
+    LaunchedEffect(voiceReply) { if (voiceReply.isNotBlank()) { voiceEngine.language = Locale("fa", "IR"); voiceEngine.speak(voiceReply, TextToSpeech.QUEUE_FLUSH, null, "wolf-voice-reply") } }
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
+        if (spoken.isNotBlank()) {
+            voiceTranscript = spoken
+            val current = rows.firstOrNull { it.symbol == selectedSymbol } ?: rows.firstOrNull()
+            voiceReply = if (current == null) "هنوز داده زنده‌ای برای تحلیل ندارم؛ ابتدا اسکن بازار را اجرا کن."
+            else if (spoken.contains("استاپ") || spoken.contains("حد ضرر")) "حد ضرر مرجع " + formatPrice(current.stop) + " و ورود مرجع " + formatPrice(current.entry) + " است."
+            else if (spoken.contains("الگو") || spoken.contains("کندل") || spoken.contains("چارت")) "الگوی کندلی: " + current.technical.candlePattern + "؛ ساختار: " + current.technical.marketStructure
+            else if (spoken.contains("لانگ") || spoken.contains("خرید")) "وضعیت خرید: " + if (current.direction == "LONG_BIAS") "تمایل صعودی با اطمینان " + current.confidence + " درصد" else "سیگنال خرید تأیید نشده است"
+            else if (spoken.contains("شورت") || spoken.contains("فروش")) "وضعیت فروش: " + if (current.direction == "SHORT_BIAS") "تمایل نزولی با اطمینان " + current.confidence + " درصد" else "سیگنال فروش تأیید نشده است"
+            else "قیمت " + formatPrice(current.price) + "، RSI " + String.format(Locale.US, "%.1f", current.rsi) + "، ADX " + String.format(Locale.US, "%.1f", current.technical.adx) + ". " + current.reason
+        }
+    }
+    val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            val speechIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fa-IR")
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "سوالت را درباره بازار بپرس")
+            }
+            speechLauncher.launch(speechIntent)
+        } else voiceReply = "برای گفت‌وگوی صوتی، اجازه میکروفون را فعال کن."
+    }
+
+
+    suspend fun performScan() {
+        loading = true
+        error = null
+        try {
+            rows = if (exchange == "XT") XTMonitor.scan() else BinanceMonitor.scan()
+            updated = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            if (selectedSymbol.isBlank() || rows.none { it.symbol == selectedSymbol }) {
+                selectedSymbol = rows.firstOrNull()?.symbol.orEmpty()
+            }
+        } catch (e: Exception) {
+            error = e.message ?: "خطا در دریافت اطلاعات بازار"
+        } finally {
+            loading = false
+        }
+    }
+
+    LaunchedEffect(exchange) {
+        while (true) {
+            performScan()
+            delay(180_000)
+        }
+    }
+
+    val shown = when (filter) {
+        "صعودی" -> rows.filter { it.direction == "LONG_BIAS" }
+        "نزولی" -> rows.filter { it.direction == "SHORT_BIAS" }
+        else -> rows
+    }
+    val selectedSignal = rows.firstOrNull { it.symbol == selectedSymbol } ?: rows.firstOrNull()
+
+    MaterialTheme(colorScheme = darkColorScheme(
+        primary = Blue, secondary = Purple, background = Navy, surface = Panel,
+        onBackground = Color.White, onSurface = Color.White
+    )) {
+        Scaffold(
+            containerColor = Navy,
+            bottomBar = {
+                NavigationBar(containerColor = Panel, contentColor = Color.White) {
+                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "تنظیمات" to "⚙").forEach { entry ->
+                        NavigationBarItem(
+                            selected = selectedTab == entry.first,
+                            onClick = { selectedTab = entry.first },
+                            icon = { Text(entry.second, fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+                            label = { Text(entry.first, fontSize = 9.sp, maxLines = 1) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Blue,
+                                selectedTextColor = Blue,
+                                indicatorColor = Color(0xFF24344E),
+                                unselectedIconColor = Muted,
+                                unselectedTextColor = Muted
+                            )
+                        )
+                    }
+                }
+            }
+        ) { innerPadding ->
+            Column(
+                Modifier.fillMaxSize().padding(innerPadding).background(Navy).drawBehind {
+                    val wolf = Path().apply {
+                        moveTo(size.width * 0.08f, size.height * 0.08f)
+                        lineTo(size.width * 0.32f, size.height * 0.28f)
+                        lineTo(size.width * 0.50f, size.height * 0.18f)
+                        lineTo(size.width * 0.68f, size.height * 0.28f)
+                        lineTo(size.width * 0.92f, size.height * 0.08f)
+                        lineTo(size.width * 0.80f, size.height * 0.52f)
+                        lineTo(size.width * 0.66f, size.height * 0.76f)
+                        lineTo(size.width * 0.50f, size.height * 0.94f)
+                        lineTo(size.width * 0.34f, size.height * 0.76f)
+                        lineTo(size.width * 0.20f, size.height * 0.52f)
+                        close()
+                    }
+                    drawPath(wolf, Blue.copy(alpha = 0.035f))
+                    drawCircle(Blue.copy(alpha = 0.08f), radius = size.width * 0.018f, center = androidx.compose.ui.geometry.Offset(size.width * 0.40f, size.height * 0.43f))
+                    drawCircle(Blue.copy(alpha = 0.08f), radius = size.width * 0.018f, center = androidx.compose.ui.geometry.Offset(size.width * 0.60f, size.height * 0.43f))
+                }
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (selectedTab != "خانه") TextButton(onClick = { selectedTab = "خانه" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("‹ بازگشت", color = Blue, fontSize = 11.sp) }
+                    Surface(
+                        color = Color(0xFF142B4B),
+                        shape = RoundedCornerShape(13.dp),
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("🐺", color = Blue, fontSize = 25.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("AMIR ARSALAN", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                        Text("TRADER WOLF  •  LIVE TECHNICAL INTELLIGENCE", color = Muted, fontSize = 8.sp, letterSpacing = 0.5.sp)
+                    }
+                    Surface(
+                        color = if (loading) Color(0xFF3A2C17) else Color(0xFF10382F),
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Text(
+                            if (loading) "در حال اسکن" else "● " + exchange,
+                            color = if (loading) Color(0xFFFFD166) else Green,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+
+                when (selectedTab) {
+                    "خانه" -> {
+                        LazyColumn(
+                            Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(11.dp)
+                        ) {
+                            item {
+                                Surface(color = Color(0xFF14243C), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                        Text("مرکز فرماندهی بازار", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                        Text("اسکن چندتایم‌فریمی • تحلیل تکنیکال • موتور هوشمند سیگنال", color = Muted, fontSize = 10.sp)
+                                        MarketSessionsPanel()
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            MetricCard("بازارهای بررسی‌شده", rows.size.toString(), Modifier.weight(1f))
+                                            MetricCard("تمایل صعودی", rows.count { it.direction == "LONG_BIAS" }.toString(), Modifier.weight(1f), Green)
+                                            MetricCard("تمایل نزولی", rows.count { it.direction == "SHORT_BIAS" }.toString(), Modifier.weight(1f), Red)
+                                        }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Button(onClick = { selectedTab = "بازار" }, modifier = Modifier.weight(1f)) { Text("مشاهده بازار") }
+                                            OutlinedButton(onClick = { scope.launch { performScan() } }, enabled = !loading, modifier = Modifier.weight(1f)) {
+                                                Text(if (loading) "در حال اسکن..." else "اسکن مجدد")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            item {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("فرصت‌های برتر", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                                    Text("آخرین بروزرسانی " + updated, color = Muted, fontSize = 9.sp)
+                                }
+                            }
+                            if (loading && rows.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Blue) } }
+                            error?.let { msg -> item { Text(msg, color = Red, fontSize = 11.sp) } }
+                            items(rows.take(5), key = { it.symbol }) { signal ->
+                                SignalCard(signal, onSelect = { selectedSymbol = signal.symbol; selectedTab = "تحلیل" })
+                            }
+                            item { Text("سیگنال‌ها ابزار غربالگری‌اند، نه تضمین سود یا توصیه قطعی معامله.", color = Muted, fontSize = 9.sp) }
+                        }
+                    }
+
+                    "بازار" -> {
+                        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                FilterChip(selected = exchange == "XT", onClick = { if (exchange != "XT") exchange = "XT" }, label = { Text("XT Futures") })
+                                FilterChip(selected = exchange == "BINANCE", onClick = { if (exchange != "BINANCE") exchange = "BINANCE" }, label = { Text("Binance Futures") })
+                                Spacer(Modifier.weight(1f))
+                                Text("۱۰۰ قرارداد", color = Blue, fontSize = 10.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                listOf("همه", "صعودی", "نزولی").forEach { option ->
+                                    FilterChip(selected = filter == option, onClick = { filter = option }, label = { Text(option) })
+                                }
+                                Spacer(Modifier.weight(1f))
+                                TextButton(onClick = { scope.launch { performScan() } }, enabled = !loading) { Text("اسکن مجدد", color = Blue) }
+                            }
+                            error?.let { Text(it, color = Red, fontSize = 11.sp) }
+                            if (loading && rows.isEmpty()) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Blue) }
+                            } else {
+                                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
+                                    items(shown, key = { it.symbol }) { signal ->
+                                        SignalCard(signal, onSelect = { selectedSymbol = signal.symbol; selectedTab = "تحلیل" })
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    "تحلیل" -> {
+                        LazyColumn(
+                            Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            item {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("مغز تکنیکال گرگ", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                        Text("تحلیل کندل، ساختار، چندتایم‌فریم و حافظه یادگیری محلی", color = Muted, fontSize = 10.sp)
+                                    }
+                                    Button(onClick = { microphonePermission.launch(android.Manifest.permission.RECORD_AUDIO) }) { Text("🎙 صحبت") }
+                                }
+                            }
+                            item { TradingViewPairChart(selectedSymbol = selectedSignal?.symbol ?: "BTCUSDT") }
+                            if (voiceTranscript.isNotBlank() || voiceReply.isNotBlank()) {
+                                item {
+                                    Surface(color = Color(0xFF132640), shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text("گفت‌وگوی صوتی", color = Blue, fontWeight = FontWeight.Bold)
+                                            if (voiceTranscript.isNotBlank()) Text("تو: " + voiceTranscript, color = Color.White, fontSize = 12.sp)
+                                            if (voiceReply.isNotBlank()) Text("گرگ: " + voiceReply, color = Muted, fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
+                            if (selectedSignal == null) {
+                                item { Text(if (loading) "در حال دریافت داده بازار..." else "هنوز داده‌ای برای تحلیل وجود ندارد. ابتدا اسکن بازار را اجرا کن.", color = Muted) }
+                            } else {
+                                item {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("نماد تحلیل", color = Muted, fontSize = 11.sp)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(selectedSignal.symbol, color = Blue, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                                item { SignalCard(selectedSignal, onSelect = { selectedSymbol = selectedSignal.symbol }) }
+                                item {
+                                    Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Text("نقشه تکنیکال و ساختار بازار", color = Color.White, fontWeight = FontWeight.Bold)
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                SmallStat("EMA 9", formatPrice(selectedSignal.technical.ema9))
+                                                SmallStat("EMA 20", formatPrice(selectedSignal.technical.ema20))
+                                                SmallStat("EMA 50", formatPrice(selectedSignal.technical.ema50))
+                                            }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                SmallStat("EMA 100", formatPrice(selectedSignal.technical.ema100))
+                                                SmallStat("EMA 200", formatPrice(selectedSignal.technical.ema200))
+                                                SmallStat("VWAP", formatPrice(selectedSignal.technical.vwap))
+                                            }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                SmallStat("ADX", String.format(Locale.US, "%.1f", selectedSignal.technical.adx))
+                                                SmallStat("RSI", String.format(Locale.US, "%.1f", selectedSignal.rsi))
+                                                SmallStat("ATR %%", String.format(Locale.US, "%.2f", selectedSignal.technical.atrPercent))
+                                            }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                SmallStat("حجم نسبی", String.format(Locale.US, "%.2fx", selectedSignal.technical.relativeVolume))
+                                                SmallStat("حمایت", formatPrice(selectedSignal.technical.support), Green)
+                                                SmallStat("مقاومت", formatPrice(selectedSignal.technical.resistance), Red)
+                                            }
+                                            Text("الگوی کندلی: " + selectedSignal.technical.candlePattern, color = Blue, fontSize = 11.sp)
+                                            Text("الگوی هارمونیک: " + detectHarmonicPattern(selectedSignal.candles), color = Purple, fontSize = 11.sp)
+                                            Text("ساختار: " + selectedSignal.technical.marketStructure + " • رژیم: " + selectedSignal.technical.regime, color = Muted, fontSize = 10.sp)
+                                            Divider(color = Color(0xFF30415C))
+                                            Text("شبکه عصبی عمیق گرگ • ۷ ورودی، ۲ لایه پنهان، ۲۴ نورون", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("بازخورد ذخیره‌شده: " + learningSamples + " • درست: " + learningWins + " • نادرست: " + learningLosses, color = Muted, fontSize = 10.sp)
+                                            Text("خروجی شبکه عصبی (امتیاز آزمایشی): " + String.format(Locale.US, "%.1f%%", WolfDeepNeuralNetwork.predict(learningPrefs, selectedSignal) * 100.0), color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            Text("شبکه با بازخورد دستی آموزش می‌بیند و وزن‌هایش روی گوشی ذخیره می‌شود؛ مدل از پیش‌آموزش‌دیده نیست.", color = Muted, fontSize = 9.sp)
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                OutlinedButton(onClick = {
+                                                    learningSamples += 1
+                                                    learningWins += 1
+                                                    WolfDeepNeuralNetwork.learn(learningPrefs, selectedSignal, 1.0)
+                                                    learningPrefs.edit().putInt("samples", learningSamples).putInt("wins", learningWins).putInt("losses", learningLosses).putString("last_symbol", selectedSignal.symbol).putString("last_feedback", "correct").apply()
+                                                }, modifier = Modifier.weight(1f)) { Text("✓ تحلیل درست بود", fontSize = 10.sp) }
+                                                OutlinedButton(onClick = {
+                                                    learningSamples += 1
+                                                    learningLosses += 1
+                                                    WolfDeepNeuralNetwork.learn(learningPrefs, selectedSignal, 0.0)
+                                                    learningPrefs.edit().putInt("samples", learningSamples).putInt("wins", learningWins).putInt("losses", learningLosses).putString("last_symbol", selectedSignal.symbol).putString("last_feedback", "wrong").apply()
+                                                }, modifier = Modifier.weight(1f)) { Text("✕ تحلیل نادرست بود", fontSize = 10.sp) }
+                                            }
+                                            if (selectedSignal.candles.isNotEmpty()) {
+                                                Text("نمودار کندل ژاپنی • ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                CandleChart(selectedSignal.candles)
+                                            }
+                                        }
+                                    }
+                                }
+                                item {
+                                    Text("برای بررسی نماد دیگر، از بخش بازار روی نماد موردنظر بزن و سپس به تحلیل برگرد.", color = Muted, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                    }
+
+
+
+
+
+                    else -> {
+                        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("تنظیمات و پایش پس‌زمینه", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("پایش زنده بازار", color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text("با شروع سرویس، اعلان دائمی اندروید نمایش داده می‌شود و اسکن بازار در پس‌زمینه ادامه می‌یابد. توقف اجباری، قطع اینترنت یا محدودیت باتری می‌تواند سرویس را متوقف کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                                    Button(
+                                        onClick = {
+                                            val intent = Intent(context, MarketMonitorService::class.java)
+                                                .putExtra("exchange", exchange)
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+                                            else context.startService(intent)
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text("شروع پایش پس‌زمینه") }
+                                    OutlinedButton(
+                                        onClick = { context.stopService(Intent(context, MarketMonitorService::class.java)) },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text("توقف پایش") }
+                                }
+                            }
+                            Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text("بازار: " + exchange + " Futures", color = Muted, fontSize = 11.sp)
+                                    Text("تایم‌فریم اصلی: ۱۵ دقیقه • تأیید: ۱ ساعت و ۴ ساعت", color = Muted, fontSize = 11.sp)
+                                    Text("دامنه اسکن: حداکثر ۱۰۰ قرارداد پرحجم USDT", color = Muted, fontSize = 11.sp)
+                                    Text("بروزرسانی خودکار: هر ۳ دقیقه", color = Muted, fontSize = 11.sp)
+                                    Text("نسخه: 1.6.0 • رابط ماژولار", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← CRYPTO AI PRO ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+
+    }
+}
+
+@Composable
+private fun PaperDashboardCard(context: Context, fallbackCapital: Double) {
+    var snapshot by remember { mutableStateOf(PaperTradingEngine.snapshot(context, fallbackCapital)) }
+    Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("داشبورد معامله‌گر خودکار دمو", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("ثبت پایدار • خروج پله‌ای • توقف‌های حفاظتی", color = Muted, fontSize = 9.sp)
+                }
+                TextButton(onClick = { snapshot = PaperTradingEngine.snapshot(context, fallbackCapital) }) {
+                    Text("تازه‌سازی", color = Blue, fontSize = 10.sp)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                MetricCard("سرمایه مجازی", String.format(Locale.US, "%.2f", snapshot.equity), Modifier.weight(1f), Blue)
+                MetricCard("سود/زیان کل", String.format(Locale.US, "%+.2f", snapshot.totalPnl), Modifier.weight(1f), if (snapshot.totalPnl >= 0) Green else Red)
+                MetricCard("معاملات باز", snapshot.openPositions.toString(), Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                SmallStat("امروز", String.format(Locale.US, "%+.2f", snapshot.dailyPnl), if (snapshot.dailyPnl >= 0) Green else Red)
+                SmallStat("برد", snapshot.wins.toString(), Green)
+                SmallStat("باخت", snapshot.losses.toString(), Red)
+                SmallStat("نرخ برد", String.format(Locale.US, "%.1f%%", snapshot.winRate), Blue)
+            }
+            Text("تعداد معاملات امروز: " + snapshot.tradesToday, color = Muted, fontSize = 9.sp)
+            if (snapshot.halted) Text("توقف حفاظتی: " + snapshot.haltReason, color = Red, fontSize = 10.sp)
+            else Text("سقف‌ها: ریسک هر معامله ۱٪ • ریسک کل ۳٪ • زیان روزانه ۲٪ • افت از اوج ۸٪ • حداکثر ۳ موقعیت", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+            if (snapshot.journal.isNotEmpty()) {
+                Divider(color = Color(0xFF2B3A52))
+                Text("دفتر رویدادهای اخیر", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                snapshot.journal.forEach { Text(it, color = Muted, fontSize = 9.sp, lineHeight = 13.sp) }
+            } else Text("هنوز معامله دمو ثبت نشده است؛ پایش پس‌زمینه و معامله‌گر آزمایشی را روشن کن.", color = Muted, fontSize = 9.sp)
+        }
+    }
+}
+
+@Composable
+private fun TradeControls(
+    contracts: String, onContracts: (String) -> Unit,
+    leverage: String, onLeverage: (String) -> Unit,
+    armed: Boolean, onArmed: (Boolean) -> Unit,
+    message: String?,
+    paperAuto: Boolean, onPaperAuto: (Boolean) -> Unit,
+    paperCapital: String, onPaperCapital: (String) -> Unit,
+    riskPct: String, onRiskPct: (String) -> Unit
+) {
+    Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("پنل معاملات XT", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(if (armed) "ارسال واقعی فعال" else "ارسال واقعی خاموش", color = if (armed) Red else Muted, fontSize = 10.sp)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = contracts, onValueChange = onContracts, modifier = Modifier.weight(1f),
+                    singleLine = true, label = { Text("تعداد قرارداد") }, textStyle = androidx.compose.ui.text.TextStyle(color = Color.White))
+                OutlinedTextField(value = leverage, onValueChange = onLeverage, modifier = Modifier.weight(1f),
+                    singleLine = true, label = { Text("اهرم ۱ تا ۲۰") }, textStyle = androidx.compose.ui.text.TextStyle(color = Color.White))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("اجازه ارسال سفارش واقعی", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                Switch(checked = armed, onCheckedChange = onArmed)
+            }
+            Divider(color = Color(0xFF2B3A52))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("معامله‌گر خودکار آزمایشی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("فقط شبیه‌سازی؛ هیچ سفارش واقعی ارسال نمی‌کند", color = Green, fontSize = 10.sp)
+                }
+                Switch(checked = paperAuto, onCheckedChange = onPaperAuto)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = paperCapital, onValueChange = onPaperCapital, modifier = Modifier.weight(1f),
+                    singleLine = true, label = { Text("سرمایه مجازی USDT") }, textStyle = androidx.compose.ui.text.TextStyle(color = Color.White))
+                OutlinedTextField(value = riskPct, onValueChange = onRiskPct, modifier = Modifier.weight(1f),
+                    singleLine = true, label = { Text("ریسک هر معامله ٪") }, textStyle = androidx.compose.ui.text.TextStyle(color = Color.White))
+            }
+            Text("با روشن‌کردن این حالت و زدن «شروع پایش پس‌زمینه»، ربات با سرمایه مجازی معامله‌ها را باز و با حد ضرر/هدف می‌بندد. معاملات واقعی همچنان فقط با تأیید جداگانه انجام می‌شوند.", color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
+            message?.let { Text(it, color = if (it.startsWith("سفارش ارسال نشد")) Red else Green, fontSize = 10.sp) }
+        }
+    }
+}
+
+@Composable
+
 
 @Composable
 private fun MetricCard(title: String, value: String, modifier: Modifier, valueColor: Color = Color.White) {
