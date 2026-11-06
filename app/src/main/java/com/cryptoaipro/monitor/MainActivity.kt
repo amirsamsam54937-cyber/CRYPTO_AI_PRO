@@ -354,6 +354,7 @@ fun CryptoMonitorScreen() {
                                 Text("کنترل معاملات و مدیریت ریسک", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                 Text("معاملات آزمایشی خودکار فعال است؛ سفارش واقعی فقط با تأیید دستی و مجزای تو انجام می‌شود.", color = Muted, fontSize = 10.sp)
                             }
+                            item { PaperDashboardCard(context, paperCapital.toDoubleOrNull() ?: 1000.0) }
                             item {
                                 TradeControls(
                                     contracts = orderContracts, onContracts = { orderContracts = it.filter(Char::isDigit).take(8) },
@@ -521,6 +522,43 @@ fun CryptoMonitorScreen() {
                     TextButton(enabled = !tradeBusy, onClick = { pendingTrade = null }) { Text("انصراف") }
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun PaperDashboardCard(context: Context, fallbackCapital: Double) {
+    var snapshot by remember { mutableStateOf(PaperTradingEngine.snapshot(context, fallbackCapital)) }
+    Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("داشبورد معامله‌گر خودکار دمو", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("ثبت پایدار • خروج پله‌ای • توقف‌های حفاظتی", color = Muted, fontSize = 9.sp)
+                }
+                TextButton(onClick = { snapshot = PaperTradingEngine.snapshot(context, fallbackCapital) }) {
+                    Text("تازه‌سازی", color = Blue, fontSize = 10.sp)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                MetricCard("سرمایه مجازی", String.format(Locale.US, "%.2f", snapshot.equity), Modifier.weight(1f), Blue)
+                MetricCard("سود/زیان کل", String.format(Locale.US, "%+.2f", snapshot.totalPnl), Modifier.weight(1f), if (snapshot.totalPnl >= 0) Green else Red)
+                MetricCard("معاملات باز", snapshot.openPositions.toString(), Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                SmallStat("امروز", String.format(Locale.US, "%+.2f", snapshot.dailyPnl), if (snapshot.dailyPnl >= 0) Green else Red)
+                SmallStat("برد", snapshot.wins.toString(), Green)
+                SmallStat("باخت", snapshot.losses.toString(), Red)
+                SmallStat("نرخ برد", String.format(Locale.US, "%.1f%%", snapshot.winRate), Blue)
+            }
+            Text("تعداد معاملات امروز: " + snapshot.tradesToday, color = Muted, fontSize = 9.sp)
+            if (snapshot.halted) Text("توقف حفاظتی: " + snapshot.haltReason, color = Red, fontSize = 10.sp)
+            else Text("سقف‌ها: ریسک هر معامله ۱٪ • ریسک کل ۳٪ • زیان روزانه ۲٪ • افت از اوج ۸٪ • حداکثر ۳ موقعیت", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+            if (snapshot.journal.isNotEmpty()) {
+                Divider(color = Color(0xFF2B3A52))
+                Text("دفتر رویدادهای اخیر", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                snapshot.journal.forEach { Text(it, color = Muted, fontSize = 9.sp, lineHeight = 13.sp) }
+            } else Text("هنوز معامله دمو ثبت نشده است؛ پایش پس‌زمینه و معامله‌گر آزمایشی را روشن کن.", color = Muted, fontSize = 9.sp)
         }
     }
 }
@@ -1370,87 +1408,5 @@ class MarketMonitorService : Service() {
     override fun onDestroy() { worker?.cancel(); serviceScope.cancel(); super.onDestroy() }
     override fun onBind(intent: Intent?): IBinder? = null
     companion object { private const val CHANNEL_ID = "crypto_ai_market_monitor"; private const val NOTIFICATION_ID = 4101 }
-}
-
-/**
- * Persistent paper-trading simulator. It never calls an exchange order endpoint.
- * Position sizing uses a fixed fraction of simulated equity and ATR-derived stops.
- */
-private object PaperTradingEngine {
-    private const val PREFS = "crypto_ai_paper_trader"
-    private const val POSITIONS = "open_positions"
-
-    fun process(context: Context, signals: List<MarketSignal>, startingCapital: Double, riskPct: Double, leverage: Int): String {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        var equity = prefs.getString("equity", null)?.toDoubleOrNull() ?: startingCapital.coerceAtLeast(10.0)
-        var closed = prefs.getInt("closed", 0)
-        var wins = prefs.getInt("wins", 0)
-        var losses = prefs.getInt("losses", 0)
-        val positions = JSONArray(prefs.getString(POSITIONS, "[]") ?: "[]")
-        val kept = JSONArray()
-        val closedSymbols = mutableSetOf<String>()
-        val priceMap = signals.associateBy { it.symbol }
-        for (i in 0 until positions.length()) {
-            val p = positions.optJSONObject(i) ?: continue
-            val symbol = p.optString("symbol")
-            val live = priceMap[symbol]
-            val entry = p.optDouble("entry")
-            val stop = p.optDouble("stop")
-            val target = p.optDouble("target")
-            val qty = p.optDouble("qty")
-            val direction = p.optInt("direction", 1)
-            val price = live?.price ?: entry
-            val stopHit = if (direction > 0) price <= stop else price >= stop
-            val targetHit = if (direction > 0) price >= target else price <= target
-            if (live != null && (stopHit || targetHit)) {
-                val exit = if (stopHit) stop else target
-                val gross = (exit - entry) * qty * direction
-                val fees = (entry + exit) * qty * 0.0004
-                val pnl = gross - fees
-                equity += pnl
-                closed += 1
-                if (pnl >= 0) wins++ else losses++
-                closedSymbols.add(symbol)
-            } else {
-                kept.put(p)
-            }
-        }
-        val openSymbols = (0 until kept.length()).mapNotNull { kept.optJSONObject(it)?.optString("symbol") }.toMutableSet()
-        val maxPositions = 4
-        val risk = equity * (riskPct.coerceIn(0.1, 3.0) / 100.0)
-        if (risk > 0.0 && kept.length() < maxPositions) {
-            signals.asSequence()
-                .filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
-                .filter { it.confidence >= 70 && it.score.let { score -> kotlin.math.abs(score) >= 5 } }
-                .sortedByDescending { it.confidence }
-                .forEach { signal ->
-                    if (kept.length() >= maxPositions) return@forEach
-                    if (signal.symbol in openSymbols || signal.symbol in closedSymbols) return@forEach
-                    val direction = if (signal.direction == "LONG_BIAS") 1 else -1
-                    val stopDistance = kotlin.math.abs(signal.entry - signal.stop)
-                    if (stopDistance <= 0.0 || signal.entry <= 0.0) return@forEach
-                    val quantity = risk / stopDistance
-                    val target = signal.entry + direction * stopDistance * 2.0
-                    if (!quantity.isFinite() || quantity <= 0.0) return@forEach
-                    kept.put(JSONObject()
-                        .put("symbol", signal.symbol)
-                        .put("entry", signal.entry)
-                        .put("stop", signal.stop)
-                        .put("target", target)
-                        .put("qty", quantity)
-                        .put("direction", direction)
-                        .put("leverage", leverage.coerceIn(1, 10)))
-                    openSymbols.add(signal.symbol)
-                }
-        }
-        prefs.edit()
-            .putString("equity", equity.toString())
-            .putString(POSITIONS, kept.toString())
-            .putInt("closed", closed)
-            .putInt("wins", wins)
-            .putInt("losses", losses)
-            .apply()
-        return "دمو: ${kept.length()} باز • ${closed} بسته • موجودی ${String.format(Locale.US, "%.2f", equity)} USDT"
-    }
 }
 
