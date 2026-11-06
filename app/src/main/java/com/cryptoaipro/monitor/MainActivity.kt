@@ -462,7 +462,7 @@ private object BinanceMonitor {
     }
 
     private fun atr(data: List<DoubleArray>, period: Int = 14): Double {
-        if (data.size < period + 1) return data.last()[2] * 0.01
+        if (data.size < period + 1) return data.last()[3] * 0.01
         val ranges = (1 until data.size).map { i ->
             val high = data[i][1]; val low = data[i][2]; val prevClose = data[i-1][3]
             maxOf(high-low, abs(high-prevClose), abs(low-prevClose))
