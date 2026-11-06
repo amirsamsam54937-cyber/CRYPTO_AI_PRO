@@ -48,7 +48,7 @@ internal object WolfDeepNeuralNetwork {
         var seed = 0x574F4C46L
         fun next(): Double {
             seed = (seed * 6364136223846793005L + 1442695040888963407L)
-            return (((seed ushr 33).toDouble() / Int.MAX_VALUE.toDouble()) - 1.0) * 0.12
+            return (((seed ushr 33).toDouble() / Int.MAX_VALUE.toDouble()) * 2.0 - 1.0) * 0.12
         }
         val w1 = Array(H1) { DoubleArray(INPUTS) { next() } }
         val w2 = Array(H2) { DoubleArray(H1) { next() } }
