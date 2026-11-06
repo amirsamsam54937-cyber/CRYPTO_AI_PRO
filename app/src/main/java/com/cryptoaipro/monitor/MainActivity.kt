@@ -519,25 +519,43 @@ private object BinanceMonitor {
     }
 
     private fun calculateAdx(data: List<DoubleArray>, period: Int = 14): Double {
-        if (data.size < period + 2) return 0.0
-        val dx = mutableListOf<Double>()
+        if (data.size < period * 2 + 1) return 0.0
+        val trueRanges = mutableListOf<Double>()
+        val plusMoves = mutableListOf<Double>()
+        val minusMoves = mutableListOf<Double>()
         for (i in 1 until data.size) {
-            val upMove = data[i][1] - data[i-1][1]
-            val downMove = data[i-1][2] - data[i][2]
-            val plus = if (upMove > downMove && upMove > 0) upMove else 0.0
-            val minus = if (downMove > upMove && downMove > 0) downMove else 0.0
-            val tr = maxOf(
+            val upMove = data[i][1] - data[i - 1][1]
+            val downMove = data[i - 1][2] - data[i][2]
+            plusMoves.add(if (upMove > downMove && upMove > 0.0) upMove else 0.0)
+            minusMoves.add(if (downMove > upMove && downMove > 0.0) downMove else 0.0)
+            trueRanges.add(maxOf(
                 data[i][1] - data[i][2],
-                abs(data[i][1] - data[i-1][3]),
-                abs(data[i][2] - data[i-1][3])
-            )
-            val safeTr = tr.coerceAtLeast(1e-12)
-            val plusDi = 100.0 * plus / safeTr
-            val minusDi = 100.0 * minus / safeTr
-            val denom = (plusDi + minusDi).coerceAtLeast(1e-12)
-            dx.add(abs(plusDi - minusDi) / denom * 100.0)
+                abs(data[i][1] - data[i - 1][3]),
+                abs(data[i][2] - data[i - 1][3])
+            ))
         }
-        return dx.takeLast(period).average().takeIf { it.isFinite() } ?: 0.0
+        var smoothTr = trueRanges.take(period).sum()
+        var smoothPlus = plusMoves.take(period).sum()
+        var smoothMinus = minusMoves.take(period).sum()
+        val dxValues = mutableListOf<Double>()
+        for (i in period until trueRanges.size) {
+            if (i > period) {
+                smoothTr = smoothTr - smoothTr / period + trueRanges[i]
+                smoothPlus = smoothPlus - smoothPlus / period + plusMoves[i]
+                smoothMinus = smoothMinus - smoothMinus / period + minusMoves[i]
+            }
+            val safeTr = smoothTr.coerceAtLeast(1e-12)
+            val plusDi = 100.0 * smoothPlus / safeTr
+            val minusDi = 100.0 * smoothMinus / safeTr
+            val denominator = (plusDi + minusDi).coerceAtLeast(1e-12)
+            dxValues.add(abs(plusDi - minusDi) / denominator * 100.0)
+        }
+        if (dxValues.size < period) return dxValues.lastOrNull() ?: 0.0
+        var adx = dxValues.take(period).average()
+        for (i in period until dxValues.size) {
+            adx = (adx * (period - 1) + dxValues[i]) / period
+        }
+        return adx.takeIf { it.isFinite() } ?: 0.0
     }
 
     private fun rsiSeries(values: List<Double>, period: Int): List<Double> {
