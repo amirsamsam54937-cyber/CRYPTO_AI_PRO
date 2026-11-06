@@ -473,15 +473,6 @@ fun CryptoMonitorScreen() {
 }
 
 @Composable
-
-
-@Composable
-
-
-@Composable
-
-
-@Composable
 private fun MetricCard(title: String, value: String, modifier: Modifier, valueColor: Color = Color.White) {
     Surface(modifier = modifier, color = Panel, shape = RoundedCornerShape(12.dp)) {
         Column(Modifier.padding(10.dp)) {
