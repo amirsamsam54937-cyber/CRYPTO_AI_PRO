@@ -557,6 +557,7 @@ fun CryptoMonitorScreen() {
 @Composable
 private fun PaperDashboardCard(context: Context, fallbackCapital: Double) {
     var snapshot by remember { mutableStateOf(PaperTradingEngine.snapshot(context, fallbackCapital)) }
+    var learningUpdates by remember { mutableIntStateOf(PaperTradingEngine.learningUpdates(context)) }
     Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -564,7 +565,10 @@ private fun PaperDashboardCard(context: Context, fallbackCapital: Double) {
                     Text("داشبورد معامله‌گر خودکار دمو", color = Color.White, fontWeight = FontWeight.Bold)
                     Text("ثبت پایدار • خروج پله‌ای • توقف‌های حفاظتی", color = Muted, fontSize = 9.sp)
                 }
-                TextButton(onClick = { snapshot = PaperTradingEngine.snapshot(context, fallbackCapital) }) {
+                TextButton(onClick = {
+                    snapshot = PaperTradingEngine.snapshot(context, fallbackCapital)
+                    learningUpdates = PaperTradingEngine.learningUpdates(context)
+                }) {
                     Text("تازه‌سازی", color = Blue, fontSize = 10.sp)
                 }
             }
@@ -580,6 +584,7 @@ private fun PaperDashboardCard(context: Context, fallbackCapital: Double) {
                 SmallStat("نرخ برد", String.format(Locale.US, "%.1f%%", snapshot.winRate), Blue)
             }
             Text("تعداد معاملات امروز: " + snapshot.tradesToday, color = Muted, fontSize = 9.sp)
+            Text("یادگیری آنلاین محلی: " + learningUpdates + " معامله بسته‌شده • وزن‌های مدل فقط از نتیجه معاملات مجازی به‌روزرسانی می‌شوند.", color = Purple, fontSize = 10.sp, lineHeight = 14.sp)
             if (snapshot.halted) Text("توقف حفاظتی: " + snapshot.haltReason, color = Red, fontSize = 10.sp)
             else Text("سقف‌ها: ریسک هر معامله ۱٪ • ریسک کل ۳٪ • زیان روزانه ۲٪ • افت از اوج ۸٪ • حداکثر ۳ موقعیت", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
             if (snapshot.journal.isNotEmpty()) {
