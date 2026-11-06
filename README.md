@@ -1,9 +1,17 @@
 # CRYPTO AI PRO ULTIMATE
 
-**Android app version: 2.3.0 (development)**  
+**Android app version: 2.7.0 (development)**  
 A Persian-first, modular crypto-futures technical-analysis application. The Android client is built with Kotlin and Jetpack Compose; the Python package provides research, risk, and backtesting utilities.
 
 > This is experimental trading software. Market signals are not investment advice and do not guarantee outcomes. Real-money order execution is not production-certified. Keep live trading disabled until the readiness gates in `docs/LIVE_TRADING_READINESS.md` are independently completed.
+
+## Persian crypto/futures knowledge engine (2.7.0)
+
+The Android companion now searches a built-in Persian reference library before falling back to public web retrieval. The first curated release contains ۶۰+ explainable topics spanning perpetual futures, long/short, leverage, isolated/cross margin, liquidation, mark/index/last price, funding, open interest, long/short ratios, liquidation maps, OHLCV, multi-timeframe analysis, market structure, EMA/SMA, RSI, MACD, ATR, ADX, Bollinger Bands, VWAP, Stochastic RSI, volume, order books, spread/slippage, stops/targets, position sizing, risk management, Kelly, drawdown, backtesting, walk-forward validation, overfitting, market regimes, divergences, candlestick and harmonic patterns, Fibonacci, liquidity sweeps, dominance, tokenomics, stablecoins, blockchain, wallets, DeFi security, oracles, news, whale flows, MEV, order types, maker/taker fees, correlation, VaR, performance statistics, AI model validation, data quality, public exchange APIs, Ichimoku, pivots, cycles, altseason, basis and trading psychology.
+
+Knowledge answers are explicitly labeled as coming from the local library. Unknown or time-sensitive questions continue to public web retrieval. Exchange-specific contract rules, fees and market conditions must be checked against current official documentation. This knowledge library is a curated educational baseline, not one million independently verified facts and not a pretrained LLM.
+
+The on-device neural network remains a small experimental model. Its score is not a calibrated win probability. Any performance claim requires out-of-sample evaluation, sufficient labeled outcomes, calibration checks and comparison against simple baselines.
 
 ## Android application
 
