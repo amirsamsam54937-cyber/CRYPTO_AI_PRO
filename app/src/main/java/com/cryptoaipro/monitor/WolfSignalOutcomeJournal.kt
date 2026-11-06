@@ -73,7 +73,7 @@ internal object WolfSignalOutcomeJournal {
                 }
                 if (record.optBoolean("closed") && entry > 0.0) {
                     val rawPct = if (long) (record.optDouble("exitPrice") / entry - 1.0) * 100.0
-                        else (entry / record.optDouble("exitPrice") - 1.0) * 100.0
+                        else ((entry - record.optDouble("exitPrice")) / entry) * 100.0
                     record.put("priceChangePct", rawPct)
                     // Estimated leveraged gross return; excludes fees, funding and slippage.
                     record.put("pnlPct", rawPct * record.optInt("leverage", 1).coerceAtLeast(1))
@@ -84,7 +84,7 @@ internal object WolfSignalOutcomeJournal {
                 val exit = record.optDouble("exitPrice")
                 if (entry > 0.0 && exit > 0.0) {
                     val rawPct = if (record.optString("side") == "LONG_BIAS") (exit / entry - 1.0) * 100.0
-                        else (entry / exit - 1.0) * 100.0
+                        else ((entry - exit) / entry) * 100.0
                     record.put("priceChangePct", rawPct)
                     record.put("pnlPct", rawPct * record.optInt("leverage", 1).coerceAtLeast(1))
                 }
