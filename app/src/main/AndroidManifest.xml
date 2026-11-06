@@ -1,12 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
  <uses-permission android:name="android.permission.INTERNET" />
  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
- <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+ <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
  <application android:allowBackup="false" android:label="CRYPTO AI PRO" android:icon="@drawable/ic_crypto_ai_logo" android:roundIcon="@drawable/ic_crypto_ai_logo"
   android:theme="@android:style/Theme.Material.Light.NoActionBar"
   android:usesCleartextTraffic="false">
-  <service android:name=".MarketMonitorService" android:exported="false" android:foregroundServiceType="dataSync" />
+  <service android:name=".MarketMonitorService" android:exported="false" android:foregroundServiceType="specialUse">
+   <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started continuous futures market monitoring and simulated trading" />
+  </service>
   <activity android:name=".MainActivity" android:exported="true">
    <intent-filter>
     <action android:name="android.intent.action.MAIN" />
