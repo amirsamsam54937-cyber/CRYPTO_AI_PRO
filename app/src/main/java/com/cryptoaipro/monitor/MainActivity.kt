@@ -75,7 +75,8 @@ data class MarketSignal(
     val reason: String, val entry: Double, val stop: Double, val tp1: Double, val tp2: Double, val tp3: Double, val leverage: Int, val atr: Double,
     val technical: TechnicalSnapshot,
     val candles: List<DoubleArray> = emptyList(),
-    val consensus: WolfConsensus? = null
+    val consensus: WolfConsensus? = null,
+    val neuralScore: Int = 50
 )
 
 data class TechnicalSnapshot(
@@ -86,6 +87,24 @@ data class TechnicalSnapshot(
     val candlePattern: String, val marketStructure: String,
     val support: Double, val resistance: Double
 )
+
+internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
+    val prefs = context.getSharedPreferences("wolf_learning_memory", Context.MODE_PRIVATE)
+    val trainedSamples = prefs.getInt("samples", 0)
+    return signals.map { signal ->
+        if (signal.direction == "NEUTRAL") signal.copy(neuralScore = 50)
+        else {
+            val neural = (WolfDeepNeuralNetwork.predict(prefs, signal) * 100.0).toInt().coerceIn(1, 99)
+            // The neural model is only allowed a small influence after enough closed outcomes exist.
+            val adjustedConfidence = if (trainedSamples >= 30)
+                (signal.confidence * 0.85 + neural * 0.15).toInt().coerceIn(0, 100)
+            else signal.confidence
+            signal.copy(neuralScore = neural, confidence = adjustedConfidence)
+        }
+    }.sortedWith(compareByDescending<MarketSignal> {
+        if (it.direction == "NEUTRAL") it.score.toDouble() else it.confidence.toDouble()
+    }.thenByDescending { it.volume })
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -149,14 +168,14 @@ fun CryptoMonitorScreen() {
         try {
             val scanned = BinanceMonitor.scan { partial, completed, total, failed ->
                 withContext(Dispatchers.Main) {
-                    rows = WolfFlowNewsRepository.enrichSignals(context, partial)
+                    rows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial))
                     scannedCount = completed
                     totalContracts = total
                     scanProgress = "بررسی $completed از $total قرارداد • خطاهای داده: $failed"
                     if (selectedSymbol.isBlank() || rows.none { it.symbol == selectedSymbol }) selectedSymbol = rows.firstOrNull()?.symbol.orEmpty()
                 }
             }
-            rows = WolfFlowNewsRepository.enrichSignals(context, scanned)
+            rows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned))
             scannedCount = totalContracts
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned) } }
@@ -693,6 +712,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 SmallStat("تغییر ۲۴ساعت", String.format(Locale.US, "%.2f%%", item.change), if (item.change >= 0) Green else Red)
                 SmallStat("RSI", String.format(Locale.US, "%.1f", item.rsi))
                 SmallStat("امتیاز", item.score.toString() + "/30")
+                SmallStat("شبکه عصبی", item.neuralScore.toString() + "%")
             }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1341,7 +1361,7 @@ class MarketMonitorService : Service() {
             worker = serviceScope.launch {
                 while (kotlin.coroutines.coroutineContext.isActive) {
                     val result = runCatching {
-                        val signals = BinanceMonitor.scan()
+                        val signals = applyWolfNeuralScoring(applicationContext, BinanceMonitor.scan())
                         val journalSnapshot = WolfSignalOutcomeJournal.processScan(applicationContext, signals)
                         WolfLearningMemory.processScan(applicationContext, signals, journalSnapshot.records)
                         WolfFlowNewsRepository.refreshForEngine(applicationContext, signals)
