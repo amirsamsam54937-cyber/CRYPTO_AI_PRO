@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -71,7 +72,7 @@ private object WolfKnowledgeSearch {
             }
         }
         if (findings.isEmpty()) runCatching {
-            val wiki = JSONObject(get("https://en.wikipedia.org/w/api.php?action=opensearch&search=$encoded&limit=5&namespace=0&format=json"))
+            val wiki = JSONArray(get("https://en.wikipedia.org/w/api.php?action=opensearch&search=$encoded&limit=5&namespace=0&format=json"))
             val titles = wiki.optJSONArray(1)
             val descriptions = wiki.optJSONArray(2)
             val links = wiki.optJSONArray(3)
