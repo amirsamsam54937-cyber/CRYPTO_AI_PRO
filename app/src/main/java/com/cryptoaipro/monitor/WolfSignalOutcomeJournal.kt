@@ -79,7 +79,7 @@ internal object WolfSignalOutcomeJournal {
             }
         }
 
-        val lastBySignal = rows.filter { !it.optBoolean("closed") }
+        val lastBySignal = rows.filter { it.optLong("expiresAt", it.optLong("created") + VALIDITY_MS) > now }
             .associate { (it.optString("symbol") + "|" + it.optString("side")) to it.optLong("created") }
             .toMutableMap()
 
@@ -150,7 +150,7 @@ internal object WolfSignalOutcomeJournal {
         }
         return Snapshot(
             rows.size,
-            rows.count { !it.optBoolean("closed") },
+            rows.count { it.optLong("expiresAt", it.optLong("created") + VALIDITY_MS) > System.currentTimeMillis() },
             rows.count { it.optString("status") == "TP1" },
             rows.count { it.optString("status") == "TP2" },
             rows.count { it.optString("status") == "TP3" },
