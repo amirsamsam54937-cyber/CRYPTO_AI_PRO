@@ -141,6 +141,8 @@ fun CryptoMonitorScreen() {
                 }
             }
             Spacer(Modifier.height(12.dp))
+            MarketSessionsPanel()
+            Spacer(Modifier.height(10.dp))
             if (showConnection) {
                 ConnectionCard(
                     apiKey = apiKeyInput,
@@ -473,7 +475,17 @@ private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolea
                             SmallStat("عرض باند", String.format(Locale.US, "%.2f%%", item.technical.bollingerWidthPct))
                             SmallStat("موقعیت باند", String.format(Locale.US, "%.2f", item.technical.bollingerPosition))
                         }
-                        Text("رژیم بازار: " + item.technical.regime + " • شاخص‌ها بر اساس کندل‌های بسته‌شده محاسبه شده‌اند.", color = Muted, fontSize = 9.sp)
+                        Text("الگوی شمعی: " + item.technical.candlePattern, color = Blue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SmallStat("حمایت ساختاری", formatPrice(item.technical.support), Green)
+                            SmallStat("مقاومت ساختاری", formatPrice(item.technical.resistance), Red)
+                        }
+                        Text("ساختار بازار: " + item.technical.marketStructure + " • رژیم: " + item.technical.regime, color = Muted, fontSize = 9.sp)
+                        if (item.candles.isNotEmpty()) {
+                            Text("نمودار کندل ژاپنی • ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            CandleChart(item.candles)
+                        }
+                        Text("الگوها احتمالی‌اند؛ هیچ الگویی جهت قیمت را تضمین نمی‌کند.", color = Muted, fontSize = 9.sp)
                     }
                 }
             }
@@ -482,6 +494,60 @@ private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolea
 }
 
 @Composable
+@Composable
+private fun CandleChart(candles: List<DoubleArray>) {
+    val visible = candles.takeLast(54)
+    if (visible.isEmpty()) return
+    Canvas(Modifier.fillMaxWidth().height(154.dp)) {
+        val high = visible.maxOf { it[1] }
+        val low = visible.minOf { it[2] }
+        val span = (high - low).coerceAtLeast(1e-12)
+        val step = size.width / visible.size
+        val bodyWidth = (step * 0.58f).coerceAtLeast(2f)
+        repeat(4) { n ->
+            val y = size.height * n / 3f
+            drawLine(Color(0xFF26364E), Offset(0f, y), Offset(size.width, y), 1f)
+        }
+        visible.forEachIndexed { index, candle ->
+            val x = step * index + step / 2f
+            fun y(price: Double) = size.height - ((price - low) / span * (size.height - 8f) + 4f).toFloat()
+            val tint = if (candle[3] >= candle[0]) Green else Red
+            drawLine(tint, Offset(x, y(candle[1])), Offset(x, y(candle[2])), 1.4f)
+            val top = minOf(y(candle[0]), y(candle[3]))
+            val bottom = maxOf(y(candle[0]), y(candle[3]))
+            drawRect(tint, Offset(x - bodyWidth / 2f, top), androidx.compose.ui.geometry.Size(bodyWidth, (bottom - top).coerceAtLeast(2f)))
+        }
+    }
+}
+
+@Composable
+private fun MarketSessionsPanel() {
+    val utc = ZonedDateTime.now(ZoneId.of("UTC"))
+    fun session(zone: String, start: Int, end: Int): Pair<String, Boolean> {
+        val local = utc.withZoneSameInstant(ZoneId.of(zone))
+        return String.format(Locale.US, "%02d:%02d", local.hour, local.minute) to (local.hour in start until end)
+    }
+    val asia = session("Asia/Tokyo", 9, 18)
+    val london = session("Europe/London", 8, 17)
+    val ny = session("America/New_York", 8, 17)
+    Surface(color = Color(0xFF101B2D), shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(11.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            listOf("آسیا" to asia, "لندن" to london, "نیویورک" to ny).forEach { (name, data) ->
+                Column {
+                    Text(name, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text(data.first, color = Blue, fontSize = 12.sp)
+                    Text(if (data.second) "باز" else "بسته", color = if (data.second) Green else Muted, fontSize = 9.sp)
+                }
+            }
+            Column {
+                Text("هم‌پوشانی", color = Color.White, fontSize = 10.sp)
+                Text(if (london.second && ny.second) "لندن + NY" else "—", color = if (london.second && ny.second) Green else Muted, fontSize = 10.sp)
+                Text("ساعات محلی", color = Muted, fontSize = 9.sp)
+            }
+        }
+    }
+}
+
 private fun SmallStat(label: String, value: String, color: Color = Color.White) {
     Column {
         Text(label, color = Muted, fontSize = 9.sp)
