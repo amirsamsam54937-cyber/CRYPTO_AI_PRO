@@ -831,7 +831,6 @@ private object BinanceMonitor {
         val ranked = (0 until tickers.length()).map { tickers.getJSONObject(it) }
             .filter { allowed.contains(it.optString("symbol")) }
             .sortedByDescending { it.optDouble("quoteVolume", 0.0) }
-            .take(100)
         val semaphore = Semaphore(permits = 4)
         coroutineScope {
             ranked.map { ticker ->
