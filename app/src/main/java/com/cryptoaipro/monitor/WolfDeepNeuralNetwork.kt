@@ -9,7 +9,7 @@ import kotlin.math.tanh
 /**
  * Small on-device deep feed-forward neural network.
  * Architecture: 7 normalized technical features -> 16 tanh -> 8 tanh -> 1 sigmoid.
- * Trained only from explicit user feedback; not pretrained and not a guaranteed predictor.
+ * Online fine-tuned from measured paper-signal outcomes; not pretrained and not a guaranteed predictor.
  */
 internal object WolfDeepNeuralNetwork {
     private const val INPUTS = 7
