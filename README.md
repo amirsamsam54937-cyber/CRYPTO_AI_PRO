@@ -10,6 +10,9 @@ The native Android app reads public Binance USDⓈ-M perpetual market data and:
 - Confirms direction across 15-minute, 1-hour, and 4-hour candles
 - Refreshes automatically every three minutes while the app is open
 - Separates bullish bias, bearish bias, and neutral readings
+- Shows a reference entry, ATR-based stop-loss, and three take-profit levels (1R / 2R / 3R)
+- Displays a conservative leverage ceiling estimate (1x–5x) derived from stop distance; it is not an instruction to use that leverage
+- Uses 15m for the setup with 1h and 4h trend confirmation
 
 These are technical screening signals, not trade instructions or probability forecasts. The app is read-only and has no order-placement code.
 
@@ -35,11 +38,22 @@ Open http://127.0.0.1:8000 and API docs at /docs.
 
 Copy `.env.example` to `.env` if you want to customize local defaults. Do not commit credentials, wallet keys, or seed phrases.
 
+## Historical backtesting
+
+A standalone multi-timeframe historical backtest is available at `tools/backtest.py`. It downloads public Binance USD-M Futures candles and exports a trade-by-trade CSV. It uses closed candles, enters on the next 15m candle, includes estimated taker fees and configurable slippage, and assumes the stop is hit first when stop and target are both touched inside one candle.
+
+```bash
+python tools/backtest.py --symbol BTCUSDT --days 90 --leverage 3 --risk 0.01
+```
+
+Options include `--symbol`, `--days`, `--leverage`, `--risk`, `--fee`, `--slippage-bps`, and `--out`. The default output is `backtest_trades.csv`. This is a research baseline, not a fully exchange-faithful simulator: funding, liquidation mechanics, spread dynamics, and full market impact are not modeled. Test several symbols and out-of-sample periods before drawing conclusions.
+
 ## Safety and limitations
 - No live execution, exchange login, deposits, withdrawals, or account permissions.
 - Public market-data availability depends on network and exchange regional restrictions.
 - The Android app currently screens the 30 highest-volume eligible USDT perpetuals, not every listed contract.
 - No background service or push alerts are enabled; automatic refresh runs while the app screen is active.
+- Entry and target levels are indicative calculations based on ATR, not guaranteed fills. Leverage display is a ceiling estimate, not a personal recommendation.
 - Indicators can lag, fail, or disagree. No signal guarantees a market outcome.
 
 Crypto derivatives are high risk. This software is experimental and is for monitoring and research only.
