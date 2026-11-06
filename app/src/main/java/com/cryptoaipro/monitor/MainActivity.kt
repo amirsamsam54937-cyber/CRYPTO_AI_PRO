@@ -175,7 +175,7 @@ fun CryptoMonitorScreen() {
                     modifier = Modifier.weight(1f)
                 ) { Text("توقف پایش") }
             }
-            Text("با خروج از صفحه، پایش در سرویس foreground و همراه اعلان دائمی ادامه می‌یابد؛ محدودیت‌های خود اندروید همچنان برقرار است.", color = Muted, fontSize = 10.sp)
+            Text("با خروج از صفحه، پایش با اعلان دائمی ادامه می‌یابد. در سامسونگ: تنظیمات برنامه ← باتری ← بدون محدودیت؛ توقف اجباری یا محدودیت‌های سیستم همچنان اثر دارند.", color = Muted, fontSize = 10.sp)
             Spacer(Modifier.height(10.dp))
             if (showConnection) {
                 ConnectionCard(
@@ -1109,11 +1109,27 @@ class MarketMonitorService : Service() {
     private var paperLeverage: Int = 2
     override fun onCreate() { super.onCreate(); createChannel() }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        selectedExchange = intent?.getStringExtra("exchange") ?: selectedExchange
-        paperAutoEnabled = intent?.getBooleanExtra("paper_auto", paperAutoEnabled) ?: paperAutoEnabled
-        paperCapital = intent?.getDoubleExtra("paper_capital", paperCapital) ?: paperCapital
-        riskPercent = intent?.getDoubleExtra("risk_pct", riskPercent) ?: riskPercent
-        paperLeverage = intent?.getIntExtra("paper_leverage", paperLeverage) ?: paperLeverage
+        val config = getSharedPreferences("market_monitor_config", Context.MODE_PRIVATE)
+        if (intent != null) {
+            selectedExchange = intent.getStringExtra("exchange") ?: selectedExchange
+            paperAutoEnabled = intent.getBooleanExtra("paper_auto", paperAutoEnabled)
+            paperCapital = intent.getDoubleExtra("paper_capital", paperCapital)
+            riskPercent = intent.getDoubleExtra("risk_pct", riskPercent)
+            paperLeverage = intent.getIntExtra("paper_leverage", paperLeverage)
+            config.edit()
+                .putString("exchange", selectedExchange)
+                .putBoolean("paper_auto", paperAutoEnabled)
+                .putFloat("paper_capital", paperCapital.toFloat())
+                .putFloat("risk_pct", riskPercent.toFloat())
+                .putInt("paper_leverage", paperLeverage)
+                .apply()
+        } else {
+            selectedExchange = config.getString("exchange", selectedExchange) ?: selectedExchange
+            paperAutoEnabled = config.getBoolean("paper_auto", false)
+            paperCapital = config.getFloat("paper_capital", 1000f).toDouble()
+            riskPercent = config.getFloat("risk_pct", 1f).toDouble()
+            paperLeverage = config.getInt("paper_leverage", 2)
+        }
         startForeground(NOTIFICATION_ID, buildNotification("در حال آماده‌سازی پایش بازار"))
         if (worker?.isActive != true) {
             worker = serviceScope.launch {
