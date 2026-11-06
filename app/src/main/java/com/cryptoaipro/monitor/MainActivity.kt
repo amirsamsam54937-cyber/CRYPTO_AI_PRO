@@ -98,6 +98,9 @@ fun CryptoMonitorScreen() {
     var orderContracts by remember { mutableStateOf("1") }
     var orderLeverage by remember { mutableStateOf("2") }
     var liveTradingArmed by remember { mutableStateOf(false) }
+    var paperAutoEnabled by remember { mutableStateOf(false) }
+    var paperCapital by remember { mutableStateOf("1000") }
+    var paperRiskPct by remember { mutableStateOf("1.0") }
     var pendingTrade by remember { mutableStateOf<MarketSignal?>(null) }
     var tradeBusy by remember { mutableStateOf(false) }
     var tradeMessage by remember { mutableStateOf<String?>(null) }
@@ -158,6 +161,10 @@ fun CryptoMonitorScreen() {
                     onClick = {
                         val intent = Intent(context, MarketMonitorService::class.java)
                             .putExtra("exchange", exchange)
+                            .putExtra("paper_auto", paperAutoEnabled)
+                            .putExtra("paper_capital", paperCapital.toDoubleOrNull() ?: 1000.0)
+                            .putExtra("risk_pct", paperRiskPct.toDoubleOrNull() ?: 1.0)
+                            .putExtra("paper_leverage", orderLeverage.toIntOrNull() ?: 2)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
                         else context.startService(intent)
                     },
@@ -233,7 +240,10 @@ fun CryptoMonitorScreen() {
                 contracts = orderContracts, onContracts = { orderContracts = it.filter(Char::isDigit).take(8) },
                 leverage = orderLeverage, onLeverage = { orderLeverage = it.filter(Char::isDigit).take(2) },
                 armed = liveTradingArmed, onArmed = { liveTradingArmed = it },
-                message = tradeMessage
+                message = tradeMessage,
+                paperAuto = paperAutoEnabled, onPaperAuto = { paperAutoEnabled = it },
+                paperCapital = paperCapital, onPaperCapital = { paperCapital = it.filter { ch -> ch.isDigit() || ch == '.' }.take(10) },
+                riskPct = paperRiskPct, onRiskPct = { paperRiskPct = it.filter { ch -> ch.isDigit() || ch == '.' }.take(5) }
             )
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -318,7 +328,10 @@ private fun TradeControls(
     contracts: String, onContracts: (String) -> Unit,
     leverage: String, onLeverage: (String) -> Unit,
     armed: Boolean, onArmed: (Boolean) -> Unit,
-    message: String?
+    message: String?,
+    paperAuto: Boolean, onPaperAuto: (Boolean) -> Unit,
+    paperCapital: String, onPaperCapital: (String) -> Unit,
+    riskPct: String, onRiskPct: (String) -> Unit
 ) {
     Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -336,7 +349,21 @@ private fun TradeControls(
                 Text("اجازه ارسال سفارش واقعی", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
                 Switch(checked = armed, onCheckedChange = onArmed)
             }
-            Text("هر سیگنال فقط با دکمه خودش و تأیید نهایی ارسال می‌شود. حد ضرر و حد سود به سفارش پیوست می‌شوند؛ تعداد قرارداد را خودت تعیین می‌کنی.", color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
+            Divider(color = Color(0xFF2B3A52))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("معامله‌گر خودکار آزمایشی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("فقط شبیه‌سازی؛ هیچ سفارش واقعی ارسال نمی‌کند", color = Green, fontSize = 10.sp)
+                }
+                Switch(checked = paperAuto, onCheckedChange = onPaperAuto)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = paperCapital, onValueChange = onPaperCapital, modifier = Modifier.weight(1f),
+                    singleLine = true, label = { Text("سرمایه مجازی USDT") }, textStyle = androidx.compose.ui.text.TextStyle(color = Color.White))
+                OutlinedTextField(value = riskPct, onValueChange = onRiskPct, modifier = Modifier.weight(1f),
+                    singleLine = true, label = { Text("ریسک هر معامله ٪") }, textStyle = androidx.compose.ui.text.TextStyle(color = Color.White))
+            }
+            Text("با روشن‌کردن این حالت و زدن «شروع پایش پس‌زمینه»، ربات با سرمایه مجازی معامله‌ها را باز و با حد ضرر/هدف می‌بندد. معاملات واقعی همچنان فقط با تأیید جداگانه انجام می‌شوند.", color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
             message?.let { Text(it, color = if (it.startsWith("سفارش ارسال نشد")) Red else Green, fontSize = 10.sp) }
         }
     }
@@ -1053,9 +1080,17 @@ class MarketMonitorService : Service() {
     private var worker: kotlinx.coroutines.Job? = null
     private val serviceScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
     private var selectedExchange: String = "XT"
+    private var paperAutoEnabled: Boolean = false
+    private var paperCapital: Double = 1000.0
+    private var riskPercent: Double = 1.0
+    private var paperLeverage: Int = 2
     override fun onCreate() { super.onCreate(); createChannel() }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         selectedExchange = intent?.getStringExtra("exchange") ?: selectedExchange
+        paperAutoEnabled = intent?.getBooleanExtra("paper_auto", paperAutoEnabled) ?: paperAutoEnabled
+        paperCapital = intent?.getDoubleExtra("paper_capital", paperCapital) ?: paperCapital
+        riskPercent = intent?.getDoubleExtra("risk_pct", riskPercent) ?: riskPercent
+        paperLeverage = intent?.getIntExtra("paper_leverage", paperLeverage) ?: paperLeverage
         startForeground(NOTIFICATION_ID, buildNotification("در حال آماده‌سازی پایش بازار"))
         if (worker?.isActive != true) {
             worker = serviceScope.launch {
@@ -1063,7 +1098,10 @@ class MarketMonitorService : Service() {
                     val result = runCatching {
                         val signals = if (selectedExchange == "XT") XTMonitor.scan() else BinanceMonitor.scan()
                         val active = signals.count { it.direction != "NEUTRAL" }
-                        "اسکن ${signals.size} قرارداد • سیگنال‌های جهت‌دار: $active • $selectedExchange"
+                        val paperStatus = if (paperAutoEnabled) PaperTradingEngine.process(
+                            this@MarketMonitorService, signals, paperCapital, riskPercent, paperLeverage
+                        ) else "معامله‌گر آزمایشی خاموش"
+                        "اسکن ${signals.size} قرارداد • سیگنال‌های جهت‌دار: $active • $selectedExchange • $paperStatus"
                     }.getOrElse { "خطای اسکن $selectedExchange: ${it.message ?: "نامشخص"}" }
                     val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     manager.notify(NOTIFICATION_ID, buildNotification(result))
@@ -1089,3 +1127,86 @@ class MarketMonitorService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
     companion object { private const val CHANNEL_ID = "crypto_ai_market_monitor"; private const val NOTIFICATION_ID = 4101 }
 }
+
+/**
+ * Persistent paper-trading simulator. It never calls an exchange order endpoint.
+ * Position sizing uses a fixed fraction of simulated equity and ATR-derived stops.
+ */
+private object PaperTradingEngine {
+    private const val PREFS = "crypto_ai_paper_trader"
+    private const val POSITIONS = "open_positions"
+
+    fun process(context: Context, signals: List<MarketSignal>, startingCapital: Double, riskPct: Double, leverage: Int): String {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        var equity = prefs.getString("equity", null)?.toDoubleOrNull() ?: startingCapital.coerceAtLeast(10.0)
+        var closed = prefs.getInt("closed", 0)
+        var wins = prefs.getInt("wins", 0)
+        var losses = prefs.getInt("losses", 0)
+        val positions = JSONArray(prefs.getString(POSITIONS, "[]") ?: "[]")
+        val kept = JSONArray()
+        val closedSymbols = mutableSetOf<String>()
+        val priceMap = signals.associateBy { it.symbol }
+        for (i in 0 until positions.length()) {
+            val p = positions.optJSONObject(i) ?: continue
+            val symbol = p.optString("symbol")
+            val live = priceMap[symbol]
+            val entry = p.optDouble("entry")
+            val stop = p.optDouble("stop")
+            val target = p.optDouble("target")
+            val qty = p.optDouble("qty")
+            val direction = p.optInt("direction", 1)
+            val price = live?.price ?: entry
+            val stopHit = if (direction > 0) price <= stop else price >= stop
+            val targetHit = if (direction > 0) price >= target else price <= target
+            if (live != null && (stopHit || targetHit)) {
+                val exit = if (stopHit) stop else target
+                val gross = (exit - entry) * qty * direction
+                val fees = (entry + exit) * qty * 0.0004
+                val pnl = gross - fees
+                equity += pnl
+                closed += 1
+                if (pnl >= 0) wins++ else losses++
+                closedSymbols.add(symbol)
+            } else {
+                kept.put(p)
+            }
+        }
+        val openSymbols = (0 until kept.length()).mapNotNull { kept.optJSONObject(it)?.optString("symbol") }.toMutableSet()
+        val maxPositions = 4
+        val risk = equity * (riskPct.coerceIn(0.1, 3.0) / 100.0)
+        if (risk > 0.0 && kept.length() < maxPositions) {
+            signals.asSequence()
+                .filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
+                .filter { it.confidence >= 70 && it.score.let { score -> kotlin.math.abs(score) >= 5 } }
+                .sortedByDescending { it.confidence }
+                .forEach { signal ->
+                    if (kept.length() >= maxPositions) return@forEach
+                    if (signal.symbol in openSymbols || signal.symbol in closedSymbols) return@forEach
+                    val direction = if (signal.direction == "LONG_BIAS") 1 else -1
+                    val stopDistance = kotlin.math.abs(signal.entry - signal.stop)
+                    if (stopDistance <= 0.0 || signal.entry <= 0.0) return@forEach
+                    val quantity = risk / stopDistance
+                    val target = signal.entry + direction * stopDistance * 2.0
+                    if (!quantity.isFinite() || quantity <= 0.0) return@forEach
+                    kept.put(JSONObject()
+                        .put("symbol", signal.symbol)
+                        .put("entry", signal.entry)
+                        .put("stop", signal.stop)
+                        .put("target", target)
+                        .put("qty", quantity)
+                        .put("direction", direction)
+                        .put("leverage", leverage.coerceIn(1, 10)))
+                    openSymbols.add(signal.symbol)
+                }
+        }
+        prefs.edit()
+            .putString("equity", equity.toString())
+            .putString(POSITIONS, kept.toString())
+            .putInt("closed", closed)
+            .putInt("wins", wins)
+            .putInt("losses", losses)
+            .apply()
+        return "دمو: ${kept.length()} باز • ${closed} بسته • موجودی ${String.format(Locale.US, "%.2f", equity)} USDT"
+    }
+}
+
