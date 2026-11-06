@@ -859,11 +859,11 @@ private object BinanceMonitor {
         val c = indicators(trend)
         val score = a.first + b.first + c.first
         val direction = when {
-            score >= 4 -> "LONG_BIAS"
-            score <= -4 -> "SHORT_BIAS"
+            score >= 11 -> "LONG_BIAS"
+            score <= -11 -> "SHORT_BIAS"
             else -> "NEUTRAL"
         }
-        val confidence = (abs(score) * 100 / 9).coerceIn(0, 100)
+        val confidence = (abs(score) * 100 / 16).coerceIn(0, 100)
         val atrValue = atr(short)
         val stopDistance = maxOf(atrValue * 1.5, price * 0.002)
         val isLong = direction == "LONG_BIAS"
@@ -946,6 +946,29 @@ private object BinanceMonitor {
         val support = recent.minOf { it[2] }
         val resistance = recent.maxOf { it[1] }
         val structure = detectMarketStructure(data)
+        // Ten independent technical sub-models vote on each timeframe.
+        if (lastClose > vwap * 1.001) { score++; reasons.add("قیمت بالای VWAP") }
+        else if (lastClose < vwap * 0.999) { score--; reasons.add("قیمت زیر VWAP") }
+        if (bbPosition >= 0.62) { score++; reasons.add("مومنتوم باند صعودی") }
+        else if (bbPosition <= 0.38) { score--; reasons.add("مومنتوم باند نزولی") }
+        if (relativeVolume >= 1.20) {
+            if (data.last()[3] >= data.last()[0]) { score++; reasons.add("حجم تأییدی خریدار") }
+            else { score--; reasons.add("حجم تأییدی فروشنده") }
+        }
+        if (adx >= 20.0) {
+            if (e20 > e50) { score++; reasons.add("قدرت روند صعودی ADX") }
+            else if (e20 < e50) { score--; reasons.add("قدرت روند نزولی ADX") }
+        }
+        when {
+            structure.contains("HH/HL") -> { score++; reasons.add("ساختار صعودی بازار") }
+            structure.contains("LH/LL") -> { score--; reasons.add("ساختار نزولی بازار") }
+        }
+        when {
+            pattern.contains("صعودی") || pattern.contains("چکش") -> { score++; reasons.add("الگوی کندلی صعودی") }
+            pattern.contains("نزولی") || pattern.contains("ثاقب") -> { score--; reasons.add("الگوی کندلی نزولی") }
+        }
+        if (stochRsi >= 60.0 && stochRsi <= 90.0) { score++; reasons.add("Stoch RSI صعودی") }
+        else if (stochRsi <= 40.0 && stochRsi >= 10.0) { score--; reasons.add("Stoch RSI نزولی") }
         val technical = TechnicalSnapshot(e9, e20, e50, e100, e200, adx, bbWidth, bbPosition, relativeVolume, vwap, stochRsi, atrPct, regime, pattern, structure, support, resistance)
         return Quad(score, reasons.joinToString("، "), rsiValue, technical)
     }
