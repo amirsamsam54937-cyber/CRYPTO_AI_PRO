@@ -182,7 +182,7 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Panel, contentColor = Color.White) {
-                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "جریان نهنگ" to "◉", "هوش مصنوعی" to "✧", "تنظیمات" to "⚙").forEach { entry ->
+                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "هوش مصنوعی" to "✧", "تنظیمات" to "⚙").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry.first,
                             onClick = { selectedTab = entry.first },
@@ -338,6 +338,7 @@ fun CryptoMonitorScreen() {
                                 }
                             }
                             item { TradingViewPairChart(selectedSymbol = selectedSignal?.symbol ?: "BTCUSDT") }
+                            selectedSignal?.let { signal -> item { SignalLevelsChart(signal) } }
                             if (voiceTranscript.isNotBlank() || voiceReply.isNotBlank()) {
                                 item {
                                     Surface(color = Color(0xFF132640), shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
@@ -437,10 +438,6 @@ fun CryptoMonitorScreen() {
 
 
 
-
-                    "جریان نهنگ" -> {
-                        WolfFlowNewsScreen(selectedSignal?.symbol ?: "BTCUSDT")
-                    }
 
                     "هوش مصنوعی" -> {
                         WolfAiCompanionScreen()
@@ -625,6 +622,70 @@ private fun CandleChart(candles: List<DoubleArray>) {
             val bottom = maxOf(y(candle[0]), y(candle[3]))
             drawRect(tint, Offset(x - bodyWidth / 2f, top), androidx.compose.ui.geometry.Size(bodyWidth, (bottom - top).coerceAtLeast(2f)))
         }
+    }
+}
+
+@Composable
+private fun SignalLevelsChart(signal: MarketSignal) {
+    val candles = signal.candles.takeLast(64)
+    val allPrices = candles.flatMap { listOf(it[1], it[2]) } + listOf(signal.entry, signal.stop, signal.tp1, signal.tp2, signal.tp3)
+    val low = allPrices.filter { it > 0.0 && it.isFinite() }.minOrNull() ?: signal.price * 0.98
+    val high = allPrices.filter { it > 0.0 && it.isFinite() }.maxOrNull() ?: signal.price * 1.02
+    val range = (high - low).coerceAtLeast(signal.price * 0.001)
+    Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("نقشه ورود و خروج سیگنال روی نمودار", color = Color.White, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("● ورود", color = Blue, fontSize = 10.sp)
+                Text("━ حد سود", color = Green, fontSize = 10.sp)
+                Text("━ حد ضرر", color = Red, fontSize = 10.sp)
+            }
+            Canvas(Modifier.fillMaxWidth().height(220.dp)) {
+                val left = 8f
+                val right = size.width - 8f
+                val top = 8f
+                val bottom = size.height - 8f
+                fun y(price: Double) = bottom - (((price - low) / range).toFloat() * (bottom - top))
+                val step = (right - left) / candles.size.coerceAtLeast(1)
+                candles.forEachIndexed { index, candle ->
+                    if (candle.size >= 4) {
+                        val x = left + step * (index + 0.5f)
+                        val color = if (candle[3] >= candle[0]) Green else Red
+                        drawLine(color.copy(alpha = 0.8f), Offset(x, y(candle[1])), Offset(x, y(candle[2])), 1.5f)
+                        val bodyTop = y(maxOf(candle[0], candle[3]))
+                        val bodyBottom = y(minOf(candle[0], candle[3]))
+                        drawLine(color, Offset(x, bodyTop), Offset(x, maxOf(bodyTop + 2f, bodyBottom)), (step * 0.58f).coerceAtLeast(2f))
+                    }
+                }
+                fun level(price: Double, color: Color, width: Float = 1.5f) {
+                    if (price > low && price < high && price.isFinite()) {
+                        val yy = y(price)
+                        drawLine(color, Offset(left, yy), Offset(right, yy), width)
+                    }
+                }
+                level(signal.entry, Blue, 2.5f)
+                level(signal.stop, Red, 2.5f)
+                level(signal.tp1, Green, 2.5f)
+                level(signal.tp2, Green.copy(alpha = 0.75f), 2f)
+                level(signal.tp3, Green.copy(alpha = 0.5f), 1.5f)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                PriceLevelRow("ورود مرجع", signal.entry, Blue)
+                PriceLevelRow("حد سود ۱", signal.tp1, Green)
+                PriceLevelRow("حد سود ۲", signal.tp2, Green)
+                PriceLevelRow("حد سود ۳", signal.tp3, Green)
+                PriceLevelRow("حد ضرر", signal.stop, Red)
+            }
+            Text("سطوح از تحلیل فعلی محاسبه شده‌اند؛ رسیدن قیمت به سطح در بازار واقعی تضمین نمی‌شود.", color = Muted, fontSize = 9.sp)
+        }
+    }
+}
+
+@Composable
+private fun PriceLevelRow(label: String, price: Double, tint: Color) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = tint, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+        Text(formatPrice(price), color = Color.White, fontSize = 10.sp)
     }
 }
 
