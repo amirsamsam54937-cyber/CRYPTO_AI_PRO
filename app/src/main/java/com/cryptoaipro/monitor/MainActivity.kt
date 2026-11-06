@@ -49,7 +49,15 @@ private val Blue = Color(0xFF64B5F6)
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
     val direction: String, val score: Int, val rsi: Double, val confidence: Int,
-    val reason: String, val entry: Double, val stop: Double, val tp1: Double, val tp2: Double, val tp3: Double, val leverage: Int, val atr: Double
+    val reason: String, val entry: Double, val stop: Double, val tp1: Double, val tp2: Double, val tp3: Double, val leverage: Int, val atr: Double,
+    val technical: TechnicalSnapshot
+)
+
+data class TechnicalSnapshot(
+    val ema9: Double, val ema20: Double, val ema50: Double, val ema100: Double, val ema200: Double,
+    val adx: Double, val bollingerWidthPct: Double, val bollingerPosition: Double,
+    val relativeVolume: Double, val vwap: Double, val stochasticRsi: Double,
+    val atrPercent: Double, val regime: String
 )
 
 class MainActivity : ComponentActivity() {
@@ -257,6 +265,7 @@ private fun MetricCard(title: String, value: String, modifier: Modifier, valueCo
 
 @Composable
 private fun SignalCard(item: MarketSignal) {
+    var expanded by remember(item.symbol) { mutableStateOf(false) }
     val tint = when (item.direction) {
         "LONG_BIAS" -> Green
         "SHORT_BIAS" -> Red
@@ -309,6 +318,37 @@ private fun SignalCard(item: MarketSignal) {
             }
             Spacer(Modifier.height(6.dp))
             Text(item.reason, color = Muted, fontSize = 10.sp)
+            TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(0.dp)) {
+                Text(if (expanded) "بستن جزئیات تحلیل ▲" else "مشاهده شاخص‌های پیشرفته ▼", color = Blue, fontSize = 10.sp)
+            }
+            if (expanded) {
+                Surface(color = Color(0xFF0E1728), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Text("تحلیل تکنیکال تایم‌فریم ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SmallStat("EMA 9", formatPrice(item.technical.ema9))
+                            SmallStat("EMA 20", formatPrice(item.technical.ema20))
+                            SmallStat("EMA 50", formatPrice(item.technical.ema50))
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SmallStat("EMA 100", formatPrice(item.technical.ema100))
+                            SmallStat("EMA 200", formatPrice(item.technical.ema200))
+                            SmallStat("VWAP", formatPrice(item.technical.vwap))
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SmallStat("ADX", String.format(Locale.US, "%.1f", item.technical.adx))
+                            SmallStat("Stoch RSI", String.format(Locale.US, "%.1f", item.technical.stochasticRsi))
+                            SmallStat("ATR ٪", String.format(Locale.US, "%.2f", item.technical.atrPercent))
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SmallStat("قدرت حجم", String.format(Locale.US, "%.2fx", item.technical.relativeVolume))
+                            SmallStat("عرض باند", String.format(Locale.US, "%.2f%%", item.technical.bollingerWidthPct))
+                            SmallStat("موقعیت باند", String.format(Locale.US, "%.2f", item.technical.bollingerPosition))
+                        }
+                        Text("رژیم بازار: " + item.technical.regime + " • شاخص‌ها بر اساس کندل‌های بسته‌شده محاسبه شده‌اند.", color = Muted, fontSize = 9.sp)
+                    }
+                }
+            }
         }
     }
 }
@@ -409,32 +449,35 @@ private object BinanceMonitor {
         return MarketSignal(
             symbol, price, change, volume, direction, score, a.third, confidence,
             "۱۵ دقیقه: " + a.second + " | یک‌ساعته: " + b.second + " | چهارساعته: " + c.second,
-            price, stop, tp1, tp2, tp3, leverage, atrValue
+            price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical
         )
     }
 
     private fun candles(symbol: String, interval: String): List<DoubleArray> {
-        val raw = JSONArray(get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval + "&limit=100"))
+        val raw = JSONArray(get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval + "&limit=250"))
         return (0 until (raw.length() - 1).coerceAtLeast(0)).map { i ->
             val row = raw.getJSONArray(i)
-            doubleArrayOf(row.getString(2).toDouble(), row.getString(3).toDouble(), row.getString(4).toDouble())
+            doubleArrayOf(row.getString(1).toDouble(), row.getString(2).toDouble(), row.getString(3).toDouble(), row.getString(4).toDouble(), row.getString(5).toDouble())
         }
     }
 
     private fun atr(data: List<DoubleArray>, period: Int = 14): Double {
         if (data.size < period + 1) return data.last()[2] * 0.01
         val ranges = (1 until data.size).map { i ->
-            val high = data[i][0]; val low = data[i][1]; val prevClose = data[i-1][2]
+            val high = data[i][1]; val low = data[i][2]; val prevClose = data[i-1][3]
             maxOf(high-low, abs(high-prevClose), abs(low-prevClose))
         }
         return ranges.takeLast(period).average()
     }
-    // Each candle contains high, low, close.
+    // Each candle contains open, high, low, close, base volume.
     private fun indicators(data: List<DoubleArray>): Quad {
-        val closes = data.map { it[2] }
+        val closes = data.map { it[3] }
         if (closes.size < 55) throw IllegalStateException("داده کافی نیست")
+        val e9 = ema(closes, 9)
         val e20 = ema(closes, 20)
         val e50 = ema(closes, 50)
+        val e100 = ema(closes, 100)
+        val e200 = ema(closes, 200)
         val rsiValue = rsi(closes, 14)
         val macdValues = macdSeries(closes)
         var score = 0
@@ -444,10 +487,67 @@ private object BinanceMonitor {
         if (rsiValue >= 55) { score++; reasons.add("RSI قوی") }
         else if (rsiValue <= 45) { score--; reasons.add("RSI ضعیف") }
         else reasons.add("RSI خنثی")
-        return Quad(score, reasons.joinToString("، "), rsiValue)
+        if (e20 > e50 && e50 > e100 && e100 > e200) reasons.add("چیدمان صعودی EMA")
+        else if (e20 < e50 && e50 < e100 && e100 < e200) reasons.add("چیدمان نزولی EMA")
+        val adx = calculateAdx(data)
+        val lastClose = closes.last()
+        val bbWindow = closes.takeLast(20)
+        val bbMean = bbWindow.average()
+        val bbStd = kotlin.math.sqrt(bbWindow.map { (it - bbMean) * (it - bbMean) }.average())
+        val bbUpper = bbMean + 2.0 * bbStd
+        val bbLower = bbMean - 2.0 * bbStd
+        val bbWidth = if (bbMean != 0.0) (bbUpper - bbLower) / bbMean * 100.0 else 0.0
+        val bbPosition = if (bbUpper != bbLower) ((lastClose - bbLower) / (bbUpper - bbLower)).coerceIn(-0.5, 1.5) else 0.5
+        val volumeWindow = data.takeLast(21).dropLast(1).map { it[4] }
+        val averageVolume = volumeWindow.average().coerceAtLeast(1e-12)
+        val relativeVolume = data.last()[4] / averageVolume
+        val vwapWindow = data.takeLast(24)
+        val volumeSum = vwapWindow.sumOf { it[4] }.coerceAtLeast(1e-12)
+        val vwap = vwapWindow.sumOf { ((it[1] + it[2] + it[3]) / 3.0) * it[4] } / volumeSum
+        val rsiValues = rsiSeries(closes, 14).takeLast(14)
+        val rsiMin = rsiValues.minOrNull() ?: rsiValue
+        val rsiMax = rsiValues.maxOrNull() ?: rsiValue
+        val stochRsi = if (rsiMax > rsiMin) ((rsiValue - rsiMin) / (rsiMax - rsiMin) * 100.0).coerceIn(0.0, 100.0) else 50.0
+        val atrPct = if (lastClose > 0) atr(data) / lastClose * 100.0 else 0.0
+        val regime = when {
+            adx >= 25.0 -> "رونددار"
+            bbWidth < 2.0 -> "فشردگی نوسان"
+            else -> "رنج"
+        }
+        val technical = TechnicalSnapshot(e9, e20, e50, e100, e200, adx, bbWidth, bbPosition, relativeVolume, vwap, stochRsi, atrPct, regime)
+        return Quad(score, reasons.joinToString("، "), rsiValue, technical)
     }
 
-    private data class Quad(val first: Int, val second: String, val third: Double)
+    private fun calculateAdx(data: List<DoubleArray>, period: Int = 14): Double {
+        if (data.size < period + 2) return 0.0
+        val dx = mutableListOf<Double>()
+        for (i in 1 until data.size) {
+            val upMove = data[i][1] - data[i-1][1]
+            val downMove = data[i-1][2] - data[i][2]
+            val plus = if (upMove > downMove && upMove > 0) upMove else 0.0
+            val minus = if (downMove > upMove && downMove > 0) downMove else 0.0
+            val tr = maxOf(
+                data[i][1] - data[i][2],
+                abs(data[i][1] - data[i-1][3]),
+                abs(data[i][2] - data[i-1][3])
+            )
+            val safeTr = tr.coerceAtLeast(1e-12)
+            val plusDi = 100.0 * plus / safeTr
+            val minusDi = 100.0 * minus / safeTr
+            val denom = (plusDi + minusDi).coerceAtLeast(1e-12)
+            dx.add(abs(plusDi - minusDi) / denom * 100.0)
+        }
+        return dx.takeLast(period).average().takeIf { it.isFinite() } ?: 0.0
+    }
+
+    private fun rsiSeries(values: List<Double>, period: Int): List<Double> {
+        if (values.size <= period) return listOf(rsi(values, period))
+        return (period until values.size).map { end ->
+            rsi(values.subList(0, end + 1), period)
+        }
+    }
+
+    private data class Quad(val first: Int, val second: String, val third: Double, val technical: TechnicalSnapshot)
 
     private fun ema(values: List<Double>, period: Int): Double {
         val alpha = 2.0 / (period + 1)
