@@ -3,7 +3,7 @@ on:
  workflow_dispatch:
  push:
   paths:
-   - "app/**"
+   - "app/**"\n   - "tools/train_wolf_ensemble.py"
    - "*.gradle.kts"
    - "settings.gradle.kts"
    - "gradle.properties"
