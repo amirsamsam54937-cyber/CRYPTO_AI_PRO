@@ -90,17 +90,17 @@ internal object WolfCryptoKnowledgeBase {
     fun answer(question: String): Pair<String, String>? {
         val q = norm(question)
         if (q.length < 3) return null
-        val scored = entries.map { entry ->
-            val score = entry.keys.sumOf { key ->
+        val scored: List<Pair<Entry, Int>> = entries.map { entry: Entry ->
+            val score = entry.keys.fold(0) { total: Int, key: String ->
                 val k = norm(key)
-                when {
+                total + when {
                     k.isNotBlank() && q.contains(k) -> if (k.contains(' ')) 4 else 3
                     k.length >= 4 && k.split(' ').any { it.length >= 4 && q.contains(it) } -> 1
                     else -> 0
                 }
             }
             entry to score
-        }.filter { it.second > 0 }.sortedByDescending { it.second }
+        }.filter { pair -> pair.second > 0 }.sortedByDescending { pair -> pair.second }
         val best = scored.firstOrNull() ?: return null
         if (best.second < 3) return null
         val related = scored.drop(1).take(2).map { it.first.title }
