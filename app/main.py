@@ -5,6 +5,7 @@ from app.market import fetch_ohlcv
 from app.indicators import build_signal
 from app.advanced_analysis import analyze_ohlcv
 from app.exchanges.xt_futures import XTFuturesClient, XTAPIError
+from app.exchanges.xt_ccxt import xt_account_snapshot, XTCCXTError
 from app.xt_scanner import scan_xt_usdt_perpetuals
 from app.backtest import run_backtest
 
@@ -40,6 +41,15 @@ o.textContent=JSON.stringify(j,null,2)}catch(e){o.textContent='خطا: '+e.messa
 @app.get("/health")
 def health():
     return {"status":"ok","app":settings.app_name,"mode":"research-paper-and-xt-read-only"}
+
+@app.get("/api/xt/ccxt/dashboard")
+def xt_ccxt_dashboard():
+    """Authenticated XT futures dashboard via CCXT; read-only, no order endpoints."""
+    try:
+        return xt_account_snapshot(include_positions=True, include_open_orders=True)
+    except XTCCXTError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
 
 @app.get("/api/xt/connection")
 def xt_connection():
