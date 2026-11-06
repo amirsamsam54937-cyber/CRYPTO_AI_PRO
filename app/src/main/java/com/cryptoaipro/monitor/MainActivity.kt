@@ -46,7 +46,7 @@ private val Blue = Color(0xFF64B5F6)
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
     val direction: String, val score: Int, val rsi: Double, val confidence: Int,
-    val reason: String
+    val reason: String, val entry: Double, val stop: Double, val tp1: Double, val tp2: Double, val tp3: Double, val leverage: Int, val atr: Double
 )
 
 class MainActivity : ComponentActivity() {
@@ -191,6 +191,21 @@ private fun SignalCard(item: MarketSignal) {
                 modifier = Modifier.fillMaxWidth().height(5.dp),
                 color = tint, trackColor = Color(0xFF29364D)
             )
+            if (item.direction != "NEUTRAL") {
+                Spacer(Modifier.height(8.dp))
+                Surface(color = Color(0xFF0E1728), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("ورود مرجع: " + formatPrice(item.entry) + "   |   اهرم سقف: " + item.leverage + "x", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SmallStat("حد ضرر", formatPrice(item.stop), Red)
+                            SmallStat("TP1 • 1R", formatPrice(item.tp1), Green)
+                            SmallStat("TP2 • 2R", formatPrice(item.tp2), Green)
+                            SmallStat("TP3 • 3R", formatPrice(item.tp3), Green)
+                        }
+                        Text("استاپ مبتنی بر ۱٫۵ برابر ATR؛ اهرم صرفاً سقف محافظه‌کارانه تخمینی است.", color = Muted, fontSize = 9.sp)
+                    }
+                }
+            }
             Spacer(Modifier.height(6.dp))
             Text(item.reason, color = Muted, fontSize = 10.sp)
         }
@@ -281,9 +296,19 @@ private object BinanceMonitor {
             else -> "NEUTRAL"
         }
         val confidence = (abs(score) * 100 / 9).coerceIn(0, 100)
+        val atrValue = atr(short)
+        val stopDistance = maxOf(atrValue * 1.5, price * 0.002)
+        val isLong = direction == "LONG_BIAS"
+        val stop = if (isLong) price - stopDistance else price + stopDistance
+        val tp1 = if (isLong) price + stopDistance else price - stopDistance
+        val tp2 = if (isLong) price + stopDistance * 2 else price - stopDistance * 2
+        val tp3 = if (isLong) price + stopDistance * 3 else price - stopDistance * 3
+        val stopPct = stopDistance / price * 100.0
+        val leverage = when { stopPct <= 0.8 -> 5; stopPct <= 1.5 -> 3; stopPct <= 3.0 -> 2; else -> 1 }
         return MarketSignal(
             symbol, price, change, volume, direction, score, a.third, confidence,
-            "۱۵ دقیقه: " + a.second + " | یک‌ساعته: " + b.second + " | چهارساعته: " + c.second
+            "۱۵ دقیقه: " + a.second + " | یک‌ساعته: " + b.second + " | چهارساعته: " + c.second,
+            price, stop, tp1, tp2, tp3, leverage, atrValue
         )
     }
 
@@ -295,6 +320,14 @@ private object BinanceMonitor {
         }
     }
 
+    private fun atr(data: List<DoubleArray>, period: Int = 14): Double {
+        if (data.size < period + 1) return data.last()[2] * 0.01
+        val ranges = (1 until data.size).map { i ->
+            val high = data[i][0]; val low = data[i][1]; val prevClose = data[i-1][2]
+            maxOf(high-low, abs(high-prevClose), abs(low-prevClose))
+        }
+        return ranges.takeLast(period).average()
+    }
     // Each candle contains high, low, close.
     private fun indicators(data: List<DoubleArray>): Quad {
         val closes = data.map { it[2] }
