@@ -202,8 +202,14 @@ fun CryptoMonitorScreen() {
     }
 
     LaunchedEffect(Unit) {
-        while (true) {
+        while (isActive) {
             performScan()
+            // HTTP 451 is an explicit regional-eligibility denial, not a transient outage.
+            // Stop automatic polling instead of repeatedly hitting a blocked endpoint.
+            if (error?.contains("HTTP 451") == true) {
+                scanProgress = "اسکن خودکار متوقف شد؛ دسترسی Binance از این شبکه مجاز نیست"
+                break
+            }
             delay(180_000)
         }
     }
@@ -1008,40 +1014,58 @@ private fun formatPrice(value: Double): String = when {
 /** Binance USDⓈ-M public futures scanner; public endpoints only. */
 
 private object BinanceMonitor {
-    // Official Binance USDⓈ-M public API mirrors. Fail over on regional/network gateway failures.
-    private val BASES = listOf(
-        "https://fapi.binance.com",
-        "https://fapi1.binance.com",
-        "https://fapi2.binance.com",
-        "https://fapi3.binance.com"
-    )
+    // Use the documented canonical USDⓈ-M API endpoint only.
+    // Alternate hostnames must not be used to evade an explicit regional-eligibility response.
+    private const val BASE_URL = "https://fapi.binance.com"
     private val requestGate = Semaphore(permits = 8)
 
     private fun get(path: String): String {
         var lastError = "اتصال به API عمومی Binance برقرار نشد"
-        for (base in BASES) {
+        for (attempt in 0..2) {
             var connection: HttpURLConnection? = null
             try {
-                connection = (URL(base + path).openConnection() as HttpURLConnection).apply {
+                connection = (URL(BASE_URL + path).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 7000
                     readTimeout = 9000
-                    setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.10")
+                    setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.12")
                     setRequestProperty("Accept", "application/json")
                 }
                 val code = connection.responseCode
                 val stream = if (code in 200..299) connection.inputStream else connection.errorStream
                 val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 if (code in 200..299) return body
-                lastError = "Binance HTTP $code: " + body.take(180)
-                if (code !in listOf(418, 429, 500, 502, 503, 504)) break
+
+                val detail = body.take(180)
+                when {
+                    code == 451 -> throw IllegalStateException(
+                        "Binance HTTP 451: دسترسی این سرویس از شبکه یا موقعیت فعلی مجاز نیست. " +
+                        "این خطا با تکرار درخواست یا تعویض آدرس حل نمی‌شود. اسکن Binance متوقف شد؛ " +
+                        "برای داده زنده باید از منبعی استفاده شود که ارائه‌دهنده‌اش دسترسی آن را برای محل اتصال شما مجاز کرده باشد. " +
+                        detail
+                    )
+                    code == 418 -> throw IllegalStateException(
+                        "Binance HTTP 418: آی‌پی موقتاً مسدود شده است؛ درخواست‌های خودکار متوقف شدند. $detail"
+                    )
+                    code == 403 -> throw IllegalStateException(
+                        "Binance HTTP 403: درخواست توسط سیاست دسترسی یا WAF رد شد. $detail"
+                    )
+                    code == 429 || code in 500..599 -> {
+                        lastError = "Binance HTTP $code: $detail"
+                        if (attempt < 2) Thread.sleep(700L * (attempt + 1))
+                    }
+                    else -> throw IllegalStateException("Binance HTTP $code: $detail")
+                }
+            } catch (e: IllegalStateException) {
+                throw e
             } catch (e: Exception) {
                 lastError = e.message ?: e.javaClass.simpleName
+                if (attempt < 2) Thread.sleep(500L * (attempt + 1))
             } finally {
                 connection?.disconnect()
             }
         }
-        throw IllegalStateException("دریافت داده Binance ناموفق بود: $lastError")
+        throw IllegalStateException("دریافت داده Binance پس از تلاش محدود ناموفق بود: $lastError")
     }
 
     suspend fun scan(onProgress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { _, _, _, _ -> }): List<MarketSignal> = withContext(Dispatchers.IO) {
