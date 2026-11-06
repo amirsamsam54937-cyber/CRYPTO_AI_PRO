@@ -74,6 +74,19 @@ internal object WolfFlowNewsRepository {
     }
 
 
+    fun enrichSignals(context: android.content.Context, signals: List<MarketSignal>): List<MarketSignal> {
+        val prefs = context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE)
+        val flows = runCatching { JSONArray(prefs.getString("flow_reports", "[]")) }.getOrDefault(JSONArray())
+        val headlines = runCatching { JSONArray(prefs.getString("market_news", "[]")) }.getOrDefault(JSONArray())
+        val newsContext = (0 until minOf(3, headlines.length())).mapNotNull { headlines.optJSONObject(it)?.optString("title")?.takeIf { title -> title.isNotBlank() } }.joinToString(" | ")
+        return signals.map { signal ->
+            val flow = (0 until flows.length()).mapNotNull { flows.optJSONObject(it) }.firstOrNull { it.optString("symbol") == signal.symbol.replace("/", "").replace(":USDT", "") }
+            val flowNote = flow?.let { "جریان معاملات درشت: " + it.optString("summary") + "؛ عدم‌تعادل " + String.format(Locale.US, "%.1f%%", it.optDouble("imbalance") * 100) } ?: "جریان نهنگ هنوز داده تأییدشده‌ای برای این نماد ندارد"
+            val newsNote = if (newsContext.isBlank()) "اخبار بازار هنوز دریافت نشده" else "زمینه خبری عمومی: " + newsContext
+            signal.copy(reason = signal.reason + " | " + flowNote + " | " + newsNote)
+        }
+    }
+
     suspend fun refreshForEngine(context: android.content.Context, signals: List<MarketSignal>) {
         val reports = signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }.sortedByDescending { it.volume }.take(3).mapNotNull { signal -> runCatching { whale(signal.symbol) }.getOrNull() }
         val headlines = runCatching { news() }.getOrDefault(emptyList())
