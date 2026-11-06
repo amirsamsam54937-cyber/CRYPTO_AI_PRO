@@ -13,7 +13,7 @@ The 2.1.0 interface is organized into six functional sections:
 - **بازار** — XT Futures / Binance Futures selector, bullish/bearish filters, manual refresh, and ranked market cards.
 - **تحلیل** — selected candidate, multi-indicator diagnostics, market structure, support/resistance, and candlestick view.
 - **معاملات** — autonomous paper-trading dashboard, persistent trade journal, risk limits, staged exits, trailing stops, and individually confirmed XT manual order ticket.
-- **حساب** — encrypted on-device XT credential storage and authenticated connection check.
+- **حساب** — encrypted on-device XT credential storage, authenticated connection check, and a manual USDT futures balance readout that clearly reports an empty wallet.
 - **تنظیمات** — user-started foreground monitoring service and scanner configuration summary.
 
 The visual system uses a dark navy base with electric blue and violet accents. Version 2.1.0 brands the app as **AMIRARSALAN TRADER WOLF**, with a custom angular wolf-head launcher emblem and an enhanced chart view that overlays visible support/resistance plus reference entry, stop-loss, and first target levels on the latest 54 closed 15-minute candles.
