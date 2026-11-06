@@ -111,3 +111,32 @@ pytest -q
 ```
 
 The tests cover indicator calculations, analysis, backtesting, paper trading, XT request signing, scanner behavior, and live-execution safety gates. Passing tests do not replace real exchange integration testing.
+
+
+## Explainable online learning (paper outcomes only)
+
+The research API now includes a persistent SQLite logistic learner. It learns only after a user submits a resolved paper-trade outcome; it never labels an open trade or treats an unrealized signal as a win/loss.
+
+- `GET /api/learning/status` — update count, feature weights and calibration status.
+- `POST /api/learning/feedback` — submit one resolved paper outcome.
+- `GET /api/analysis/advanced/{symbol}?timeframe=1h` — technical feature pack plus an adaptive research estimate.
+
+Example feedback body:
+
+```json
+{
+  "symbol": "BTC/USDT:USDT",
+  "direction": "LONG",
+  "outcome": 1,
+  "metrics": {
+    "score": 4,
+    "rsi": 64,
+    "macd_histogram": 0.12,
+    "adx": 28,
+    "volume_ratio": 1.4,
+    "bb_position": 0.7
+  }
+}
+```
+
+The estimate is explicitly marked uncalibrated until 100 resolved paper outcomes. It is a research feature, not a probability guarantee or a live-order authorization. Local SQLite state is excluded from Git.
