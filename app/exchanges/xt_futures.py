@@ -174,6 +174,21 @@ class XTFuturesClient:
             raise ValueError("A unique client_order_id of at most 64 characters is required")
         if not all(math.isfinite(x) and x > 0 for x in (stop_loss, take_profit)):
             raise ValueError("Valid positive stop-loss and take-profit prices are required")
+        if (side == "BUY" and position_side != "LONG") or (side == "SELL" and position_side != "SHORT"):
+            raise ValueError("This adapter only supports BUY/LONG and SELL/SHORT entries")
+        if (position_side == "LONG" and stop_loss >= take_profit) or (
+            position_side == "SHORT" and stop_loss <= take_profit
+        ):
+            raise ValueError("Stop-loss and take-profit are on the wrong side for this position")
+        contract = self.contract_detail(symbol)
+        if contract.get("tradeSwitch") is False or contract.get("isOpenApi") is False:
+            raise XTAPIError("This XT contract is not enabled for API trading.")
+        try:
+            minimum = float(contract.get("minQty", 0) or 0)
+        except (TypeError, ValueError):
+            raise XTAPIError("XT returned invalid minimum contract quantity.") from None
+        if quantity_contracts < minimum:
+            raise ValueError("Order quantity is below the exchange minimum")
         payload = {
             "clientOrderId": client_order_id,
             "symbol": symbol.lower(),
