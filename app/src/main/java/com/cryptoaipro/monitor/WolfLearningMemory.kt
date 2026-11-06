@@ -75,6 +75,9 @@ internal object WolfLearningMemory {
 
         // Record only actionable directional signals. De-duplicate a symbol within 15 minutes.
         val lastRecorded = mutableMapOf<String, Long>()
+        outcomes.forEach { outcome ->
+            lastRecorded[outcome.symbol] = maxOf(lastRecorded[outcome.symbol] ?: 0L, outcome.created)
+        }
         for (i in 0 until retained.length()) {
             val item = retained.optJSONObject(i) ?: continue
             lastRecorded[item.optString("symbol")] = maxOf(lastRecorded[item.optString("symbol")] ?: 0L, item.optLong("time"))
