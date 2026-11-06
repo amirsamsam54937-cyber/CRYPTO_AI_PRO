@@ -4,13 +4,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.market import fetch_ohlcv
 from app.indicators import build_signal
 from app.advanced_analysis import analyze_ohlcv
-from app.exchanges.xt_futures import XTFuturesClient, XTAPIError
-from app.xt_scanner import scan_xt_usdt_perpetuals
 from app.backtest import run_backtest
 
 class Settings(BaseSettings):
     app_name: str="CRYPTO AI PRO"
-    exchange_id: str="xt"
+    exchange_id: str="binanceusdm"
     default_symbol: str="BTC/USDT:USDT"
     default_timeframe: str="1h"
     candle_limit: int=300
@@ -18,7 +16,7 @@ class Settings(BaseSettings):
 
 settings=Settings()
 app=FastAPI(title=settings.app_name,version="0.1.0",
-            description="Market research, paper trading, and authenticated XT account read access. No live orders.")
+            description="Public Binance futures market research, technical analysis and backtesting. No exchange credentials or live orders.")
 
 @app.get("/",response_class=HTMLResponse)
 def dashboard():
@@ -39,55 +37,7 @@ o.textContent=JSON.stringify(j,null,2)}catch(e){o.textContent='خطا: '+e.messa
 
 @app.get("/health")
 def health():
-    return {"status":"ok","app":settings.app_name,"mode":"research-paper-and-xt-read-only"}
-
-@app.get("/api/xt/connection")
-def xt_connection():
-    """Check XT futures account authentication without placing orders."""
-    try:
-        return XTFuturesClient().connection_check()
-    except XTAPIError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-
-
-@app.get("/api/xt/dashboard")
-def xt_dashboard():
-    """Fetch XT account metadata and balances in one read-only request flow."""
-    try:
-        client = XTFuturesClient()
-        info = client.account_info()
-        account = info.get("result") or info.get("data") or {}
-        account_id = account.get("accountId") if isinstance(account, dict) else None
-        balance_data = client.balances(str(account_id)) if account_id else None
-        return {"connection": {
-            "connected": True,
-            "account_id": account_id,
-            "account_state": account.get("state") if isinstance(account, dict) else None,
-            "allow_trade": account.get("allowTrade") if isinstance(account, dict) else None,
-            "allow_open_position": account.get("allowOpenPosition") if isinstance(account, dict) else None,
-        }, "balances": balance_data}
-    except XTAPIError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-
-
-@app.get("/api/xt/contract/{symbol}")
-def xt_contract_detail(symbol: str):
-    """Read XT contract metadata needed for precision and order validation."""
-    try:
-        detail = XTFuturesClient().contract_detail(symbol)
-        return {"symbol": symbol, "contract": detail, "mode": "metadata-read-only"}
-    except (XTAPIError, ValueError) as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-
-
-@app.get("/api/xt/balances")
-def xt_balances(account_id: str = Query(..., min_length=1)):
-    """Read XT futures balances. Account ID comes from the authenticated account."""
-    try:
-        return XTFuturesClient().balances(account_id)
-    except (XTAPIError, ValueError) as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-
+    return {"status":"ok","app":settings.app_name,"mode":"public-binance-analysis-only"}
 
 @app.get("/api/signal/{symbol:path}")
 def signal(symbol: str,timeframe: str=Query(default=None)):
