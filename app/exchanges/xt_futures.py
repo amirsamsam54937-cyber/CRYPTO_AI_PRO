@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import os
 import time
+import math
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlencode
@@ -95,6 +96,95 @@ class XTFuturesClient:
             message = error.get("msg") if isinstance(error, dict) else None
             raise XTAPIError(str(message or data.get("msgInfo") or "XT rejected the request."))
         return data
+
+
+    def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Signed JSON POST. Never retries an order submission automatically."""
+        timestamp = str(int(time.time() * 1000))
+        headers = {
+            "validate-appkey": self.credentials.api_key,
+            "validate-timestamp": timestamp,
+            "validate-signature": self._signature(path, timestamp, payload),
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        try:
+            response = self.session.post(
+                self.base_url + path, json=payload, headers=headers,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+        except requests.RequestException as exc:
+            raise XTAPIError(
+                f"XT POST outcome is unknown after {type(exc).__name__}; reconcile account state before retrying."
+            ) from None
+        except ValueError:
+            raise XTAPIError("XT returned an invalid JSON response.") from None
+        if not isinstance(data, dict):
+            raise XTAPIError("XT returned an unexpected response format.")
+        code = data.get("returnCode")
+        if code not in (None, 0, "0", 200, "200"):
+            error = data.get("error") or {}
+            message = error.get("msg") if isinstance(error, dict) else None
+            raise XTAPIError(str(message or data.get("msgInfo") or "XT rejected the request."))
+        return data
+
+    def contract_detail(self, symbol: str) -> dict[str, Any]:
+        """Fetch public contract rules; no account credentials are sent."""
+        if not symbol or not symbol.strip():
+            raise ValueError("symbol is required")
+        try:
+            response = self.session.get(
+                self.base_url + "/future/market/v1/public/symbol/detail",
+                params={"symbol": symbol.lower()}, timeout=self.timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+        except requests.RequestException as exc:
+            raise XTAPIError(f"XT contract metadata request failed: {type(exc).__name__}") from None
+        except ValueError:
+            raise XTAPIError("XT returned invalid contract metadata.") from None
+        if not isinstance(data, dict) or data.get("returnCode") not in (None, 0, "0", 200, "200"):
+            raise XTAPIError("XT could not provide contract metadata.")
+        result = data.get("result") or data.get("data") or {}
+        if not isinstance(result, dict) or not result:
+            raise XTAPIError("XT contract metadata is empty.")
+        return result
+
+    def create_protected_market_order(
+        self, *, symbol: str, side: str, quantity_contracts: int,
+        stop_loss: float, take_profit: float, position_side: str,
+        client_order_id: str,
+    ) -> dict[str, Any]:
+        """Submit a market entry with attached SL/TP, only after explicit arming.
+
+        Both LIVE_TRADING_ENABLED=true and LIVE_TRADING_ACK=ENABLE_XT_LIVE_ORDERS
+        are required. This method is not exposed through an unauthenticated HTTP endpoint.
+        """
+        if os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "true":
+            raise XTAPIError("Live order placement is disabled pending readiness review.")
+        if os.getenv("LIVE_TRADING_ACK", "") != "ENABLE_XT_LIVE_ORDERS":
+            raise XTAPIError("Explicit live-trading acknowledgement is missing.")
+        if side not in {"BUY", "SELL"} or position_side not in {"LONG", "SHORT"}:
+            raise ValueError("Invalid order side")
+        if not isinstance(quantity_contracts, int) or quantity_contracts <= 0:
+            raise ValueError("XT origQty must be a positive whole number of contracts")
+        if not client_order_id or len(client_order_id) > 64:
+            raise ValueError("A unique client_order_id of at most 64 characters is required")
+        if not all(math.isfinite(x) and x > 0 for x in (stop_loss, take_profit)):
+            raise ValueError("Valid positive stop-loss and take-profit prices are required")
+        payload = {
+            "clientOrderId": client_order_id,
+            "symbol": symbol.lower(),
+            "orderSide": side,
+            "orderType": "MARKET",
+            "origQty": quantity_contracts,
+            "positionSide": position_side,
+            "triggerStopPrice": stop_loss,
+            "triggerProfitPrice": take_profit,
+        }
+        return self._post("/future/trade/v1/order/create", payload)
 
     def account_info(self) -> dict[str, Any]:
         """Return authenticated futures account metadata (no trading action)."""
