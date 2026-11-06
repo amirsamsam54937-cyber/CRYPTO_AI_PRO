@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.market import fetch_ohlcv
 from app.indicators import build_signal
+from app.advanced_analysis import analyze_ohlcv
 from app.exchanges.xt_futures import XTFuturesClient, XTAPIError
 from app.xt_scanner import scan_xt_usdt_perpetuals
 
@@ -90,6 +91,27 @@ def signal(symbol: str,timeframe: str=Query(default=None)):
         raise HTTPException(status_code=400,detail=str(exc))
     except Exception:
         raise HTTPException(status_code=502,detail="Market data provider unavailable; retry later.")
+
+
+@app.get("/api/analysis/advanced/{symbol:path}")
+def advanced_analysis(symbol: str, timeframe: str = Query(default="1h")):
+    """Explainable multi-factor analysis using the latest completed candles."""
+    allowed = {"5m", "15m", "30m", "1h", "2h", "4h", "1d"}
+    if timeframe not in allowed:
+        raise HTTPException(status_code=400, detail="Unsupported timeframe")
+    try:
+        frame = fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=300,
+                            exchange_id=settings.exchange_id)
+        # Public market providers may include the live candle; discard it.
+        if len(frame) > 60:
+            frame = frame.iloc[:-1].reset_index(drop=True)
+        result = analyze_ohlcv(frame)
+        return {"symbol": symbol, "timeframe": timeframe,
+                "mode": "research-only", "analysis": result}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:
+        raise HTTPException(status_code=502, detail="Market data provider unavailable; retry later.")
 
 
 @app.get("/api/xt/scan")
