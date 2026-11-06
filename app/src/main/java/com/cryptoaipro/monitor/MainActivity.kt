@@ -14,6 +14,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -54,14 +57,17 @@ data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
     val direction: String, val score: Int, val rsi: Double, val confidence: Int,
     val reason: String, val entry: Double, val stop: Double, val tp1: Double, val tp2: Double, val tp3: Double, val leverage: Int, val atr: Double,
-    val technical: TechnicalSnapshot
+    val technical: TechnicalSnapshot,
+    val candles: List<DoubleArray> = emptyList()
 )
 
 data class TechnicalSnapshot(
     val ema9: Double, val ema20: Double, val ema50: Double, val ema100: Double, val ema200: Double,
     val adx: Double, val bollingerWidthPct: Double, val bollingerPosition: Double,
     val relativeVolume: Double, val vwap: Double, val stochasticRsi: Double,
-    val atrPercent: Double, val regime: String
+    val atrPercent: Double, val regime: String,
+    val candlePattern: String, val marketStructure: String,
+    val support: Double, val resistance: Double
 )
 
 class MainActivity : ComponentActivity() {
@@ -748,7 +754,7 @@ private object BinanceMonitor {
         return MarketSignal(
             symbol, price, change, volume, direction, score, a.third, confidence,
             "۱۵ دقیقه: " + a.second + " | یک‌ساعته: " + b.second + " | چهارساعته: " + c.second,
-            price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical
+            price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical, short.takeLast(80)
         )
     }
 
@@ -813,8 +819,45 @@ private object BinanceMonitor {
             bbWidth < 2.0 -> "فشردگی نوسان"
             else -> "رنج"
         }
-        val technical = TechnicalSnapshot(e9, e20, e50, e100, e200, adx, bbWidth, bbPosition, relativeVolume, vwap, stochRsi, atrPct, regime)
+        val pattern = detectCandlePattern(data)
+        val recent = data.takeLast(60)
+        val support = recent.minOf { it[2] }
+        val resistance = recent.maxOf { it[1] }
+        val structure = detectMarketStructure(data)
+        val technical = TechnicalSnapshot(e9, e20, e50, e100, e200, adx, bbWidth, bbPosition, relativeVolume, vwap, stochRsi, atrPct, regime, pattern, structure, support, resistance)
         return Quad(score, reasons.joinToString("، "), rsiValue, technical)
+    }
+
+    private fun detectCandlePattern(data: List<DoubleArray>): String {
+        if (data.size < 3) return "الگوی مشخصی نیست"
+        val a = data[data.size - 3]
+        val b = data[data.size - 2]
+        val c = data.last()
+        fun body(x: DoubleArray) = abs(x[3] - x[0])
+        fun range(x: DoubleArray) = (x[1] - x[2]).coerceAtLeast(1e-12)
+        val upper = c[1] - maxOf(c[0], c[3])
+        val lower = minOf(c[0], c[3]) - c[2]
+        if (body(c) / range(c) < 0.08) return "دوجی • بی‌تصمیمی"
+        if (c[3] > c[0] && lower > body(c) * 2.2 && upper < body(c) * 0.8) return "چکش صعودی"
+        if (c[3] < c[0] && upper > body(c) * 2.2 && lower < body(c) * 0.8) return "ستاره ثاقب نزولی"
+        if (b[3] < b[0] && c[3] > c[0] && c[0] <= b[3] && c[3] >= b[0]) return "پوشای صعودی"
+        if (b[3] > b[0] && c[3] < c[0] && c[0] >= b[3] && c[3] <= b[0]) return "پوشای نزولی"
+        if (a[3] < a[0] && body(b) < body(a) * 0.55 && c[3] > c[0] && c[3] > (a[0] + a[3]) / 2.0) return "ستاره صبحگاهی صعودی"
+        if (a[3] > a[0] && body(b) < body(a) * 0.55 && c[3] < c[0] && c[3] < (a[0] + a[3]) / 2.0) return "ستاره شامگاهی نزولی"
+        return "الگوی پرقدرتی تأیید نشد"
+    }
+
+    private fun detectMarketStructure(data: List<DoubleArray>): String {
+        if (data.size < 30) return "داده ناکافی"
+        val chunks = data.takeLast(60).chunked(10).takeLast(4)
+        if (chunks.size < 4) return "در حال شکل‌گیری"
+        val highs = chunks.map { it.maxOf { candle -> candle[1] } }
+        val lows = chunks.map { it.minOf { candle -> candle[2] } }
+        return when {
+            highs.zipWithNext().all { it.second > it.first } && lows.zipWithNext().all { it.second > it.first } -> "سقف و کف بالاتر (HH/HL)"
+            highs.zipWithNext().all { it.second < it.first } && lows.zipWithNext().all { it.second < it.first } -> "سقف و کف پایین‌تر (LH/LL)"
+            else -> "رنج / ساختار ترکیبی"
+        }
     }
 
     private fun calculateAdx(data: List<DoubleArray>, period: Int = 14): Double {
