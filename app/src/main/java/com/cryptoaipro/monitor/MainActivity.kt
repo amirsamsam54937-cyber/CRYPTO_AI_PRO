@@ -26,6 +26,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -221,7 +223,22 @@ fun CryptoMonitorScreen() {
             }
         ) { innerPadding ->
             Column(
-                Modifier.fillMaxSize().padding(innerPadding).background(Navy)
+                Modifier.fillMaxSize().padding(innerPadding).background(Navy).drawBehind {
+                    val wolf = Path().apply {
+                        moveTo(size.width * 0.08f, size.height * 0.08f)
+                        lineTo(size.width * 0.32f, size.height * 0.28f)
+                        lineTo(size.width * 0.50f, size.height * 0.18f)
+                        lineTo(size.width * 0.68f, size.height * 0.28f)
+                        lineTo(size.width * 0.92f, size.height * 0.08f)
+                        lineTo(size.width * 0.80f, size.height * 0.52f)
+                        lineTo(size.width * 0.66f, size.height * 0.76f)
+                        lineTo(size.width * 0.50f, size.height * 0.94f)
+                        lineTo(size.width * 0.34f, size.height * 0.76f)
+                        lineTo(size.width * 0.20f, size.height * 0.52f)
+                        close()
+                    }
+                    drawPath(wolf, Blue.copy(alpha = 0.035f))
+                }
             ) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -1363,6 +1380,12 @@ private object BinanceMonitor {
         if (b[3] > b[0] && c[3] < c[0] && c[0] >= b[3] && c[3] <= b[0]) return "پوشای نزولی"
         if (a[3] < a[0] && body(b) < body(a) * 0.55 && c[3] > c[0] && c[3] > (a[0] + a[3]) / 2.0) return "ستاره صبحگاهی صعودی"
         if (a[3] > a[0] && body(b) < body(a) * 0.55 && c[3] < c[0] && c[3] < (a[0] + a[3]) / 2.0) return "ستاره شامگاهی نزولی"
+        if (b[3] > b[0] && c[3] < c[0] && c[0] > b[0] && c[3] < (b[0] + b[3]) / 2.0) return "ابر سیاه نزولی"
+        if (b[3] < b[0] && c[3] > c[0] && c[0] < b[0] && c[3] > (b[0] + b[3]) / 2.0) return "خط نفوذی صعودی"
+        if (b[3] > b[0] && c[3] < c[0] && c[0] < b[3] && c[3] > b[0]) return "هارامی نزولی"
+        if (b[3] < b[0] && c[3] > c[0] && c[0] > b[3] && c[3] < b[0]) return "هارامی صعودی"
+        if (abs(b[1] - c[1]) / b[1].coerceAtLeast(1e-12) < 0.0015) return "سقف دوقلو کندلی احتمالی"
+        if (abs(b[2] - c[2]) / b[2].coerceAtLeast(1e-12) < 0.0015) return "کف دوقلو کندلی احتمالی"
         return "الگوی پرقدرتی تأیید نشد"
     }
 
