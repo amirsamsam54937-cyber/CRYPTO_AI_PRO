@@ -110,6 +110,8 @@ fun CryptoMonitorScreen() {
     var tradeMessage by remember { mutableStateOf<String?>(null) }
     var connectionStatus by remember { mutableStateOf<String?>(null) }
     var connectionVerified by remember { mutableStateOf(false) }
+    var accountBalanceText by remember { mutableStateOf<String?>(null) }
+    var accountBalanceLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val credentialVault = remember(context) { ExchangeCredentialVault(context) }
@@ -431,6 +433,32 @@ fun CryptoMonitorScreen() {
                                         .onFailure { credentialMessage = it.message ?: "پاک‌سازی ناموفق بود." }
                                 }
                             )
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        accountBalanceLoading = true
+                                        accountBalanceText = null
+                                        val result = runCatching {
+                                            val creds = credentialVault.load() ?: error("ابتدا کلیدهای XT را ذخیره کن")
+                                            XTOrderExecutor.fetchBalanceSummary(creds)
+                                        }
+                                        accountBalanceText = result.fold(
+                                            { it },
+                                            { "دریافت موجودی ناموفق بود: " + (it.message ?: "خطای ناشناخته") }
+                                        )
+                                        accountBalanceLoading = false
+                                    }
+                                },
+                                enabled = credentialsSaved && !accountBalanceLoading,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (accountBalanceLoading) "در حال دریافت موجودی..." else "دریافت موجودی فیوچرز XT")
+                            }
+                            accountBalanceText?.let { summary ->
+                                Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Text(summary, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(12.dp))
+                                }
+                            }
                             Text("Binance برای اسکن عمومی به کلید API نیاز ندارد. اتصال خصوصی حساب Binance هنوز در این نسخه فعال نیست.", color = Muted, fontSize = 10.sp)
                         }
                     }
@@ -999,6 +1027,88 @@ private object XTOrderExecutor {
             }
             return json
         } finally { c.disconnect() }
+    }
+
+    private fun signedGet(creds: ExchangeCredentialVault.Credentials, path: String, params: Map<String, String> = emptyMap()): JSONObject {
+        val query = params.toSortedMap().entries.joinToString("&") { entry ->
+            java.net.URLEncoder.encode(entry.key, "UTF-8") + "=" + java.net.URLEncoder.encode(entry.value, "UTF-8")
+        }
+        val timestamp = System.currentTimeMillis().toString()
+        val signatureValue = signature(creds.secretKey, creds.apiKey, timestamp, path, query)
+        val urlText = BASE + path + if (query.isNotEmpty()) "?$query" else ""
+        val c = (URL(urlText).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"; connectTimeout = 12000; readTimeout = 18000
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            setRequestProperty("validate-algorithms", "HmacSHA256")
+            setRequestProperty("validate-appkey", creds.apiKey)
+            setRequestProperty("validate-recvwindow", "5000")
+            setRequestProperty("validate-timestamp", timestamp)
+            setRequestProperty("validate-signature", signatureValue)
+        }
+        try {
+            val code = c.responseCode
+            val stream = if (code in 200..299) c.inputStream else c.errorStream
+            val raw = stream.bufferedReader().use { it.readText() }
+            if (code !in 200..299) throw IllegalStateException("XT HTTP $code")
+            val json = JSONObject(raw)
+            if (json.optString("returnCode", "0") !in setOf("0", "200")) {
+                val detail = json.optJSONObject("error")?.optString("msg")
+                    ?: json.optString("msgInfo", "درخواست حساب توسط XT رد شد")
+                throw IllegalStateException("XT: $detail")
+            }
+            return json
+        } finally { c.disconnect() }
+    }
+
+    private fun findUsdtObject(value: Any?): JSONObject? {
+        when (value) {
+            is JSONObject -> {
+                val currency = value.optString("currency",
+                    value.optString("coin", value.optString("asset", "")))
+                if (currency.equals("USDT", ignoreCase = true)) return value
+                val keys = value.keys()
+                while (keys.hasNext()) {
+                    val found = findUsdtObject(value.opt(keys.next()))
+                    if (found != null) return found
+                }
+            }
+            is JSONArray -> {
+                for (index in 0 until value.length()) {
+                    val found = findUsdtObject(value.opt(index))
+                    if (found != null) return found
+                }
+            }
+        }
+        return null
+    }
+
+    suspend fun fetchBalanceSummary(creds: ExchangeCredentialVault.Credentials): String = withContext(Dispatchers.IO) {
+        val accountJson = signedGet(creds, "/future/user/v1/account/info")
+        val account = accountJson.optJSONObject("result") ?: accountJson.optJSONObject("data")
+            ?: throw IllegalStateException("اطلاعات حساب XT خالی است")
+        val accountId = account.optString("accountId")
+        if (accountId.isBlank()) throw IllegalStateException("شناسه حساب فیوچرز از XT دریافت نشد")
+        val balanceJson = signedGet(
+            creds, "/future/user/v1/compat/balance/list",
+            mapOf("queryAccountId" to accountId)
+        )
+        val root = balanceJson.opt("result") ?: balanceJson.opt("data") ?: balanceJson
+        val usdt = findUsdtObject(root)
+        if (usdt == null) {
+            return@withContext "اتصال حساب موفق است؛ موجودی USDT در پاسخ صرافی پیدا نشد. پاسخ: " + root.toString().take(700)
+        }
+        val fields = listOf("free", "availableBalance", "available", "balance", "total", "equity", "used", "frozen")
+        val lines = fields.mapNotNull { key ->
+            if (!usdt.has(key) || usdt.isNull(key)) null
+            else "$key: " + usdt.opt(key).toString()
+        }
+        val empty = fields.all { key ->
+            !usdt.has(key) || usdt.isNull(key) || usdt.optDouble(key, 0.0) == 0.0
+        }
+        val balanceLabel = if (empty) "صفر (حساب خالی است)" else "اطلاعات دریافت شد"
+        "حساب XT متصل است\nموجودی فیوچرز USDT: " + balanceLabel +
+            if (lines.isNotEmpty()) "\n" + lines.joinToString("\n") else "\n" + usdt.toString().take(500)
     }
 
     suspend fun checkConnection(creds: ExchangeCredentialVault.Credentials) = withContext(Dispatchers.IO) {
