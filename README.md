@@ -27,20 +27,19 @@ The visual system uses a dark navy base with blue and violet accents, a subtle g
 - A ten-voter **technical ensemble**. These are deterministic technical voting modules, not ten independent generative AI systems.
 - Automatic refresh while the screen is open; user-started Android foreground monitoring can continue with a persistent notification. Android battery policies, force-stop, network loss, and OS restrictions can still interrupt it.
 
-### TradingView and total-market context
+### Chart, learning, and voice behavior
 
-The analysis screen embeds TradingView charts for the selected pair and the three total-market benchmarks: TOTAL (entire crypto market), TOTAL2 (excluding BTC), and TOTAL3 (excluding BTC and ETH). These charts provide visual macro context alongside the app's locally calculated multi-timeframe indicators. The current release does **not** ingest TradingView indicator values into the signal score; TradingView does not expose those embedded chart values as a supported public data feed. Automated TOTAL/TOTAL2/TOTAL3 scoring requires a separately sourced and validated OHLC/global-market data feed before it can safely affect LONG/SHORT decisions.
+The Android analysis screen embeds one TradingView chart for the currently selected signal only. TOTAL/TOTAL2/TOTAL3 charts are intentionally not displayed. TradingView is a visual chart surface; technical signals are calculated from exchange OHLCV candles, not scraped from TradingView.
 
-### Exchange connectivity and execution boundaries
+The on-device learning component is a small online logistic model. It stores feature weights and reviewed-signal feedback in Android SharedPreferences, so its memory persists after the app closes. It updates only when the user reviews a signal and marks its direction correct or incorrect. It does not silently label future market outcomes. Its output is an experimental model-alignment score, not a proven win probability.
 
-- Public market scanning does not require API keys.
-- XT credentials entered in the Android app are stored using Android Keystore-backed encryption.
-- XT authenticated connection verification is implemented.
-- The Android code contains a manually confirmed XT market-order path that requests leverage and attaches stop/first-target trigger fields. **This route has not been validated end-to-end against a real account and must not be considered production-safe.**
-- Live order controls are off by default and require a saved XT credential, a successful account check, an explicit arming action, and a separate per-order confirmation.
-- Automatic live trading is not enabled. The new autonomous mode is paper-only and has no code path to XT/Binance order endpoints.
-- Binance scanning is public-data-only in this Android release; private Binance account connection and execution are not implemented.
-- Never grant withdrawal or transfer permissions. Any credential previously pasted into chat or source control must be revoked and replaced. Do not commit secrets or place them in APK assets.
+Voice interaction uses Android Persian speech recognition for microphone input and Android text-to-speech for short contextual answers. It currently answers common questions about the selected signal locally; it is not a general-purpose cloud AI conversation engine.
+
+Candlestick heuristics include doji, hammer, shooting star, engulfing, morning/evening star, harami, piercing line, dark cloud, and possible tweezer-style levels. Harmonic heuristics check approximate Fibonacci ratios for Gartley, Bat, Butterfly, and Crab-like structures. All pattern detections require confirmation from market context and are not guaranteed signals.
+
+### Analysis-only execution boundary
+
+The Android app's trading tab is removed from the primary navigation, order actions are disabled, and background paper autopilot is forced off. The current Android build is for market scanning, chart review, and technical analysis only. Python research/backtesting utilities remain in the repository but are separate from Android order execution.
 
 ### Background monitoring
 
@@ -86,7 +85,7 @@ Open the [Google Colab backtest notebook](https://colab.research.google.com/gith
 python tools/backtest.py --symbol BTCUSDT --days 90 --leverage 3 --risk 0.01
 ```
 
-The simulator uses closed candles and conservative stop-first handling when stop and target are both touched in one candle. The Android paper autopilot persists its positions and journal across service restarts, but its fills are approximations using polling prices, not exchange-grade tick execution. Funding is estimated; exchange-specific liquidation, historical funding, spread dynamics, and full market impact are not fully modeled. Use walk-forward and out-of-sample tests across multiple symbols.
+The simulator uses closed candles and conservative stop-first handling when stop and target are both touched in one candle. Funding is estimated; exchange-specific liquidation, historical funding, spread dynamics, and full market impact are not fully modeled. Use walk-forward and out-of-sample tests across multiple symbols.
 
 ## Engineering gates before any live automation
 
