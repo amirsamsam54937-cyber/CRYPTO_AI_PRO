@@ -136,7 +136,7 @@ internal fun WolfAiCompanionScreen() {
         Surface(color = Color(0xFF14243C), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {
                 Text("WOLF AI • مغز دانشی", color = Color.White, fontSize = 18.sp)
-                Text("دانشنامه تخصصی فارسی کریپتو و فیوچرز + جست‌وجوی وب", color = muted, fontSize = 10.sp)
+                Text("دانشنامه آفلاین: ${WolfCryptoKnowledgeBase.entryCount() + WolfMarketKnowledge.count()} مدخل تخصصی + جست‌وجوی وب", color = muted, fontSize = 10.sp)
                 Text("بدون اتصال به حساب صرافی یا امکان ثبت سفارش", color = Color(0xFF27D6A0), fontSize = 10.sp)
             }
         }
