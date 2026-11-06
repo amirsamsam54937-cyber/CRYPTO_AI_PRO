@@ -13,6 +13,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
@@ -104,12 +107,13 @@ internal fun WolfFlowNewsScreen(symbol: String) {
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var refreshed by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
     suspend fun refresh() {
         loading = true; error = null
         try {
-            val result = kotlinx.coroutines.coroutineScope {
-                val flow = kotlinx.coroutines.async { WolfFlowNewsRepository.whale(symbol.ifBlank { "BTCUSDT" }) }
-                val headlines = kotlinx.coroutines.async { WolfFlowNewsRepository.news() }
+            val result = coroutineScope {
+                val flow = async { WolfFlowNewsRepository.whale(symbol.ifBlank { "BTCUSDT" }) }
+                val headlines = async { WolfFlowNewsRepository.news() }
                 flow.await() to headlines.await()
             }
             report = result.first; news = result.second
@@ -124,7 +128,7 @@ internal fun WolfFlowNewsScreen(symbol: String) {
                 Text("ردیابی جریان نهنگ‌ها", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Text("معاملات درشت و فشار خرید/فروش • $symbol", color = Color(0xFF9AAAC2), fontSize = 10.sp)
             }
-            Button(onClick = { kotlinx.coroutines.MainScope().launch { refresh() } }, enabled = !loading) { Text("بروزرسانی") }
+            Button(onClick = { scope.launch { refresh() } }, enabled = !loading) { Text("بروزرسانی") }
         }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
         error?.let { Text(it, color = Color(0xFFFF657A), fontSize = 11.sp) }
