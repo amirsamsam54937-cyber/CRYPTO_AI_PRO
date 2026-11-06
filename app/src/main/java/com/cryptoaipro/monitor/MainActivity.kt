@@ -144,7 +144,9 @@ fun CryptoMonitorScreen() {
         loading = true
         error = null
         try {
-            rows = if (exchange == "XT") XTMonitor.scan() else BinanceMonitor.scan()
+            val scanned = if (exchange == "XT") XTMonitor.scan() else BinanceMonitor.scan()
+            rows = WolfFlowNewsRepository.enrichSignals(context, scanned)
+            scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned) } }
             val memoryStats = WolfLearningMemory.processScan(context, rows)
             learningSamples = memoryStats.samples
             learningWins = memoryStats.wins
