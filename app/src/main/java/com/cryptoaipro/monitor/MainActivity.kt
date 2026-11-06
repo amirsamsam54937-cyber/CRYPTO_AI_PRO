@@ -618,14 +618,24 @@ private fun TradeControls(
                 OutlinedTextField(value = leverage, onValueChange = onLeverage, modifier = Modifier.weight(1f),
                     singleLine = true, label = { Text("اهرم ۱ تا ۲۰") }, textStyle = androidx.compose.ui.text.TextStyle(color = Color.White))
             }
+            Surface(color = Color(0xFF101B2D), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("حالت ۱ • تحلیل و سیگنال زنده", color = Blue, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("داده واقعی بازار XT/Binance؛ بدون نیاز به شارژ حساب و بدون ارسال سفارش.", color = Muted, fontSize = 9.sp)
+                    Text("حالت ۲ • معاملات خودکار مجازی", color = Green, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("با سرمایه آزمایشی، کارمزد و لغزش شبیه‌سازی‌شده؛ نتایج در ژورنال ذخیره می‌شوند.", color = Muted, fontSize = 9.sp)
+                    Text("حالت ۳ • معاملات خودکار واقعی", color = Gold, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("فعلاً قفل ایمنی است؛ تا زمان تکمیل آزمون سرتاسری پوزیشن، سفارش‌های حفاظتی، بازیابی پس از قطع اینترنت و کنترل موجودی، خودکار واقعی فعال نمی‌شود.", color = Muted, fontSize = 9.sp, lineHeight = 13.sp)
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("اجازه ارسال سفارش واقعی", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                Text("اجازه سفارش واقعی دستی با تأیید نهایی", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
                 Switch(checked = armed, onCheckedChange = onArmed)
             }
             Divider(color = Color(0xFF2B3A52))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("معامله‌گر خودکار آزمایشی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("معامله‌گر خودکار مجازی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Text("فقط شبیه‌سازی؛ هیچ سفارش واقعی ارسال نمی‌کند", color = Green, fontSize = 10.sp)
                 }
                 Switch(checked = paperAuto, onCheckedChange = onPaperAuto)
