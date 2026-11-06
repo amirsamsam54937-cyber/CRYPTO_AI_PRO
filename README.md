@@ -86,6 +86,13 @@ python tools/backtest.py --symbol BTCUSDT --days 90 --leverage 3 --risk 0.01
 
 The simulator uses closed candles and conservative stop-first handling when stop and target are both touched in one candle. The Android paper autopilot persists its positions and journal across service restarts, but its fills are approximations using polling prices, not exchange-grade tick execution. Funding is estimated; exchange-specific liquidation, historical funding, spread dynamics, and full market impact are not fully modeled. Use walk-forward and out-of-sample tests across multiple symbols.
 
+## Trading modes
+
+- Live market analysis/signals: public XT/Binance market data; no account funding required.
+- Paper autopilot: automatic simulated entries/exits, local journal, risk caps and on-device online learning from resolved paper outcomes.
+- Live manual order: separately armed and requires a final in-app confirmation.
+- Unattended live auto: intentionally locked in Android until execution reconciliation, exchange-side protective-order verification, restart recovery, duplicate-order prevention, and fault-injection tests are complete.
+
 ## Engineering gates before any live automation
 
 The following are still required before unattended live trading can be considered:
@@ -114,6 +121,8 @@ The tests cover indicator calculations, analysis, backtesting, paper trading, XT
 
 
 ## Explainable online learning (paper outcomes only)
+
+The Android paper engine now keeps a small logistic model locally on-device. It stores a feature snapshot at simulated entry and updates weights only after the complete simulated position closes, using net realized PnL after modeled fees/slippage. The paper dashboard shows the number of learning updates. This is online adaptation, not a large language model, not an independently validated AI ensemble, and not a guarantee of predictive edge.
 
 The research API now includes a persistent SQLite logistic learner. It learns only after a user submits a resolved paper-trade outcome; it never labels an open trade or treats an unrealized signal as a win/loss.
 
