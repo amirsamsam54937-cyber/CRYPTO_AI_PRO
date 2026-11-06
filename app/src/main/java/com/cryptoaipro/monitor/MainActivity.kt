@@ -298,8 +298,14 @@ fun CryptoMonitorScreen() {
                                 }
                             }
                             item {
+                                ActiveCommandSignals(
+                                    records = outcomeSnapshot.records.filter { !it.closed },
+                                    onOpenJournal = { selectedTab = "دفترچه" }
+                                )
+                            }
+                            item {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("فرصت‌های برتر", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                                    Text("فرصت‌های برتر بازار", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
                                     Text("آخرین بروزرسانی " + updated, color = Muted, fontSize = 9.sp)
                                 }
                             }
@@ -508,6 +514,53 @@ fun CryptoMonitorScreen() {
     }
 }
 
+private fun iranDateTime(timestamp: Long): String {
+    val formatter = SimpleDateFormat("yyyy/MM/dd  HH:mm:ss", Locale("fa", "IR"))
+    formatter.timeZone = java.util.TimeZone.getTimeZone("Asia/Tehran")
+    return formatter.format(Date(timestamp)) + "  (ایران)"
+}
+
+@Composable
+private fun ActiveCommandSignals(
+    records: List<WolfSignalOutcomeJournal.Record>,
+    onOpenJournal: () -> Unit
+) {
+    Surface(color = Color(0xFF14243C), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("سیگنال‌های فعال فرماندهی", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(records.size.toString() + " فعال", color = Gold, fontSize = 10.sp)
+            }
+            Text("هر سیگنال تا پایان اعتبار تایم‌فریم ۱۵ دقیقه‌ای در این بخش باقی می‌ماند؛ پس از انقضا به دفترچه منتقل می‌شود.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+            if (records.isEmpty()) {
+                Text("در حال حاضر سیگنال معتبر فعالی وجود ندارد؛ با دور بعدی اسکن دوباره بررسی می‌شود.", color = Muted, fontSize = 10.sp)
+            } else {
+                records.take(8).forEach { record ->
+                    val tint = if (record.side == "LONG_BIAS") Green else Red
+                    Surface(color = Panel, shape = RoundedCornerShape(11.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(record.symbol, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                Text(if (record.side == "LONG_BIAS") "LONG" else "SHORT", color = tint, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                Text(" • " + record.timeframe, color = Muted, fontSize = 9.sp)
+                            }
+                            Text("ورود سیگنال: " + iranDateTime(record.created), color = Blue, fontSize = 9.sp)
+                            Text("اعتبار تا: " + iranDateTime(record.expiresAt), color = Muted, fontSize = 9.sp)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                SmallStat("ورود", formatPrice(record.entry), Blue)
+                                SmallStat("حد ضرر", formatPrice(record.stop), Red)
+                                SmallStat("TP1", formatPrice(record.tp1), Green)
+                            }
+                            Text("قدرت تحلیلی: " + record.confidence + "% • وضعیت: " + WolfSignalOutcomeJournal.statusLabel(record.status), color = Muted, fontSize = 9.sp)
+                        }
+                    }
+                }
+            }
+            TextButton(onClick = onOpenJournal, modifier = Modifier.align(Alignment.End)) { Text("مشاهده دفترچه کامل ←", color = Blue) }
+        }
+    }
+}
+
 @Composable
 private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
     var filter by remember { mutableStateOf("همه") }
@@ -525,7 +578,7 @@ private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
             Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Text("دفترچه دائمی سیگنال‌های گرگ", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text("هر سیگنال جهت‌دار با زمان ثبت، ورود مرجع، حد ضرر، سه هدف و نتیجه بررسی‌شده ذخیره می‌شود. اطلاعات فقط روی همین گوشی نگهداری می‌شود.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    Text("زمان ورود و پایان اعتبار با ساعت ایران ثبت می‌شود. سیگنال‌های فعال پس از پایان اعتبار ۱۵ دقیقه‌ای منقضی شده و برای همیشه در دفترچه قابل مشاهده می‌مانند. اطلاعات فقط روی همین گوشی نگهداری می‌شود.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         SmallStat("کل سیگنال‌ها", snapshot.total.toString(), Blue)
                         SmallStat("باز", snapshot.active.toString(), Gold)
@@ -546,7 +599,7 @@ private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
         } else {
             items(visible, key = { it.created.toString() + "_" + it.symbol }) { record ->
                 val tint = if (record.side == "LONG_BIAS") Green else Red
-                val date = SimpleDateFormat("yyyy/MM/dd  HH:mm", Locale.getDefault()).format(Date(record.created))
+                val date = iranDateTime(record.created)
                 Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -558,6 +611,7 @@ private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
                             Text(WolfSignalOutcomeJournal.statusLabel(record.status), color = when(record.status) {
                                 "TP1", "TP2", "TP3" -> Green
                                 "SL" -> Red
+                                "EXPIRED" -> Muted
                                 else -> Gold
                             }, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
