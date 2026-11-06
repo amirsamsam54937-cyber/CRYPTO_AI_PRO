@@ -31,7 +31,7 @@ private data class WolfChatMessage(val text: String, val fromUser: Boolean, val 
  * material. This is not represented as a pretrained generative LLM. No exchange credentials
  * or private account data are sent to search providers.
  */
-private object WolfKnowledgeSearch {
+internal object WolfKnowledgeSearch {
     private fun get(url: String): String {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
