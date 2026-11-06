@@ -16,11 +16,11 @@ A Persian-first Android application for live Binance USDⓈ-M perpetual-futures 
 ## Android modules
 
 - **Home / command center:** scan status, scan coverage, update time, market sessions and leading signals.
-- **Market scanner:** Binance USDT perpetual contracts, volume-ranked results, progressive batch updates, directional filters and manual rescan.
+- **Market scanner:** every active Binance USDT perpetual contract, volume-ranked results, progressive batch updates, directional filters and manual rescan. The foreground scanner repeats indefinitely: after each full pass it waits three minutes and starts another pass; there is no contract quota or scan-session expiry.
 - **Technical analysis:** selected-symbol TradingView chart, local candlestick chart, entry/SL/TP level map and detailed technical snapshot.
 - **Wolf AI:** ten explainable technical voting specialists, a small experimental on-device neural network, local knowledge retrieval and outcome journal.
 - **Persian voice:** Android speech recognition (fa-IR) and text-to-speech for contextual questions about the selected signal.
-- **Background monitoring:** user-started Android foreground service with a persistent notification. Android force-stop, battery policies, reboot and OS limits can interrupt it; uninterrupted 24/7 operation is not guaranteed.
+- **Background monitoring:** user-started Android foreground service with a persistent notification and an endless scan/retry cycle. Use Settings → Start background monitoring before leaving the app. Android force-stop, reboot, battery policies, network/API blocks and OS limits can interrupt it; no Android app can guarantee uninterrupted 24/7 operation.
 
 ## Analysis engine
 
@@ -40,7 +40,7 @@ The ten specialists are deterministic technical rule modules, **not ten independ
 
 The app can collect public Binance aggregate trades, open interest and funding context for a small number of leading candidates, and retrieve public crypto news feeds. These are contextual inputs, not proof of whale intent or a reliable sentiment label. Source, freshness, failures and missing data should remain visible.
 
-The outcome journal records reference signals and observes later public candle prices. It does not submit or simulate real exchange orders. Same-candle stop/target ambiguity is handled conservatively. Learning labels are approximate horizon outcomes and must not be described as verified trade fills.
+The permanent on-device signal notebook stores up to 5,000 recent directional signal records, including timestamp, direction, reference entry, stop, three targets, confidence, rationale and observed status. New same-direction signals are deduplicated for 15 minutes. It observes later public candle prices. It does not submit or simulate real exchange orders. Same-candle stop/target ambiguity is handled conservatively. Learning labels are approximate horizon outcomes and must not be described as verified trade fills.
 
 ## Persian knowledge library
 
