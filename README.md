@@ -1,122 +1,88 @@
-# CRYPTO AI PRO ULTIMATE
+# AMIR ARSALAN TRADER WOLF — CRYPTO AI PRO
 
-**Android app version: 2.7.0 (development)**  
-A Persian-first, modular crypto-futures technical-analysis application. The Android client is built with Kotlin and Jetpack Compose; the Python package provides research, risk, and backtesting utilities.
+**Android development version: 2.8.0**  
+A Persian-first Android application for live Binance USDⓈ-M perpetual-futures market scanning, explainable technical analysis, signal visualization, and persistent outcome-based learning.
 
-> This is experimental trading software. Market signals are not investment advice and do not guarantee outcomes. Real-money order execution is not production-certified. Keep live trading disabled until the readiness gates in `docs/LIVE_TRADING_READINESS.md` are independently completed.
+> **Analysis and signals only.** The Android app does not connect exchange accounts, store API keys, submit orders, change leverage, or execute trades. Entry, stop and target levels are analytical references, not orders or guarantees.
 
-## Persian crypto/futures knowledge engine (2.7.0)
+## Current scope and hard boundaries
 
-The Android companion now searches a built-in Persian reference library before falling back to public web retrieval. The first curated release contains ۶۰+ explainable topics spanning perpetual futures, long/short, leverage, isolated/cross margin, liquidation, mark/index/last price, funding, open interest, long/short ratios, liquidation maps, OHLCV, multi-timeframe analysis, market structure, EMA/SMA, RSI, MACD, ATR, ADX, Bollinger Bands, VWAP, Stochastic RSI, volume, order books, spread/slippage, stops/targets, position sizing, risk management, Kelly, drawdown, backtesting, walk-forward validation, overfitting, market regimes, divergences, candlestick and harmonic patterns, Fibonacci, liquidity sweeps, dominance, tokenomics, stablecoins, blockchain, wallets, DeFi security, oracles, news, whale flows, MEV, order types, maker/taker fees, correlation, VaR, performance statistics, AI model validation, data quality, public exchange APIs, Ichimoku, pivots, cycles, altseason, basis and trading psychology.
+- Exchange: **Binance USDⓈ-M public market data only**. XT integration, XT credentials, and account endpoints are removed from the active application and Python research API.
+- Universe: active USDT-quoted perpetual contracts, ranked by 24-hour quote turnover.
+- No account connection, no API secrets, no withdrawal permissions, and no automated/manual order placement.
+- Signal output: LONG bias, SHORT bias, or NO TRADE/neutral, with reference entry, stop-loss, TP1–TP3 and a conservative leverage ceiling estimate.
+- A suggested leverage number is informational only. It is not applied to an exchange account.
 
-Knowledge answers are explicitly labeled as coming from the local library. Unknown or time-sensitive questions continue to public web retrieval. Exchange-specific contract rules, fees and market conditions must be checked against current official documentation. This knowledge library is a curated educational baseline, not one million independently verified facts and not a pretrained LLM.
+## Android modules
 
-The on-device neural network remains a small experimental model. Its score is not a calibrated win probability. Any performance claim requires out-of-sample evaluation, sufficient labeled outcomes, calibration checks and comparison against simple baselines.
+- **Home / command center:** scan status, scan coverage, update time, market sessions and leading signals.
+- **Market scanner:** Binance USDT perpetual contracts, volume-ranked results, progressive batch updates, directional filters and manual rescan.
+- **Technical analysis:** selected-symbol TradingView chart, local candlestick chart, entry/SL/TP level map and detailed technical snapshot.
+- **Wolf AI:** ten explainable technical voting specialists, a small experimental on-device neural network, local knowledge retrieval and outcome journal.
+- **Persian voice:** Android speech recognition (fa-IR) and text-to-speech for contextual questions about the selected signal.
+- **Background monitoring:** user-started Android foreground service with a persistent notification. Android force-stop, battery policies, reboot and OS limits can interrupt it; uninterrupted 24/7 operation is not guaranteed.
 
-## Android application
+## Analysis engine
 
-The 2.2.0 interface focuses on live technical analysis and is organized into five primary sections:
+The Android scanner fetches closed candles for 15m, 1h and 4h, then evaluates:
 
-- **خانه** — market overview, session context, scan counts, and leading candidates.
-- **بازار** — XT Futures / Binance Futures selector, bullish/bearish filters, manual refresh, and ranked market cards.
-- **تحلیل** — selected candidate, single-symbol TradingView chart, multi-indicator diagnostics, candlestick and harmonic-pattern recognition, persistent feedback learning, and Persian voice interaction.
-- **حساب** — encrypted on-device XT credential storage and authenticated connection check.
-- **تنظیمات** — scanner configuration summary. Trading and paper-autopilot controls are disabled in this analysis-focused build.
+- EMA 9/20/50/100/200, RSI, MACD, ADX and ATR
+- Bollinger Bands and bandwidth, VWAP, relative volume and Stochastic RSI
+- Candle patterns: Doji, Hammer, Shooting Star, Engulfing, Morning/Evening Star, Harami, Piercing Line, Dark Cloud and approximate Tweezer patterns
+- Approximate harmonic structures: Gartley, Bat, Butterfly and Crab
+- Swing support/resistance, HH/HL and LH/LL market-structure context
+- Multi-timeframe agreement and filters for overextension, extreme volatility and higher-timeframe conflict
+- Reference levels based on ATR and nearby structure
 
-The visual system uses a dark navy base with blue and violet accents, a subtle geometric wolf watermark, and AMIR ARSALAN TRADER WOLF branding.
+The ten specialists are deterministic technical rule modules, **not ten independent pretrained generative AI models**. The on-device neural network is a small experimental feed-forward network, not a pretrained foundation model. It is updated from subsequently observed signal outcomes and persists locally. Its output is not a calibrated probability of profit. The app should preserve neutral/NO TRADE decisions when evidence conflicts or data quality is inadequate.
 
-### Market analysis currently implemented
+## Market context and learning
 
-- XT USDT perpetual scanner: ranks up to 100 active USDT contracts by reported turnover and analyzes closed 15m, 1h, and 4h candles.
-- Binance USDⓈ-M public market scanner.
-- EMA 9/20/50/100/200, RSI, MACD, ATR, ADX, Bollinger context, VWAP, relative volume, stochastic RSI, market regime, candle pattern, and market-structure diagnostics.
-- Reference entry, ATR-based stop, and three reference targets.
-- Single-pair TradingView chart in the analysis screen. Only the currently selected signal's chart is displayed; TOTAL/TOTAL2/TOTAL3 panels are intentionally omitted from the user interface.
-- A ten-voter **technical ensemble**. These are deterministic technical voting modules, not ten independent generative AI systems.
-- Automatic refresh while the screen is open; user-started Android foreground monitoring can continue with a persistent notification. Android battery policies, force-stop, network loss, and OS restrictions can still interrupt it.
+The app can collect public Binance aggregate trades, open interest and funding context for a small number of leading candidates, and retrieve public crypto news feeds. These are contextual inputs, not proof of whale intent or a reliable sentiment label. Source, freshness, failures and missing data should remain visible.
 
-### Chart, learning, and voice behavior
+The outcome journal records reference signals and observes later public candle prices. It does not submit or simulate real exchange orders. Same-candle stop/target ambiguity is handled conservatively. Learning labels are approximate horizon outcomes and must not be described as verified trade fills.
 
-The Android analysis screen embeds one TradingView chart for the currently selected signal only. TOTAL/TOTAL2/TOTAL3 charts are intentionally not displayed. TradingView is a visual chart surface; technical signals are calculated from exchange OHLCV candles, not scraped from TradingView.
+## Persian knowledge library
 
-The on-device learning component is a small online logistic model. It stores feature weights and reviewed-signal feedback in Android SharedPreferences, so its memory persists after the app closes. It updates only when the user reviews a signal and marks its direction correct or incorrect. It does not silently label future market outcomes. Its output is an experimental model-alignment score, not a proven win probability.
+- Android contains a compact, curated Persian knowledge base used by the in-app knowledge assistant.
+- The expanded reference document is knowledge/PERSIAN_CRYPTO_FUTURES_KNOWLEDGE_V2.md.
+- Topics include futures mechanics, market structure, indicators, candlesticks, volume/order flow, risk, backtesting, machine learning, psychology, API safety and data quality.
+- This is an extensible reference library, not one million independently verified facts and not a pretrained LLM. Future records should carry sources, dates, scope and confidence.
 
-Voice interaction uses Android Persian speech recognition for microphone input and Android text-to-speech for short contextual answers. It currently answers common questions about the selected signal locally; it is not a general-purpose cloud AI conversation engine.
+## Python research utilities
 
-Candlestick heuristics include doji, hammer, shooting star, engulfing, morning/evening star, harami, piercing line, dark cloud, and possible tweezer-style levels. Harmonic heuristics check approximate Fibonacci ratios for Gartley, Bat, Butterfly, and Crab-like structures. All pattern detections require confirmation from market context and are not guaranteed signals.
+The Python package provides public-market research, indicator analysis and historical backtesting. It is separate from Android and does not place exchange orders.
 
-### Analysis-only execution boundary
+    python -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    PYTHONPATH=. uvicorn app.main:app --reload
 
-The Android app's trading tab is removed from the primary navigation, order actions are disabled, and background paper autopilot is forced off. The current Android build is for market scanning, chart review, and technical analysis only. Python research/backtesting utilities remain in the repository but are separate from Android order execution.
+The default CCXT market adapter is Binance USDⓈ-M (binanceusdm). No API credentials are needed for public market data.
 
-### Background monitoring
+## Build and install Android APK
 
-Use **تنظیمات → شروع پایش پس‌زمینه**. Android displays an ongoing notification while the foreground service runs. On Samsung devices, set the app battery mode to unrestricted if background monitoring is being interrupted. This is best-effort Android background execution, not a guarantee of 24/7 availability.
+Every push affecting Android source starts the **Build Android APK** GitHub Actions workflow.
 
-## Build and install the Android APK
+1. Open the repository's **Actions** tab.
+2. Open the newest **Build Android APK** run.
+3. Wait for all jobs to finish successfully.
+4. Download the **CRYPTO-AI-PRO-debug-apk** artifact ZIP.
+5. Extract and install app-debug.apk on Android.
 
-Every push affecting Android source triggers the **Build Android APK** GitHub Actions workflow.
+A successful CI build verifies compilation only. It does not prove API availability in every region, signal quality, profitability, background reliability or production readiness. The APK size must be measured from the generated artifact; no artificial padding is added to meet a file-size target.
 
-1. Open the repository's Actions tab.
-2. Open the latest successful **Build Android APK** run.
-3. Download the `CRYPTO-AI-PRO-debug-apk` artifact ZIP.
-4. Extract it and install `app-debug.apk` on Android.
+## Quality and safety roadmap
 
-The debug APK is for testing. A successful CI build proves compilation, not exchange correctness, profitability, or production readiness.
+Before describing the app as production-ready, verify:
 
-## Python research API
+1. Scanner coverage, latency, per-symbol errors, HTTP status and rate-limit behavior on real Android devices and networks.
+2. Closed-candle alignment and correct resampling/time-zone behavior.
+3. Indicator calculations against independently verified reference datasets.
+4. BOS/CHOCH, liquidity sweeps, divergence and harmonic pattern definitions with deterministic tests.
+5. Walk-forward and out-of-sample evaluation with fees, funding, spread, slippage, delisted symbols and survivorship-bias controls.
+6. Neural-network calibration, sample sufficiency, drift monitoring and rollback.
+7. Android UI navigation, voice permissions, foreground-service behavior, persistence and battery restrictions.
+8. Data freshness, error visibility, safe failure behavior and explicit NO TRADE handling.
 
-Install dependencies and run locally:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-PYTHONPATH=. uvicorn app.main:app --reload
-```
-
-API documentation is available at `http://127.0.0.1:8000/docs`.
-
-The Python package includes:
-- XT public USDT perpetual scanner.
-- XT authenticated read adapter and account/balance endpoints.
-- Explainable multi-factor technical analysis.
-- Risk-sizing utilities with conservative caps.
-- Paper-trading simulator.
-- Historical OHLCV backtester with estimated fees, slippage, and funding assumptions.
-
-## Historical backtesting
-
-Open the [Google Colab backtest notebook](https://colab.research.google.com/github/amirsamsam54937-cyber/CRYPTO_AI_PRO/blob/main/notebooks/CRYPTO_AI_PRO_Backtest.ipynb) or run:
-
-```bash
-python tools/backtest.py --symbol BTCUSDT --days 90 --leverage 3 --risk 0.01
-```
-
-The simulator uses closed candles and conservative stop-first handling when stop and target are both touched in one candle. Funding is estimated; exchange-specific liquidation, historical funding, spread dynamics, and full market impact are not fully modeled. Use walk-forward and out-of-sample tests across multiple symbols.
-
-## Engineering gates before any live automation
-
-The following are still required before unattended live trading can be considered:
-
-1. Validate market-data freshness, reconnect behavior, rate limits, and symbol metadata.
-2. Validate XT contract size, quantity step, minimum notional, price tick, and position mode for every symbol.
-3. Reconcile balances, positions, leverage, and open orders before and after every execution event.
-4. Implement a durable execution journal and idempotent order lifecycle.
-5. Verify exchange-side stop-loss and take-profit acceptance and remaining protected quantity after partial fills.
-6. Implement restart recovery, stale-feed circuit breakers, duplicate-order protection, and a tested kill switch.
-7. Add private account/order streams or reliable REST reconciliation.
-8. Complete sandbox/testnet and fault-injection testing before a supervised tiny-risk pilot.
-
-See:
-- [Target architecture](docs/ARCHITECTURE_V2.md)
-- [Live-trading readiness checklist](docs/LIVE_TRADING_READINESS.md)
-- [Persian ULTIMATE product specification](docs/ULTIMATE_PRODUCT_SPEC_FA.md)
-
-## Tests
-
-```bash
-pytest -q
-```
-
-The tests cover indicator calculations, analysis, backtesting, paper trading, XT request signing, scanner behavior, and live-execution safety gates. Passing tests do not replace real exchange integration testing.
+Never expose secrets in source code, logs, screenshots or public repository commits. This app's analysis-only design does not require exchange API keys.
