@@ -881,10 +881,14 @@ private object BinanceMonitor {
     }
 
     private suspend fun analyze(symbol: String, price: Double, change: Double, volume: Double): MarketSignal {
-        val short = candles(symbol, "15m")
-        val confirm = candles(symbol, "1h")
-        val trend = candles(symbol, "4h")
-        return analyzeWithCandles(symbol, price, change, volume, short, confirm, trend)
+        // Fetch three timeframes concurrently instead of serially for each contract.
+        val frames = coroutineScope {
+            val short = async { candles(symbol, "15m") }
+            val confirm = async { candles(symbol, "1h") }
+            val trend = async { candles(symbol, "4h") }
+            Triple(short.await(), confirm.await(), trend.await())
+        }
+        return analyzeWithCandles(symbol, price, change, volume, frames.first, frames.second, frames.third)
     }
 
     internal fun analyzeWithCandles(symbol: String, price: Double, change: Double, volume: Double,
