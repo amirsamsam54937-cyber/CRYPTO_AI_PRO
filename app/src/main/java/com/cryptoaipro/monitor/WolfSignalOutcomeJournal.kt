@@ -42,7 +42,7 @@ internal object WolfSignalOutcomeJournal {
                 record.put("status", "SL"); record.put("closed", true); record.put("closedAt", now)
             } else if (stopHit) {
                 record.put("status", "SL"); record.put("closed", true); record.put("closedAt", now)
-            } else if (tp3Hit) record.put("status", "TP3")
+            } else if (tp3Hit) { record.put("status", "TP3"); record.put("closed", true); record.put("closedAt", now) }
             else if (tp2Hit) record.put("status", "TP2")
             else if (tp1Hit) record.put("status", "TP1")
         }
