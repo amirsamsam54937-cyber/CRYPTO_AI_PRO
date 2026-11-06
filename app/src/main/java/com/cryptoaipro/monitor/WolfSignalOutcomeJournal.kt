@@ -28,7 +28,7 @@ internal object WolfSignalOutcomeJournal {
     @Synchronized
     fun processScan(context: Context, signals: List<MarketSignal>): Snapshot {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val raw = prefs.getString(KEY, null) ?: prefs.getString(LEGACY_KEY, "[]")
+        val raw = prefs.getString(KEY, null) ?: prefs.getString(LEGACY_KEY, null) ?: "[]"
         val old = runCatching { JSONArray(raw) }.getOrDefault(JSONArray())
         val rows = (0 until old.length()).mapNotNull { old.optJSONObject(it) }.toMutableList()
         val now = System.currentTimeMillis()
@@ -60,18 +60,19 @@ internal object WolfSignalOutcomeJournal {
             record.put("lastChecked", now)
         }
 
-        val lastBySymbol = rows.filter { !it.optBoolean("closed") }
-            .associate { it.optString("symbol") to it.optLong("created") }.toMutableMap()
+        val lastBySignal = rows.filter { !it.optBoolean("closed") }
+            .associate { (it.optString("symbol") + "|" + it.optString("side")) to it.optLong("created") }.toMutableMap()
         signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }.forEach { s ->
-            val last = lastBySymbol[s.symbol] ?: 0L
-            if (now - last >= 60L * 60L * 1000L) {
+            val signalKey = s.symbol + "|" + s.direction
+            val last = lastBySignal[signalKey] ?: 0L
+            if (now - last >= 15L * 60L * 1000L) {
                 rows.add(JSONObject().apply {
                     put("symbol", s.symbol); put("side", s.direction); put("created", now)
                     put("entry", s.entry); put("stop", s.stop); put("tp1", s.tp1); put("tp2", s.tp2); put("tp3", s.tp3)
                     put("status", "ACTIVE"); put("closed", false); put("confidence", s.confidence)
                     put("score", s.score); put("reason", s.reason); put("leverage", s.leverage); put("change", s.change)
                 })
-                lastBySymbol[s.symbol] = now
+                lastBySignal[signalKey] = now
             }
         }
         val bounded = rows.takeLast(MAX_RECORDS)
