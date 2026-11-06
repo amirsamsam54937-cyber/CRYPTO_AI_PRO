@@ -842,7 +842,7 @@ private object BinanceMonitor {
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val body = stream.bufferedReader().use { it.readText() }
-            if (code !in 200..299) throw IllegalStateException("Binance پاسخ " + code + " داد")
+            if (code !in 200..299) throw IllegalStateException("Binance پاسخ HTTP " + code + ": " + body.take(220))
             return body
         } finally {
             connection.disconnect()
