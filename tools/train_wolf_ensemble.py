@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Train ten compact MLPs on historical Binance USD-M Futures candles."""
-import json, os, time, urllib.request
+import json, os, time, urllib.request, io, zipfile, csv, datetime
 import numpy as np
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
@@ -21,26 +21,56 @@ def get_json(path):
             error = exc
     raise RuntimeError(f"Binance historical candles unavailable: {error}")
 
-def get_history(symbol):
+def get_archive_history(symbol):
     rows=[]
-    # Start far enough back to cover the requested history; Binance otherwise returns only the latest page.
+    today=datetime.datetime.now(datetime.timezone.utc).date()
+    for offset in range(6,0,-1):
+        month_index=today.year*12+(today.month-1)-offset
+        year,month=divmod(month_index,12)
+        month+=1
+        period=f"{year:04d}-{month:02d}"
+        filename=f"{symbol}-{INTERVAL}-{period}.zip"
+        url=f"https://data.binance.vision/data/futures/um/monthly/klines/{symbol}/{INTERVAL}/{filename}"
+        try:
+            request=urllib.request.Request(url,headers={"User-Agent":"AmirWolf-Research/1.0"})
+            with urllib.request.urlopen(request,timeout=25) as response:
+                archive=zipfile.ZipFile(io.BytesIO(response.read()))
+            with archive.open(archive.namelist()[0]) as stream:
+                reader=csv.reader(io.TextIOWrapper(stream,encoding="utf-8"))
+                for row in reader:
+                    try:
+                        timestamp=int(float(row[0]))
+                        values=[timestamp]+[float(value) for value in row[1:6]]
+                        close_time=int(float(row[6])) if len(row)>6 and row[6] else timestamp+3599999
+                        rows.append(values+[close_time])
+                    except (ValueError,IndexError):
+                        continue
+        except Exception as exc:
+            print(f"ARCHIVE {symbol} {period}: {exc}",flush=True)
+    unique={int(row[0]):row for row in rows}
+    return [unique[key] for key in sorted(unique)]
+
+def get_history(symbol):
+    # Prefer Binance's official public USD-M Futures archive; it avoids regional REST API restrictions.
+    archived=get_archive_history(symbol)
+    if len(archived)>500:
+        return archived
+    # REST fallback for environments where the public archive is unavailable.
+    rows=[]
     start=int(time.time()*1000)-HISTORY_BARS*60*60*1000
     while len(rows)<HISTORY_BARS:
-        query=f"/fapi/v1/klines?symbol={symbol}&interval={INTERVAL}&limit={PAGE_LIMIT}"
-        if start is not None:
-            query += f"&startTime={start}"
+        query=f"/fapi/v1/klines?symbol={symbol}&interval={INTERVAL}&limit={PAGE_LIMIT}&startTime={start}"
         page=get_json(query)
         if not page:
             break
         rows.extend(page)
         next_start=int(page[-1][6])+1
-        if start is not None and next_start<=start:
+        if next_start<=start:
             break
         start=next_start
         if len(page)<PAGE_LIMIT:
             break
         time.sleep(.08)
-    # Keep unique candle open times in ascending order.
     unique={int(row[0]):row for row in rows}
     return [unique[key] for key in sorted(unique)][-HISTORY_BARS:]
 
