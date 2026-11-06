@@ -1,32 +1,61 @@
-# CRYPTO AI PRO
+# CRYPTO AI PRO ULTIMATE
 
-CRYPTO AI PRO is a monitoring-first crypto futures research project. It is designed for observation, market analysis, and paper-trading development. **It does not place trades, connect to user accounts, or require exchange API keys.**
+**Android app version: 1.6.0**  
+A Persian-first, modular crypto-futures market intelligence and paper-trading application. The Android client is built with Kotlin and Jetpack Compose; the Python package provides research, risk, and backtesting utilities.
 
-## Android monitoring app
-The native Android app reads public Binance USDⓈ-M perpetual market data and:
-- Finds active USDT-margined perpetual contracts
-- Ranks markets by 24-hour quote volume and analyzes the top 30
-- Calculates EMA 20/50, RSI 14, and MACD
-- Confirms direction across 15-minute, 1-hour, and 4-hour candles
-- Refreshes automatically every three minutes while the app is open
-- Separates bullish bias, bearish bias, and neutral readings
-- Shows a reference entry, ATR-based stop-loss, and three take-profit levels (1R / 2R / 3R)
-- Displays a conservative leverage ceiling estimate (1x–5x) derived from stop distance; it is not an instruction to use that leverage
-- Uses 15m for the setup with 1h and 4h trend confirmation
+> This is experimental trading software. Market signals are not investment advice and do not guarantee outcomes. Real-money order execution is not production-certified. Keep live trading disabled until the readiness gates in `docs/LIVE_TRADING_READINESS.md` are independently completed.
 
-These are technical screening signals, not trade instructions or probability forecasts. The app is read-only and has no order-placement code.
+## Android application
 
-### Build APK
-Every push to the Android source triggers the GitHub Actions workflow **Build Android APK**.
+The 1.6.0 interface is organized into six functional sections:
+
+- **خانه** — market overview, session context, scan counts, and leading candidates.
+- **بازار** — XT Futures / Binance Futures selector, bullish/bearish filters, manual refresh, and ranked market cards.
+- **تحلیل** — selected candidate, multi-indicator diagnostics, market structure, support/resistance, and candlestick view.
+- **معاملات** — risk controls, paper-trading configuration, and individually confirmed XT order ticket.
+- **حساب** — encrypted on-device XT credential storage and authenticated connection check.
+- **تنظیمات** — user-started foreground monitoring service and scanner configuration summary.
+
+The visual system uses a dark navy base with blue and violet accents. The launcher icon has been refreshed for the ULTIMATE identity.
+
+### Market analysis currently implemented
+
+- XT USDT perpetual scanner: ranks up to 100 active USDT contracts by reported turnover and analyzes closed 15m, 1h, and 4h candles.
+- Binance USDⓈ-M public market scanner.
+- EMA 9/20/50/100/200, RSI, MACD, ATR, ADX, Bollinger context, VWAP, relative volume, stochastic RSI, market regime, candle pattern, and market-structure diagnostics.
+- Reference entry, ATR-based stop, and three reference targets.
+- A ten-voter **technical ensemble**. These are deterministic technical voting modules, not ten independent generative AI systems.
+- Automatic refresh while the screen is open; user-started Android foreground monitoring can continue with a persistent notification. Android battery policies, force-stop, network loss, and OS restrictions can still interrupt it.
+
+### Exchange connectivity and execution boundaries
+
+- Public market scanning does not require API keys.
+- XT credentials entered in the Android app are stored using Android Keystore-backed encryption.
+- XT authenticated connection verification is implemented.
+- The Android code contains a manually confirmed XT market-order path that requests leverage and attaches stop/first-target trigger fields. **This route has not been validated end-to-end against a real account and must not be considered production-safe.**
+- Live order controls are off by default and require a saved XT credential, a successful account check, an explicit arming action, and a separate per-order confirmation.
+- Automatic live trading is not enabled.
+- Binance scanning is public-data-only in this Android release; private Binance account connection and execution are not implemented.
+- Never grant withdrawal or transfer permissions. Any credential previously pasted into chat or source control must be revoked and replaced. Do not commit secrets or place them in APK assets.
+
+### Background monitoring
+
+Use **تنظیمات → شروع پایش پس‌زمینه**. Android displays an ongoing notification while the foreground service runs. On Samsung devices, set the app battery mode to unrestricted if background monitoring is being interrupted. This is best-effort Android background execution, not a guarantee of 24/7 availability.
+
+## Build and install the Android APK
+
+Every push affecting Android source triggers the **Build Android APK** GitHub Actions workflow.
+
 1. Open the repository's Actions tab.
-2. Select the latest successful **Build Android APK** run.
+2. Open the latest successful **Build Android APK** run.
 3. Download the `CRYPTO-AI-PRO-debug-apk` artifact ZIP.
-4. Extract and install `app-debug.apk` on Android. You may need to allow installation from your file manager.
+4. Extract it and install `app-debug.apk` on Android.
 
-Workflow: `.github/workflows/android-apk.yml`
+The debug APK is for testing. A successful CI build proves compilation, not exchange correctness, profitability, or production readiness.
 
-## Python analysis API
-The repository also contains a FastAPI research API with CCXT public market data, indicators, risk-sizing utilities, and tests.
+## Python research API
+
+Install dependencies and run locally:
 
 ```bash
 python -m venv .venv
@@ -34,118 +63,49 @@ source .venv/bin/activate
 pip install -r requirements.txt
 PYTHONPATH=. uvicorn app.main:app --reload
 ```
-Open http://127.0.0.1:8000 and API docs at /docs.
 
-Copy `.env.example` to `.env` if you want to customize local defaults. Do not commit credentials, wallet keys, or seed phrases.
+API documentation is available at `http://127.0.0.1:8000/docs`.
+
+The Python package includes:
+- XT public USDT perpetual scanner.
+- XT authenticated read adapter and account/balance endpoints.
+- Explainable multi-factor technical analysis.
+- Risk-sizing utilities with conservative caps.
+- Paper-trading simulator.
+- Historical OHLCV backtester with estimated fees, slippage, and funding assumptions.
 
 ## Historical backtesting
 
-A standalone multi-timeframe historical backtest is available at `tools/backtest.py`. For an easier Google Colab workflow, open [CRYPTO AI PRO Backtest Notebook](https://colab.research.google.com/github/amirsamsam54937-cyber/CRYPTO_AI_PRO/blob/main/notebooks/CRYPTO_AI_PRO_Backtest.ipynb). It downloads public Binance USD-M Futures candles and exports a trade-by-trade CSV. It uses closed candles, enters on the next 15m candle, includes estimated taker fees and configurable slippage, and assumes the stop is hit first when stop and target are both touched inside one candle.
+Open the [Google Colab backtest notebook](https://colab.research.google.com/github/amirsamsam54937-cyber/CRYPTO_AI_PRO/blob/main/notebooks/CRYPTO_AI_PRO_Backtest.ipynb) or run:
 
 ```bash
 python tools/backtest.py --symbol BTCUSDT --days 90 --leverage 3 --risk 0.01
 ```
 
-Options include `--symbol`, `--days`, `--leverage`, `--risk`, `--fee`, `--slippage-bps`, and `--out`. The default output is `backtest_trades.csv`. This is a research baseline, not a fully exchange-faithful simulator: funding, liquidation mechanics, spread dynamics, and full market impact are not modeled. Test several symbols and out-of-sample periods before drawing conclusions.
+The simulator uses closed candles and conservative stop-first handling when stop and target are both touched in one candle. Funding is estimated; exchange-specific liquidation, historical funding, spread dynamics, and full market impact are not fully modeled. Use walk-forward and out-of-sample tests across multiple symbols.
 
-## Safety and limitations
-- No live execution, exchange login, deposits, withdrawals, or account permissions.
-- Public market-data availability depends on network and exchange regional restrictions.
-- The Android app currently screens the 30 highest-volume eligible USDT perpetuals, not every listed contract.
-- No background service or push alerts are enabled; automatic refresh runs while the app screen is active.
-- Entry and target levels are indicative calculations based on ATR, not guaranteed fills. Leverage display is a ceiling estimate, not a personal recommendation.
-- Indicators can lag, fail, or disagree. No signal guarantees a market outcome.
+## Engineering gates before any live automation
 
-Crypto derivatives are high risk. This software is experimental and is for monitoring and research only.
+The following are still required before unattended live trading can be considered:
 
+1. Validate market-data freshness, reconnect behavior, rate limits, and symbol metadata.
+2. Validate XT contract size, quantity step, minimum notional, price tick, and position mode for every symbol.
+3. Reconcile balances, positions, leverage, and open orders before and after every execution event.
+4. Implement a durable execution journal and idempotent order lifecycle.
+5. Verify exchange-side stop-loss and take-profit acceptance and remaining protected quantity after partial fills.
+6. Implement restart recovery, stale-feed circuit breakers, duplicate-order protection, and a tested kill switch.
+7. Add private account/order streams or reliable REST reconciliation.
+8. Complete sandbox/testnet and fault-injection testing before a supervised tiny-risk pilot.
 
-## XT USDT-M Futures account connection (read-only foundation)
+See:
+- [Target architecture](docs/ARCHITECTURE_V2.md)
+- [Live-trading readiness checklist](docs/LIVE_TRADING_READINESS.md)
+- [Persian ULTIMATE product specification](docs/ULTIMATE_PRODUCT_SPEC_FA.md)
 
-The project now includes a signed XT USDT-M account adapter. It can authenticate
-against XT, read futures account metadata, and request the futures balance list.
-It does **not** submit, cancel, or modify orders and it does not move funds.
-
-Configure `XT_API_KEY` and `XT_SECRET_KEY` as private environment variables on
-the machine hosting the FastAPI service. Never put real credentials in this
-repository, Android source code, APK resources, notebooks, or chat messages.
-The old credentials previously shared in chat should be revoked and replaced.
-
-Available endpoints:
-- `GET /api/xt/connection` — authenticated account connection check
-- `GET /api/xt/dashboard` — account metadata plus balances when XT returns an account ID
-- `GET /api/xt/balances?account_id=...` — futures balance list
-
-This is a first integration milestone, not a live trading bot. The Android APK
-does not yet connect to XT, and no live order execution is enabled. Verify
-authentication and account responses against a small test environment before
-building further execution functionality. XT USDT-M API base URL and signing
-rules are documented at [XT Futures API](https://doc.xt.com/docs/futures/Access%20Description/BasicInformationOfTheInterface)
-and [XT Signature Generation](https://doc.xt.com/docs/futures/Access%20Description/SignatureGeneration).
-
-
-## XT paper execution engine (new)
-
-The Python API now includes `app.engine.paper_trader.PaperBroker`, a deterministic
-in-memory simulator for LONG/SHORT position lifecycles. It calculates risk-based
-position size, applies a conservative leverage ceiling, models partial take
-profits (1R / 2R / 3R-style levels), moves the remaining stop to breakeven after
-the first target, and accounts for estimated entry/exit fees. It rejects
-duplicate-symbol positions and enforces portfolio position/risk limits.
-
-This is **paper trading only**. It does not call XT order endpoints, change
-leverage on an exchange, or create real stop/target orders. A simulated stop
-cannot protect a real account. The XT adapter remains account-read-only.
-
-Run tests with:
+## Tests
 
 ```bash
 pytest -q
 ```
 
-### Credential safety
-
-If an API key or secret was ever pasted into a chat, screenshot, notebook, or
-source file, revoke it at XT and create a replacement. Store replacement
-credentials only in the private environment of a secured server as
-`XT_API_KEY` and `XT_SECRET_KEY`; do not add them to GitHub files, Android
-builds, Colab notebooks, or this repository's Actions logs. For account access,
-use the minimum required permissions and disable withdrawals. Live order
-execution is not implemented or enabled in this version.
-
-
-## XT USDT perpetual scanner and paper-trading research
-
-A public-data scanner is available at `GET /api/xt/scan?limit=20`. It filters
-active linear USDT perpetual contracts, ranks them by 24-hour quote volume,
-and evaluates closed 15m, 1h, and 4h candles. It returns only unanimous
-multi-timeframe LONG/SHORT candidates; disagreement is marked NO_TRADE.
-Entry, ATR stop, and 1R/2R/3R levels are reference calculations, not orders.
-The current-forming candle is excluded to reduce signal repainting.
-
-The paper broker is an isolated simulator. Its current in-memory state is
-not durable across process restarts and it must not be mistaken for exchange
-positions. Do not use it to infer that a real account has protective orders.
-
-### API key incident response
-
-API credentials pasted into a chat are considered exposed even if withdrawals
-were disabled. Revoke that key in XT immediately and create a new one only
-after reviewing permissions. Do not send the replacement key or secret in
-chat or commit them to GitHub. Store credentials only as server-side
-environment variables or managed secrets. Disable withdrawal permission,
-restrict IPs where available, and use the minimum permissions required.
-
-### Live execution status
-
-Live order placement is intentionally **not implemented or enabled**.
-XT account endpoints in this repository are read-only; the scanner is
-public-data-only; the paper broker is simulation-only. This prevents an
-unattended process from opening positions before contract sizing, order
-precision, attached protective-order behavior, restart recovery, and
-exchange-side position reconciliation have been validated end-to-end.
-
-## Advanced explainable analysis
-
-The research API now includes `GET /api/analysis/advanced/{symbol}?timeframe=1h`. It reports a multi-factor view built from completed OHLCV candles: EMA trend structure, RSI, MACD histogram, ATR and ATR%, ADX trend strength/regime, Bollinger width/position, rolling VWAP, relative volume, confidence and human-readable reasons. The XT universe scanner also attaches these diagnostics for 15m/1h/4h. These are deterministic technical features, not ten independent AI models and not a profitability guarantee.
-
-Before relying on any strategy, run the test suite and a realistic walk-forward backtest with fees, slippage, funding, contract multipliers, and delisted symbols. The live execution gate in `docs/LIVE_TRADING_READINESS.md` remains mandatory; live orders are not enabled.
+The tests cover indicator calculations, analysis, backtesting, paper trading, XT request signing, scanner behavior, and live-execution safety gates. Passing tests do not replace real exchange integration testing.

@@ -61,7 +61,9 @@ private val Panel = Color(0xFF151F33)
 private val Muted = Color(0xFF9AAAC2)
 private val Green = Color(0xFF27D6A0)
 private val Red = Color(0xFFFF657A)
-private val Blue = Color(0xFFD8B56A)
+private val Blue = Color(0xFF55B8FF)
+private val Purple = Color(0xFF9B7BFF)
+private val Gold = Color(0xFFFFD166)
 
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
@@ -95,6 +97,8 @@ fun CryptoMonitorScreen() {
     var updated by remember { mutableStateOf("هنوز اسکن انجام نشده") }
     var filter by remember { mutableStateOf("همه") }
     var exchange by remember { mutableStateOf("XT") }
+    var selectedTab by remember { mutableStateOf("خانه") }
+    var selectedSymbol by remember { mutableStateOf("") }
     var orderContracts by remember { mutableStateOf("1") }
     var orderLeverage by remember { mutableStateOf("2") }
     var liveTradingArmed by remember { mutableStateOf(false) }
@@ -109,7 +113,6 @@ fun CryptoMonitorScreen() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val credentialVault = remember(context) { ExchangeCredentialVault(context) }
-    var showConnection by remember { mutableStateOf(false) }
     var apiKeyInput by remember { mutableStateOf("") }
     var secretKeyInput by remember { mutableStateOf("") }
     var credentialsSaved by remember { mutableStateOf(credentialVault.hasCredentials()) }
@@ -121,6 +124,9 @@ fun CryptoMonitorScreen() {
         try {
             rows = if (exchange == "XT") XTMonitor.scan() else BinanceMonitor.scan()
             updated = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            if (selectedSymbol.isBlank() || rows.none { it.symbol == selectedSymbol }) {
+                selectedSymbol = rows.firstOrNull()?.symbol.orEmpty()
+            }
         } catch (e: Exception) {
             error = e.message ?: "خطا در دریافت اطلاعات بازار"
         } finally {
@@ -128,176 +134,369 @@ fun CryptoMonitorScreen() {
         }
     }
 
-    LaunchedEffect(exchange) { while (true) { performScan(); delay(180_000) } }
+    LaunchedEffect(exchange) {
+        if (exchange != "XT") {
+            connectionVerified = false
+            liveTradingArmed = false
+        }
+        while (true) {
+            performScan()
+            delay(180_000)
+        }
+    }
+
     val shown = when (filter) {
         "صعودی" -> rows.filter { it.direction == "LONG_BIAS" }
         "نزولی" -> rows.filter { it.direction == "SHORT_BIAS" }
         else -> rows
     }
+    val selectedSignal = rows.firstOrNull { it.symbol == selectedSymbol } ?: rows.firstOrNull()
+    val canTrade = exchange == "XT" && credentialsSaved && connectionVerified && liveTradingArmed
 
     MaterialTheme(colorScheme = darkColorScheme(
-        primary = Blue, background = Navy, surface = Panel,
+        primary = Blue, secondary = Purple, background = Navy, surface = Panel,
         onBackground = Color.White, onSurface = Color.White
     )) {
-        Column(Modifier.fillMaxSize().background(Navy).padding(horizontal = 16.dp)) {
-            Spacer(Modifier.height(20.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("CRYPTO AI PRO", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Black)
-                    Text("تحلیل چندتایم‌فریمی بازار فیوچرز", color = Muted, fontSize = 12.sp)
-                }
-                TextButton(onClick = { showConnection = !showConnection }) {
-                    Text(if (showConnection) "بستن تنظیمات" else "اتصال و کلیدها", color = Blue, fontSize = 12.sp)
-                }
-                Surface(color = if (liveTradingArmed) Color(0xFF4A241D) else Color(0xFF123B36), shape = RoundedCornerShape(20.dp)) {
-                    Text(if (liveTradingArmed) "● سفارش واقعی مسلح" else "● معاملات با تأیید", color = if (liveTradingArmed) Red else Green, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), fontSize = 10.sp)
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            MarketSessionsPanel()
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(
-                    onClick = {
-                        val intent = Intent(context, MarketMonitorService::class.java)
-                            .putExtra("exchange", exchange)
-                            .putExtra("paper_auto", paperAutoEnabled)
-                            .putExtra("paper_capital", paperCapital.toDoubleOrNull() ?: 1000.0)
-                            .putExtra("risk_pct", paperRiskPct.toDoubleOrNull() ?: 1.0)
-                            .putExtra("paper_leverage", orderLeverage.toIntOrNull() ?: 2)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
-                        else context.startService(intent)
-                    },
-                    modifier = Modifier.weight(1f)
-                ) { Text("شروع پایش پس‌زمینه") }
-                OutlinedButton(
-                    onClick = { context.stopService(Intent(context, MarketMonitorService::class.java)) },
-                    modifier = Modifier.weight(1f)
-                ) { Text("توقف پایش") }
-            }
-            Text("با خروج از صفحه، پایش با اعلان دائمی ادامه می‌یابد. در سامسونگ: تنظیمات برنامه ← باتری ← بدون محدودیت؛ توقف اجباری یا محدودیت‌های سیستم همچنان اثر دارند.", color = Muted, fontSize = 10.sp)
-            Spacer(Modifier.height(10.dp))
-            if (showConnection) {
-                ConnectionCard(
-                    apiKey = apiKeyInput,
-                    onApiKeyChange = { apiKeyInput = it },
-                    secretKey = secretKeyInput,
-                    onSecretKeyChange = { secretKeyInput = it },
-                    saved = credentialsSaved,
-                    message = credentialMessage,
-                    connectionStatus = connectionStatus,
-                    onTest = {
-                        scope.launch {
-                            connectionVerified = false
-                            connectionStatus = "در حال بررسی اتصال امن XT..."
-                            val result = runCatching {
-                                val creds = credentialVault.load() ?: error("ابتدا کلیدها را ذخیره کن")
-                                XTOrderExecutor.checkConnection(creds)
-                            }
-                            connectionVerified = result.isSuccess
-                            connectionStatus = result.fold(
-                                { "اتصال احراز هویت‌شده XT موفق بود." },
-                                { "اتصال ناموفق: " + (it.message ?: "خطای ناشناخته") }
+        Scaffold(
+            containerColor = Navy,
+            bottomBar = {
+                NavigationBar(containerColor = Panel, contentColor = Color.White) {
+                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "معاملات" to "⇄", "حساب" to "◎", "تنظیمات" to "⚙").forEach { entry ->
+                        NavigationBarItem(
+                            selected = selectedTab == entry.first,
+                            onClick = { selectedTab = entry.first },
+                            icon = { Text(entry.second, fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+                            label = { Text(entry.first, fontSize = 9.sp, maxLines = 1) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Blue,
+                                selectedTextColor = Blue,
+                                indicatorColor = Color(0xFF24344E),
+                                unselectedIconColor = Muted,
+                                unselectedTextColor = Muted
                             )
-                        }
-                    },
-                    onSave = {
-                        runCatching {
-                            credentialVault.save(ExchangeCredentialVault.Credentials(apiKeyInput.trim(), secretKeyInput))
-                        }.onSuccess {
-                            credentialsSaved = true
-                            connectionVerified = false
-                            connectionStatus = "برای امنیت، پس از ذخیره کلید جدید دوباره اتصال را بررسی کن."
-                            apiKeyInput = ""
-                            secretKeyInput = ""
-                            credentialMessage = "کلیدها به‌صورت رمزگذاری‌شده روی همین دستگاه ذخیره شدند."
-                        }.onFailure { credentialMessage = it.message ?: "ذخیره‌سازی ناموفق بود." }
-                    },
-                    onClear = {
-                        runCatching { credentialVault.clear() }
-                            .onSuccess {
-                                credentialsSaved = false
-                                connectionVerified = false
-                                connectionStatus = null
-                                liveTradingArmed = false
-                                apiKeyInput = ""
-                                secretKeyInput = ""
-                                credentialMessage = "کلیدهای ذخیره‌شده از این دستگاه پاک شدند."
-                            }
-                            .onFailure { credentialMessage = it.message ?: "پاک‌سازی ناموفق بود." }
+                        )
                     }
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-                FilterChip(selected = exchange == "XT", onClick = { if (exchange != "XT") exchange = "XT" }, label = { Text("XT Futures") })
-                FilterChip(selected = exchange == "BINANCE", onClick = { if (exchange != "BINANCE") exchange = "BINANCE" }, label = { Text("Binance Futures") })
-                Spacer(Modifier.weight(1f))
-                Text(if (exchange == "XT") "منبع داده: XT" else "منبع داده: Binance", color = Blue, fontSize = 10.sp)
-            }
-            Spacer(Modifier.height(8.dp))
-            TradeControls(
-                contracts = orderContracts, onContracts = { orderContracts = it.filter(Char::isDigit).take(8) },
-                leverage = orderLeverage, onLeverage = { orderLeverage = it.filter(Char::isDigit).take(2) },
-                armed = liveTradingArmed, onArmed = { liveTradingArmed = it },
-                message = tradeMessage,
-                paperAuto = paperAutoEnabled, onPaperAuto = { paperAutoEnabled = it },
-                paperCapital = paperCapital, onPaperCapital = { paperCapital = it.filter { ch -> ch.isDigit() || ch == '.' }.take(10) },
-                riskPct = paperRiskPct, onRiskPct = { paperRiskPct = it.filter { ch -> ch.isDigit() || ch == '.' }.take(5) }
-            )
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MetricCard("قراردادهای بررسی‌شده", rows.size.toString(), Modifier.weight(1f))
-                MetricCard("تمایل صعودی", rows.count { it.direction == "LONG_BIAS" }.toString(), Modifier.weight(1f), Green)
-                MetricCard("تمایل نزولی", rows.count { it.direction == "SHORT_BIAS" }.toString(), Modifier.weight(1f), Red)
-            }
-            Spacer(Modifier.height(16.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("۱۰۰ قرارداد پرحجم " + exchange + " Futures", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
-                Text("آخرین اسکن: " + updated, color = Muted, fontSize = 10.sp)
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-                listOf("همه", "صعودی", "نزولی").forEach { option ->
-                    FilterChip(selected = filter == option, onClick = { filter = option }, label = { Text(option) })
-                }
-                Spacer(Modifier.weight(1f))
-                Button(onClick = { scope.launch { performScan() } }, enabled = !loading) {
-                    Text(if (loading) "در حال اسکن" else "اسکن مجدد")
                 }
             }
-            if (loading && rows.isEmpty()) {
-                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Blue)
-                }
-            } else {
-                error?.let { Text(it, color = Red, modifier = Modifier.padding(vertical = 8.dp)) }
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(9.dp),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 18.dp)
+        ) { innerPadding ->
+            Column(
+                Modifier.fillMaxSize().padding(innerPadding).background(Navy)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    items(shown, key = { it.symbol }) { item ->
-                        SignalCard(item, onTrade = { pendingTrade = item }, canTrade = exchange == "XT" && credentialsSaved && connectionVerified && liveTradingArmed)
+                    Surface(
+                        color = Color(0xFF142B4B),
+                        shape = RoundedCornerShape(13.dp),
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("◈", color = Blue, fontSize = 26.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("CRYPTO AI PRO", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                        Text("ULTIMATE  •  FUTURES INTELLIGENCE", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
+                    }
+                    Surface(
+                        color = if (loading) Color(0xFF3A2C17) else Color(0xFF10382F),
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Text(
+                            if (loading) "در حال اسکن" else "● " + exchange,
+                            color = if (loading) Color(0xFFFFD166) else Green,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+
+                when (selectedTab) {
+                    "خانه" -> {
+                        LazyColumn(
+                            Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(11.dp)
+                        ) {
+                            item {
+                                Surface(color = Color(0xFF14243C), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                        Text("مرکز فرماندهی بازار", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                        Text("اسکن چندتایم‌فریمی • تحلیل ساختار بازار • مدیریت ریسک", color = Muted, fontSize = 10.sp)
+                                        MarketSessionsPanel()
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            MetricCard("بازارهای بررسی‌شده", rows.size.toString(), Modifier.weight(1f))
+                                            MetricCard("تمایل صعودی", rows.count { it.direction == "LONG_BIAS" }.toString(), Modifier.weight(1f), Green)
+                                            MetricCard("تمایل نزولی", rows.count { it.direction == "SHORT_BIAS" }.toString(), Modifier.weight(1f), Red)
+                                        }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Button(onClick = { selectedTab = "بازار" }, modifier = Modifier.weight(1f)) { Text("مشاهده بازار") }
+                                            OutlinedButton(onClick = { scope.launch { performScan() } }, enabled = !loading, modifier = Modifier.weight(1f)) {
+                                                Text(if (loading) "در حال اسکن..." else "اسکن مجدد")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            item {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("فرصت‌های برتر", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                                    Text("آخرین بروزرسانی " + updated, color = Muted, fontSize = 9.sp)
+                                }
+                            }
+                            if (loading && rows.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Blue) } }
+                            error?.let { msg -> item { Text(msg, color = Red, fontSize = 11.sp) } }
+                            items(rows.take(5), key = { it.symbol }) { signal ->
+                                SignalCard(signal, onTrade = { selectedSymbol = signal.symbol; pendingTrade = signal }, canTrade = canTrade)
+                            }
+                            item { Text("سیگنال‌ها ابزار غربالگری‌اند، نه تضمین سود یا توصیه قطعی معامله.", color = Muted, fontSize = 9.sp) }
+                        }
+                    }
+
+                    "بازار" -> {
+                        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                FilterChip(selected = exchange == "XT", onClick = { if (exchange != "XT") exchange = "XT" }, label = { Text("XT Futures") })
+                                FilterChip(selected = exchange == "BINANCE", onClick = { if (exchange != "BINANCE") exchange = "BINANCE" }, label = { Text("Binance Futures") })
+                                Spacer(Modifier.weight(1f))
+                                Text("۱۰۰ قرارداد", color = Blue, fontSize = 10.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                listOf("همه", "صعودی", "نزولی").forEach { option ->
+                                    FilterChip(selected = filter == option, onClick = { filter = option }, label = { Text(option) })
+                                }
+                                Spacer(Modifier.weight(1f))
+                                TextButton(onClick = { scope.launch { performScan() } }, enabled = !loading) { Text("اسکن مجدد", color = Blue) }
+                            }
+                            error?.let { Text(it, color = Red, fontSize = 11.sp) }
+                            if (loading && rows.isEmpty()) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Blue) }
+                            } else {
+                                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
+                                    items(shown, key = { it.symbol }) { signal ->
+                                        SignalCard(signal, onTrade = { selectedSymbol = signal.symbol; pendingTrade = signal }, canTrade = canTrade)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    "تحلیل" -> {
+                        LazyColumn(
+                            Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            item {
+                                Text("موتور تحلیل چندعاملی", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                Text("انتخاب برترین سیگنال فعلی؛ مقادیر بر پایه کندل‌های بسته‌شده محاسبه می‌شوند.", color = Muted, fontSize = 10.sp)
+                            }
+                            if (selectedSignal == null) {
+                                item { Text(if (loading) "در حال دریافت داده بازار..." else "هنوز داده‌ای برای تحلیل وجود ندارد. ابتدا اسکن بازار را اجرا کن.", color = Muted) }
+                            } else {
+                                item {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("نماد تحلیل", color = Muted, fontSize = 11.sp)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(selectedSignal.symbol, color = Blue, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                                item { SignalCard(selectedSignal, onTrade = { pendingTrade = selectedSignal }, canTrade = canTrade) }
+                                item {
+                                    Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Text("نقشه تکنیکال و ساختار بازار", color = Color.White, fontWeight = FontWeight.Bold)
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                SmallStat("EMA 9", formatPrice(selectedSignal.technical.ema9))
+                                                SmallStat("EMA 20", formatPrice(selectedSignal.technical.ema20))
+                                                SmallStat("EMA 50", formatPrice(selectedSignal.technical.ema50))
+                                            }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                SmallStat("EMA 100", formatPrice(selectedSignal.technical.ema100))
+                                                SmallStat("EMA 200", formatPrice(selectedSignal.technical.ema200))
+                                                SmallStat("VWAP", formatPrice(selectedSignal.technical.vwap))
+                                            }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                SmallStat("ADX", String.format(Locale.US, "%.1f", selectedSignal.technical.adx))
+                                                SmallStat("RSI", String.format(Locale.US, "%.1f", selectedSignal.rsi))
+                                                SmallStat("ATR %%", String.format(Locale.US, "%.2f", selectedSignal.technical.atrPercent))
+                                            }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                SmallStat("حجم نسبی", String.format(Locale.US, "%.2fx", selectedSignal.technical.relativeVolume))
+                                                SmallStat("حمایت", formatPrice(selectedSignal.technical.support), Green)
+                                                SmallStat("مقاومت", formatPrice(selectedSignal.technical.resistance), Red)
+                                            }
+                                            Text("الگوی کندلی: " + selectedSignal.technical.candlePattern, color = Blue, fontSize = 11.sp)
+                                            Text("ساختار: " + selectedSignal.technical.marketStructure + " • رژیم: " + selectedSignal.technical.regime, color = Muted, fontSize = 10.sp)
+                                            if (selectedSignal.candles.isNotEmpty()) {
+                                                Text("نمودار کندل ژاپنی • ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                CandleChart(selectedSignal.candles)
+                                            }
+                                        }
+                                    }
+                                }
+                                item {
+                                    Text("برای بررسی نماد دیگر، از بخش بازار روی نماد موردنظر بزن و سپس به تحلیل برگرد.", color = Muted, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    "معاملات" -> {
+                        LazyColumn(
+                            Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            item {
+                                Text("کنترل معاملات و مدیریت ریسک", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                Text("معاملات آزمایشی خودکار فعال است؛ سفارش واقعی فقط با تأیید دستی و مجزای تو انجام می‌شود.", color = Muted, fontSize = 10.sp)
+                            }
+                            item {
+                                TradeControls(
+                                    contracts = orderContracts, onContracts = { orderContracts = it.filter(Char::isDigit).take(8) },
+                                    leverage = orderLeverage, onLeverage = { orderLeverage = it.filter(Char::isDigit).take(2) },
+                                    armed = liveTradingArmed,
+                                    onArmed = {
+                                        if (!it) liveTradingArmed = false
+                                        else if (exchange == "XT" && credentialsSaved && connectionVerified) liveTradingArmed = true
+                                        else tradeMessage = "ابتدا XT را انتخاب، کلید را ذخیره و اتصال حساب را با موفقیت بررسی کن."
+                                    },
+                                    message = tradeMessage,
+                                    paperAuto = paperAutoEnabled, onPaperAuto = { paperAutoEnabled = it },
+                                    paperCapital = paperCapital, onPaperCapital = { paperCapital = it.filter { ch -> ch.isDigit() || ch == '.' }.take(10) },
+                                    riskPct = paperRiskPct, onRiskPct = { paperRiskPct = it.filter { ch -> ch.isDigit() || ch == '.' }.take(5) }
+                                )
+                            }
+                            item { Text("سیگنال‌های قابل بررسی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp) }
+                            items(rows.filter { it.direction != "NEUTRAL" }.take(20), key = { "trade-" + it.symbol }) { signal ->
+                                SignalCard(signal, onTrade = { pendingTrade = signal }, canTrade = canTrade)
+                            }
+                        }
+                    }
+
+                    "حساب" -> {
+                        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("اتصال صرافی و امنیت حساب", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text("کلیدها فقط روی دستگاه و در محفظه رمزنگاری‌شده نگهداری می‌شوند.", color = Muted, fontSize = 10.sp)
+                            ConnectionCard(
+                                apiKey = apiKeyInput,
+                                onApiKeyChange = { apiKeyInput = it },
+                                secretKey = secretKeyInput,
+                                onSecretKeyChange = { secretKeyInput = it },
+                                saved = credentialsSaved,
+                                message = credentialMessage,
+                                connectionStatus = connectionStatus,
+                                onTest = {
+                                    scope.launch {
+                                        connectionVerified = false
+                                        connectionStatus = "در حال بررسی اتصال امن XT..."
+                                        val result = runCatching {
+                                            val creds = credentialVault.load() ?: error("ابتدا کلیدها را ذخیره کن")
+                                            XTOrderExecutor.checkConnection(creds)
+                                        }
+                                        connectionVerified = result.isSuccess
+                                        connectionStatus = result.fold(
+                                            { "اتصال احراز هویت‌شده XT موفق بود." },
+                                            { "اتصال ناموفق: " + (it.message ?: "خطای ناشناخته") }
+                                        )
+                                    }
+                                },
+                                onSave = {
+                                    runCatching {
+                                        credentialVault.save(ExchangeCredentialVault.Credentials(apiKeyInput.trim(), secretKeyInput))
+                                    }.onSuccess {
+                                        credentialsSaved = true
+                                        connectionVerified = false
+                                        liveTradingArmed = false
+                                        connectionStatus = "برای امنیت، پس از ذخیره کلید جدید دوباره اتصال را بررسی کن."
+                                        apiKeyInput = ""
+                                        secretKeyInput = ""
+                                        credentialMessage = "کلیدها به‌صورت رمزگذاری‌شده روی همین دستگاه ذخیره شدند."
+                                    }.onFailure { credentialMessage = it.message ?: "ذخیره‌سازی ناموفق بود." }
+                                },
+                                onClear = {
+                                    runCatching { credentialVault.clear() }
+                                        .onSuccess {
+                                            credentialsSaved = false
+                                            connectionVerified = false
+                                            liveTradingArmed = false
+                                            apiKeyInput = ""
+                                            secretKeyInput = ""
+                                            credentialMessage = "کلیدهای ذخیره‌شده از این دستگاه پاک شدند."
+                                        }
+                                        .onFailure { credentialMessage = it.message ?: "پاک‌سازی ناموفق بود." }
+                                }
+                            )
+                            Text("Binance برای اسکن عمومی به کلید API نیاز ندارد. اتصال خصوصی حساب Binance هنوز در این نسخه فعال نیست.", color = Muted, fontSize = 10.sp)
+                        }
+                    }
+
+                    else -> {
+                        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("تنظیمات و پایش پس‌زمینه", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("پایش زنده بازار", color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text("با شروع سرویس، اعلان دائمی اندروید نمایش داده می‌شود و اسکن بازار در پس‌زمینه ادامه می‌یابد. توقف اجباری، قطع اینترنت یا محدودیت باتری می‌تواند سرویس را متوقف کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                                    Button(
+                                        onClick = {
+                                            val intent = Intent(context, MarketMonitorService::class.java)
+                                                .putExtra("exchange", exchange)
+                                                .putExtra("paper_auto", paperAutoEnabled)
+                                                .putExtra("paper_capital", paperCapital.toDoubleOrNull() ?: 1000.0)
+                                                .putExtra("risk_pct", paperRiskPct.toDoubleOrNull() ?: 1.0)
+                                                .putExtra("paper_leverage", orderLeverage.toIntOrNull() ?: 2)
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+                                            else context.startService(intent)
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text("شروع پایش پس‌زمینه") }
+                                    OutlinedButton(
+                                        onClick = { context.stopService(Intent(context, MarketMonitorService::class.java)) },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text("توقف پایش") }
+                                }
+                            }
+                            Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text("بازار: " + exchange + " Futures", color = Muted, fontSize = 11.sp)
+                                    Text("تایم‌فریم اصلی: ۱۵ دقیقه • تأیید: ۱ ساعت و ۴ ساعت", color = Muted, fontSize = 11.sp)
+                                    Text("دامنه اسکن: حداکثر ۱۰۰ قرارداد پرحجم USDT", color = Muted, fontSize = 11.sp)
+                                    Text("بروزرسانی خودکار: هر ۳ دقیقه", color = Muted, fontSize = 11.sp)
+                                    Text("نسخه: 1.6.0 • رابط ماژولار", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← CRYPTO AI PRO ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                        }
                     }
                 }
             }
-            Text(
-                "اسکن خودکار هر ۳ دقیقه • تایم‌فریم ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • برای سفارش واقعی تأیید جداگانه لازم است",
-                color = Muted, fontSize = 10.sp, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
-            )
         }
+
         if (pendingTrade != null) {
             val item = pendingTrade!!
             AlertDialog(
                 onDismissRequest = { if (!tradeBusy) pendingTrade = null },
                 title = { Text("تأیید نهایی سفارش واقعی") },
                 text = {
-                    Text("صرافی: XT Futures\nنماد: ${item.symbol}\nجهت: ${if (item.direction == "LONG_BIAS") "LONG / BUY" else "SHORT / SELL"}\nتعداد قرارداد: ${orderContracts}\nاهرم: ${orderLeverage}x\nحد ضرر: ${formatPrice(item.stop)}\nحد سود اولیه: ${formatPrice(item.tp1)}\n\nاین سفارش با سرمایه واقعی ارسال می‌شود. قیمت اجرا و لغزش ممکن است با قیمت تحلیل فرق داشته باشد.")
+                    Text(
+                        "صرافی: XT Futures\nنماد: " + item.symbol +
+                        "\nجهت: " + (if (item.direction == "LONG_BIAS") "LONG / BUY" else "SHORT / SELL") +
+                        "\nتعداد قرارداد: " + orderContracts +
+                        "\nاهرم: " + orderLeverage + "x" +
+                        "\nحد ضرر: " + formatPrice(item.stop) +
+                        "\nحد سود اولیه: " + formatPrice(item.tp1) +
+                        "\n\nاین سفارش با سرمایه واقعی ارسال می‌شود. قیمت اجرا و لغزش ممکن است با قیمت تحلیل فرق داشته باشد."
+                    )
                 },
                 confirmButton = {
-                    Button(enabled = !tradeBusy && orderContracts.toIntOrNull() != null && orderContracts.toInt() > 0 && (orderLeverage.toIntOrNull() ?: 0) in 1..20,
+                    Button(
+                        enabled = canTrade && !tradeBusy && orderContracts.toIntOrNull() != null &&
+                            orderContracts.toInt() > 0 && (orderLeverage.toIntOrNull() ?: 0) in 1..20,
                         onClick = {
                             scope.launch {
                                 tradeBusy = true
@@ -315,9 +514,12 @@ fun CryptoMonitorScreen() {
                                 tradeBusy = false
                                 pendingTrade = null
                             }
-                        }) { Text(if (tradeBusy) "در حال ارسال..." else "تأیید و ارسال واقعی") }
+                        }
+                    ) { Text(if (tradeBusy) "در حال ارسال..." else "تأیید و ارسال واقعی") }
                 },
-                dismissButton = { TextButton(enabled = !tradeBusy, onClick = { pendingTrade = null }) { Text("انصراف") } }
+                dismissButton = {
+                    TextButton(enabled = !tradeBusy, onClick = { pendingTrade = null }) { Text("انصراف") }
+                }
             )
         }
     }
