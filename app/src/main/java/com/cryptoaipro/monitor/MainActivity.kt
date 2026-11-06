@@ -860,22 +860,43 @@ private object BinanceMonitor {
         val c = indicators(trend)
         val score = a.first + b.first + c.first
         val wolf = WolfConsensusEngine.analyze(listOf(a.technical, b.technical, c.technical), price)
-        val direction = wolf.direction
-        val confidence = wolf.strengthIndex
-        val atrValue = atr(short)
-        val stopDistance = maxOf(atrValue * 1.5, price * 0.002)
+        val atrValue = atr(short).coerceAtLeast(price * 0.0001)
+        val stretched = abs(price - a.technical.ema20) > atrValue * 2.2
+        val extremeVolatility = a.technical.atrPercent > 10.0
+        val fourHourConflict = (wolf.direction == "LONG_BIAS" && c.technical.marketStructure.contains("LH/LL")) ||
+            (wolf.direction == "SHORT_BIAS" && c.technical.marketStructure.contains("HH/HL"))
+        val filtered = stretched || extremeVolatility || fourHourConflict
+        val direction = if (filtered) "NEUTRAL" else wolf.direction
+        val confidence = if (filtered) (wolf.strengthIndex * 0.65).toInt() else wolf.strengthIndex
         val isLong = direction == "LONG_BIAS"
         val isShort = direction == "SHORT_BIAS"
+        val atrBase = maxOf(atrValue * 1.5, price * 0.002)
+        val structuralDistance = when {
+            isLong -> price - a.technical.support + atrValue * 0.20
+            isShort -> a.technical.resistance - price + atrValue * 0.20
+            else -> atrBase
+        }
+        val stopDistance = if ((isLong || isShort) && structuralDistance in (atrValue * 0.8)..(atrValue * 2.5))
+            maxOf(atrBase, structuralDistance).coerceAtMost(atrValue * 2.5)
+        else atrBase
         val stop = when { isLong -> price - stopDistance; isShort -> price + stopDistance; else -> price }
         val tp1 = when { isLong -> price + stopDistance; isShort -> price - stopDistance; else -> price }
-        val tp2 = when { isLong -> price + stopDistance * 1.8; isShort -> price - stopDistance * 1.8; else -> price }
-        val tp3 = when { isLong -> price + stopDistance * 2.8; isShort -> price - stopDistance * 2.8; else -> price }
+        val tp2 = when { isLong -> price + stopDistance * 2.0; isShort -> price - stopDistance * 2.0; else -> price }
+        val tp3 = when { isLong -> price + stopDistance * 3.0; isShort -> price - stopDistance * 3.0; else -> price }
         val stopPct = stopDistance / price * 100.0
         val leverage = when { !isLong && !isShort -> 1; stopPct <= 0.8 -> 5; stopPct <= 1.5 -> 3; stopPct <= 3.0 -> 2; else -> 1 }
         val agentSummary = wolf.votes.joinToString("، ") { it.name + ":" + it.direction }
+        val filterNote = when {
+            stretched -> " | فیلتر: قیمت بیش از حد از EMA20 فاصله گرفته؛ تعقیب نکن"
+            extremeVolatility -> " | فیلتر: نوسان ۱۵دقیقه‌ای بسیار شدید"
+            fourHourConflict -> " | فیلتر: ساختار ۴ساعته مخالف جهت است"
+            else -> ""
+        }
         return MarketSignal(
             symbol, price, change, volume, direction, score, a.third, confidence,
-            "اجماع گرگ " + wolf.agreement + "% | ۱۰ تحلیلگر: " + agentSummary + " | ۱۵د: " + a.second + " | ۱س: " + b.second + " | ۴س: " + c.second,
+            "اجماع گرگ " + wolf.agreement + "% | قدرت اجماع (نه احتمال برد): " + wolf.strengthIndex +
+                "% | ۱۰ تحلیلگر: " + agentSummary + " | ۱۵د: " + a.second + " | ۱س: " + b.second +
+                " | ۴س: " + c.second + filterNote,
             price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical, short.takeLast(80), wolf
         )
     }
