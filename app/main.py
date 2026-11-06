@@ -162,3 +162,30 @@ def xt_scan(limit: int = Query(default=20, ge=1, le=50),
                 "mode": "public-data-research-only"}
     except Exception:
         raise HTTPException(status_code=502, detail="XT public market scanner unavailable; retry later.")
+
+
+@app.get("/api/consensus/{symbol:path}")
+def consensus_analysis(symbol: str,
+                       timeframe: str = Query(default="1h"),
+                       exchange_id: str = Query(default=None)):
+    """Ten explainable specialist votes over completed candles; read-only."""
+    allowed = {"5m", "15m", "30m", "1h", "2h", "4h", "1d"}
+    if timeframe not in allowed:
+        raise HTTPException(status_code=400, detail="Unsupported timeframe")
+    selected_exchange = (exchange_id or settings.exchange_id).lower()
+    if selected_exchange not in {"binance", "xt"}:
+        raise HTTPException(status_code=400, detail="Exchange must be binance or xt")
+    try:
+        frame = fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=300,
+                            exchange_id=selected_exchange)
+        if len(frame) > 60:
+            frame = frame.iloc[:-1].reset_index(drop=True)
+        from app.multi_agent import analyze_consensus
+        result = analyze_consensus(frame)
+        return {"symbol": symbol, "exchange": selected_exchange,
+                "timeframe": timeframe, "candles": len(frame),
+                "mode": "read-only-research", "analysis": result}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:
+        raise HTTPException(status_code=502, detail="Market data provider unavailable; retry later.")
