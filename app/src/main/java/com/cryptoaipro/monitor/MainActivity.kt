@@ -108,6 +108,7 @@ fun CryptoMonitorScreen() {
     var voiceReply by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    var outcomeSnapshot by remember(context) { mutableStateOf(WolfSignalOutcomeJournal.snapshot(context)) }
     val learningPrefs = remember(context) { context.getSharedPreferences("wolf_learning_memory", Context.MODE_PRIVATE) }
     var learningSamples by remember { mutableIntStateOf(learningPrefs.getInt("samples", 0)) }
     var learningWins by remember { mutableIntStateOf(learningPrefs.getInt("wins", 0)) }
@@ -147,6 +148,7 @@ fun CryptoMonitorScreen() {
             val scanned = if (exchange == "XT") XTMonitor.scan() else BinanceMonitor.scan()
             rows = WolfFlowNewsRepository.enrichSignals(context, scanned)
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned) } }
+            outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
             val memoryStats = WolfLearningMemory.processScan(context, rows)
             learningSamples = memoryStats.samples
             learningWins = memoryStats.wins
@@ -363,6 +365,7 @@ fun CryptoMonitorScreen() {
                                     }
                                 }
                                 item { SignalCard(selectedSignal, onSelect = { selectedSymbol = selectedSignal.symbol }) }
+                                item { SignalOutcomePanel(outcomeSnapshot) }
                                 item {
                                     Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -623,6 +626,27 @@ private fun CandleChart(candles: List<DoubleArray>) {
             val top = minOf(y(candle[0]), y(candle[3]))
             val bottom = maxOf(y(candle[0]), y(candle[3]))
             drawRect(tint, Offset(x - bodyWidth / 2f, top), androidx.compose.ui.geometry.Size(bodyWidth, (bottom - top).coerceAtLeast(2f)))
+        }
+    }
+}
+
+ @Composable
+private fun SignalOutcomePanel(snapshot: WolfSignalOutcomeJournal.Snapshot) {
+    Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("کارنامه سیگنال‌های برنامه (شبیه‌سازی، بدون سفارش واقعی)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                SmallStat("کل", snapshot.total.toString())
+                SmallStat("باز", snapshot.active.toString(), Blue)
+                SmallStat("TP1", snapshot.tp1.toString(), Green)
+                SmallStat("TP2", snapshot.tp2.toString(), Green)
+                SmallStat("TP3", snapshot.tp3.toString(), Green)
+                SmallStat("SL", snapshot.stopped.toString(), Red)
+            }
+            Text("آخرین نتایج", color = Muted, fontSize = 10.sp)
+            if (snapshot.recent.isEmpty()) Text("هنوز نتیجه‌ای ثبت نشده؛ پس از سیگنال و دریافت کندل‌های بعدی، وضعیت به‌روزرسانی می‌شود.", color = Muted, fontSize = 10.sp)
+            snapshot.recent.forEach { line -> Text(line, color = Color.White, fontSize = 10.sp) }
+            Text("اگر حد سود و حد ضرر در یک کندل لمس شوند، برای جلوگیری از خوش‌بینی کاذب، حد ضرر زودتر فرض می‌شود.", color = Muted, fontSize = 9.sp)
         }
     }
 }
