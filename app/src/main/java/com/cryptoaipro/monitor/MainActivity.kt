@@ -61,7 +61,9 @@ private val Panel = Color(0xFF151F33)
 private val Muted = Color(0xFF9AAAC2)
 private val Green = Color(0xFF27D6A0)
 private val Red = Color(0xFFFF657A)
-private val Blue = Color(0xFFD8B56A)
+private val Blue = Color(0xFF55B8FF)
+private val Purple = Color(0xFF9B7BFF)
+private val Gold = Color(0xFFFFD166)
 
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
