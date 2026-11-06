@@ -10,8 +10,8 @@ from app.backtest import run_backtest
 
 class Settings(BaseSettings):
     app_name: str="CRYPTO AI PRO"
-    exchange_id: str="binance"
-    default_symbol: str="BTC/USDT"
+    exchange_id: str="xt"
+    default_symbol: str="BTC/USDT:USDT"
     default_timeframe: str="1h"
     candle_limit: int=300
     model_config=SettingsConfigDict(env_file=".env",extra="ignore")
@@ -28,7 +28,7 @@ def dashboard():
 main{max-width:760px;margin:auto}section{background:#172238;padding:18px;border-radius:14px;margin:14px 0}
 button,input{padding:12px;border-radius:8px;border:0;margin:4px}button{background:#48a6ff;color:#061326}
 pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><main><h1>CRYPTO AI PRO</h1>
-<p>داشبورد تحلیل بازار — نسخه پایه</p><section>نماد <input id="symbol" value="BTC/USDT">
+<p>داشبورد تحلیل بازار — نسخه پایه</p><section>نماد <input id="symbol" value="BTC/USDT:USDT">
 بازه <input id="tf" value="1h"><button onclick="run()">تحلیل بازار</button></section>
 <section><h3>نتیجه تحلیل</h3><pre id="out">برای دریافت تحلیل دکمه را بزنید.</pre></section>
 <p>این نسخه فقط داده عمومی و تحلیل ارائه می‌کند؛ معامله واقعی انجام نمی‌دهد.</p></main>
