@@ -145,7 +145,7 @@ object PaperTradingEngine {
                         .put("qty", qty).put("remaining", qty).put("stage", 0)
                         .put("leverage", leverage.coerceIn(1, 3)).put("opened", now))
                     cooldowns.put(s.symbol, now); tradesToday++; riskBudget -= risk
-                    note(journal, "ورود خودکار دمو $s.symbol ${if (dir > 0) "LONG" else "SHORT"} • ریسک ${fmt(risk)} USDT")
+                    note(journal, "ورود خودکار دمو ${s.symbol} ${if (dir > 0) "LONG" else "SHORT"} • ریسک ${fmt(risk)} USDT")
                 }
         }
         prefs.edit()
