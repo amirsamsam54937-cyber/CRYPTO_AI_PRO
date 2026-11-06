@@ -257,13 +257,13 @@ fun CryptoMonitorScreen() {
                         }
                     }
 
-                    "بازار" -> {
+                    "بازار", "سیگنال‌ها" -> {
                         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                                 FilterChip(selected = exchange == "XT", onClick = { if (exchange != "XT") exchange = "XT" }, label = { Text("XT Futures") })
                                 FilterChip(selected = exchange == "BINANCE", onClick = { if (exchange != "BINANCE") exchange = "BINANCE" }, label = { Text("Binance Futures") })
                                 Spacer(Modifier.weight(1f))
-                                Text("۱۰۰ قرارداد", color = Blue, fontSize = 10.sp)
+                                Text("${rows.size} قرارداد تحلیل‌شده", color = Blue, fontSize = 10.sp)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                                 listOf("همه", "صعودی", "نزولی").forEach { option ->
@@ -292,8 +292,8 @@ fun CryptoMonitorScreen() {
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             item {
-                                Text("موتور تحلیل چندعاملی", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                Text("انتخاب برترین سیگنال فعلی؛ مقادیر بر پایه کندل‌های بسته‌شده محاسبه می‌شوند.", color = Muted, fontSize = 10.sp)
+                                Text("موتور تحلیل چندعاملی و سیگنال‌ساز", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                Text("اسکن بازار فیوچرز Binance و XT • تحلیل ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • بدون سفارش‌گذاری یا معامله دستی.", color = Muted, fontSize = 10.sp)
                             }
                             if (selectedSignal == null) {
                                 item { Text(if (loading) "در حال دریافت داده بازار..." else "هنوز داده‌ای برای تحلیل وجود ندارد. ابتدا اسکن بازار را اجرا کن.", color = Muted) }
@@ -333,7 +333,7 @@ fun CryptoMonitorScreen() {
                                             Text("الگوی کندلی: " + selectedSignal.technical.candlePattern, color = Blue, fontSize = 11.sp)
                                             Text("ساختار: " + selectedSignal.technical.marketStructure + " • رژیم: " + selectedSignal.technical.regime, color = Muted, fontSize = 10.sp)
                                             if (selectedSignal.candles.isNotEmpty()) {
-                                                Text("نمودار کندل ژاپنی • ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                Text("نمودار کندل زنده • تایم‌فریم پایه ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                                 CandleChart(selectedSignal.candles, selectedSignal)
                                             }
                                         }
@@ -770,7 +770,7 @@ private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolea
                 Spacer(Modifier.height(8.dp))
                 Surface(color = Color(0xFF0E1728), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("ورود مرجع: " + formatPrice(item.entry) + "   |   اهرم سقف: " + item.leverage + "x", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("جهت: " + (if (item.direction == "LONG_BIAS") "لانگ" else "شورت") + "  |  تایم‌فریم: ۱۵m / ۱h / ۴h  |  اهرم پیشنهادی: " + item.leverage + "x", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             SmallStat("حد ضرر", formatPrice(item.stop), Red)
                             SmallStat("TP1 • 1R", formatPrice(item.tp1), Green)
@@ -783,9 +783,7 @@ private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolea
             }
             Spacer(Modifier.height(6.dp))
             if (item.direction != "NEUTRAL") {
-                Button(onClick = onTrade, enabled = canTrade, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (canTrade) "معامله واقعی این سیگنال در XT" else "برای معامله: XT را انتخاب کن، کلید را ذخیره و ارسال واقعی را فعال کن")
-                }
+                Text("سیگنال تحلیلی • فقط نمایش اطلاعات، بدون اجرای سفارش", color = Gold, fontSize = 9.sp)
             }
             Text(item.reason, color = Muted, fontSize = 10.sp)
             TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(0.dp)) {
@@ -879,7 +877,7 @@ private fun CandleChart(candles: List<DoubleArray>, signal: MarketSignal? = null
             Text("حدضرر", color = Red, fontSize = 9.sp)
             Text("TP1", color = Gold, fontSize = 9.sp)
         }
-        Text("نمایش ۵۴ کندل بسته‌شده • تایم‌فریم ۱۵ دقیقه • خطوط افقی فقط در محدوده قابل مشاهده رسم می‌شوند.",
+        Text("نمایش کندل‌های اخیر • آخرین اسکن بازار هر ۶۰ ثانیه • خطوط ورود، استاپ و اهداف روی نمودار.",
             color = Muted, fontSize = 9.sp)
     }
 }
