@@ -11,11 +11,16 @@ Any XT API key/secret pasted into a chat or other shared surface must be treated
 5. Store replacement values in the server's secret manager/environment as `XT_API_KEY` and `XT_SECRET_KEY`.
 6. Never put secrets in Git, source code, Colab output, Android assets, logs, screenshots, or API responses.
 
+## XT CCXT credentials and empty-account handling
+
+The supplied Python example uses `XT_API_KEY` and `XT_API_SECRET`. The snippet in chat did not include actual key values; do not paste secrets into chat or commit them. Configure both names in the backend environment/secret manager. CCXT is initialized with `defaultType=swap`, rate limiting, a 30-second timeout, and time-difference adjustment. The dashboard route is read-only and never creates or cancels orders. If the futures wallet is empty, it reports `free=0`, `used=0`, `total=0`, and `is_empty=true` while preserving a successful connection status. Positions and open orders are fetched independently so a capability/API error in one section does not erase a successful balance read.
+
 ## Current implementation status
 
 - Public XT USDT perpetual market scanner: implemented.
 - Closed-candle multi-timeframe signal evaluation: implemented.
-- XT authenticated account/balance reads: implemented.
+- XT authenticated account/balance reads: implemented (custom signed REST adapter).
+- XT CCXT read-only account snapshot: implemented for futures market loading, USDT balance, non-zero positions and open orders (`GET /api/xt/ccxt/dashboard`). Empty USDT balance is a valid connected-account state, not an authentication failure.
 - Android autonomous paper-trading engine: implemented with persistent positions/journal, risk-sized entries, staged exits, break-even and ATR trailing stop, estimated costs, cooldowns and circuit breakers. Paper mode never sends exchange orders.
 - XT contract metadata lookup: implemented (public read-only).
 - Protected market-order adapter: implemented behind two explicit server-side gates; not exposed as a public API route and not enabled.
