@@ -1,18 +1,18 @@
 # CRYPTO AI PRO ULTIMATE
 
-**Android app version: 1.6.0**  
+**Android app version: 2.0.0**  
 A Persian-first, modular crypto-futures market intelligence and paper-trading application. The Android client is built with Kotlin and Jetpack Compose; the Python package provides research, risk, and backtesting utilities.
 
 > This is experimental trading software. Market signals are not investment advice and do not guarantee outcomes. Real-money order execution is not production-certified. Keep live trading disabled until the readiness gates in `docs/LIVE_TRADING_READINESS.md` are independently completed.
 
 ## Android application
 
-The 1.6.0 interface is organized into six functional sections:
+The 2.0.0 interface is organized into six functional sections:
 
 - **خانه** — market overview, session context, scan counts, and leading candidates.
 - **بازار** — XT Futures / Binance Futures selector, bullish/bearish filters, manual refresh, and ranked market cards.
 - **تحلیل** — selected candidate, multi-indicator diagnostics, market structure, support/resistance, and candlestick view.
-- **معاملات** — risk controls, paper-trading configuration, and individually confirmed XT order ticket.
+- **معاملات** — autonomous paper-trading dashboard, persistent trade journal, risk limits, staged exits, trailing stops, and individually confirmed XT manual order ticket.
 - **حساب** — encrypted on-device XT credential storage and authenticated connection check.
 - **تنظیمات** — user-started foreground monitoring service and scanner configuration summary.
 
@@ -34,7 +34,7 @@ The visual system uses a dark navy base with blue and violet accents. The launch
 - XT authenticated connection verification is implemented.
 - The Android code contains a manually confirmed XT market-order path that requests leverage and attaches stop/first-target trigger fields. **This route has not been validated end-to-end against a real account and must not be considered production-safe.**
 - Live order controls are off by default and require a saved XT credential, a successful account check, an explicit arming action, and a separate per-order confirmation.
-- Automatic live trading is not enabled.
+- Automatic live trading is not enabled. The new autonomous mode is paper-only and has no code path to XT/Binance order endpoints.
 - Binance scanning is public-data-only in this Android release; private Binance account connection and execution are not implemented.
 - Never grant withdrawal or transfer permissions. Any credential previously pasted into chat or source control must be revoked and replaced. Do not commit secrets or place them in APK assets.
 
@@ -82,7 +82,7 @@ Open the [Google Colab backtest notebook](https://colab.research.google.com/gith
 python tools/backtest.py --symbol BTCUSDT --days 90 --leverage 3 --risk 0.01
 ```
 
-The simulator uses closed candles and conservative stop-first handling when stop and target are both touched in one candle. Funding is estimated; exchange-specific liquidation, historical funding, spread dynamics, and full market impact are not fully modeled. Use walk-forward and out-of-sample tests across multiple symbols.
+The simulator uses closed candles and conservative stop-first handling when stop and target are both touched in one candle. The Android paper autopilot persists its positions and journal across service restarts, but its fills are approximations using polling prices, not exchange-grade tick execution. Funding is estimated; exchange-specific liquidation, historical funding, spread dynamics, and full market impact are not fully modeled. Use walk-forward and out-of-sample tests across multiple symbols.
 
 ## Engineering gates before any live automation
 
