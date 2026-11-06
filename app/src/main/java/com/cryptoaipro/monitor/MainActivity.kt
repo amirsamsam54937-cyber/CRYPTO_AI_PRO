@@ -91,14 +91,20 @@ data class TechnicalSnapshot(
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
     val prefs = context.getSharedPreferences("wolf_learning_memory", Context.MODE_PRIVATE)
     val trainedSamples = prefs.getInt("samples", 0)
+    // Load the bundled, historically trained ten-network ensemble once; online DNN remains a secondary learner.
+    WolfPretrainedEnsemble.initialize(context)
     return signals.map { signal ->
         if (signal.direction == "NEUTRAL") signal.copy(neuralScore = 50)
         else {
-            val neural = (WolfDeepNeuralNetwork.predict(prefs, signal) * 100.0).toInt().coerceIn(1, 99)
-            // The neural model is only allowed a small influence after enough closed outcomes exist.
-            val adjustedConfidence = if (trainedSamples >= 30)
-                (signal.confidence * 0.85 + neural * 0.15).toInt().coerceIn(0, 100)
-            else signal.confidence
+            val pretrained = WolfPretrainedEnsemble.predict(signal)
+            val online = WolfDeepNeuralNetwork.predict(prefs, signal)
+            val neuralProbability = pretrained ?: online
+            val neural = (neuralProbability * 100.0).toInt().coerceIn(1, 99)
+            val adjustedConfidence = when {
+                pretrained != null -> (signal.confidence * 0.85 + neural * 0.15).toInt().coerceIn(0, 100)
+                trainedSamples >= 30 -> (signal.confidence * 0.90 + neural * 0.10).toInt().coerceIn(0, 100)
+                else -> signal.confidence
+            }
             signal.copy(neuralScore = neural, confidence = adjustedConfidence)
         }
     }.sortedWith(compareByDescending<MarketSignal> {
