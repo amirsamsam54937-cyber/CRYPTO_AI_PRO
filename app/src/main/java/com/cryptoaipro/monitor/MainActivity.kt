@@ -656,7 +656,7 @@ private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
                             SmallStat("TP3", formatPrice(record.tp3), Green)
                             SmallStat("قدرت سیگنال", record.confidence.toString() + "%", tint)
                         }
-                        Text("امتیاز: " + record.score + " • اهرم پیشنهادی تحلیلی: " + record.leverage + "x • تغییر ۲۴ساعت: " + String.format(Locale.US, "%.2f%%", record.change), color = Muted, fontSize = 9.sp)
+                        Text("امتیاز: " + record.score + " • شبکه عصبی: " + record.neuralScore + "% • اهرم پیشنهادی: " + record.leverage + "x • تغییر ۲۴ساعت: " + String.format(Locale.US, "%.2f%%", record.change), color = Muted, fontSize = 9.sp)
                         if (record.closed) {
                             Text("قیمت خروج: " + formatPrice(record.exitPrice) + " • بازده تخمینی با اهرم: " +
                                 String.format(Locale.US, "%+.2f%%", record.pnlPct), color = if (record.pnlPct >= 0) Green else Red,
