@@ -10,6 +10,11 @@ import os
 from typing import Any
 
 import ccxt
+from dotenv import load_dotenv
+
+# Load local .env for self-hosted research deployments; real deployments should
+# inject secrets through the process environment/secret manager.
+load_dotenv()
 
 
 class XTCCXTError(RuntimeError):
