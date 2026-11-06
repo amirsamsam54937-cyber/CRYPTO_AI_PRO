@@ -1,0 +1,28 @@
+name: Train Wolf pretrained neural ensemble
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+permissions:
+  contents: read
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install training dependencies
+        run: python -m pip install --upgrade pip numpy scikit-learn
+      - name: Download historical futures candles and train ten neural models
+        run: python tools/train_wolf_ensemble.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wolf-pretrained-ensemble-and-report
+          path: |
+            app/src/main/assets/wolf_pretrained_ensemble.json
+            wolf_model_training_report.json
+          if-no-files-found: error
+          retention-days: 30
