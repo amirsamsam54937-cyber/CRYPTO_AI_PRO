@@ -550,7 +550,7 @@ private fun ActiveCommandSignals(
                 Text("سیگنال‌های فعال فرماندهی", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 Text(records.size.toString() + " فعال", color = Gold, fontSize = 10.sp)
             }
-            Text("هر سیگنال تا پایان اعتبار تایم‌فریم ۱۵ دقیقه‌ای در این بخش باقی می‌ماند؛ پس از انقضا به دفترچه منتقل می‌شود.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+            Text("سیگنال با برخورد به اولین حد سود یا حد ضرر فوراً به دفترچه منتقل می‌شود؛ اگر هیچ‌کدام رخ ندهد تا پایان اعتبار ۱۵ دقیقه‌ای فعال می‌ماند.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
             if (records.isEmpty()) {
                 Text("در حال حاضر سیگنال معتبر فعالی وجود ندارد؛ با دور بعدی اسکن دوباره بررسی می‌شود.", color = Muted, fontSize = 10.sp)
             } else {
@@ -597,7 +597,7 @@ private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
             Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Text("دفترچه دائمی سیگنال‌های گرگ", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text("زمان ورود و پایان اعتبار با ساعت ایران ثبت می‌شود. سیگنال‌های فعال پس از پایان اعتبار ۱۵ دقیقه‌ای منقضی شده و برای همیشه در دفترچه قابل مشاهده می‌مانند. اطلاعات فقط روی همین گوشی نگهداری می‌شود.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    Text("زمان ورود و خروج با ساعت ایران ثبت می‌شود. برخورد به حد سود/ضرر یا پایان اعتبار ۱۵ دقیقه‌ای، سیگنال را به دفترچه منتقل می‌کند و سوابق قابل مشاهده می‌مانند. اطلاعات فقط روی همین گوشی نگهداری می‌شود.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         SmallStat("کل سیگنال‌ها", snapshot.total.toString(), Blue)
                         SmallStat("باز", snapshot.active.toString(), Gold)
