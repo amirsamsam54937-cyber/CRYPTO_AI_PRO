@@ -198,7 +198,7 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Panel, contentColor = Color.White) {
-                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "هوش مصنوعی" to "✧", "تنظیمات" to "⚙").forEach { entry ->
+                    listOf("خانه" to "⌂", "بازار" to "◫", "تحلیل" to "⌁", "دفترچه" to "▤", "هوش مصنوعی" to "✧", "تنظیمات" to "⚙").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry.first,
                             onClick = { selectedTab = entry.first },
@@ -425,7 +425,7 @@ fun CryptoMonitorScreen() {
                                             Text("سیستم سیگنال‌های جهت‌دار را ذخیره می‌کند و پس از گذشت ۴ ساعت، نتیجه حرکت قیمت را می‌سنجد؛ وزن‌های شبکه عصبی در حافظه داخلی برنامه نگهداری می‌شوند.", color = Muted, fontSize = 9.sp)
                                             Text("بازخورد ذخیره‌شده: " + learningSamples + " • درست: " + learningWins + " • نادرست: " + learningLosses, color = Muted, fontSize = 10.sp)
                                             Text("خروجی شبکه عصبی (امتیاز آزمایشی): " + String.format(Locale.US, "%.1f%%", WolfDeepNeuralNetwork.predict(learningPrefs, selectedSignal) * 100.0), color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                            Text("شبکه با بازخورد دستی آموزش می‌بیند و وزن‌هایش روی گوشی ذخیره می‌شود؛ مدل از پیش‌آموزش‌دیده نیست.", color = Muted, fontSize = 9.sp)
+                                            Text("آموزش خودکار پس از تکمیل افق ارزیابی ۴ ساعته از داده‌های عمومی انجام می‌شود؛ بازخورد دستی اختیاری است. وزن‌ها محلی ذخیره می‌شوند و مدل از پیش‌آموزش‌دیده نیست.", color = Muted, fontSize = 9.sp)
                                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                 OutlinedButton(onClick = {
                                                     learningSamples += 1
@@ -458,6 +458,10 @@ fun CryptoMonitorScreen() {
 
 
 
+                    "دفترچه" -> {
+                        SignalJournalScreen(outcomeSnapshot)
+                    }
+
                     "هوش مصنوعی" -> {
                         WolfAiCompanionScreen()
                     }
@@ -489,7 +493,7 @@ fun CryptoMonitorScreen() {
                                     Text("بازار: Binance USDⓈ-M Futures", color = Muted, fontSize = 11.sp)
                                     Text("تایم‌فریم اصلی: ۱۵ دقیقه • تأیید: ۱ ساعت و ۴ ساعت", color = Muted, fontSize = 11.sp)
                                     Text("دامنه اسکن: تمام قراردادهای دائمی USDT فعال؛ مرتب‌شده بر اساس حجم معاملات", color = Muted, fontSize = 11.sp)
-                                    Text("بروزرسانی خودکار: هر ۳ دقیقه", color = Muted, fontSize = 11.sp)
+                                    Text("چرخه اسکن پیوسته: پس از پایان هر دور، ۳ دقیقه مکث و دور بعدی خودکار آغاز می‌شود؛ محدودیت API یا اینترنت می‌تواند وقفه ایجاد کند.", color = Muted, fontSize = 11.sp)
                                     Text("نسخه: 2.8.0 • Binance USDⓈ-M • تحلیل فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
@@ -501,6 +505,79 @@ fun CryptoMonitorScreen() {
         }
 
 
+    }
+}
+
+@Composable
+private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
+    var filter by remember { mutableStateOf("همه") }
+    val visible = when (filter) {
+        "باز" -> snapshot.records.filter { !it.closed }
+        "بسته" -> snapshot.records.filter { it.closed }
+        else -> snapshot.records
+    }
+    LazyColumn(
+        Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        contentPadding = PaddingValues(bottom = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text("دفترچه دائمی سیگنال‌های گرگ", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text("هر سیگنال جهت‌دار با زمان ثبت، ورود مرجع، حد ضرر، سه هدف و نتیجه بررسی‌شده ذخیره می‌شود. اطلاعات فقط روی همین گوشی نگهداری می‌شود.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        SmallStat("کل سیگنال‌ها", snapshot.total.toString(), Blue)
+                        SmallStat("باز", snapshot.active.toString(), Gold)
+                        SmallStat("TP3", snapshot.tp3.toString(), Green)
+                        SmallStat("SL", snapshot.stopped.toString(), Red)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        listOf("همه", "باز", "بسته").forEach { option ->
+                            FilterChip(selected = filter == option, onClick = { filter = option }, label = { Text(option) })
+                        }
+                    }
+                    Text("نمایش " + visible.size + " مورد از حداکثر ۵۰۰۰ رکورد اخیر", color = Muted, fontSize = 9.sp)
+                }
+            }
+        }
+        if (visible.isEmpty()) {
+            item { Text("هنوز سیگنال جهت‌داری ثبت نشده است. با ادامه اسکن خودکار، سیگنال‌ها اینجا ذخیره می‌شوند.", color = Muted, fontSize = 11.sp) }
+        } else {
+            items(visible, key = { it.created.toString() + "_" + it.symbol }) { record ->
+                val tint = if (record.side == "LONG_BIAS") Green else Red
+                val date = SimpleDateFormat("yyyy/MM/dd  HH:mm", Locale.getDefault()).format(Date(record.created))
+                Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(record.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            Text(if (record.side == "LONG_BIAS") "LONG • صعودی" else "SHORT • نزولی", color = tint, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(date, color = Muted, fontSize = 9.sp)
+                            Text(WolfSignalOutcomeJournal.statusLabel(record.status), color = when(record.status) {
+                                "TP1", "TP2", "TP3" -> Green
+                                "SL" -> Red
+                                else -> Gold
+                            }, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SmallStat("ورود", formatPrice(record.entry), Blue)
+                            SmallStat("حد ضرر", formatPrice(record.stop), Red)
+                            SmallStat("TP1", formatPrice(record.tp1), Green)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SmallStat("TP2", formatPrice(record.tp2), Green)
+                            SmallStat("TP3", formatPrice(record.tp3), Green)
+                            SmallStat("قدرت سیگنال", record.confidence.toString() + "%", tint)
+                        }
+                        Text("امتیاز: " + record.score + " • اهرم پیشنهادی تحلیلی: " + record.leverage + "x • تغییر ۲۴ساعت: " + String.format(Locale.US, "%.2f%%", record.change), color = Muted, fontSize = 9.sp)
+                        if (record.reason.isNotBlank()) Text(record.reason, color = Muted, fontSize = 9.sp, maxLines = 3)
+                    }
+                }
+            }
+        }
+        item { Text("نتایج دفترچه از کندل‌های عمومی بعدی برآورد می‌شوند؛ قیمت ورود و خروج واقعی یا سفارش صرافی نیستند.", color = Muted, fontSize = 9.sp) }
     }
 }
 
