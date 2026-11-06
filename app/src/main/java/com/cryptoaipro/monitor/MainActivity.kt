@@ -643,8 +643,8 @@ private object XTOrderExecutor {
     private const val BASE = "https://fapi.xt.com"
 
     private fun signature(secret: String, key: String, timestamp: String, path: String, body: String): String {
-        val header = "validate-appkey=$key&validate-timestamp=$timestamp"
-        val original = header + "#" + path + "#" + body
+        val header = "validate-algorithms=HmacSHA256&validate-appkey=$key&validate-recvwindow=5000&validate-timestamp=$timestamp"
+        val original = header + "#POST#" + path + "#" + body
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(secret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
         return mac.doFinal(original.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 0xff) }
@@ -658,7 +658,9 @@ private object XTOrderExecutor {
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "application/json")
+            setRequestProperty("validate-algorithms", "HmacSHA256")
             setRequestProperty("validate-appkey", creds.apiKey)
+            setRequestProperty("validate-recvwindow", "5000")
             setRequestProperty("validate-timestamp", timestamp)
             setRequestProperty("validate-signature", signature(creds.secretKey, creds.apiKey, timestamp, path, bodyText))
         }
@@ -682,8 +684,8 @@ private object XTOrderExecutor {
     suspend fun checkConnection(creds: ExchangeCredentialVault.Credentials) = withContext(Dispatchers.IO) {
         val path = "/future/user/v1/account/info"
         val timestamp = System.currentTimeMillis().toString()
-        val header = "validate-appkey=${creds.apiKey}&validate-timestamp=$timestamp"
-        val original = header + "#" + path
+        val header = "validate-algorithms=HmacSHA256&validate-appkey=${creds.apiKey}&validate-recvwindow=5000&validate-timestamp=$timestamp"
+        val original = header + "#GET#" + path
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(creds.secretKey.toByteArray(Charsets.UTF_8), "HmacSHA256"))
         val sig = mac.doFinal(original.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
@@ -691,7 +693,9 @@ private object XTOrderExecutor {
             requestMethod = "GET"; connectTimeout = 12000; readTimeout = 15000
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            setRequestProperty("validate-algorithms", "HmacSHA256")
             setRequestProperty("validate-appkey", creds.apiKey)
+            setRequestProperty("validate-recvwindow", "5000")
             setRequestProperty("validate-timestamp", timestamp)
             setRequestProperty("validate-signature", sig)
         }
