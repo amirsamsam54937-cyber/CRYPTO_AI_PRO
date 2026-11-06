@@ -281,6 +281,8 @@ fun CryptoMonitorScreen() {
                                         Text("مرکز فرماندهی بازار", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                         Text("اسکن چندتایم‌فریمی • تحلیل تکنیکال • موتور هوشمند سیگنال", color = Muted, fontSize = 10.sp)
                                         MarketSessionsPanel()
+                                        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Blue)
+                                        Text(scanProgress, color = Muted, fontSize = 10.sp)
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             MetricCard("بازارهای بررسی‌شده", rows.size.toString(), Modifier.weight(1f))
                                             MetricCard("تمایل صعودی", rows.count { it.direction == "LONG_BIAS" }.toString(), Modifier.weight(1f), Green)
