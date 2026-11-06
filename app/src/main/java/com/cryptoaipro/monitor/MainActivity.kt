@@ -289,7 +289,7 @@ private object BinanceMonitor {
 
     private fun candles(symbol: String, interval: String): List<DoubleArray> {
         val raw = JSONArray(get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval + "&limit=100"))
-        return (0 until raw.length()).map { i ->
+        return (0 until (raw.length() - 1).coerceAtLeast(0)).map { i ->
             val row = raw.getJSONArray(i)
             doubleArrayOf(row.getString(2).toDouble(), row.getString(3).toDouble(), row.getString(4).toDouble())
         }
