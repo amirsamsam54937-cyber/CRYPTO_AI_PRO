@@ -17,7 +17,10 @@ Any XT API key/secret pasted into a chat or other shared surface must be treated
 - Closed-candle multi-timeframe signal evaluation: implemented.
 - XT authenticated account/balance reads: implemented.
 - Paper-trading simulator: implemented; its state is currently in-memory.
-- Live order placement: NOT implemented and NOT enabled.
+- XT contract metadata lookup: implemented (public read-only).
+- Protected market-order adapter: implemented behind two explicit server-side gates; not exposed as a public API route and not enabled.
+- Automated strategy-to-order orchestration, position reconciliation, durable execution journal, leverage/margin setup, and independent stop-order verification: NOT implemented.
+- Live order placement: disabled by default.
 - `LIVE_TRADING_ENABLED` must remain `false`.
 
 ## Mandatory engineering gates before live execution
