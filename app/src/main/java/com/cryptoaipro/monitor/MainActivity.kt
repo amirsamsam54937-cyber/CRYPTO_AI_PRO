@@ -58,9 +58,6 @@ import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.UUID
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
 import kotlin.math.abs
 
 private val Navy = Color(0xFF0A1020)
@@ -299,7 +296,7 @@ fun CryptoMonitorScreen() {
                                 FilterChip(selected = exchange == "XT", onClick = { if (exchange != "XT") exchange = "XT" }, label = { Text("XT Futures") })
                                 FilterChip(selected = exchange == "BINANCE", onClick = { if (exchange != "BINANCE") exchange = "BINANCE" }, label = { Text("Binance Futures") })
                                 Spacer(Modifier.weight(1f))
-                                Text("۱۰۰ قرارداد", color = Blue, fontSize = 10.sp)
+                                Text("تمام قراردادهای USDT", color = Blue, fontSize = 10.sp)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                                 listOf("همه", "صعودی", "نزولی").forEach { option ->
@@ -387,6 +384,15 @@ fun CryptoMonitorScreen() {
                                             Text("الگوی هارمونیک: " + detectHarmonicPattern(selectedSignal.candles), color = Purple, fontSize = 11.sp)
                                             Text("ساختار: " + selectedSignal.technical.marketStructure + " • رژیم: " + selectedSignal.technical.regime, color = Muted, fontSize = 10.sp)
                                             Divider(color = Color(0xFF30415C))
+                                            Text("اجماع ۱۰ تحلیلگر تخصصی گرگ", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("توافق وزنی: " + (selectedSignal.consensus?.agreement ?: 0) + "% • قدرت سیگنال: " + selectedSignal.confidence, color = Blue, fontSize = 10.sp)
+                                            selectedSignal.consensus?.votes?.forEach { vote ->
+                                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                    Text(vote.name, color = Muted, fontSize = 10.sp)
+                                                    Text(vote.direction + " • " + String.format(Locale.US, "%.2f", vote.score), color = when (vote.direction) { "LONG" -> Green; "SHORT" -> Red; else -> Muted }, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                            Divider(color = Color(0xFF30415C))
                                             Text("شبکه عصبی عمیق گرگ • ۷ ورودی، ۲ لایه پنهان، ۲۴ نورون", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                             Text("بازخورد ذخیره‌شده: " + learningSamples + " • درست: " + learningWins + " • نادرست: " + learningLosses, color = Muted, fontSize = 10.sp)
                                             Text("خروجی شبکه عصبی (امتیاز آزمایشی): " + String.format(Locale.US, "%.1f%%", WolfDeepNeuralNetwork.predict(learningPrefs, selectedSignal) * 100.0), color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -467,87 +473,10 @@ fun CryptoMonitorScreen() {
 }
 
 @Composable
-private fun PaperDashboardCard(context: Context, fallbackCapital: Double) {
-    var snapshot by remember { mutableStateOf(PaperTradingEngine.snapshot(context, fallbackCapital)) }
-    Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("داشبورد معامله‌گر خودکار دمو", color = Color.White, fontWeight = FontWeight.Bold)
-                    Text("ثبت پایدار • خروج پله‌ای • توقف‌های حفاظتی", color = Muted, fontSize = 9.sp)
-                }
-                TextButton(onClick = { snapshot = PaperTradingEngine.snapshot(context, fallbackCapital) }) {
-                    Text("تازه‌سازی", color = Blue, fontSize = 10.sp)
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                MetricCard("سرمایه مجازی", String.format(Locale.US, "%.2f", snapshot.equity), Modifier.weight(1f), Blue)
-                MetricCard("سود/زیان کل", String.format(Locale.US, "%+.2f", snapshot.totalPnl), Modifier.weight(1f), if (snapshot.totalPnl >= 0) Green else Red)
-                MetricCard("معاملات باز", snapshot.openPositions.toString(), Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                SmallStat("امروز", String.format(Locale.US, "%+.2f", snapshot.dailyPnl), if (snapshot.dailyPnl >= 0) Green else Red)
-                SmallStat("برد", snapshot.wins.toString(), Green)
-                SmallStat("باخت", snapshot.losses.toString(), Red)
-                SmallStat("نرخ برد", String.format(Locale.US, "%.1f%%", snapshot.winRate), Blue)
-            }
-            Text("تعداد معاملات امروز: " + snapshot.tradesToday, color = Muted, fontSize = 9.sp)
-            if (snapshot.halted) Text("توقف حفاظتی: " + snapshot.haltReason, color = Red, fontSize = 10.sp)
-            else Text("سقف‌ها: ریسک هر معامله ۱٪ • ریسک کل ۳٪ • زیان روزانه ۲٪ • افت از اوج ۸٪ • حداکثر ۳ موقعیت", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
-            if (snapshot.journal.isNotEmpty()) {
-                Divider(color = Color(0xFF2B3A52))
-                Text("دفتر رویدادهای اخیر", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
-                snapshot.journal.forEach { Text(it, color = Muted, fontSize = 9.sp, lineHeight = 13.sp) }
-            } else Text("هنوز معامله دمو ثبت نشده است؛ پایش پس‌زمینه و معامله‌گر آزمایشی را روشن کن.", color = Muted, fontSize = 9.sp)
-        }
-    }
-}
+
 
 @Composable
-private fun TradeControls(
-    contracts: String, onContracts: (String) -> Unit,
-    leverage: String, onLeverage: (String) -> Unit,
-    armed: Boolean, onArmed: (Boolean) -> Unit,
-    message: String?,
-    paperAuto: Boolean, onPaperAuto: (Boolean) -> Unit,
-    paperCapital: String, onPaperCapital: (String) -> Unit,
-    riskPct: String, onRiskPct: (String) -> Unit
-) {
-    Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("پنل معاملات XT", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Text(if (armed) "ارسال واقعی فعال" else "ارسال واقعی خاموش", color = if (armed) Red else Muted, fontSize = 10.sp)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = contracts, onValueChange = onContracts, modifier = Modifier.weight(1f),
-                    singleLine = true, label = { Text("تعداد قرارداد") }, textStyle = androidx.compose.ui.text.TextStyle(color = Color.White))
-                OutlinedTextField(value = leverage, onValueChange = onLeverage, modifier = Modifier.weight(1f),
-                    singleLine = true, label = { Text("اهرم ۱ تا ۲۰") }, textStyle = androidx.compose.ui.text.TextStyle(color = Color.White))
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("اجازه ارسال سفارش واقعی", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                Switch(checked = armed, onCheckedChange = onArmed)
-            }
-            Divider(color = Color(0xFF2B3A52))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("معامله‌گر خودکار آزمایشی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text("فقط شبیه‌سازی؛ هیچ سفارش واقعی ارسال نمی‌کند", color = Green, fontSize = 10.sp)
-                }
-                Switch(checked = paperAuto, onCheckedChange = onPaperAuto)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = paperCapital, onValueChange = onPaperCapital, modifier = Modifier.weight(1f),
-                    singleLine = true, label = { Text("سرمایه مجازی USDT") }, textStyle = androidx.compose.ui.text.TextStyle(color = Color.White))
-                OutlinedTextField(value = riskPct, onValueChange = onRiskPct, modifier = Modifier.weight(1f),
-                    singleLine = true, label = { Text("ریسک هر معامله ٪") }, textStyle = androidx.compose.ui.text.TextStyle(color = Color.White))
-            }
-            Text("با روشن‌کردن این حالت و زدن «شروع پایش پس‌زمینه»، ربات با سرمایه مجازی معامله‌ها را باز و با حد ضرر/هدف می‌بندد. معاملات واقعی همچنان فقط با تأیید جداگانه انجام می‌شوند.", color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
-            message?.let { Text(it, color = if (it.startsWith("سفارش ارسال نشد")) Red else Green, fontSize = 10.sp) }
-        }
-    }
-}
+
 
 @Composable
 
@@ -828,7 +757,7 @@ private object XTMonitor {
             val turnover = t.optString("v").toDoubleOrNull() ?: t.optDouble("v")
             if (price <= 0.0 || open <= 0.0 || turnover <= 0.0) return@mapNotNull null
             Triple(t, price, turnover)
-        }.sortedByDescending { it.third }.take(100)
+        }.sortedByDescending { it.third }
         if (ranked.isEmpty()) throw IllegalStateException("XT هیچ قرارداد USDT Perpetual قابل اسکن برنگرداند")
         val semaphore = Semaphore(permits = 3)
         coroutineScope {
@@ -864,100 +793,7 @@ private object XTMonitor {
 }
 
 /** Signed XT futures requests. Orders are never retried automatically. */
-private object XTOrderExecutor {
-    private const val BASE = "https://fapi.xt.com"
 
-    private fun signature(secret: String, key: String, timestamp: String, path: String, body: String): String {
-        val header = "validate-appkey=$key&validate-timestamp=$timestamp"
-        val original = header + "#" + path + "#" + body
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(secret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
-        return mac.doFinal(original.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 0xff) }
-    }
-
-    private fun post(creds: ExchangeCredentialVault.Credentials, path: String, body: JSONObject): JSONObject {
-        val bodyText = body.toString()
-        val timestamp = System.currentTimeMillis().toString()
-        val c = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"; connectTimeout = 12000; readTimeout = 18000
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json")
-            setRequestProperty("Accept", "application/json")
-            setRequestProperty("validate-appkey", creds.apiKey)
-            setRequestProperty("validate-timestamp", timestamp)
-            setRequestProperty("validate-signature", signature(creds.secretKey, creds.apiKey, timestamp, path, bodyText))
-        }
-        try {
-            c.outputStream.use { it.write(bodyText.toByteArray(Charsets.UTF_8)) }
-            val code = c.responseCode
-            val stream = if (code in 200..299) c.inputStream else c.errorStream
-            val text = stream.bufferedReader().use { it.readText() }
-            if (code !in 200..299) throw IllegalStateException("XT HTTP $code: $text")
-            val json = JSONObject(text)
-            val rc = json.optString("returnCode", "0")
-            if (rc != "0" && rc != "200") {
-                val detail = json.optJSONObject("error")?.optString("msg")
-                    ?: json.optString("msgInfo", "XT درخواست را رد کرد")
-                throw IllegalStateException("XT: $detail")
-            }
-            return json
-        } finally { c.disconnect() }
-    }
-
-    suspend fun checkConnection(creds: ExchangeCredentialVault.Credentials) = withContext(Dispatchers.IO) {
-        val path = "/future/user/v1/account/info"
-        val timestamp = System.currentTimeMillis().toString()
-        val header = "validate-appkey=${creds.apiKey}&validate-timestamp=$timestamp"
-        val original = header + "#" + path
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(creds.secretKey.toByteArray(Charsets.UTF_8), "HmacSHA256"))
-        val sig = mac.doFinal(original.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 0xff) }
-        val c = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"; connectTimeout = 12000; readTimeout = 15000
-            setRequestProperty("Accept", "application/json")
-            setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-            setRequestProperty("validate-algorithms", "HmacSHA256")
-            setRequestProperty("validate-appkey", creds.apiKey)
-            setRequestProperty("validate-recvwindow", "5000")
-            setRequestProperty("validate-timestamp", timestamp)
-            setRequestProperty("validate-signature", sig)
-        }
-        try {
-            val code = c.responseCode
-            val stream = if (code in 200..299) c.inputStream else c.errorStream
-            val raw = stream.bufferedReader().use { it.readText() }
-            if (code !in 200..299) throw IllegalStateException("XT HTTP $code: $raw")
-            val json = JSONObject(raw)
-            if (json.optString("returnCode", "0") !in setOf("0", "200")) throw IllegalStateException(json.optString("msgInfo", "احراز هویت رد شد"))
-        } finally { c.disconnect() }
-    }
-
-    suspend fun placeProtectedMarketOrder(
-        creds: ExchangeCredentialVault.Credentials, signal: MarketSignal, contracts: Int, leverage: Int
-    ): String = withContext(Dispatchers.IO) {
-        require(contracts in 1..100000000) { "تعداد قرارداد نامعتبر است" }
-        require(leverage in 1..20) { "اهرم باید بین ۱ تا ۲۰ باشد" }
-        require(signal.direction == "LONG_BIAS" || signal.direction == "SHORT_BIAS") { "سیگنال خنثی قابل معامله نیست" }
-        val symbol = signal.symbol.lowercase(Locale.US).let {
-            if (it.endsWith("_usdt")) it else if (it.endsWith("usdt")) it.dropLast(4) + "_usdt" else it
-        }
-        val positionSide = if (signal.direction == "LONG_BIAS") "LONG" else "SHORT"
-        val side = if (positionSide == "LONG") "BUY" else "SELL"
-        post(creds, "/future/user/v1/position/adjust-leverage",
-            JSONObject().put("symbol", symbol).put("positionSide", positionSide).put("leverage", leverage))
-        val order = JSONObject()
-            .put("clientOrderId", "CAP-" + UUID.randomUUID().toString().replace("-", "").take(24))
-            .put("symbol", symbol)
-            .put("orderSide", side)
-            .put("orderType", "MARKET")
-            .put("origQty", contracts)
-            .put("positionSide", positionSide)
-            .put("triggerStopPrice", signal.stop)
-            .put("triggerProfitPrice", signal.tp1)
-        val response = post(creds, "/future/trade/v1/order/create", order)
-        "درخواست سفارش به XT پذیرفته شد. پاسخ: " + response.optString("msgInfo", "success")
-    }
-}
 
 private object BinanceMonitor {
     private const val BASE = "https://fapi.binance.com"
@@ -1279,32 +1115,16 @@ class MarketMonitorService : Service() {
     private var worker: kotlinx.coroutines.Job? = null
     private val serviceScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
     private var selectedExchange: String = "XT"
-    private var paperAutoEnabled: Boolean = false
-    private var paperCapital: Double = 1000.0
-    private var riskPercent: Double = 1.0
-    private var paperLeverage: Int = 2
     override fun onCreate() { super.onCreate(); createChannel() }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val config = getSharedPreferences("market_monitor_config", Context.MODE_PRIVATE)
         if (intent != null) {
             selectedExchange = intent.getStringExtra("exchange") ?: selectedExchange
-            paperAutoEnabled = false
-            paperCapital = intent.getDoubleExtra("paper_capital", paperCapital)
-            riskPercent = intent.getDoubleExtra("risk_pct", riskPercent)
-            paperLeverage = intent.getIntExtra("paper_leverage", paperLeverage)
             config.edit()
                 .putString("exchange", selectedExchange)
-                .putBoolean("paper_auto", paperAutoEnabled)
-                .putFloat("paper_capital", paperCapital.toFloat())
-                .putFloat("risk_pct", riskPercent.toFloat())
-                .putInt("paper_leverage", paperLeverage)
                 .apply()
         } else {
             selectedExchange = config.getString("exchange", selectedExchange) ?: selectedExchange
-            paperAutoEnabled = false
-            paperCapital = config.getFloat("paper_capital", 1000f).toDouble()
-            riskPercent = config.getFloat("risk_pct", 1f).toDouble()
-            paperLeverage = config.getInt("paper_leverage", 2)
         }
         startForeground(NOTIFICATION_ID, buildNotification("در حال آماده‌سازی پایش بازار"))
         if (worker?.isActive != true) {
@@ -1313,10 +1133,7 @@ class MarketMonitorService : Service() {
                     val result = runCatching {
                         val signals = if (selectedExchange == "XT") XTMonitor.scan() else BinanceMonitor.scan()
                         val active = signals.count { it.direction != "NEUTRAL" }
-                        val paperStatus = if (paperAutoEnabled) PaperTradingEngine.process(
-                            this@MarketMonitorService, signals, paperCapital, riskPercent, paperLeverage
-                        ) else "معامله‌گر آزمایشی خاموش"
-                        "اسکن ${signals.size} قرارداد • سیگنال‌های جهت‌دار: $active • $selectedExchange • $paperStatus"
+                        "اسکن ${signals.size} قرارداد • سیگنال‌های جهت‌دار: $active • $selectedExchange • فقط تحلیل تکنیکال"
                     }.getOrElse { "خطای اسکن $selectedExchange: ${it.message ?: "نامشخص"}" }
                     val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     manager.notify(NOTIFICATION_ID, buildNotification(result))
