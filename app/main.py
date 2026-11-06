@@ -69,6 +69,16 @@ def xt_dashboard():
         raise HTTPException(status_code=503, detail=str(exc))
 
 
+@app.get("/api/xt/contract/{symbol}")
+def xt_contract_detail(symbol: str):
+    """Read XT contract metadata needed for precision and order validation."""
+    try:
+        detail = XTFuturesClient().contract_detail(symbol)
+        return {"symbol": symbol, "contract": detail, "mode": "metadata-read-only"}
+    except (XTAPIError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
 @app.get("/api/xt/balances")
 def xt_balances(account_id: str = Query(..., min_length=1)):
     """Read XT futures balances. Account ID comes from the authenticated account."""
