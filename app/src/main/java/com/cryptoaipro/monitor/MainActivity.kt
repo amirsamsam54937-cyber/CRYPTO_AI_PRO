@@ -856,7 +856,7 @@ private object BinanceMonitor {
                 val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 if (code in 200..299) return body
                 lastError = "Binance HTTP $code: " + body.take(180)
-                if (code !in listOf(403, 418, 429, 451, 500, 502, 503, 504)) break
+                if (code !in listOf(418, 429, 500, 502, 503, 504)) break
             } catch (e: Exception) {
                 lastError = e.message ?: e.javaClass.simpleName
             } finally {
