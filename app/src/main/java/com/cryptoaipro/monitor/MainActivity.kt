@@ -494,7 +494,6 @@ private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolea
 }
 
 @Composable
-@Composable
 private fun CandleChart(candles: List<DoubleArray>) {
     val visible = candles.takeLast(54)
     if (visible.isEmpty()) return
@@ -548,6 +547,7 @@ private fun MarketSessionsPanel() {
     }
 }
 
+@Composable
 private fun SmallStat(label: String, value: String, color: Color = Color.White) {
     Column {
         Text(label, color = Muted, fontSize = 9.sp)
