@@ -13,7 +13,7 @@ import kotlin.math.abs
 internal object WolfSignalOutcomeJournal {
     private const val PREFS = "wolf_signal_outcomes"
     private const val KEY = "records_v4"
-    private const val LEGACY_KEYS = arrayOf("records_v3", "records_v2", "records_v1")
+    private val LEGACY_KEYS = arrayOf("records_v3", "records_v2", "records_v1")
     private const val MAX_RECORDS = 5000
     private const val SIGNAL_TIMEFRAME = "15m"
     private const val VALIDITY_MS = 15L * 60L * 1000L
