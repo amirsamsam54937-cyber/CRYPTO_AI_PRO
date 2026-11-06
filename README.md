@@ -1,7 +1,7 @@
 # CRYPTO AI PRO ULTIMATE
 
 **Android app version: 2.2.0 (development)**  
-A Persian-first, modular crypto-futures market intelligence and paper-trading application. The Android client is built with Kotlin and Jetpack Compose; the Python package provides research, risk, and backtesting utilities.
+A Persian-first, modular crypto-futures technical-analysis application. The Android client is built with Kotlin and Jetpack Compose; the Python package provides research, risk, and backtesting utilities.
 
 > This is experimental trading software. Market signals are not investment advice and do not guarantee outcomes. Real-money order execution is not production-certified. Keep live trading disabled until the readiness gates in `docs/LIVE_TRADING_READINESS.md` are independently completed.
 
@@ -12,7 +12,6 @@ The 2.2.0 interface focuses on live technical analysis and is organized into fiv
 - **خانه** — market overview, session context, scan counts, and leading candidates.
 - **بازار** — XT Futures / Binance Futures selector, bullish/bearish filters, manual refresh, and ranked market cards.
 - **تحلیل** — selected candidate, single-symbol TradingView chart, multi-indicator diagnostics, candlestick and harmonic-pattern recognition, persistent feedback learning, and Persian voice interaction.
-- **معاملات** — autonomous paper-trading dashboard, persistent trade journal, risk limits, staged exits, trailing stops, and individually confirmed XT manual order ticket.
 - **حساب** — encrypted on-device XT credential storage and authenticated connection check.
 - **تنظیمات** — scanner configuration summary. Trading and paper-autopilot controls are disabled in this analysis-focused build.
 
