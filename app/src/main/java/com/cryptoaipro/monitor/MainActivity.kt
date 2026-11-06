@@ -303,7 +303,7 @@ fun CryptoMonitorScreen() {
                                         Text(selectedSignal.symbol, color = Blue, fontWeight = FontWeight.Bold)
                                     }
                                 }
-                                item { SignalCard(selectedSignal, onTrade = { pendingTrade = selectedSignal }, canTrade = canTrade) }
+                                item { SignalCard(selectedSignal, onTrade = { pendingTrade = selectedSignal }, canTrade = canTrade, onSelect = { selectedSymbol = selectedSignal.symbol }) }
                                 item {
                                     Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -372,7 +372,7 @@ fun CryptoMonitorScreen() {
                             }
                             item { Text("سیگنال‌های قابل بررسی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp) }
                             items(rows.filter { it.direction != "NEUTRAL" }.take(20), key = { "trade-" + it.symbol }) { signal ->
-                                SignalCard(signal, onTrade = { pendingTrade = signal }, canTrade = canTrade)
+                                SignalCard(signal, onTrade = { pendingTrade = signal }, canTrade = canTrade, onSelect = { selectedSymbol = signal.symbol; selectedTab = "تحلیل" })
                             }
                         }
                     }
@@ -645,7 +645,7 @@ private fun MetricCard(title: String, value: String, modifier: Modifier, valueCo
 }
 
 @Composable
-private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolean) {
+private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolean, onSelect: () -> Unit = {}) {
     var expanded by remember(item.symbol) { mutableStateOf(false) }
     val tint = when (item.direction) {
         "LONG_BIAS" -> Green
@@ -661,6 +661,9 @@ private fun SignalCard(item: MarketSignal, onTrade: () -> Unit, canTrade: Boolea
         Column(Modifier.padding(13.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(item.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = onSelect, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
+                    Text("تحلیل", color = Blue, fontSize = 10.sp)
+                }
                 Surface(color = tint.copy(alpha = .15f), shape = RoundedCornerShape(20.dp)) {
                     Text(label, color = tint, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
                 }
