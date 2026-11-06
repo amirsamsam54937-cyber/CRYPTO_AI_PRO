@@ -107,9 +107,11 @@ object PaperTradingEngine {
             p.put("stop", stop).put("remaining", remaining).put("stage", stage).put("mark", mark)
             survivors.put(p)
         }
-        peak = max(peak, equity)
-        val dailyLoss = if (dayStart > 0) max(0.0, -dailyPnl) / dayStart else 0.0
-        val drawdown = if (peak > 0) max(0.0, peak - equity) / peak else 0.0
+        val unrealizedPnl = markToMarket(survivors, quotes)
+        val markedEquity = equity + unrealizedPnl
+        peak = max(peak, markedEquity)
+        val dailyLoss = if (dayStart > 0) max(0.0, -(dailyPnl + unrealizedPnl)) / dayStart else 0.0
+        val drawdown = if (peak > 0) max(0.0, peak - markedEquity) / peak else 0.0
         val halt = when {
             dailyLoss >= DAILY_LOSS_CAP -> "زیان روزانه به سقف ۲٪ رسید"
             drawdown >= DRAWDOWN_CAP -> "افت سرمایه از اوج به ۸٪ رسید"
@@ -118,7 +120,7 @@ object PaperTradingEngine {
         }
         val cooldowns = JSONObject(prefs.getString("cooldowns", "{}") ?: "{}")
         if (halt.isEmpty() && survivors.length() < MAX_POSITIONS && tradesToday < MAX_DAILY_TRADES) {
-            val requestedRisk = equity * (riskPct.coerceIn(0.1, 1.0) / 100.0)
+            val requestedRisk = markedEquity * (riskPct.coerceIn(0.1, 1.0) / 100.0)
             var riskBudget = max(0.0, equity * PORTFOLIO_RISK_CAP - openRisk(survivors))
             signals.asSequence()
                 .filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
@@ -152,6 +154,7 @@ object PaperTradingEngine {
             .putString("equity", equity.toString()).putString("initial", initial.toString())
             .putString("peak", peak.toString()).putString("day_start", dayStart.toString())
             .putString("day", dayKey).putString("daily_pnl", dailyPnl.toString())
+            .putString("unrealized_pnl", unrealizedPnl.toString())
             .putString(POSITIONS, survivors.toString()).putString(JOURNAL, journal.toString())
             .putString("cooldowns", cooldowns.toString()).putInt("trades_today", tradesToday)
             .putInt("closed", closed).putInt("wins", wins).putInt("losses", losses).apply()
@@ -167,8 +170,11 @@ object PaperTradingEngine {
         val day = p.getString("day", utcDay(System.currentTimeMillis())) ?: utcDay(System.currentTimeMillis())
         val today = day == utcDay(System.currentTimeMillis())
         val dayStart = p.getString("day_start", null)?.toDoubleOrNull() ?: equity
-        val daily = if (today) p.getString("daily_pnl", null)?.toDoubleOrNull() ?: 0.0 else 0.0
-        val peak = p.getString("peak", null)?.toDoubleOrNull() ?: equity
+        val realizedDaily = if (today) p.getString("daily_pnl", null)?.toDoubleOrNull() ?: 0.0 else 0.0
+        val unrealized = p.getString("unrealized_pnl", null)?.toDoubleOrNull() ?: 0.0
+        val daily = realizedDaily + unrealized
+        val markedEquity = equity + unrealized
+        val peak = p.getString("peak", null)?.toDoubleOrNull() ?: markedEquity
         val closed = p.getInt("closed", 0); val wins = p.getInt("wins", 0); val losses = p.getInt("losses", 0)
         val dailyLoss = if (dayStart > 0) max(0.0, -daily) / dayStart else 0.0
         val dd = if (peak > 0) max(0.0, peak - equity) / peak else 0.0
@@ -180,11 +186,26 @@ object PaperTradingEngine {
         }
         val j = JSONArray(p.getString(JOURNAL, "[]") ?: "[]")
         val entries = (0 until j.length()).mapNotNull { j.optString(it).takeIf(String::isNotBlank) }.takeLast(8).reversed()
-        return Snapshot(equity, initial, daily, equity - initial,
+        return Snapshot(markedEquity, initial, daily, markedEquity - initial,
             JSONArray(p.getString(POSITIONS, "[]") ?: "[]").length(), closed, wins, losses,
             if (today) p.getInt("trades_today", 0) else 0,
             if (closed > 0) wins.toDouble() / closed * 100.0 else 0.0,
             peak, reason.isNotEmpty(), reason, entries)
+    }
+
+    private fun markToMarket(positions: JSONArray, quotes: Map<String, MarketSignal>): Double {
+        var total = 0.0
+        for (i in 0 until positions.length()) {
+            val p = positions.optJSONObject(i) ?: continue
+            val quote = quotes[p.optString("symbol")] ?: continue
+            val entry = p.optDouble("entry")
+            val qty = p.optDouble("remaining")
+            val dir = p.optInt("dir", 1)
+            if (entry > 0.0 && qty > 0.0 && quote.price > 0.0) {
+                total += (quote.price - entry) * qty * dir - (entry + quote.price) * qty * FEE
+            }
+        }
+        return total
     }
 
     private fun openRisk(a: JSONArray): Double {
