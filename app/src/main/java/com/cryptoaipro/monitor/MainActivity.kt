@@ -409,21 +409,21 @@ fun CryptoMonitorScreen() {
                                             Text("الگوی هارمونیک: " + detectHarmonicPattern(selectedSignal.candles), color = Purple, fontSize = 11.sp)
                                             Text("ساختار: " + selectedSignal.technical.marketStructure + " • رژیم: " + selectedSignal.technical.regime, color = Muted, fontSize = 10.sp)
                                             Divider(color = Color(0xFF30415C))
-                                            Text("حافظه یادگیری تطبیقی روی دستگاه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("شبکه عصبی عمیق گرگ • ۷ ورودی، ۲ لایه پنهان، ۲۴ نورون", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                             Text("بازخورد ذخیره‌شده: " + learningSamples + " • درست: " + learningWins + " • نادرست: " + learningLosses, color = Muted, fontSize = 10.sp)
-                                            Text("امتیاز سازگاری مدل: " + String.format(Locale.US, "%.1f%%", WolfOnlineLearner.predict(learningPrefs, selectedSignal) * 100.0), color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                            Text("بعد از مشخص‌شدن نتیجه حرکت قیمت، بازخورد را ثبت کن؛ داده‌ها پس از بستن برنامه باقی می‌مانند.", color = Muted, fontSize = 9.sp)
+                                            Text("خروجی شبکه عصبی (امتیاز آزمایشی): " + String.format(Locale.US, "%.1f%%", WolfDeepNeuralNetwork.predict(learningPrefs, selectedSignal) * 100.0), color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            Text("شبکه با بازخورد دستی آموزش می‌بیند و وزن‌هایش روی گوشی ذخیره می‌شود؛ مدل از پیش‌آموزش‌دیده نیست.", color = Muted, fontSize = 9.sp)
                                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                 OutlinedButton(onClick = {
                                                     learningSamples += 1
                                                     learningWins += 1
-                                                    WolfOnlineLearner.learn(learningPrefs, selectedSignal, 1.0)
+                                                    WolfDeepNeuralNetwork.learn(learningPrefs, selectedSignal, 1.0)
                                                     learningPrefs.edit().putInt("samples", learningSamples).putInt("wins", learningWins).putInt("losses", learningLosses).putString("last_symbol", selectedSignal.symbol).putString("last_feedback", "correct").apply()
                                                 }, modifier = Modifier.weight(1f)) { Text("✓ تحلیل درست بود", fontSize = 10.sp) }
                                                 OutlinedButton(onClick = {
                                                     learningSamples += 1
                                                     learningLosses += 1
-                                                    WolfOnlineLearner.learn(learningPrefs, selectedSignal, 0.0)
+                                                    WolfDeepNeuralNetwork.learn(learningPrefs, selectedSignal, 0.0)
                                                     learningPrefs.edit().putInt("samples", learningSamples).putInt("wins", learningWins).putInt("losses", learningLosses).putString("last_symbol", selectedSignal.symbol).putString("last_feedback", "wrong").apply()
                                                 }, modifier = Modifier.weight(1f)) { Text("✕ تحلیل نادرست بود", fontSize = 10.sp) }
                                             }
@@ -915,57 +915,6 @@ private fun CandleChart(candles: List<DoubleArray>) {
 
 @Composable
 
-
-private object WolfOnlineLearner {
-    private fun features(signal: MarketSignal): DoubleArray {
-        val direction = if (signal.direction == "SHORT_BIAS") -1.0 else 1.0
-        val trend = if (signal.technical.ema20 >= signal.technical.ema50) 1.0 else -1.0
-        val rsi = ((signal.rsi - 50.0) / 50.0).coerceIn(-1.0, 1.0)
-        val adx = (signal.technical.adx / 50.0).coerceIn(0.0, 1.0)
-        val volume = ((signal.technical.relativeVolume - 1.0) / 2.0).coerceIn(-1.0, 1.0)
-        val pattern = when {
-            signal.technical.candlePattern.contains("صعودی") || signal.technical.candlePattern.contains("چکش") -> 1.0
-            signal.technical.candlePattern.contains("نزولی") || signal.technical.candlePattern.contains("ثاقب") -> -1.0
-            else -> 0.0
-        }
-        val volatility = ((signal.technical.atrPercent - 2.0) / 5.0).coerceIn(-1.0, 1.0)
-        return doubleArrayOf(1.0, trend * direction, rsi * direction, adx, volume, pattern * direction, volatility)
-    }
-
-    private fun weights(prefs: android.content.SharedPreferences): DoubleArray {
-        val raw = prefs.getString("wolf_model_weights", null) ?: return DoubleArray(7)
-        return runCatching {
-            val json = JSONArray(raw)
-            DoubleArray(7) { i -> json.optDouble(i, 0.0) }
-        }.getOrDefault(DoubleArray(7))
-    }
-
-    private fun saveWeights(prefs: android.content.SharedPreferences, weights: DoubleArray) {
-        val json = JSONArray()
-        weights.forEach { json.put(it) }
-        prefs.edit().putString("wolf_model_weights", json.toString()).apply()
-    }
-
-    fun predict(prefs: android.content.SharedPreferences, signal: MarketSignal): Double {
-        val w = weights(prefs)
-        val x = features(signal)
-        var z = 0.0
-        for (i in w.indices) z += w[i] * x[i]
-        return (1.0 / (1.0 + kotlin.math.exp(-z))).coerceIn(0.01, 0.99)
-    }
-
-    fun learn(prefs: android.content.SharedPreferences, signal: MarketSignal, outcome: Double) {
-        val w = weights(prefs)
-        val x = features(signal)
-        var z = 0.0
-        for (i in w.indices) z += w[i] * x[i]
-        val prediction = 1.0 / (1.0 + kotlin.math.exp(-z))
-        val error = outcome - prediction
-        val rate = 0.06
-        for (i in w.indices) w[i] += rate * error * x[i]
-        saveWeights(prefs, w)
-    }
-}
 
 @Composable
 private fun TradingViewPairChart(selectedSymbol: String) {
