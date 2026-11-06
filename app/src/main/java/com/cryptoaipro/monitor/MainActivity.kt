@@ -1,6 +1,14 @@
 package com.cryptoaipro.monitor
 
 import android.os.Bundle
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
@@ -142,6 +150,23 @@ fun CryptoMonitorScreen() {
             }
             Spacer(Modifier.height(12.dp))
             MarketSessionsPanel()
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = {
+                        val intent = Intent(context, MarketMonitorService::class.java)
+                            .putExtra("exchange", exchange)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+                        else context.startService(intent)
+                    },
+                    modifier = Modifier.weight(1f)
+                ) { Text("شروع پایش پس‌زمینه") }
+                OutlinedButton(
+                    onClick = { context.stopService(Intent(context, MarketMonitorService::class.java)) },
+                    modifier = Modifier.weight(1f)
+                ) { Text("توقف پایش") }
+            }
+            Text("با خروج از صفحه، پایش در سرویس foreground و همراه اعلان دائمی ادامه می‌یابد؛ محدودیت‌های خود اندروید همچنان برقرار است.", color = Muted, fontSize = 10.sp)
             Spacer(Modifier.height(10.dp))
             if (showConnection) {
                 ConnectionCard(
@@ -1019,4 +1044,46 @@ private object BinanceMonitor {
         val macd = fast.zip(slow) { x, y -> x - y }
         return macd.last() to ema(macd, 9)
     }
+}
+
+/** User-visible on-device monitor. Android can still stop it under force-stop, battery policy, reboot, or OS limits. */
+class MarketMonitorService : Service() {
+    private var worker: kotlinx.coroutines.Job? = null
+    private val serviceScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    private var selectedExchange: String = "XT"
+    override fun onCreate() { super.onCreate(); createChannel() }
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        selectedExchange = intent?.getStringExtra("exchange") ?: selectedExchange
+        startForeground(NOTIFICATION_ID, buildNotification("در حال آماده‌سازی پایش بازار"))
+        if (worker?.isActive != true) {
+            worker = serviceScope.launch {
+                while (kotlin.coroutines.coroutineContext.isActive) {
+                    val result = runCatching {
+                        val signals = if (selectedExchange == "XT") XTMonitor.scan() else BinanceMonitor.scan()
+                        val active = signals.count { it.direction != "NEUTRAL" }
+                        "اسکن ${signals.size} قرارداد • سیگنال‌های جهت‌دار: $active • $selectedExchange"
+                    }.getOrElse { "خطای اسکن $selectedExchange: ${it.message ?: "نامشخص"}" }
+                    val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    manager.notify(NOTIFICATION_ID, buildNotification(result))
+                    delay(180_000L)
+                }
+            }
+        }
+        return START_STICKY
+    }
+    private fun createChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(CHANNEL_ID, "پایش بازار CRYPTO AI PRO", NotificationManager.IMPORTANCE_LOW)
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
+        }
+    }
+    private fun buildNotification(status: String): Notification {
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
+        return builder.setSmallIcon(android.R.drawable.ic_menu_info_details)
+            .setContentTitle("CRYPTO AI PRO • پایش پس‌زمینه")
+            .setContentText(status).setOngoing(true).build()
+    }
+    override fun onDestroy() { worker?.cancel(); serviceScope.cancel(); super.onDestroy() }
+    override fun onBind(intent: Intent?): IBinder? = null
+    companion object { private const val CHANNEL_ID = "crypto_ai_market_monitor"; private const val NOTIFICATION_ID = 4101 }
 }
