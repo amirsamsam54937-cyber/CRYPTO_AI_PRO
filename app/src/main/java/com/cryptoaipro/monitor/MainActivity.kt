@@ -14,6 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.cryptoaipro.monitor.security.ExchangeCredentialVault
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,6 +67,13 @@ fun CryptoMonitorScreen() {
     var updated by remember { mutableStateOf("هنوز اسکن انجام نشده") }
     var filter by remember { mutableStateOf("همه") }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val credentialVault = remember(context) { ExchangeCredentialVault(context) }
+    var showConnection by remember { mutableStateOf(false) }
+    var apiKeyInput by remember { mutableStateOf("") }
+    var secretKeyInput by remember { mutableStateOf("") }
+    var credentialsSaved by remember { mutableStateOf(credentialVault.hasCredentials()) }
+    var credentialMessage by remember { mutableStateOf<String?>(null) }
 
     suspend fun performScan() {
         loading = true
@@ -96,11 +106,45 @@ fun CryptoMonitorScreen() {
                     Text("CRYPTO AI PRO", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Black)
                     Text("پایش هوشمند بازار فیوچرز • بدون معامله", color = Muted, fontSize = 12.sp)
                 }
+                TextButton(onClick = { showConnection = !showConnection }) {
+                    Text(if (showConnection) "بستن اتصال" else "اتصال XT", color = Blue, fontSize = 12.sp)
+                }
                 Surface(color = Color(0xFF123B36), shape = RoundedCornerShape(20.dp)) {
-                    Text("● فقط نظارت", color = Green, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), fontSize = 11.sp)
+                    Text("● تحلیل؛ بدون معامله", color = Green, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), fontSize = 10.sp)
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
+            if (showConnection) {
+                ConnectionCard(
+                    apiKey = apiKeyInput,
+                    onApiKeyChange = { apiKeyInput = it },
+                    secretKey = secretKeyInput,
+                    onSecretKeyChange = { secretKeyInput = it },
+                    saved = credentialsSaved,
+                    message = credentialMessage,
+                    onSave = {
+                        runCatching {
+                            credentialVault.save(ExchangeCredentialVault.Credentials(apiKeyInput.trim(), secretKeyInput))
+                        }.onSuccess {
+                            credentialsSaved = true
+                            apiKeyInput = ""
+                            secretKeyInput = ""
+                            credentialMessage = "کلیدها به‌صورت رمزگذاری‌شده روی همین دستگاه ذخیره شدند."
+                        }.onFailure { credentialMessage = it.message ?: "ذخیره‌سازی ناموفق بود." }
+                    },
+                    onClear = {
+                        runCatching { credentialVault.clear() }
+                            .onSuccess {
+                                credentialsSaved = false
+                                apiKeyInput = ""
+                                secretKeyInput = ""
+                                credentialMessage = "کلیدهای ذخیره‌شده از این دستگاه پاک شدند."
+                            }
+                            .onFailure { credentialMessage = it.message ?: "پاک‌سازی ناموفق بود." }
+                    }
+                )
+                Spacer(Modifier.height(12.dp))
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MetricCard("قراردادهای بررسی‌شده", rows.size.toString(), Modifier.weight(1f))
                 MetricCard("تمایل صعودی", rows.count { it.direction == "LONG_BIAS" }.toString(), Modifier.weight(1f), Green)
@@ -139,6 +183,63 @@ fun CryptoMonitorScreen() {
                 "اسکن خودکار هر ۳ دقیقه • تایم‌فریم ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • فقط نظارت",
                 color = Muted, fontSize = 10.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConnectionCard(
+    apiKey: String,
+    onApiKeyChange: (String) -> Unit,
+    secretKey: String,
+    onSecretKeyChange: (String) -> Unit,
+    saved: Boolean,
+    message: String?,
+    onSave: () -> Unit,
+    onClear: () -> Unit
+) {
+    Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("اتصال امن به XT Futures", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                Text(if (saved) "کلید ذخیره است" else "بدون کلید", color = if (saved) Green else Muted, fontSize = 10.sp)
+            }
+            OutlinedTextField(
+                value = apiKey,
+                onValueChange = onApiKeyChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("XT API Key") },
+                placeholder = { Text("کلید API را وارد کنید") },
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp)
+            )
+            OutlinedTextField(
+                value = secretKey,
+                onValueChange = onSecretKeyChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("XT Secret Key") },
+                placeholder = { Text("کلید محرمانه را وارد کنید") },
+                visualTransformation = PasswordVisualTransformation(),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp)
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onSave,
+                    enabled = apiKey.isNotBlank() && secretKey.isNotBlank(),
+                    modifier = Modifier.weight(1f)
+                ) { Text("ذخیره امن") }
+                OutlinedButton(onClick = onClear, enabled = saved) { Text("حذف کلیدها") }
+            }
+            message?.let { Text(it, color = Green, fontSize = 10.sp) }
+            Text(
+                "ذخیره‌سازی با Android Keystore و AES-GCM انجام می‌شود. این بخش فعلاً فقط کلیدها را امن ذخیره می‌کند و هنوز اتصال احراز هویت‌شده یا ارسال سفارش را فعال نمی‌کند.",
+                color = Muted, fontSize = 10.sp, lineHeight = 15.sp
+            )
+            Text(
+                "امنیت: مجوز برداشت وجه را فعال نکنید. کلیدهایی که قبلاً در چت یا مخزن عمومی فرستاده‌اید، باطل و با کلید جدید جایگزین کنید.",
+                color = Red, fontSize = 10.sp, lineHeight = 15.sp
             )
         }
     }
