@@ -561,7 +561,7 @@ private object XTMonitor {
             val row = rows.optJSONObject(i) ?: return@mapNotNull null
             fun n(key: String): Double = row.optString(key).toDoubleOrNull() ?: row.optDouble(key)
             doubleArrayOf(n("o"), n("h"), n("l"), n("c"), n("a"))
-        }.filter { it.all(Double::isFinite) && it[3] > 0.0 }
+        }.filter { it.all { value -> value.isFinite() } && it[3] > 0.0 }
     }
 }
 
