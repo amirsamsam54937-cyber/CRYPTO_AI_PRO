@@ -100,7 +100,8 @@ def run_backtest(
                 fees = position["entry_fee"] + exit_fee
                 slip_cost = position["entry_slip_cost"] + abs(raw_exit-exit_price)*position["quantity"]
                 net = gross - fees - funding
-                equity += net
+                # Entry fee was deducted at entry; only add exit cashflow here.
+                equity += gross - exit_fee - funding
                 trades.append(Trade(
                     side=side, signal_time=position["signal_time"], entry_time=position["entry_time"],
                     exit_time=ts, entry=position["entry"], exit=exit_price,
