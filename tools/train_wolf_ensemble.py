@@ -7,8 +7,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, log_loss
 
 BASES = ["https://fapi.binance.com", "https://fapi1.binance.com", "https://fapi2.binance.com"]
-SYMBOLS = ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","LINKUSDT","AVAXUSDT","LTCUSDT","TRXUSDT","DOTUSDT"]
-INTERVAL, LIMIT, HORIZON = "1h", 1500, 6
+SYMBOLS = ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","LINKUSDT","AVAXUSDT","LTCUSDT","TRXUSDT","DOTUSDT","BCHUSDT","ETCUSDT","ATOMUSDT","NEARUSDT","APTUSDT","ARBUSDT","OPUSDT","FILUSDT"]
+INTERVAL, PAGE_LIMIT, HISTORY_BARS, HORIZON = "1h", 1500, 6000, 6
 
 def get_json(path):
     error = None
@@ -20,6 +20,28 @@ def get_json(path):
         except Exception as exc:
             error = exc
     raise RuntimeError(f"Binance historical candles unavailable: {error}")
+
+def get_history(symbol):
+    rows=[]
+    start=None
+    while len(rows)<HISTORY_BARS:
+        query=f"/fapi/v1/klines?symbol={symbol}&interval={INTERVAL}&limit={PAGE_LIMIT}"
+        if start is not None:
+            query += f"&startTime={start}"
+        page=get_json(query)
+        if not page:
+            break
+        rows.extend(page)
+        next_start=int(page[-1][6])+1
+        if start is not None and next_start<=start:
+            break
+        start=next_start
+        if len(page)<PAGE_LIMIT:
+            break
+        time.sleep(.08)
+    # Keep unique candle open times in ascending order.
+    unique={int(row[0]):row for row in rows}
+    return [unique[key] for key in sorted(unique)][-HISTORY_BARS:]
 
 def ema(values, period):
     result = np.empty(len(values), dtype=float)
@@ -66,7 +88,7 @@ def main():
     chunks=[]
     for symbol in SYMBOLS:
         try:
-            raw=get_json(f"/fapi/v1/klines?symbol={symbol}&interval={INTERVAL}&limit={LIMIT}")
+            raw=get_history(symbol)
             x,y,t=make_rows(raw)
             if len(x)>100:
                 chunks.append((x,y,t))
@@ -90,7 +112,7 @@ def main():
     A,B=scaler.transform(X_train),scaler.transform(X_test)
     members,metrics=[],[]
     for index in range(10):
-        model=MLPClassifier(hidden_layer_sizes=(16,8),activation="tanh",solver="adam",
+        model=MLPClassifier(hidden_layer_sizes=(64,32,16),activation="tanh",solver="adam",
             alpha=.002,learning_rate_init=.0015,max_iter=300,early_stopping=True,
             validation_fraction=.15,n_iter_no_change=22,random_state=20261107+index)
         model.fit(A,y_train)
