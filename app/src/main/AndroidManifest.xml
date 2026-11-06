@@ -3,7 +3,7 @@
  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
- <application android:allowBackup="false" android:label="CRYPTO AI PRO" android:icon="@drawable/ic_crypto_ai_logo" android:roundIcon="@drawable/ic_crypto_ai_logo"
+ <application android:allowBackup="false" android:label="AMIRARSALAN TRADER WOLF" android:icon="@drawable/ic_crypto_ai_logo" android:roundIcon="@drawable/ic_crypto_ai_logo"
   android:theme="@android:style/Theme.Material.Light.NoActionBar"
   android:usesCleartextTraffic="false">
   <service android:name=".MarketMonitorService" android:exported="false" android:foregroundServiceType="specialUse">
