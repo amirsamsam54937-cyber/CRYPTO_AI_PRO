@@ -108,7 +108,6 @@ fun CryptoMonitorScreen() {
     var exchange by remember { mutableStateOf("XT") }
     var selectedTab by remember { mutableStateOf("خانه") }
     var selectedSymbol by remember { mutableStateOf("") }
-    var marketChart by remember { mutableStateOf("PAIR") }
     var voiceTranscript by remember { mutableStateOf("") }
     var voiceReply by remember { mutableStateOf("") }
     var orderContracts by remember { mutableStateOf("1") }
@@ -238,6 +237,8 @@ fun CryptoMonitorScreen() {
                         close()
                     }
                     drawPath(wolf, Blue.copy(alpha = 0.035f))
+                    drawCircle(Blue.copy(alpha = 0.08f), radius = size.width * 0.018f, center = androidx.compose.ui.geometry.Offset(size.width * 0.40f, size.height * 0.43f))
+                    drawCircle(Blue.copy(alpha = 0.08f), radius = size.width * 0.018f, center = androidx.compose.ui.geometry.Offset(size.width * 0.60f, size.height * 0.43f))
                 }
             ) {
                 Row(
