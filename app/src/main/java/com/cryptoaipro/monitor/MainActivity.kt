@@ -102,13 +102,13 @@ fun CryptoMonitorScreen() {
             }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MetricCard("ارزهای تحلیل‌شده", rows.size.toString(), Modifier.weight(1f))
+                MetricCard("قراردادهای بررسی‌شده", rows.size.toString(), Modifier.weight(1f))
                 MetricCard("تمایل صعودی", rows.count { it.direction == "LONG_BIAS" }.toString(), Modifier.weight(1f), Green)
                 MetricCard("تمایل نزولی", rows.count { it.direction == "SHORT_BIAS" }.toString(), Modifier.weight(1f), Red)
             }
             Spacer(Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("رتبه‌بندی بازار", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
+                Text("۳۰ قرارداد پرحجم بازار", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
                 Text("آخرین اسکن: " + updated, color = Muted, fontSize = 10.sp)
             }
             Spacer(Modifier.height(8.dp))
@@ -247,7 +247,7 @@ private object BinanceMonitor {
         val ranked = (0 until tickers.length()).map { tickers.getJSONObject(it) }
             .filter { allowed.contains(it.optString("symbol")) }
             .sortedByDescending { it.optDouble("quoteVolume", 0.0) }
-            .take(18)
+            .take(30)
         val semaphore = Semaphore(permits = 4)
         coroutineScope {
             ranked.map { ticker ->
