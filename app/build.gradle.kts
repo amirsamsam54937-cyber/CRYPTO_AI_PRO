@@ -10,8 +10,8 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 12
-  versionName = "2.2.0"
+  versionCode = 13
+  versionName = "2.3.0"
  }
  buildFeatures { compose = true }
  compileOptions {
