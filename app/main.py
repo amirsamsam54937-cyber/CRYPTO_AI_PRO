@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.market import fetch_ohlcv
 from app.indicators import build_signal
+from app.exchanges.xt_futures import XTFuturesClient, XTAPIError
 
 class Settings(BaseSettings):
     app_name: str="CRYPTO AI PRO"
@@ -14,7 +15,7 @@ class Settings(BaseSettings):
 
 settings=Settings()
 app=FastAPI(title=settings.app_name,version="0.1.0",
-            description="Market research and paper-trading foundation. No live orders.")
+            description="Market research, paper trading, and authenticated XT account read access. No live orders.")
 
 @app.get("/",response_class=HTMLResponse)
 def dashboard():
@@ -35,7 +36,25 @@ o.textContent=JSON.stringify(j,null,2)}catch(e){o.textContent='خطا: '+e.messa
 
 @app.get("/health")
 def health():
-    return {"status":"ok","app":settings.app_name,"mode":"research-paper-only"}
+    return {"status":"ok","app":settings.app_name,"mode":"research-paper-and-xt-read-only"}
+
+@app.get("/api/xt/connection")
+def xt_connection():
+    """Check XT futures account authentication without placing orders."""
+    try:
+        return XTFuturesClient().connection_check()
+    except XTAPIError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@app.get("/api/xt/balances")
+def xt_balances(account_id: str = Query(..., min_length=1)):
+    """Read XT futures balances. Account ID comes from the authenticated account."""
+    try:
+        return XTFuturesClient().balances(account_id)
+    except (XTAPIError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
 
 @app.get("/api/signal/{symbol:path}")
 def signal(symbol: str,timeframe: str=Query(default=None)):
