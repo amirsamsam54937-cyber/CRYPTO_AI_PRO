@@ -136,7 +136,7 @@ fun CryptoMonitorScreen() {
                 }
             }
             Text(
-                "اسکن خودکار هر ۳ دقیقه • تایم‌فریم ۱۵ دقیقه و ۱ ساعت • بدون ارسال سفارش",
+                "اسکن خودکار هر ۳ دقیقه • تایم‌فریم ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • فقط نظارت",
                 color = Muted, fontSize = 10.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
             )
@@ -179,7 +179,7 @@ private fun SignalCard(item: MarketSignal) {
                 SmallStat("قیمت", formatPrice(item.price))
                 SmallStat("تغییر ۲۴ساعت", String.format(Locale.US, "%.2f%%", item.change), if (item.change >= 0) Green else Red)
                 SmallStat("RSI", String.format(Locale.US, "%.1f", item.rsi))
-                SmallStat("امتیاز", item.score.toString() + "/6")
+                SmallStat("امتیاز", item.score.toString() + "/9")
             }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -270,18 +270,20 @@ private object BinanceMonitor {
     private suspend fun analyze(symbol: String, price: Double, change: Double, volume: Double): MarketSignal {
         val short = candles(symbol, "15m")
         val confirm = candles(symbol, "1h")
+        val trend = candles(symbol, "4h")
         val a = indicators(short)
         val b = indicators(confirm)
-        val score = a.first + b.first
+        val c = indicators(trend)
+        val score = a.first + b.first + c.first
         val direction = when {
-            score >= 3 -> "LONG_BIAS"
-            score <= -3 -> "SHORT_BIAS"
+            score >= 4 -> "LONG_BIAS"
+            score <= -4 -> "SHORT_BIAS"
             else -> "NEUTRAL"
         }
-        val confidence = (abs(score) * 100 / 6).coerceIn(0, 100)
+        val confidence = (abs(score) * 100 / 9).coerceIn(0, 100)
         return MarketSignal(
             symbol, price, change, volume, direction, score, a.third, confidence,
-            "۱۵ دقیقه: " + a.second + " | یک‌ساعته: " + b.second
+            "۱۵ دقیقه: " + a.second + " | یک‌ساعته: " + b.second + " | چهارساعته: " + c.second
         )
     }
 
