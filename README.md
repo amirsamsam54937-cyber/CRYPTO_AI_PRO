@@ -40,7 +40,7 @@ Copy `.env.example` to `.env` if you want to customize local defaults. Do not co
 
 ## Historical backtesting
 
-A standalone multi-timeframe historical backtest is available at `tools/backtest.py`. It downloads public Binance USD-M Futures candles and exports a trade-by-trade CSV. It uses closed candles, enters on the next 15m candle, includes estimated taker fees and configurable slippage, and assumes the stop is hit first when stop and target are both touched inside one candle.
+A standalone multi-timeframe historical backtest is available at `tools/backtest.py`. For an easier Google Colab workflow, open [CRYPTO AI PRO Backtest Notebook](https://colab.research.google.com/github/amirsamsam54937-cyber/CRYPTO_AI_PRO/blob/main/notebooks/CRYPTO_AI_PRO_Backtest.ipynb). It downloads public Binance USD-M Futures candles and exports a trade-by-trade CSV. It uses closed candles, enters on the next 15m candle, includes estimated taker fees and configurable slippage, and assumes the stop is hit first when stop and target are both touched inside one candle.
 
 ```bash
 python tools/backtest.py --symbol BTCUSDT --days 90 --leverage 3 --risk 0.01
