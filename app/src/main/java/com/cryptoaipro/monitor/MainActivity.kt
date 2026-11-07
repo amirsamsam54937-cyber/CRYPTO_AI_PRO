@@ -71,14 +71,15 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
-private val Navy = Color(0xFF0A1020)
-private val Panel = Color(0xFF151F33)
-private val Muted = Color(0xFF9AAAC2)
+// Wolf v2.18 visual system: graphite, silver, electric turquoise and restrained gold.
+private val Navy = Color(0xFF0B0D0F)
+private val Panel = Color(0xFF1B2024)
+private val Muted = Color(0xFFB2BBC2)
 private val Green = Color(0xFF27D6A0)
 private val Red = Color(0xFFFF657A)
-private val Blue = Color(0xFF55B8FF)
-private val Purple = Color(0xFF9B7BFF)
-private val Gold = Color(0xFFFFD166)
+private val Blue = Color(0xFF35E0D0)
+private val Purple = Color(0xFFC5CDD2)
+private val Gold = Color(0xFFE2B95F)
 
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
@@ -157,6 +158,7 @@ fun CryptoMonitorScreen() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val appSettings = remember(context) { context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE) }
+    var selectedExchange by remember(context) { mutableStateOf(appSettings.getString("market_exchange", "BINANCE") ?: "BINANCE") }
     var scanIntervalMinutes by remember(context) {
         mutableIntStateOf(appSettings.getInt("scan_interval_minutes", 3).coerceIn(1, 10))
     }
@@ -197,7 +199,7 @@ fun CryptoMonitorScreen() {
         loading = true
         error = null
         try {
-            val scanned = BinanceMonitor.scan { partial, completed, total, failed ->
+            val progress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { partial, completed, total, failed ->
                 withContext(Dispatchers.Main) {
                     rows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial))
                     scannedCount = completed
@@ -206,6 +208,8 @@ fun CryptoMonitorScreen() {
                     if (selectedSymbol.isBlank() || rows.none { it.symbol == selectedSymbol }) selectedSymbol = rows.firstOrNull()?.symbol.orEmpty()
                 }
             }
+            appSettings.edit().putString("market_exchange", selectedExchange).apply()
+            val scanned = if (selectedExchange == "XT") XtFuturesMonitor.scan(progress) else BinanceMonitor.scan(progress)
             rows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned))
             scannedCount = totalContracts
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
@@ -226,7 +230,7 @@ fun CryptoMonitorScreen() {
         }
     }
 
-    LaunchedEffect(scanIntervalMinutes) {
+    LaunchedEffect(scanIntervalMinutes, selectedExchange) {
         while (isActive) {
             performScan()
             // HTTP 451 is an explicit regional-eligibility denial, not a transient outage.
@@ -263,7 +267,7 @@ fun CryptoMonitorScreen() {
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Blue,
                                 selectedTextColor = Blue,
-                                indicatorColor = Color(0xFF24344E),
+                                indicatorColor = Color(0xFF303A3F),
                                 unselectedIconColor = Muted,
                                 unselectedTextColor = Muted
                             )
@@ -279,19 +283,19 @@ fun CryptoMonitorScreen() {
                     val h = size.height
                     drawRect(
                         brush = Brush.linearGradient(
-                            colors = listOf(Color(0xFF070C18), Color(0xFF10243C), Color(0xFF080E1B)),
+                            colors = listOf(Color(0xFF090B0D), Color(0xFF20272B), Color(0xFF0B0E10)),
                             start = Offset(0f, 0f),
                             end = Offset(w, h)
                         )
                     )
-                    drawCircle(Color(0xFF174B78).copy(alpha = 0.10f), radius = w * 0.62f, center = Offset(w * 0.5f, h * 0.42f))
+                    drawCircle(Color(0xFF65737A).copy(alpha = 0.10f), radius = w * 0.62f, center = Offset(w * 0.5f, h * 0.42f))
                     for (i in 1..12) {
                         val x = w * i / 13f
-                        drawLine(Color(0xFF29415F).copy(alpha = 0.12f), Offset(x, 0f), Offset(x, h), 1f)
+                        drawLine(Color(0xFF78848A).copy(alpha = 0.10f), Offset(x, 0f), Offset(x, h), 1f)
                     }
                     for (i in 1..18) {
                         val y = h * i / 19f
-                        drawLine(Color(0xFF29415F).copy(alpha = 0.10f), Offset(0f, y), Offset(w, y), 1f)
+                        drawLine(Color(0xFF78848A).copy(alpha = 0.08f), Offset(0f, y), Offset(w, y), 1f)
                     }
                     val crest = Path().apply {
                         moveTo(w * 0.17f, h * 0.12f)
@@ -308,7 +312,7 @@ fun CryptoMonitorScreen() {
                         lineTo(w * 0.23f, h * 0.48f)
                         close()
                     }
-                    drawPath(crest, Color(0xFF173653).copy(alpha = 0.24f))
+                    drawPath(crest, Color(0xFF626D72).copy(alpha = 0.18f))
                     val outline = Path().apply {
                         moveTo(w * 0.17f, h * 0.12f)
                         lineTo(w * 0.34f, h * 0.25f)
@@ -367,7 +371,7 @@ fun CryptoMonitorScreen() {
                 ) {
                     if (selectedTab != "خانه") TextButton(onClick = { selectedTab = "خانه" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("‹ بازگشت", color = Blue, fontSize = 11.sp) }
                     Surface(
-                        color = Color(0xFF142B4B),
+                        color = Color(0xFF242B2F),
                         shape = RoundedCornerShape(13.dp),
                         modifier = Modifier.size(46.dp),
                         shadowElevation = 8.dp
@@ -380,19 +384,29 @@ fun CryptoMonitorScreen() {
                     }
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("AMIR ARSALAN", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                        Text("AMIRARSALAN TRADER WOLF", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
                         Text("TRADER WOLF  •  LIVE TECHNICAL INTELLIGENCE", color = Muted, fontSize = 8.sp, letterSpacing = 0.5.sp)
                     }
-                    Surface(
-                        color = if (loading) Color(0xFF3A2C17) else Color(0xFF10382F),
-                        shape = RoundedCornerShape(20.dp)
-                    ) {
-                        Text(
-                            if (loading) "در حال اسکن" else "● BINANCE",
-                            color = if (loading) Color(0xFFFFD166) else Green,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                            fontSize = 10.sp
-                        )
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { if (selectedExchange != "BINANCE") selectedExchange = "BINANCE" },
+                                contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) {
+                                Text("BINANCE", color = if (selectedExchange == "BINANCE") Blue else Muted, fontSize = 9.sp,
+                                    fontWeight = if (selectedExchange == "BINANCE") FontWeight.Bold else FontWeight.Normal)
+                            }
+                            Text("•", color = Muted, fontSize = 9.sp)
+                            TextButton(onClick = { if (selectedExchange != "XT") selectedExchange = "XT" },
+                                contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) {
+                                Text("XT", color = if (selectedExchange == "XT") Blue else Muted, fontSize = 9.sp,
+                                    fontWeight = if (selectedExchange == "XT") FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                        Surface(color = if (loading) Color(0xFF3A2C17) else Color(0xFF10382F),
+                            shape = RoundedCornerShape(20.dp)) {
+                            Text(if (loading) "در حال اسکن" else "● $selectedExchange",
+                                color = if (loading) Gold else Green,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp), fontSize = 9.sp)
+                        }
                     }
                 }
 
@@ -404,8 +418,14 @@ fun CryptoMonitorScreen() {
                             verticalArrangement = Arrangement.spacedBy(11.dp)
                         ) {
                             item {
-                                Surface(color = Color(0xFF14243C), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                                Surface(color = Color(0xFF242B2F), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.wolf_poster),
+                                            contentDescription = "پوستر اصلی AMIRARSALAN TRADER WOLF",
+                                            modifier = Modifier.fillMaxWidth().height(142.dp),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                        )
                                         Text("مرکز فرماندهی بازار", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                         Text("اسکن چندتایم‌فریمی • تحلیل تکنیکال • موتور هوشمند سیگنال", color = Muted, fontSize = 10.sp)
                                         MarketSessionsPanel()
@@ -449,7 +469,7 @@ fun CryptoMonitorScreen() {
                     "بازار" -> {
                         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Text("BINANCE USDⓈ-M • قراردادهای دائمی USDT", color = Blue, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                                Text("$selectedExchange • قراردادهای دائمی USDT", color = Blue, fontSize = 10.sp, modifier = Modifier.weight(1f))
                                 Text(rows.size.toString() + " نتیجه", color = Muted, fontSize = 10.sp)
                             }
                             if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Blue)
@@ -504,7 +524,7 @@ fun CryptoMonitorScreen() {
                             selectedSignal?.let { signal -> item { SignalLevelsChart(signal) } }
                             if (voiceTranscript.isNotBlank() || voiceReply.isNotBlank()) {
                                 item {
-                                    Surface(color = Color(0xFF132640), shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Surface(color = Color(0xFF252D31), shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
                                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                             Text("گفت‌وگوی صوتی", color = Blue, fontWeight = FontWeight.Bold)
                                             if (voiceTranscript.isNotBlank()) Text("تو: " + voiceTranscript, color = Color.White, fontSize = 12.sp)
@@ -574,7 +594,7 @@ fun CryptoMonitorScreen() {
                                             Text("نقدینگی: " + selectedSignal.technical.liquiditySweep, color = Gold, fontSize = 10.sp)
                                             Text("FVG: " + selectedSignal.technical.fairValueGap, color = Blue, fontSize = 10.sp)
                                             Text("واگرایی: " + selectedSignal.technical.rsiDivergence, color = Purple, fontSize = 10.sp)
-                                            Divider(color = Color(0xFF30415C))
+                                            Divider(color = Color(0xFF3A454A))
                                             Text("اجماع ۱۰ تحلیلگر تخصصی گرگ", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                             Text("توافق وزنی: " + (selectedSignal.consensus?.agreement ?: 0) + "% • قدرت سیگنال: " + selectedSignal.confidence, color = Blue, fontSize = 10.sp)
                                             selectedSignal.consensus?.votes?.forEach { vote ->
@@ -583,7 +603,7 @@ fun CryptoMonitorScreen() {
                                                     Text(vote.direction + " • " + String.format(Locale.US, "%.2f", vote.score), color = when (vote.direction) { "LONG" -> Green; "SHORT" -> Red; else -> Muted }, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                                 }
                                             }
-                                            Divider(color = Color(0xFF30415C))
+                                            Divider(color = Color(0xFF3A454A))
                                             val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
                                             Text(
                                                 if (pretrainedStatus.loaded) "مغز عصبی AMIR WOLF • ۱۰ شبکه پیش‌آموزش‌دیده"
@@ -690,7 +710,8 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.14.0 • Binance USDⓈ-M • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.18.0 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
                             Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← CRYPTO AI PRO ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
@@ -715,7 +736,7 @@ private fun ActiveCommandSignals(
     records: List<WolfSignalOutcomeJournal.Record>,
     onOpenJournal: () -> Unit
 ) {
-    Surface(color = Color(0xFF14243C), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(0xFF242B2F), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("سیگنال‌های فعال فرماندهی", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
@@ -894,11 +915,11 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
             LinearProgressIndicator(
                 progress = { item.confidence / 100f },
                 modifier = Modifier.fillMaxWidth().height(5.dp),
-                color = tint, trackColor = Color(0xFF29364D)
+                color = tint, trackColor = Color(0xFF3A454A)
             )
             if (item.direction != "NEUTRAL") {
                 Spacer(Modifier.height(8.dp))
-                Surface(color = Color(0xFF0E1728), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Surface(color = Color(0xFF20272B), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("ورود مرجع: " + formatPrice(item.entry) + "   |   اهرم سقف: " + item.leverage + "x", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -917,7 +938,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 Text(if (expanded) "بستن جزئیات تحلیل ▲" else "مشاهده شاخص‌های پیشرفته ▼", color = Blue, fontSize = 10.sp)
             }
             if (expanded) {
-                Surface(color = Color(0xFF0E1728), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Surface(color = Color(0xFF20272B), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                         Text("تحلیل تکنیکال تایم‌فریم ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1186,7 +1207,7 @@ private fun formatPrice(value: Double): String = when {
 
 /** Binance USDⓈ-M public futures scanner; public endpoints only. */
 
-private object BinanceMonitor {
+internal object BinanceMonitor {
     // Use the documented canonical USDⓈ-M API endpoint only.
     // Alternate hostnames must not be used to evade an explicit regional-eligibility response.
     private const val BASE_URL = "https://fapi.binance.com"
@@ -1762,13 +1783,15 @@ class MarketMonitorService : Service() {
             worker = serviceScope.launch {
                 while (kotlin.coroutines.coroutineContext.isActive) {
                     val result = runCatching {
-                        val signals = applyWolfNeuralScoring(applicationContext, BinanceMonitor.scan())
+                        val selectedExchange = getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE).getString("market_exchange", "BINANCE") ?: "BINANCE"
+                        val marketSignals = if (selectedExchange == "XT") XtFuturesMonitor.scan() else BinanceMonitor.scan()
+                        val signals = applyWolfNeuralScoring(applicationContext, marketSignals)
                         val journalSnapshot = WolfSignalOutcomeJournal.processScan(applicationContext, signals)
                         WolfLearningMemory.processScan(applicationContext, signals, journalSnapshot.records)
                         WolfFlowNewsRepository.refreshForEngine(applicationContext, signals)
                         val active = signals.count { it.direction != "NEUTRAL" }
-                        "اسکن ${signals.size} قرارداد Binance • سیگنال‌های جهت‌دار: $active • فقط تحلیل تکنیکال"
-                    }.getOrElse { "خطای اسکن Binance: ${it.message ?: "نامشخص"}" }
+                        "اسکن ${signals.size} قرارداد $selectedExchange • سیگنال‌های جهت‌دار: $active • فقط تحلیل تکنیکال"
+                    }.getOrElse { "خطای اسکن بازار: ${it.message ?: "نامشخص"}" }
                     val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     manager.notify(NOTIFICATION_ID, buildNotification(result))
                     // Stop retrying an explicit regional/access denial; polling cannot fix HTTP 451.
