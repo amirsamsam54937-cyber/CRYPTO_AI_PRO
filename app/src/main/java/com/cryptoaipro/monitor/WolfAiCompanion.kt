@@ -204,10 +204,15 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
                         messages.add(WolfChatMessage(q, true))
                         busy = true
                         scope.launch {
-                            val response = localPersianReply(q)?.let { it to "" }
-                                ?: WolfCryptoKnowledgeBase.answer(q)
-                                ?: runCatching { WolfKnowledgeSearch.answer(q) }
-                                    .getOrElse { ("جست‌وجوی اینترنتی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
+                            val response = if (apiKey.isNotBlank()) {
+                                runCatching { WolfLanguageModel.answer(q, apiKey, endpoint, model, marketSignal) }
+                                    .getOrElse { ("اتصال مدل زبانی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
+                            } else {
+                                localPersianReply(q)?.let { it to "" }
+                                    ?: WolfCryptoKnowledgeBase.answer(q)
+                                    ?: runCatching { WolfKnowledgeSearch.answer(q) }
+                                        .getOrElse { ("جست‌وجوی اینترنتی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
+                            }
                             messages.add(WolfChatMessage(response.first, false, response.second))
                             busy = false
                         }
@@ -228,10 +233,15 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
                     messages.add(WolfChatMessage(q, true))
                     busy = true
                     scope.launch {
-                        val response = localPersianReply(q)?.let { it to "" }
-                            ?: WolfCryptoKnowledgeBase.answer(q)
-                            ?: runCatching { WolfKnowledgeSearch.answer(q) }
-                                .getOrElse { ("جست‌وجوی اینترنتی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
+                        val response = if (apiKey.isNotBlank()) {
+                            runCatching { WolfLanguageModel.answer(q, apiKey, endpoint, model, marketSignal) }
+                                .getOrElse { ("اتصال مدل زبانی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
+                        } else {
+                            localPersianReply(q)?.let { it to "" }
+                                ?: WolfCryptoKnowledgeBase.answer(q)
+                                ?: runCatching { WolfKnowledgeSearch.answer(q) }
+                                    .getOrElse { ("جست‌وجوی اینترنتی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
+                        }
                         messages.add(WolfChatMessage(response.first, false, response.second))
                         busy = false
                     }
