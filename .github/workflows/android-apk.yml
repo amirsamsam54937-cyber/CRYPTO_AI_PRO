@@ -26,9 +26,20 @@ jobs:
         run: python -m pip install --upgrade pip numpy scikit-learn pytest
       - name: Test chronological training split
         run: PYTHONPATH=. pytest -q tests/test_wolf_training.py
-      - name: Train and package ten pretrained neural networks
+      - name: Train ten neural networks when canonical Binance data is available
         run: |
-          python tools/train_wolf_ensemble.py
+          set +e
+          python tools/train_wolf_ensemble.py 2>&1 | tee wolf_training.log
+          train_status=${PIPESTATUS[0]}
+          set -e
+          if [ "$train_status" -ne 0 ]; then
+            if grep -q "HTTP Error 451" wolf_training.log && grep -q "No real historical data received" wolf_training.log; then
+              echo "::warning::Binance returned HTTP 451. Respecting the denial; packaging the analysis app without fabricated or mirror-trained neural weights."
+              printf '%s\n' '{"status":"not_trained","validatedForScoring":false,"reason":"Canonical Binance public endpoint returned HTTP 451; no alternate host or mirror was used."}' > wolf_model_training_report.json
+            else
+              exit "$train_status"
+            fi
+          fi
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
@@ -36,7 +47,7 @@ jobs:
         run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: AMIR-ARSALAN-TRADER-WOLF-pretrained
+          name: AMIR-ARSALAN-TRADER-WOLF-v2.14.0
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             wolf_model_training_report.json
