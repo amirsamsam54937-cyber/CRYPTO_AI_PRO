@@ -1325,16 +1325,31 @@ private object BinanceMonitor {
             }
         }
         val raw = JSONArray(rawText)
+        val intervalMs = when (interval) {
+            "5m" -> 5L * 60_000L
+            "15m" -> 15L * 60_000L
+            "1h" -> 60L * 60_000L
+            "4h" -> 4L * 60L * 60_000L
+            "1d" -> 24L * 60L * 60_000L
+            else -> throw IllegalArgumentException("Unsupported Binance interval: $interval")
+        }
         val closed = (0 until (raw.length() - 1).coerceAtLeast(0)).map { i ->
             val row = raw.getJSONArray(i)
-            doubleArrayOf(row.getString(1).toDouble(), row.getString(2).toDouble(), row.getString(3).toDouble(), row.getString(4).toDouble(), row.getString(5).toDouble())
+            // Index 5 stores the candle open timestamp; analysis fields remain at indexes 0..4.
+            doubleArrayOf(row.getString(1).toDouble(), row.getString(2).toDouble(), row.getString(3).toDouble(),
+                row.getString(4).toDouble(), row.getString(5).toDouble(), row.getLong(0).toDouble())
         }
         require(closed.size >= 210) { "Insufficient closed candles for EMA200" }
         require(closed.all { candle ->
             candle.all { it.isFinite() } && candle[0] > 0.0 && candle[1] > 0.0 && candle[2] > 0.0 && candle[3] > 0.0 &&
                 candle[4] >= 0.0 && candle[1] >= maxOf(candle[0], candle[3]) &&
-                candle[2] <= minOf(candle[0], candle[3]) && candle[1] >= candle[2]
+                candle[2] <= minOf(candle[0], candle[3]) && candle[1] >= candle[2] && candle[5] > 0.0
         }) { "Invalid OHLCV candle data from Binance" }
+        val timestamps = closed.map { it[5].toLong() }
+        require(timestamps.zipWithNext().all { (a, b) -> b > a }) { "Duplicate or out-of-order candle timestamps" }
+        require(timestamps.zipWithNext().all { (a, b) -> b - a <= intervalMs * 2L }) { "Candle history contains a material time gap" }
+        val lastClosedAt = timestamps.last() + intervalMs
+        require(System.currentTimeMillis() - lastClosedAt <= intervalMs * 2L) { "Stale candle data from Binance" }
         return closed
     }
 
@@ -1346,7 +1361,7 @@ private object BinanceMonitor {
         }
         return ranges.takeLast(period).average()
     }
-    // Each candle contains open, high, low, close, base volume.
+    // Each candle stores open, high, low, close, base volume, open timestamp; indicators use indexes 0..4.
     private fun indicators(data: List<DoubleArray>): Quad {
         val closes = data.map { it[3] }
         if (closes.size < 210) throw IllegalStateException("برای محاسبه معتبر EMA200 حداقل ۲۱۰ کندل بسته‌شده لازم است")
