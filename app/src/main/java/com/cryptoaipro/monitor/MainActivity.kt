@@ -1791,7 +1791,7 @@ class MarketMonitorService : Service() {
                         WolfFlowNewsRepository.refreshForEngine(applicationContext, signals)
                         val active = signals.count { it.direction != "NEUTRAL" }
                         "اسکن ${signals.size} قرارداد $selectedExchange • سیگنال‌های جهت‌دار: $active • فقط تحلیل تکنیکال"
-                    }.getOrElse { "خطای اسکن $selectedExchange: ${it.message ?: "نامشخص"}" }
+                    }.getOrElse { "خطای اسکن بازار: ${it.message ?: "نامشخص"}" }
                     val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     manager.notify(NOTIFICATION_ID, buildNotification(result))
                     // Stop retrying an explicit regional/access denial; polling cannot fix HTTP 451.
