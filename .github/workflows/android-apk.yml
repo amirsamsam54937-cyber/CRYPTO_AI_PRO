@@ -1,4 +1,4 @@
-name: Build Android APK (auto-trained Wolf AI)
+name: Build AMIR ARSALAN TRADER WOLF 2.16 Android APK
 on:
   workflow_dispatch:
   push:
@@ -47,7 +47,7 @@ jobs:
         run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: AMIR-ARSALAN-TRADER-WOLF-v2.14.0
+          name: AMIR-ARSALAN-TRADER-WOLF-v2.16.0
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             wolf_model_training_report.json
