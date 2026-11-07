@@ -85,7 +85,15 @@ data class TechnicalSnapshot(
     val relativeVolume: Double, val vwap: Double, val stochasticRsi: Double,
     val atrPercent: Double, val regime: String,
     val candlePattern: String, val marketStructure: String,
-    val support: Double, val resistance: Double
+    val support: Double, val resistance: Double,
+    val cci: Double = 0.0,
+    val rocPercent: Double = 0.0,
+    val mfi: Double = 50.0,
+    val obvTrend: Double = 0.0,
+    val supertrendDirection: String = "خنثی",
+    val liquiditySweep: String = "مشاهده نشد",
+    val fairValueGap: String = "مشاهده نشد",
+    val rsiDivergence: String = "مشاهده نشد"
 )
 
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
@@ -500,9 +508,21 @@ fun CryptoMonitorScreen() {
                                                 SmallStat("حمایت", formatPrice(selectedSignal.technical.support), Green)
                                                 SmallStat("مقاومت", formatPrice(selectedSignal.technical.resistance), Red)
                                             }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                SmallStat("CCI", String.format(Locale.US, "%.1f", selectedSignal.technical.cci))
+                                                SmallStat("ROC %", String.format(Locale.US, "%.2f", selectedSignal.technical.rocPercent))
+                                                SmallStat("MFI", String.format(Locale.US, "%.1f", selectedSignal.technical.mfi))
+                                            }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                SmallStat("OBV", String.format(Locale.US, "%.2f", selectedSignal.technical.obvTrend))
+                                                SmallStat("Supertrend", selectedSignal.technical.supertrendDirection)
+                                            }
                                             Text("الگوی کندلی: " + selectedSignal.technical.candlePattern, color = Blue, fontSize = 11.sp)
                                             Text("الگوی هارمونیک: " + detectHarmonicPattern(selectedSignal.candles), color = Purple, fontSize = 11.sp)
                                             Text("ساختار: " + selectedSignal.technical.marketStructure + " • رژیم: " + selectedSignal.technical.regime, color = Muted, fontSize = 10.sp)
+                                            Text("نقدینگی: " + selectedSignal.technical.liquiditySweep, color = Gold, fontSize = 10.sp)
+                                            Text("FVG: " + selectedSignal.technical.fairValueGap, color = Blue, fontSize = 10.sp)
+                                            Text("واگرایی: " + selectedSignal.technical.rsiDivergence, color = Purple, fontSize = 10.sp)
                                             Divider(color = Color(0xFF30415C))
                                             Text("اجماع ۱۰ تحلیلگر تخصصی گرگ", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                             Text("توافق وزنی: " + (selectedSignal.consensus?.agreement ?: 0) + "% • قدرت سیگنال: " + selectedSignal.confidence, color = Blue, fontSize = 10.sp)
@@ -1296,6 +1316,83 @@ private object BinanceMonitor {
         val support = recent.minOf { it[2] }
         val resistance = recent.maxOf { it[1] }
         val structure = detectMarketStructure(data)
+
+        // Additional price/volume evidence: CCI, ROC, MFI, OBV, Supertrend,
+        // liquidity sweep, three-candle imbalance and RSI divergence.
+        val typical = data.map { (it[1] + it[2] + it[3]) / 3.0 }
+        val cciWindow = typical.takeLast(20)
+        val cciMean = cciWindow.average()
+        val meanDeviation = cciWindow.map { abs(it - cciMean) }.average().coerceAtLeast(1e-12)
+        val cci = (typical.last() - cciMean) / (0.015 * meanDeviation)
+        val roc = if (closes.size > 12 && closes[closes.lastIndex - 12] > 0.0)
+            (lastClose / closes[closes.lastIndex - 12] - 1.0) * 100.0 else 0.0
+        var positiveFlow = 0.0
+        var negativeFlow = 0.0
+        for (i in (data.size - 14).coerceAtLeast(1) until data.size) {
+            val moneyFlow = typical[i] * data[i][4]
+            if (typical[i] > typical[i - 1]) positiveFlow += moneyFlow
+            else if (typical[i] < typical[i - 1]) negativeFlow += moneyFlow
+        }
+        val mfi = if (negativeFlow <= 1e-12) 100.0 else 100.0 - 100.0 / (1.0 + positiveFlow / negativeFlow)
+        var obv = 0.0
+        var obvAbsVolume = 0.0
+        for (i in (data.size - 21).coerceAtLeast(1) until data.size) {
+            val signed = when { closes[i] > closes[i - 1] -> data[i][4]; closes[i] < closes[i - 1] -> -data[i][4]; else -> 0.0 }
+            obv += signed
+            obvAbsVolume += data[i][4]
+        }
+        val obvTrend = if (obvAbsVolume > 0.0) (obv / obvAbsVolume).coerceIn(-1.0, 1.0) else 0.0
+        val recentAtr = atr(data, 10).coerceAtLeast(lastClose * 1e-8)
+        val midpoint = (data.last()[1] + data.last()[2]) / 2.0
+        val supertrendDirection = when {
+            lastClose > midpoint - 3.0 * recentAtr -> if (lastClose > e20) "صعودی" else "خنثی"
+            lastClose < midpoint + 3.0 * recentAtr -> if (lastClose < e20) "نزولی" else "خنثی"
+            else -> "خنثی"
+        }
+        val prior = data.dropLast(1).takeLast(20)
+        val priorHigh = prior.maxOfOrNull { it[1] } ?: data.last()[1]
+        val priorLow = prior.minOfOrNull { it[2] } ?: data.last()[2]
+        val lastCandle = data.last()
+        val liquiditySweep = when {
+            lastCandle[1] > priorHigh && lastClose < priorHigh -> "جمع‌آوری نقدینگی بالای سقف • احتمال برگشت نزولی"
+            lastCandle[2] < priorLow && lastClose > priorLow -> "جمع‌آوری نقدینگی زیر کف • احتمال برگشت صعودی"
+            else -> "شکار نقدینگی واضح دیده نشد"
+        }
+        val fairValueGap = when {
+            data.size >= 3 && data.last()[2] > data[data.lastIndex - 2][1] ->
+                "عدم‌تعادل صعودی سه‌کندلی"
+            data.size >= 3 && data.last()[1] < data[data.lastIndex - 2][2] ->
+                "عدم‌تعادل نزولی سه‌کندلی"
+            else -> "گپ ارزش منصفانه تازه مشاهده نشد"
+        }
+        val rsiTrail = rsiSeries(closes, 14)
+        val rsiDivergence = if (rsiTrail.size >= 28) {
+            val recentPrice = closes.takeLast(14).average()
+            val previousPrice = closes.takeLast(28).dropLast(14).average()
+            val recentRsi = rsiTrail.takeLast(14).average()
+            val previousRsi = rsiTrail.takeLast(28).dropLast(14).average()
+            when {
+                recentPrice < previousPrice && recentRsi > previousRsi + 3.0 -> "واگرایی مثبت احتمالی RSI"
+                recentPrice > previousPrice && recentRsi < previousRsi - 3.0 -> "واگرایی منفی احتمالی RSI"
+                else -> "واگرایی RSI تأیید نشد"
+            }
+        } else "داده واگرایی ناکافی"
+
+        if (cci > 100.0) { score++; reasons.add("CCI مومنتوم مثبت") }
+        else if (cci < -100.0) { score--; reasons.add("CCI مومنتوم منفی") }
+        if (roc > 0.5) { score++; reasons.add("ROC مثبت") }
+        else if (roc < -0.5) { score--; reasons.add("ROC منفی") }
+        if (mfi > 60.0) { score++; reasons.add("جریان پول MFI مثبت") }
+        else if (mfi < 40.0) { score--; reasons.add("جریان پول MFI منفی") }
+        if (obvTrend > 0.15) { score++; reasons.add("OBV انباشت حجم") }
+        else if (obvTrend < -0.15) { score--; reasons.add("OBV توزیع حجم") }
+        if (supertrendDirection == "صعودی") { score++; reasons.add("Supertrend صعودی") }
+        else if (supertrendDirection == "نزولی") { score--; reasons.add("Supertrend نزولی") }
+        if (liquiditySweep.contains("برگشت نزولی")) { score--; reasons.add("sweep سقف نقدینگی") }
+        else if (liquiditySweep.contains("برگشت صعودی")) { score++; reasons.add("sweep کف نقدینگی") }
+        if (rsiDivergence.contains("مثبت")) reasons.add("هشدار واگرایی مثبت RSI")
+        else if (rsiDivergence.contains("منفی")) reasons.add("هشدار واگرایی منفی RSI")
+
         // Ten independent technical sub-models vote on each timeframe.
         if (lastClose > vwap * 1.001) { score++; reasons.add("قیمت بالای VWAP") }
         else if (lastClose < vwap * 0.999) { score--; reasons.add("قیمت زیر VWAP") }
@@ -1319,7 +1416,11 @@ private object BinanceMonitor {
         }
         if (stochRsi >= 60.0 && stochRsi <= 90.0) { score++; reasons.add("Stoch RSI صعودی") }
         else if (stochRsi <= 40.0 && stochRsi >= 10.0) { score--; reasons.add("Stoch RSI نزولی") }
-        val technical = TechnicalSnapshot(e9, e20, e50, e100, e200, adx, bbWidth, bbPosition, relativeVolume, vwap, stochRsi, atrPct, regime, pattern, structure, support, resistance)
+        val technical = TechnicalSnapshot(
+            e9, e20, e50, e100, e200, adx, bbWidth, bbPosition, relativeVolume, vwap,
+            stochRsi, atrPct, regime, pattern, structure, support, resistance,
+            cci, roc, mfi, obvTrend, supertrendDirection, liquiditySweep, fairValueGap, rsiDivergence
+        )
         return Quad(score, reasons.joinToString("، "), rsiValue, technical)
     }
 
