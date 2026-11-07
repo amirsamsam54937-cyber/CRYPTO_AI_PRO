@@ -12,6 +12,8 @@ This release remains a market-analysis and signal application only. It has no ex
 - Additional technical context: CCI, ROC, MFI, normalized OBV direction, iterative ATR-band Supertrend, approximate RSI divergence, recent liquidity-sweep detection and three-candle fair-value-gap detection.
 - Swing-pivot market structure with BOS/CHOCH context, replacing the former fixed-size chunk comparison.
 - Corrected harmonic ratio calculation to use the XA leg for AD/XA; separated Bat and Crab ratio ranges.
+- Configurable 1/3/5/10-minute pause between scan cycles, shared by foreground and background monitoring.
+- Bounded HTTP timeouts and clearer HTTP error handling for market-flow and RSS news sources.
 - Updated Android versionCode 28 / versionName 2.14.0.
 
 ## Existing safeguards retained
