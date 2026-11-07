@@ -1,7 +1,7 @@
 # AMIR ARSALAN TRADER WOLF — CRYPTO AI PRO
 
 **Android release line: 2.17.0**  
-A Persian-first Android application for live Binance USDⓈ-M perpetual-futures market scanning, explainable technical analysis, signal visualization, and persistent outcome-based learning.
+A Persian-first Android application for live Binance USDⓈ-M or XT USDT-M perpetual-futures market scanning, explainable technical analysis, signal visualization, and persistent outcome-based learning.
 
 > **Analysis and signals only.** The Android app does not connect exchange accounts, store API keys, submit orders, change leverage, or execute trades. Entry, stop and target levels are analytical references, not orders or guarantees.
 
@@ -25,7 +25,7 @@ A Persian-first Android application for live Binance USDⓈ-M perpetual-futures 
 
 ## Analysis engine
 
-The Android scanner fetches closed candles for 15m, 1h and 4h across the full active USDT-perpetual universe, then performs a bounded five-timeframe deep review (5m/15m/1h/4h/1D) on the 24 highest-ranked candidates. The embedded TradingView chart independently supports 5m, 15m, 1h, 4h and 1D viewing. The engine evaluates:
+The Android scanner fetches closed candles for 15m, 1h and 4h across the full active USDT-perpetual universe on the selected exchange, then performs a bounded five-timeframe deep review (5m/15m/1h/4h/1D) on the 24 highest-ranked candidates. The embedded TradingView chart independently supports 5m, 15m, 1h, 4h and 1D viewing. The engine evaluates:
 
 - EMA 9/20/50/100/200, RSI, MACD, ADX and ATR
 - Bollinger Bands and bandwidth, VWAP, relative volume and Stochastic RSI
