@@ -1,6 +1,6 @@
 # AMIR ARSALAN TRADER WOLF — CRYPTO AI PRO
 
-**Android development version: 2.8.0**  
+**Android release line: 2.12.0**  
 A Persian-first Android application for live Binance USDⓈ-M perpetual-futures market scanning, explainable technical analysis, signal visualization, and persistent outcome-based learning.
 
 > **Analysis and signals only.** The Android app does not connect exchange accounts, store API keys, submit orders, change leverage, or execute trades. Entry, stop and target levels are analytical references, not orders or guarantees.
@@ -58,7 +58,7 @@ The Python package provides public-market research, indicator analysis and histo
     pip install -r requirements.txt
     PYTHONPATH=. uvicorn app.main:app --reload
 
-The default CCXT market adapter is Binance USDⓈ-M (binanceusdm). No API credentials are needed for public market data.
+The default CCXT market adapter is Binance USDⓈ-M (binanceusdm). No API credentials are needed for public market data. A regional HTTP 451 response is an access-eligibility denial: the app stops polling instead of rotating hostnames or trying to evade the restriction. Use only market-data services whose terms permit access from your network location.
 
 ## Build and install Android APK
 
@@ -67,7 +67,7 @@ Every push affecting Android source starts the **Build Android APK** GitHub Acti
 1. Open the repository's **Actions** tab.
 2. Open the newest **Build Android APK** run.
 3. Wait for all jobs to finish successfully.
-4. Download the **CRYPTO-AI-PRO-debug-apk** artifact ZIP.
+4. Download the **AMIR-ARSALAN-TRADER-WOLF-pretrained** artifact ZIP.
 5. Extract and install app-debug.apk on Android.
 
 A successful CI build verifies compilation only. It does not prove API availability in every region, signal quality, profitability, background reliability or production readiness. The APK size must be measured from the generated artifact; no artificial padding is added to meet a file-size target.
@@ -81,7 +81,7 @@ Before describing the app as production-ready, verify:
 3. Indicator calculations against independently verified reference datasets.
 4. BOS/CHOCH, liquidity sweeps, divergence and harmonic pattern definitions with deterministic tests.
 5. Walk-forward and out-of-sample evaluation with fees, funding, spread, slippage, delisted symbols and survivorship-bias controls.
-6. Neural-network calibration, sample sufficiency, drift monitoring and rollback.
+6. Neural-network chronological purged holdout, majority-class baseline, balanced accuracy, log-loss, Brier score, ROC-AUC, calibration, sample sufficiency, drift monitoring and rollback.
 7. Android UI navigation, voice permissions, foreground-service behavior, persistence and battery restrictions.
 8. Data freshness, error visibility, safe failure behavior and explicit NO TRADE handling.
 
