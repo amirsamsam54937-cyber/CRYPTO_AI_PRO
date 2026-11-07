@@ -420,6 +420,12 @@ fun CryptoMonitorScreen() {
                             item {
                                 Surface(color = Color(0xFF242B2F), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.wolf_poster),
+                                            contentDescription = "پوستر اصلی AMIRARSALAN TRADER WOLF",
+                                            modifier = Modifier.fillMaxWidth().height(142.dp),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                        )
                                         Text("مرکز فرماندهی بازار", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                         Text("اسکن چندتایم‌فریمی • تحلیل تکنیکال • موتور هوشمند سیگنال", color = Muted, fontSize = 10.sp)
                                         MarketSessionsPanel()
