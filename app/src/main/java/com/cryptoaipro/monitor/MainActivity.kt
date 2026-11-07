@@ -463,7 +463,7 @@ fun CryptoMonitorScreen() {
                     "بازار" -> {
                         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Text("BINANCE USDⓈ-M • قراردادهای دائمی USDT", color = Blue, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                                Text("$selectedExchange • قراردادهای دائمی USDT", color = Blue, fontSize = 10.sp, modifier = Modifier.weight(1f))
                                 Text(rows.size.toString() + " نتیجه", color = Muted, fontSize = 10.sp)
                             }
                             if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Blue)
@@ -1777,13 +1777,15 @@ class MarketMonitorService : Service() {
             worker = serviceScope.launch {
                 while (kotlin.coroutines.coroutineContext.isActive) {
                     val result = runCatching {
-                        val signals = applyWolfNeuralScoring(applicationContext, BinanceMonitor.scan())
+                        val selectedExchange = getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE).getString("market_exchange", "BINANCE") ?: "BINANCE"
+                        val marketSignals = if (selectedExchange == "XT") XtFuturesMonitor.scan() else BinanceMonitor.scan()
+                        val signals = applyWolfNeuralScoring(applicationContext, marketSignals)
                         val journalSnapshot = WolfSignalOutcomeJournal.processScan(applicationContext, signals)
                         WolfLearningMemory.processScan(applicationContext, signals, journalSnapshot.records)
                         WolfFlowNewsRepository.refreshForEngine(applicationContext, signals)
                         val active = signals.count { it.direction != "NEUTRAL" }
-                        "اسکن ${signals.size} قرارداد Binance • سیگنال‌های جهت‌دار: $active • فقط تحلیل تکنیکال"
-                    }.getOrElse { "خطای اسکن Binance: ${it.message ?: "نامشخص"}" }
+                        "اسکن ${signals.size} قرارداد $selectedExchange • سیگنال‌های جهت‌دار: $active • فقط تحلیل تکنیکال"
+                    }.getOrElse { "خطای اسکن $selectedExchange: ${it.message ?: "نامشخص"}" }
                     val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     manager.notify(NOTIFICATION_ID, buildNotification(result))
                     // Stop retrying an explicit regional/access denial; polling cannot fix HTTP 451.
