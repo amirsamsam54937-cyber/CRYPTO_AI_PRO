@@ -63,7 +63,6 @@ internal object WolfSignalOutcomeJournal {
                     .filter { it.size >= 6 && it[5].isFinite() && it[5].toLong() > cursor }
                     .sortedBy { it[5] }
                     .toList()
-                var closedOnBar = false
                 newBars.forEach { bar ->
                     if (record.optBoolean("closed")) return@forEach
                     val open = bar[0]
@@ -82,7 +81,6 @@ internal object WolfSignalOutcomeJournal {
                         // If a candle opens through the stop, model the worse opening price.
                         val stopFill = if (long) minOf(open, stop) else maxOf(open, stop)
                         closeRecord(record, "SL", stopFill, now)
-                        closedOnBar = true
                     } else if (targetHit >= 0) {
                         closeRecord(record, "TP" + (targetHit + 1), targets[targetHit], now)
                         closedOnBar = true
