@@ -34,6 +34,7 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip ccxt numpy scikit-learn
           python tools/build_real_market_seed.py
+          cp market_seed_manifest.json app/src/main/assets/wolf_corpus_manifest.json
           python tools/train_wolf_ensemble.py
           test -s app/src/main/assets/market_seed.csv
           test -s app/src/main/assets/wolf_pretrained_ensemble.json
@@ -56,6 +57,7 @@ jobs:
           fi
           unzip -l "$APK" | grep -q "assets/market_seed.csv"
           unzip -l "$APK" | grep -q "assets/wolf_pretrained_ensemble.json"
+          unzip -l "$APK" | grep -q "assets/wolf_corpus_manifest.json"
           unzip -l "$APK" | grep -q "wolf_poster.jpg"
           python - <<'PY'
           import csv, json, os
@@ -65,6 +67,7 @@ jobs:
           assert manifest["rows"] == 500000
           assert manifest["target_rows"] == 500000
           assert manifest["synthetic_rows"] == 0
+          assert manifest["rows"] == 500000
           assert manifest["source_exchanges"]
           with open("app/src/main/assets/market_seed.csv", newline="", encoding="utf-8") as f:
               assert sum(1 for _ in csv.reader(f)) == manifest["rows"] + 1
