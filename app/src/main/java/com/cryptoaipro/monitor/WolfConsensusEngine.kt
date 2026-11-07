@@ -94,9 +94,9 @@ object WolfConsensusEngine {
             WolfAgentVote(
                 "هم‌گرایی تایم‌فریم",
                 if ((if (t.size >= 5) ema.drop(1).all { it > 0.0 } else ema.all { it > 0.0 }) &&
-                    trendStack.count { it > 0.0 } >= if (t.size >= 5) 3 else 2) "LONG"
+                    trendStack.count { it > 0.0 } >= (if (t.size >= 5) 3 else 2)) "LONG"
                 else if ((if (t.size >= 5) ema.drop(1).all { it < 0.0 } else ema.all { it < 0.0 }) &&
-                    trendStack.count { it < 0.0 } >= if (t.size >= 5) 3 else 2) "SHORT"
+                    trendStack.count { it < 0.0 } >= (if (t.size >= 5) 3 else 2)) "SHORT"
                 else "NEUTRAL",
                 if ((if (t.size >= 5) ema.drop(1).all { it > 0.0 } else ema.all { it > 0.0 }) &&
                     trendStack.count { it > 0.0 } >= if (t.size >= 5) 3 else 2) 1.0
@@ -118,9 +118,9 @@ object WolfConsensusEngine {
 
         val fourHourTrend = ema[if (t.size >= 5) 3 else 2]
         val dailyTrend = if (t.size >= 5) ema[4] else 0.0
-        val alignedLong = ema.count { it > 0.0 } >= if (t.size >= 5) 3 else 2 &&
+        val alignedLong = ema.count { it > 0.0 } >= (if (t.size >= 5) 3 else 2) &&
             fourHourTrend >= 0.0 && (t.size < 5 || dailyTrend >= 0.0)
-        val alignedShort = ema.count { it < 0.0 } >= if (t.size >= 5) 3 else 2 &&
+        val alignedShort = ema.count { it < 0.0 } >= (if (t.size >= 5) 3 else 2) &&
             fourHourTrend <= 0.0 && (t.size < 5 || dailyTrend <= 0.0)
         val averageAdx = t.map { it.adx }.average()
         val direction = when {
