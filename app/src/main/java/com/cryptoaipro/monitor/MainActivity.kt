@@ -131,8 +131,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             signal.copy(neuralScore = neural, confidence = adjustedConfidence)
         }
     }.map { signal ->
-        // Independent quantum-inspired scenario vote is deliberately bounded and secondary.
-        WolfQuantumScenarioEngine.apply(signal)
+        // Independent scenario analysis followed by a skeptical adversarial review.
+        WolfAdversarialReviewEngine.apply(WolfQuantumScenarioEngine.apply(signal))
     }.sortedWith(compareByDescending<MarketSignal> {
         if (it.direction == "NEUTRAL") it.score.toDouble() else it.confidence.toDouble()
     }.thenByDescending { it.volume })
