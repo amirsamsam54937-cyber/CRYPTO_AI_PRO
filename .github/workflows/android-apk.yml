@@ -1,4 +1,4 @@
-name: Build AMIR ARSALAN TRADER WOLF 2.19 Android APK
+name: Build AMIR ARSALAN TRADER WOLF 2.20 Android APK
 permissions:
   actions: write
   contents: read
@@ -54,6 +54,33 @@ jobs:
           cp pretrained-bundle/wolf_model_training_report.json wolf_model_training_report.json
           test -s app/src/main/assets/market_seed.csv
           test -s app/src/main/assets/wolf_pretrained_ensemble.json
+      - name: Prepare real photographic wolf artwork
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/main/res/drawable-nodpi
+          curl -fL --retry 3 --retry-delay 2 'https://images.unsplash.com/photo-1590420485404-f86d22b8abf8?auto=format&fit=crop&fm=jpg&q=88&w=2400' -o /tmp/wolf-original.jpg
+          python -m pip install --quiet pillow
+          python - <<'PY'
+          from PIL import Image, ImageEnhance
+          im = Image.open('/tmp/wolf-original.jpg').convert('RGB')
+          # Keep the wolf's eyes and muzzle in frame; create clean photographic assets, not vector/cartoon art.
+          w, h = im.size
+          side = min(w, h)
+          left = (w - side) // 2
+          top = max(0, min(h - side, int(h * 0.12)))
+          icon = im.crop((left, top, left + side, top + side)).resize((768, 768), Image.Resampling.LANCZOS)
+          icon.save('app/src/main/res/drawable-nodpi/wolf_icon.png', optimize=True)
+          # Landscape hero crop, favoring the upper face and eyes.
+          target_ratio = 16 / 9
+          crop_h = min(h, int(w / target_ratio))
+          crop_top = max(0, min(h - crop_h, int(h * 0.10)))
+          poster = im.crop((0, crop_top, w, crop_top + crop_h)).resize((1920, 1080), Image.Resampling.LANCZOS)
+          poster = ImageEnhance.Contrast(poster).enhance(1.08)
+          poster.save('app/src/main/res/drawable-nodpi/wolf_poster.jpg', quality=92, optimize=True, progressive=True)
+          PY
+          test -s app/src/main/res/drawable-nodpi/wolf_icon.png
+          test -s app/src/main/res/drawable-nodpi/wolf_poster.jpg
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
@@ -74,6 +101,7 @@ jobs:
           unzip -l "$APK" | grep -q "assets/market_seed.csv"
           unzip -l "$APK" | grep -q "assets/wolf_pretrained_ensemble.json"
           unzip -l "$APK" | grep -q "wolf_poster.jpg"
+          unzip -l "$APK" | grep -q "wolf_icon.png"
           python - <<'PY'
           import csv, json, os
           with open("market_seed_manifest.json", encoding="utf-8") as f:
@@ -97,7 +125,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: AMIR-ARSALAN-TRADER-WOLF-v2.19.0
+          name: AMIR-ARSALAN-TRADER-WOLF-v2.20.0
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             market_seed_manifest.json
