@@ -88,3 +88,8 @@ Before describing the app as production-ready, verify:
 8. Data freshness, error visibility, safe failure behavior and explicit NO TRADE handling.
 
 Never expose secrets in source code, logs, screenshots or public repository commits. This app's analysis-only design does not require exchange API keys.
+
+
+### Fast reproducible build dataset
+
+The current Android build prioritizes up to 200,000 recent, closed, real hourly candles from the most liquid USDT perpetual markets. It requires at least 150,000 genuine rows and never fabricates candles. APK acceptance is based on contents and integrity, not an arbitrary file-size threshold.
