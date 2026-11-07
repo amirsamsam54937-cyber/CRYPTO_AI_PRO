@@ -10,7 +10,7 @@ import kotlin.math.tanh
  * Weights are trained from historical Binance USD-M Futures candles by tools/train_wolf_ensemble.py.
  */
 internal object WolfPretrainedEnsemble {
-    data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double,val baselineAccuracy:Double=0.0,val balancedAccuracy:Double=0.0,val logLoss:Double=0.0)
+    data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double,val baselineAccuracy:Double=0.0,val balancedAccuracy:Double=0.0,val logLoss:Double=0.0,val validatedForScoring:Boolean=false)
     private data class Member(
         val w1:Array<DoubleArray>,val b1:DoubleArray,
         val w2:Array<DoubleArray>,val b2:DoubleArray,
@@ -47,7 +47,9 @@ internal object WolfPretrainedEnsemble {
             val baseline=evaluation?.optDouble("majority_class_baseline_accuracy",0.0) ?: 0.0
             val balanced=evaluation?.optDouble("ensemble_balanced_accuracy",0.0) ?: 0.0
             val loss=evaluation?.optDouble("ensemble_log_loss",0.0) ?: 0.0
-            status=Status(true,members.size,root.optInt("samples"),root.optString("trained_at_utc"),accuracy,baseline,balanced,loss)
+            val baselineLoss=evaluation?.optDouble("prevalence_baseline_log_loss",Double.POSITIVE_INFINITY) ?: Double.POSITIVE_INFINITY
+            val validated=evaluation!=null && balanced>=0.52 && loss<baselineLoss
+            status=Status(true,members.size,root.optInt("samples"),root.optString("trained_at_utc"),accuracy,baseline,balanced,loss,validated)
         }.onFailure {
             members=emptyList()
             status=Status(false,0,0,"",0.0)
