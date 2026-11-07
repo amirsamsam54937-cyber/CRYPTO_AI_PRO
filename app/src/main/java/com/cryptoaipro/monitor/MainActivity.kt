@@ -90,7 +90,6 @@ data class TechnicalSnapshot(
 
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
     val prefs = context.getSharedPreferences("wolf_learning_memory", Context.MODE_PRIVATE)
-    val trainedSamples = prefs.getInt("samples", 0)
     // Load the bundled, historically trained ten-network ensemble once; online DNN remains a secondary learner.
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
     return signals.map { signal ->
@@ -100,11 +99,10 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             val online = WolfDeepNeuralNetwork.predict(prefs, signal)
             val neuralProbability = pretrained ?: online
             val neural = (neuralProbability * 100.0).toInt().coerceIn(1, 99)
-            val adjustedConfidence = when {
-                pretrained != null && pretrainedStatus.validatedForScoring -> (signal.confidence * 0.90 + neural * 0.10).toInt().coerceIn(0, 100)
-                trainedSamples >= 30 -> (signal.confidence * 0.90 + neural * 0.10).toInt().coerceIn(0, 100)
-                else -> signal.confidence
-            }
+            // Experimental scores remain visible, but only a model that beats a temporal baseline may affect confidence.
+            val adjustedConfidence = if (pretrained != null && pretrainedStatus.validatedForScoring)
+                (signal.confidence * 0.90 + neural * 0.10).toInt().coerceIn(0, 100)
+            else signal.confidence
             signal.copy(neuralScore = neural, confidence = adjustedConfidence)
         }
     }.sortedWith(compareByDescending<MarketSignal> {
