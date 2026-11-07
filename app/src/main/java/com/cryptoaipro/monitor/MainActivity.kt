@@ -137,6 +137,7 @@ fun CryptoMonitorScreen() {
     var totalContracts by remember { mutableIntStateOf(0) }
     var selectedTab by remember { mutableStateOf("خانه") }
     var selectedSymbol by remember { mutableStateOf("") }
+    var chartInterval by remember { mutableStateOf("15") }
     var voiceTranscript by remember { mutableStateOf("") }
     var voiceReply by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -459,7 +460,18 @@ fun CryptoMonitorScreen() {
                                     Button(onClick = { microphonePermission.launch(android.Manifest.permission.RECORD_AUDIO) }) { Text("🎙 صحبت") }
                                 }
                             }
-                            item { TradingViewPairChart(selectedSymbol = selectedSignal?.symbol ?: "BTCUSDT") }
+                            item {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    listOf("5" to "۵د", "15" to "۱۵د", "60" to "۱س", "240" to "۴س", "1D" to "۱روز").forEach { (interval, label) ->
+                                        FilterChip(
+                                            selected = chartInterval == interval,
+                                            onClick = { chartInterval = interval },
+                                            label = { Text(label, fontSize = 10.sp) }
+                                        )
+                                    }
+                                }
+                            }
+                            item { TradingViewPairChart(selectedSymbol = selectedSignal?.symbol ?: "BTCUSDT", interval = chartInterval) }
                             selectedSignal?.let { signal -> item { SignalLevelsChart(signal) } }
                             if (voiceTranscript.isNotBlank() || voiceReply.isNotBlank()) {
                                 item {
@@ -995,7 +1007,7 @@ private fun PriceLevelRow(label: String, price: Double, tint: Color) {
 }
 
 @Composable
-private fun TradingViewPairChart(selectedSymbol: String) {
+private fun TradingViewPairChart(selectedSymbol: String, interval: String) {
     val symbol = "BINANCE:" + selectedSymbol.replace("/", "").replace(":USDT", "").replace("_", "") + ".P"
     Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1003,7 +1015,7 @@ private fun TradingViewPairChart(selectedSymbol: String) {
             Text("فقط نمودار همان ارزی که سیگنال آن انتخاب شده نمایش داده می‌شود.", color = Muted, fontSize = 9.sp)
             AndroidView(modifier = Modifier.fillMaxWidth().height(320.dp),
                 factory = { context -> WebView(context).apply { settings.javaScriptEnabled = true; settings.domStorageEnabled = true; webViewClient = WebViewClient() } },
-                update = { it.loadUrl("https://www.tradingview.com/chart/?symbol=" + java.net.URLEncoder.encode(symbol, "UTF-8")) })
+                update = { it.loadUrl("https://www.tradingview.com/chart/?symbol=" + java.net.URLEncoder.encode(symbol, "UTF-8") + "&interval=" + java.net.URLEncoder.encode(interval, "UTF-8")) })
             Text("نمودار مرجع TradingView است؛ محاسبات سیگنال از کندل‌های صرافی انجام می‌شود.", color = Muted, fontSize = 9.sp)
         }
     }
