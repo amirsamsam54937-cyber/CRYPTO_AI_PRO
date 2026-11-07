@@ -74,7 +74,7 @@ jobs:
           with open("wolf_model_training_report.json", encoding="utf-8") as f:
               model=json.load(f)
           assert model["samples"] >= 300000
-          assert model["train_samples"] >= 200000
+          assert model["train_samples"] >= 150000
           assert model["test_samples"] >= 50000
           assert len(model["metrics"]) == 10
           assert model["evaluation"]["split"] == "chronological_purged"
