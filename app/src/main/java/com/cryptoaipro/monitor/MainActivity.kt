@@ -247,22 +247,83 @@ fun CryptoMonitorScreen() {
         ) { innerPadding ->
             Column(
                 Modifier.fillMaxSize().padding(innerPadding).background(Navy).drawBehind {
-                    val wolf = Path().apply {
-                        moveTo(size.width * 0.08f, size.height * 0.08f)
-                        lineTo(size.width * 0.32f, size.height * 0.28f)
-                        lineTo(size.width * 0.50f, size.height * 0.18f)
-                        lineTo(size.width * 0.68f, size.height * 0.28f)
-                        lineTo(size.width * 0.92f, size.height * 0.08f)
-                        lineTo(size.width * 0.80f, size.height * 0.52f)
-                        lineTo(size.width * 0.66f, size.height * 0.76f)
-                        lineTo(size.width * 0.50f, size.height * 0.94f)
-                        lineTo(size.width * 0.34f, size.height * 0.76f)
-                        lineTo(size.width * 0.20f, size.height * 0.52f)
+                    // Premium Wolf terminal backdrop: subtle market grid, luminous wolf crest and chart traces.
+                    val w = size.width
+                    val h = size.height
+                    for (i in 1..12) {
+                        val x = w * i / 13f
+                        drawLine(Color(0xFF29415F).copy(alpha = 0.12f), Offset(x, 0f), Offset(x, h), 1f)
+                    }
+                    for (i in 1..18) {
+                        val y = h * i / 19f
+                        drawLine(Color(0xFF29415F).copy(alpha = 0.10f), Offset(0f, y), Offset(w, y), 1f)
+                    }
+                    val crest = Path().apply {
+                        moveTo(w * 0.17f, h * 0.12f)
+                        lineTo(w * 0.34f, h * 0.25f)
+                        lineTo(w * 0.43f, h * 0.19f)
+                        lineTo(w * 0.50f, h * 0.30f)
+                        lineTo(w * 0.57f, h * 0.19f)
+                        lineTo(w * 0.66f, h * 0.25f)
+                        lineTo(w * 0.83f, h * 0.12f)
+                        lineTo(w * 0.77f, h * 0.48f)
+                        lineTo(w * 0.68f, h * 0.66f)
+                        lineTo(w * 0.50f, h * 0.84f)
+                        lineTo(w * 0.32f, h * 0.66f)
+                        lineTo(w * 0.23f, h * 0.48f)
                         close()
                     }
-                    drawPath(wolf, Blue.copy(alpha = 0.035f))
-                    drawCircle(Blue.copy(alpha = 0.08f), radius = size.width * 0.018f, center = androidx.compose.ui.geometry.Offset(size.width * 0.40f, size.height * 0.43f))
-                    drawCircle(Blue.copy(alpha = 0.08f), radius = size.width * 0.018f, center = androidx.compose.ui.geometry.Offset(size.width * 0.60f, size.height * 0.43f))
+                    drawPath(crest, Color(0xFF173653).copy(alpha = 0.24f))
+                    val outline = Path().apply {
+                        moveTo(w * 0.17f, h * 0.12f)
+                        lineTo(w * 0.34f, h * 0.25f)
+                        lineTo(w * 0.43f, h * 0.19f)
+                        lineTo(w * 0.50f, h * 0.30f)
+                        lineTo(w * 0.57f, h * 0.19f)
+                        lineTo(w * 0.66f, h * 0.25f)
+                        lineTo(w * 0.83f, h * 0.12f)
+                        lineTo(w * 0.77f, h * 0.48f)
+                        lineTo(w * 0.68f, h * 0.66f)
+                        lineTo(w * 0.50f, h * 0.84f)
+                        lineTo(w * 0.32f, h * 0.66f)
+                        lineTo(w * 0.23f, h * 0.48f)
+                        close()
+                    }
+                    drawPath(outline, Blue.copy(alpha = 0.24f), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f))
+                    val muzzle = Path().apply {
+                        moveTo(w * 0.35f, h * 0.48f)
+                        lineTo(w * 0.44f, h * 0.57f)
+                        lineTo(w * 0.50f, h * 0.62f)
+                        lineTo(w * 0.56f, h * 0.57f)
+                        lineTo(w * 0.65f, h * 0.48f)
+                        lineTo(w * 0.59f, h * 0.69f)
+                        lineTo(w * 0.50f, h * 0.76f)
+                        lineTo(w * 0.41f, h * 0.69f)
+                        close()
+                    }
+                    drawPath(muzzle, Blue.copy(alpha = 0.13f), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2f))
+                    drawLine(Gold.copy(alpha = 0.24f), Offset(w * 0.37f, h * 0.39f), Offset(w * 0.45f, h * 0.42f), 2.2f)
+                    drawLine(Gold.copy(alpha = 0.24f), Offset(w * 0.55f, h * 0.42f), Offset(w * 0.63f, h * 0.39f), 2.2f)
+                    drawCircle(Gold.copy(alpha = 0.22f), radius = w * 0.012f, center = Offset(w * 0.41f, h * 0.43f))
+                    drawCircle(Gold.copy(alpha = 0.22f), radius = w * 0.012f, center = Offset(w * 0.59f, h * 0.43f))
+                    // Faint rising/falling price trace at the lower edge.
+                    val trace = Path().apply {
+                        moveTo(0f, h * 0.91f)
+                        lineTo(w * 0.12f, h * 0.87f)
+                        lineTo(w * 0.22f, h * 0.90f)
+                        lineTo(w * 0.33f, h * 0.82f)
+                        lineTo(w * 0.44f, h * 0.86f)
+                        lineTo(w * 0.55f, h * 0.78f)
+                        lineTo(w * 0.66f, h * 0.83f)
+                        lineTo(w * 0.78f, h * 0.75f)
+                        lineTo(w, h * 0.79f)
+                    }
+                    drawPath(trace, Green.copy(alpha = 0.18f), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f))
+                    for (i in 0..7) {
+                        val x = w * (0.08f + i * 0.12f)
+                        val y = h * (0.90f - (i % 3) * 0.035f)
+                        drawLine(Green.copy(alpha = 0.16f), Offset(x, y - h * 0.025f), Offset(x, y + h * 0.025f), 1.5f)
+                    }
                 }
             ) {
                 Row(
@@ -1437,4 +1498,3 @@ class MarketMonitorService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
     companion object { private const val CHANNEL_ID = "crypto_ai_market_monitor"; private const val NOTIFICATION_ID = 4101 }
 }
-
