@@ -668,7 +668,7 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.19.0 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.24.0 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
