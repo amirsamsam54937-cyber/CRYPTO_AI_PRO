@@ -10,7 +10,7 @@ import kotlin.math.tanh
  * Weights are trained from historical Binance USD-M Futures candles by tools/train_wolf_ensemble.py.
  */
 internal object WolfPretrainedEnsemble {
-    data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double)
+    data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double,val baselineAccuracy:Double=0.0,val balancedAccuracy:Double=0.0,val logLoss:Double=0.0)
     private data class Member(
         val w1:Array<DoubleArray>,val b1:DoubleArray,
         val w2:Array<DoubleArray>,val b2:DoubleArray,
@@ -41,8 +41,13 @@ internal object WolfPretrainedEnsemble {
             mean=vector(root.getJSONArray("feature_mean"))
             scale=vector(root.getJSONArray("feature_scale")).map{if(it==0.0)1.0 else it}.toDoubleArray()
             val metrics=root.getJSONArray("metrics")
-            val accuracy=(0 until metrics.length()).map{metrics.getJSONObject(it).optDouble("accuracy",0.0)}.average()
-            status=Status(true,members.size,root.optInt("samples"),root.optString("trained_at_utc"),accuracy)
+            val memberAccuracy=(0 until metrics.length()).map{metrics.getJSONObject(it).optDouble("accuracy",0.0)}.average()
+            val evaluation=root.optJSONObject("evaluation")
+            val accuracy=evaluation?.optDouble("ensemble_accuracy",memberAccuracy) ?: memberAccuracy
+            val baseline=evaluation?.optDouble("majority_class_baseline_accuracy",0.0) ?: 0.0
+            val balanced=evaluation?.optDouble("ensemble_balanced_accuracy",0.0) ?: 0.0
+            val loss=evaluation?.optDouble("ensemble_log_loss",0.0) ?: 0.0
+            status=Status(true,members.size,root.optInt("samples"),root.optString("trained_at_utc"),accuracy,baseline,balanced,loss)
         }.onFailure {
             members=emptyList()
             status=Status(false,0,0,"",0.0)
