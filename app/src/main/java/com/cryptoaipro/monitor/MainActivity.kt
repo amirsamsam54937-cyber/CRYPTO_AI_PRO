@@ -76,7 +76,8 @@ data class MarketSignal(
     val technical: TechnicalSnapshot,
     val candles: List<DoubleArray> = emptyList(),
     val consensus: WolfConsensus? = null,
-    val neuralScore: Int = 50
+    val neuralScore: Int = 50,
+    val timeframeCoverage: String = "15m / 1h / 4h"
 )
 
 data class TechnicalSnapshot(
@@ -1186,11 +1187,25 @@ private object BinanceMonitor {
             onProgress(results.sortedByDescending { abs(it.score) }, completed, ranked.size, failed)
         }
         if (results.isEmpty()) throw IllegalStateException("هیچ کندلی دریافت نشد؛ خطا در " + failed + " نماد. اتصال اینترنت، محدودیت منطقه‌ای یا پاسخ Binance را بررسی کن.")
-        results.sortedByDescending { abs(it.score) }
+
+        // Deep-review only the strongest candidates on 5m and 1D. This preserves
+        // broad universe coverage while keeping request volume bounded.
+        val rankedResults = results.sortedByDescending { abs(it.score) }
+        val deepReview = rankedResults.take(24)
+        val refined = coroutineScope {
+            deepReview.map { base -> async {
+                runCatching { analyzeExtended(base.symbol, base.price, base.change, base.volume) }
+            } }.awaitAll()
+        }
+        val replacements = mutableMapOf<String, MarketSignal>()
+        refined.forEach { result -> result.onSuccess { replacements[it.symbol] = it }.onFailure { failed++ } }
+        val finalResults = rankedResults.map { replacements[it.symbol] ?: it }.sortedByDescending { abs(it.score) }
+        onProgress(finalResults, completed, ranked.size, failed)
+        finalResults
     }
 
     private suspend fun analyze(symbol: String, price: Double, change: Double, volume: Double): MarketSignal {
-        // Fetch three timeframes concurrently instead of serially for each contract.
+        // Broad scan: 15m / 1h / 4h for every active USDT perpetual contract.
         val frames = coroutineScope {
             val short = async { candles(symbol, "15m") }
             val confirm = async { candles(symbol, "1h") }
@@ -1200,20 +1215,47 @@ private object BinanceMonitor {
         return analyzeWithCandles(symbol, price, change, volume, frames.first, frames.second, frames.third)
     }
 
+    private suspend fun analyzeExtended(symbol: String, price: Double, change: Double, volume: Double): MarketSignal {
+        // Bounded deep review for top-ranked candidates adds micro timing and daily context.
+        val frames = coroutineScope {
+            val micro = async { candles(symbol, "5m") }
+            val short = async { candles(symbol, "15m") }
+            val confirm = async { candles(symbol, "1h") }
+            val trend = async { candles(symbol, "4h") }
+            val macro = async { candles(symbol, "1d") }
+            listOf(micro.await(), short.await(), confirm.await(), trend.await(), macro.await())
+        }
+        return analyzeWithCandles(symbol, price, change, volume, frames[1], frames[2], frames[3], frames[0], frames[4])
+    }
+
     internal fun analyzeWithCandles(symbol: String, price: Double, change: Double, volume: Double,
                                     short: List<DoubleArray>, confirm: List<DoubleArray>,
-                                    trend: List<DoubleArray>): MarketSignal {
+                                    trend: List<DoubleArray>, micro: List<DoubleArray>? = null,
+                                    macro: List<DoubleArray>? = null): MarketSignal {
         val a = indicators(short)
         val b = indicators(confirm)
         val c = indicators(trend)
-        val score = a.first + b.first + c.first
-        val wolf = WolfConsensusEngine.analyze(listOf(a.technical, b.technical, c.technical), price)
+        val microStats = micro?.let { indicators(it) }
+        val macroStats = macro?.let { indicators(it) }
+        val frames = buildList {
+            microStats?.let { add(it.technical) }
+            add(a.technical); add(b.technical); add(c.technical)
+            macroStats?.let { add(it.technical) }
+        }
+        val score = a.first + b.first + c.first + (microStats?.first ?: 0) * 0.35 + (macroStats?.first ?: 0) * 1.10
+        val wolf = WolfConsensusEngine.analyze(frames, price)
         val atrValue = atr(short).coerceAtLeast(price * 0.0001)
         val stretched = abs(price - a.technical.ema20) > atrValue * 2.2
         val extremeVolatility = a.technical.atrPercent > 10.0
         val fourHourConflict = (wolf.direction == "LONG_BIAS" && c.technical.marketStructure.contains("LH/LL")) ||
             (wolf.direction == "SHORT_BIAS" && c.technical.marketStructure.contains("HH/HL"))
-        val filtered = stretched || extremeVolatility || fourHourConflict
+        val dailyConflict = macroStats != null && (
+            (wolf.direction == "LONG_BIAS" && (macroStats.technical.ema20 < macroStats.technical.ema50 ||
+                macroStats.technical.marketStructure.contains("LH/LL"))) ||
+            (wolf.direction == "SHORT_BIAS" && (macroStats.technical.ema20 > macroStats.technical.ema50 ||
+                macroStats.technical.marketStructure.contains("HH/HL")))
+        )
+        val filtered = stretched || extremeVolatility || fourHourConflict || dailyConflict
         val direction = if (filtered) "NEUTRAL" else wolf.direction
         val confidence = if (filtered) (wolf.strengthIndex * 0.65).toInt() else wolf.strengthIndex
         val isLong = direction == "LONG_BIAS"
@@ -1238,14 +1280,18 @@ private object BinanceMonitor {
             stretched -> " | فیلتر: قیمت بیش از حد از EMA20 فاصله گرفته؛ تعقیب نکن"
             extremeVolatility -> " | فیلتر: نوسان ۱۵دقیقه‌ای بسیار شدید"
             fourHourConflict -> " | فیلتر: ساختار ۴ساعته مخالف جهت است"
+            dailyConflict -> " | فیلتر: روند روزانه با جهت سیگنال تعارض دارد"
             else -> ""
         }
         return MarketSignal(
             symbol, price, change, volume, direction, score, a.third, confidence,
             "اجماع گرگ " + wolf.agreement + "% | قدرت اجماع (نه احتمال برد): " + wolf.strengthIndex +
                 "% | ۱۰ تحلیلگر: " + agentSummary + " | ۱۵د: " + a.second + " | ۱س: " + b.second +
-                " | ۴س: " + c.second + filterNote,
-            price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical, short.takeLast(80), wolf
+                " | ۴س: " + c.second +
+                (microStats?.let { " | ۵د: " + it.second } ?: "") +
+                (macroStats?.let { " | ۱روز: " + it.second } ?: "") + filterNote,
+            price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical, short.takeLast(80), wolf,
+            timeframeCoverage = if (microStats != null && macroStats != null) "5m / 15m / 1h / 4h / 1D" else "15m / 1h / 4h"
         )
     }
 
