@@ -54,29 +54,64 @@ internal object WolfSignalOutcomeJournal {
             if (signal != null && signal.price > 0.0 && now > created) {
                 val entry = record.optDouble("entry")
                 val long = record.optString("side") == "LONG_BIAS"
-                val price = signal.price
                 val stop = record.optDouble("stop")
                 val targets = listOf(record.optDouble("tp1"), record.optDouble("tp2"), record.optDouble("tp3"))
-                val stopHit = if (long) price <= stop else price >= stop
-                val targetHit = targets.indexOfLast { target ->
-                    if (long) price >= target else price <= target
+                // Evaluate every newly closed 15m candle since the previous scan. Using only
+                // the sampled last price misses intrabar SL/TP touches and biases win-rate stats.
+                val cursor = record.optLong("lastEvaluatedCandleOpenTime", created)
+                val newBars = signal.candles.asSequence()
+                    .filter { it.size >= 6 && it[5].isFinite() && it[5].toLong() > cursor }
+                    .sortedBy { it[5] }
+                    .toList()
+                var closedOnBar = false
+                newBars.forEach { bar ->
+                    if (record.optBoolean("closed")) return@forEach
+                    val open = bar[0]
+                    val high = bar[1]
+                    val low = bar[2]
+                    val close = bar[3]
+                    if (!listOf(open, high, low, close).all { it.isFinite() && it > 0.0 }) {
+                        record.put("lastEvaluatedCandleOpenTime", bar[5].toLong())
+                        return@forEach
+                    }
+                    val stopHit = if (long) low <= stop else high >= stop
+                    val targetHit = targets.indexOfLast { target ->
+                        if (long) high >= target else low <= target
+                    }
+                    if (stopHit) {
+                        // If a candle opens through the stop, model the worse opening price.
+                        val stopFill = if (long) minOf(open, stop) else maxOf(open, stop)
+                        closeRecord(record, "SL", stopFill, now)
+                        closedOnBar = true
+                    } else if (targetHit >= 0) {
+                        closeRecord(record, "TP" + (targetHit + 1), targets[targetHit], now)
+                        closedOnBar = true
+                    } else {
+                        record.put("lastPrice", close)
+                    }
+                    record.put("lastEvaluatedCandleOpenTime", bar[5].toLong())
                 }
-                if (stopHit) {
-                    closeRecord(record, "SL", stop, now)
-                } else if (targetHit >= 0) {
-                    closeRecord(record, "TP" + (targetHit + 1), targets[targetHit], now)
+                if (record.optBoolean("closed")) {
+                    val exit = record.optDouble("exitPrice")
+                    if (entry > 0.0 && exit > 0.0) {
+                        val rawPct = if (long) (exit / entry - 1.0) * 100.0
+                            else ((entry - exit) / entry) * 100.0
+                        record.put("priceChangePct", rawPct)
+                        // Estimated leveraged gross return; excludes fees, funding and slippage.
+                        record.put("pnlPct", rawPct * record.optInt("leverage", 1).coerceAtLeast(1))
+                    }
                 } else if (now >= expiresAt) {
-                    closeRecord(record, "EXPIRED", price, now)
+                    closeRecord(record, "EXPIRED", signal.price, now)
+                    val exit = record.optDouble("exitPrice")
+                    if (entry > 0.0 && exit > 0.0) {
+                        val rawPct = if (long) (exit / entry - 1.0) * 100.0
+                            else ((entry - exit) / entry) * 100.0
+                        record.put("priceChangePct", rawPct)
+                        record.put("pnlPct", rawPct * record.optInt("leverage", 1).coerceAtLeast(1))
+                    }
                 } else {
-                    record.put("lastPrice", price)
+                    record.put("lastPrice", signal.price)
                     record.put("lastChecked", now)
-                }
-                if (record.optBoolean("closed") && entry > 0.0) {
-                    val rawPct = if (long) (record.optDouble("exitPrice") / entry - 1.0) * 100.0
-                        else ((entry - record.optDouble("exitPrice")) / entry) * 100.0
-                    record.put("priceChangePct", rawPct)
-                    // Estimated leveraged gross return; excludes fees, funding and slippage.
-                    record.put("pnlPct", rawPct * record.optInt("leverage", 1).coerceAtLeast(1))
                 }
             } else if (now >= expiresAt) {
                 closeRecord(record, "EXPIRED", record.optDouble("lastPrice", record.optDouble("entry")), now)
@@ -109,6 +144,7 @@ internal object WolfSignalOutcomeJournal {
                     put("confidence", s.confidence); put("neuralScore", s.neuralScore); put("score", s.score)
                     put("reason", s.reason); put("leverage", s.leverage); put("change", s.change)
                     put("lastPrice", s.price); put("lastChecked", now)
+                    put("lastEvaluatedCandleOpenTime", s.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: now)
                 })
             }
         }
