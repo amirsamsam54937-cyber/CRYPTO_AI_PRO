@@ -73,7 +73,7 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
-// Wolf v2.18 visual system: graphite, silver, electric turquoise and restrained gold.
+// Hope Hunter visual system: obsidian, warm ivory and refined champagne gold.
 private val Navy = Color(0xFF050505)
 private val Panel = Color(0xFF111111)
 private val Muted = Color(0xFFB8B0A0)
@@ -280,12 +280,6 @@ fun CryptoMonitorScreen() {
             }
         ) { innerPadding ->
             Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                Image(
-                    painter = painterResource(id = R.drawable.wolf_poster),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 0.105f }
-                )
                 Box(Modifier.fillMaxSize().background(
                     Brush.verticalGradient(listOf(Color(0xE6080808), Color(0xF2050505), Color(0xEA171006)))
                 ))
@@ -303,14 +297,14 @@ fun CryptoMonitorScreen() {
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
-                            contentDescription = "نشان گرگ امیر ارسلان",
+                            contentDescription = "نشان اتاق شکار امیدها",
                             modifier = Modifier.fillMaxSize()
                         )
                     }
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("AMIRARSALAN TRADER WOLF", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
-                        Text("TRADER WOLF  •  LIVE TECHNICAL INTELLIGENCE", color = Muted, fontSize = 8.sp, letterSpacing = 0.5.sp)
+                        Text("اتاق شکار امیدها", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
+                        Text("HOPE HUNTER  •  INTELLIGENT MARKET ANALYSIS", color = Muted, fontSize = 8.sp, letterSpacing = 0.5.sp)
                     }
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -353,7 +347,7 @@ fun CryptoMonitorScreen() {
                                         Box(Modifier.fillMaxWidth().height(196.dp)) {
                                             Image(
                                                 painter = painterResource(id = R.drawable.wolf_hero),
-                                                contentDescription = "گرگ نمادین AMIRARSALAN TRADER WOLF",
+                                                contentDescription = "هویت بصری اتاق شکار امیدها",
                                                 contentScale = ContentScale.Crop,
                                                 modifier = Modifier.fillMaxSize()
                                             )
@@ -364,10 +358,10 @@ fun CryptoMonitorScreen() {
                                                 Modifier.align(Alignment.CenterStart).padding(start = 18.dp, end = 14.dp),
                                                 verticalArrangement = Arrangement.spacedBy(7.dp)
                                             ) {
-                                                Text("AMIRARSALAN", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
-                                                Text("TRADER WOLF", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-                                                Text("TRADE LIKE A WOLF", color = Gold, fontSize = 9.sp, letterSpacing = 2.sp)
-                                                Text("قدرت تحلیل تکنیکال • رتبه‌بندی سیگنال • مدیریت ریسک", color = Color.White, fontSize = 10.sp)
+                                                Text("HOPE HUNTER", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                                                Text("اتاق شکار امیدها", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                                                Text("هوشمندی در شکار فرصت‌ها", color = Gold, fontSize = 9.sp, letterSpacing = 2.sp)
+                                                Text("تحلیل چندلایه • کشف فرصت • مدیریت ریسک", color = Color.White, fontSize = 10.sp)
                                             }
                                             Surface(
                                                 color = Color(0xCC090909), shape = RoundedCornerShape(30.dp),
@@ -381,13 +375,13 @@ fun CryptoMonitorScreen() {
                                         Column(Modifier.padding(horizontal = 14.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                    Text("اتاق فرمان گرگ", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+                                                    Text("اتاق شکار امیدها", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
                                                     Text("تحلیل تکنیکال زنده  •  Binance / XT", color = Gold, fontSize = 10.sp)
                                                     Text("سازنده: amir arsalan samsami", color = Muted, fontSize = 9.sp)
                                                 }
                                                 Surface(color = Color(0xFF211805), shape = RoundedCornerShape(12.dp),
                                                     border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.55f))) {
-                                                    Text("WOLF  AI", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                                    Text("هوش شکار", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold,
                                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp))
                                                 }
                                             }
@@ -1636,7 +1630,7 @@ class MarketMonitorService : Service() {
                         val signals = applyWolfNeuralScoring(applicationContext, marketSignals)
                         val journalSnapshot = WolfSignalOutcomeJournal.processScan(applicationContext, signals)
                         WolfLearningMemory.processScan(applicationContext, signals, journalSnapshot.records)
-                        // News and whale-flow feeds are intentionally excluded: this app is technical-analysis only.
+                        // Refresh private news and large-trade flow context for the analysis engine; never expose session clocks or raw feed panels in the UI.\n                        runCatching { WolfFlowNewsRepository.refreshForEngine(applicationContext, marketSignals) }
                         val active = signals.count { it.direction != "NEUTRAL" }
                         "اسکن ${signals.size} قرارداد $selectedExchange • سیگنال‌های جهت‌دار: $active • فقط تحلیل تکنیکال"
                     }.getOrElse { "خطای اسکن بازار: ${it.message ?: "نامشخص"}" }
@@ -1654,7 +1648,7 @@ class MarketMonitorService : Service() {
     }
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "پایش بازار CRYPTO AI PRO", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(CHANNEL_ID, "پایش بازار اتاق شکار امیدها", NotificationManager.IMPORTANCE_LOW)
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
         }
     }
