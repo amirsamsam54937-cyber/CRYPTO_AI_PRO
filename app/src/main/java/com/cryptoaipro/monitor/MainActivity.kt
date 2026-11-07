@@ -71,7 +71,7 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
-// Wolf v2.17 visual system: graphite, silver, electric turquoise and restrained gold.
+// Wolf v2.18 visual system: graphite, silver, electric turquoise and restrained gold.
 private val Navy = Color(0xFF0B0D0F)
 private val Panel = Color(0xFF1B2024)
 private val Muted = Color(0xFFB2BBC2)
@@ -710,7 +710,7 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.17.0 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.18.0 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
