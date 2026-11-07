@@ -33,11 +33,18 @@ internal data class MarketNewsItem(val title: String, val source: String, val li
 internal object WolfFlowNewsRepository {
     private fun get(url: String): String {
         val connection = URL(url).openConnection() as HttpURLConnection
+        connection.requestMethod = "GET"
         connection.connectTimeout = 8000
         connection.readTimeout = 10000
-        connection.setRequestProperty("User-Agent", "AmirTraderWolf/2.6 Android")
-        return try { connection.inputStream.bufferedReader().use { it.readText() } }
-        finally { connection.disconnect() }
+        connection.setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.14 Android")
+        connection.setRequestProperty("Accept", "application/json, application/rss+xml, application/xml")
+        return try {
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) throw IllegalStateException("سرویس داده عمومی پاسخ HTTP $code داد")
+            body
+        } finally { connection.disconnect() }
     }
 
     suspend fun whale(symbolInput: String): WhaleFlowReport = withContext(Dispatchers.IO) {
@@ -112,17 +119,27 @@ internal object WolfFlowNewsRepository {
                 factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
                 factory.setFeature("http://xml.org/sax/features/external-general-entities", false)
                 factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
-                val doc = factory.newDocumentBuilder().parse(URL(feed).openStream())
-                val nodes = doc.getElementsByTagName("item")
-                (0 until minOf(nodes.length, 15)).mapNotNull { i ->
-                    val item = nodes.item(i)
-                    fun tag(name: String) = item.childNodes.let { children ->
-                        (0 until children.length).firstOrNull { children.item(it).nodeName.equals(name, true) }
-                            ?.let { children.item(it).textContent?.trim().orEmpty() }.orEmpty()
-                    }
-                    val title = tag("title")
-                    if (title.isBlank()) null else MarketNewsItem(title, if (feed.contains("coindesk")) "CoinDesk" else "Cointelegraph", tag("link"), tag("pubDate"))
+                val connection = (URL(feed).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 7000
+                    readTimeout = 9000
+                    setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.14 Android")
+                    setRequestProperty("Accept", "application/rss+xml, application/xml")
                 }
+                try {
+                    require(connection.responseCode in 200..299) { "RSS HTTP " + connection.responseCode }
+                    val doc = connection.inputStream.use { factory.newDocumentBuilder().parse(it) }
+                    val nodes = doc.getElementsByTagName("item")
+                    (0 until minOf(nodes.length, 15)).mapNotNull { i ->
+                        val item = nodes.item(i)
+                        fun tag(name: String) = item.childNodes.let { children ->
+                            (0 until children.length).firstOrNull { children.item(it).nodeName.equals(name, true) }
+                                ?.let { children.item(it).textContent?.trim().orEmpty() }.orEmpty()
+                        }
+                        val title = tag("title")
+                        if (title.isBlank()) null else MarketNewsItem(title, if (feed.contains("coindesk")) "CoinDesk" else "Cointelegraph", tag("link"), tag("pubDate"))
+                    }
+                } finally { connection.disconnect() }
             }.getOrDefault(emptyList())
         }.distinctBy { it.title }.take(20)
     }
