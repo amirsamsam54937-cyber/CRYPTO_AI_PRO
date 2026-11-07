@@ -82,15 +82,15 @@ object WolfConsensusEngine {
         }.average()
 
         val votes = listOf(
-            WolfAgentVote("روند EMA", direction(ema.average()), ema.average(), 1.2, "فاصله نسبی EMA20 و EMA50 در سه تایم‌فریم"),
+            WolfAgentVote("روند EMA", direction(ema.average()), ema.average(), 1.2, "فاصله نسبی EMA20 و EMA50 در تایم‌فریم‌های تحلیل‌شده"),
             WolfAgentVote("چیدمان بلندمدت", direction(trendStack.average()), trendStack.average(), 1.1, "ترتیب EMA20/50/100/200"),
-            WolfAgentVote("مومنتوم RSI", direction(rsiMomentum), rsiMomentum, 0.9, "Stochastic RSI در سه تایم‌فریم"),
+            WolfAgentVote("مومنتوم RSI", direction(rsiMomentum), rsiMomentum, 0.9, "Stochastic RSI در تایم‌فریم‌های تحلیل‌شده"),
             WolfAgentVote("قدرت ADX", direction(adxMomentum), clamp(adxMomentum), 1.0, "جهت روند با وزن قدرت ADX؛ روند ضعیف رأی قوی نمی‌گیرد"),
             WolfAgentVote("تأیید VWAP", direction(vwapMomentum), vwapMomentum, 0.8, "موقعیت قیمت نسبت به VWAP"),
             WolfAgentVote("باند بولینگر", direction(bandMomentum), clamp(bandMomentum), 0.7, "مومنتوم باند با کاهش وزن در نواحی افراطی"),
             WolfAgentVote("حجم نسبی", direction(volumeMomentum), clamp(volumeMomentum), 0.8, "حجم بالاتر از میانگین همراه با جهت قیمت"),
             WolfAgentVote("ساختار بازار", direction(structure.average()), structure.average(), 1.1, "سقف و کف‌های بالاتر یا پایین‌تر"),
-            WolfAgentVote("الگوی کندلی", direction(candle.average()), candle.average(), 0.6, "الگوهای کندلی سه بازه؛ به‌تنهایی سیگنال‌ساز نیست"),
+            WolfAgentVote("الگوی کندلی", direction(candle.average()), candle.average(), 0.6, "الگوهای کندلی در بازه‌های تحلیل؛ به‌تنهایی سیگنال‌ساز نیست"),
             WolfAgentVote(
                 "هم‌گرایی تایم‌فریم",
                 if ((if (t.size >= 5) ema.drop(1).all { it > 0.0 } else ema.all { it > 0.0 }) &&
@@ -99,9 +99,9 @@ object WolfConsensusEngine {
                     trendStack.count { it < 0.0 } >= (if (t.size >= 5) 3 else 2)) "SHORT"
                 else "NEUTRAL",
                 if ((if (t.size >= 5) ema.drop(1).all { it > 0.0 } else ema.all { it > 0.0 }) &&
-                    trendStack.count { it > 0.0 } >= if (t.size >= 5) 3 else 2) 1.0
+                    trendStack.count { it > 0.0 } >= (if (t.size >= 5) 3 else 2)) 1.0
                 else if ((if (t.size >= 5) ema.drop(1).all { it < 0.0 } else ema.all { it < 0.0 }) &&
-                    trendStack.count { it < 0.0 } >= if (t.size >= 5) 3 else 2) -1.0
+                    trendStack.count { it < 0.0 } >= (if (t.size >= 5) 3 else 2)) -1.0
                 else 0.0,
                 1.3,
                 if (t.size >= 5) "توافق روند در ۱۵ دقیقه، ۱ ساعت، ۴ ساعت و ۱ روز؛ ۵ دقیقه برای زمان‌بندی" else "توافق روند در ۱۵ دقیقه، ۱ ساعت و ۴ ساعت"
