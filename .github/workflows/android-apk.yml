@@ -3,7 +3,7 @@ permissions:
   actions: write
   contents: read
 concurrency:
-  group: wolf-android-build-${{ github.ref }}
+  group: wolf-android-build-${{ github.run_id }}
   cancel-in-progress: false
 on:
   workflow_dispatch:
