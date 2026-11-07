@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Train ten compact MLPs on historical Binance USD-M Futures candles."""
-import json, os, time, urllib.request, io, zipfile, csv, datetime
+import json, os, time, urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 from sklearn.neural_network import MLPClassifier
@@ -11,64 +11,23 @@ try:
 except ModuleNotFoundError:  # direct execution as `python tools/train_wolf_ensemble.py`
     from time_series_validation import chronological_masks
 
-BASES = ["https://fapi.binance.com", "https://fapi1.binance.com", "https://fapi2.binance.com"]
+BASE_URL = "https://fapi.binance.com"
 SYMBOLS = ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","LINKUSDT","AVAXUSDT","LTCUSDT","TRXUSDT","DOTUSDT","BCHUSDT","ETCUSDT","ATOMUSDT","NEARUSDT","APTUSDT","ARBUSDT","OPUSDT","FILUSDT"]
 INTERVAL, PAGE_LIMIT, HISTORY_BARS, HORIZON = "1h", 1500, 6000, 6
 
 def get_json(path):
-    error = None
-    for base in BASES:
-        try:
-            req = urllib.request.Request(base + path, headers={"User-Agent":"AmirWolf-Research/1.0"})
-            with urllib.request.urlopen(req, timeout=20) as response:
-                return json.loads(response.read())
-        except Exception as exc:
-            error = exc
-    raise RuntimeError(f"Binance historical candles unavailable: {error}")
-
-def download_archive_month(symbol,period):
-    filename=f"{symbol}-{INTERVAL}-{period}.zip"
-    url=f"https://data.binance.vision/data/futures/um/monthly/klines/{symbol}/{INTERVAL}/{filename}"
-    request=urllib.request.Request(url,headers={"User-Agent":"AmirWolf-Research/1.0"})
-    with urllib.request.urlopen(request,timeout=12) as response:
-        archive=zipfile.ZipFile(io.BytesIO(response.read()))
-    result=[]
-    with archive.open(archive.namelist()[0]) as stream:
-        reader=csv.reader(io.TextIOWrapper(stream,encoding="utf-8"))
-        for row in reader:
-            try:
-                timestamp=int(float(row[0]))
-                values=[timestamp]+[float(value) for value in row[1:6]]
-                close_time=int(float(row[6])) if len(row)>6 and row[6] else timestamp+3599999
-                result.append(values+[close_time])
-            except (ValueError,IndexError):
-                continue
-    return result
-
-def get_archive_history(symbol):
-    today=datetime.datetime.now(datetime.timezone.utc).date()
-    periods=[]
-    for offset in range(6,0,-1):
-        month_index=today.year*12+(today.month-1)-offset
-        year,month=divmod(month_index,12)
-        periods.append(f"{year:04d}-{month+1:02d}")
-    rows=[]
-    with ThreadPoolExecutor(max_workers=12) as pool:
-        futures={pool.submit(download_archive_month,symbol,period):period for period in periods}
-        for future in as_completed(futures):
-            try:
-                rows.extend(future.result())
-            except Exception as exc:
-                print(f"ARCHIVE {symbol} {futures[future]}: {exc}",flush=True)
-    unique={int(row[0]):row for row in rows}
-    return [unique[key] for key in sorted(unique)]
+    # Use only Binance's canonical public USD-M endpoint. Never rotate hosts or mirrors
+    # after a regional-eligibility denial.
+    req = urllib.request.Request(BASE_URL + path, headers={"User-Agent":"AmirWolf-Research/2.14"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as response:
+            return json.loads(response.read())
+    except Exception as exc:
+        raise RuntimeError(f"Canonical Binance public futures endpoint unavailable: {exc}") from exc
 
 def get_history(symbol):
-    # Prefer Binance's official public USD-M Futures archive; it avoids regional REST API restrictions.
-    archived=get_archive_history(symbol)
-    if len(archived)>500:
-        return archived
-    # REST fallback for environments where the public archive is unavailable.
+    # Historical training uses the same canonical public endpoint as the app.
+    # If Binance denies access, skip the symbol rather than trying a mirror.
     rows=[]
     start=int(time.time()*1000)-HISTORY_BARS*60*60*1000
     while len(rows)<HISTORY_BARS:
@@ -86,6 +45,7 @@ def get_history(symbol):
         time.sleep(.08)
     unique={int(row[0]):row for row in rows}
     return [unique[key] for key in sorted(unique)][-HISTORY_BARS:]
+
 
 def ema(values, period):
     result = np.empty(len(values), dtype=float)
