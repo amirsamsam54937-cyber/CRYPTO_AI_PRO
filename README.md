@@ -60,7 +60,7 @@ The Python package provides public-market research, indicator analysis and histo
     pip install -r requirements.txt
     PYTHONPATH=. uvicorn app.main:app --reload
 
-The default CCXT market adapter is Binance USDⓈ-M (binanceusdm). No API credentials are needed for public market data. A regional HTTP 451 response is an access-eligibility denial: the app stops polling instead of rotating hostnames or trying to evade the restriction. Use only market-data services whose terms permit access from your network location.
+The default CCXT market adapter is Binance USDⓈ-M (binanceusdm). No API credentials are needed for public market data. A regional HTTP 451 response is an access-eligibility denial: the app stops polling instead of rotating hostnames or trying to evade the restriction. CI also skips neural retraining on HTTP 451 and packages the analysis app without fabricated weights. Use only market-data services whose terms permit access from your network location.
 
 ## Build and install Android APK
 
@@ -69,7 +69,7 @@ Every push affecting Android source starts the **Build Android APK** GitHub Acti
 1. Open the repository's **Actions** tab.
 2. Open the newest **Build Android APK** run.
 3. Wait for all jobs to finish successfully.
-4. Download the **AMIR-ARSALAN-TRADER-WOLF-pretrained** artifact ZIP.
+4. Download the **AMIR-ARSALAN-TRADER-WOLF-v2.14.0** artifact ZIP.
 5. Extract and install app-debug.apk on Android.
 
 A successful CI build verifies compilation only. It does not prove API availability in every region, signal quality, profitability, background reliability or production readiness. The APK size must be measured from the generated artifact; no artificial padding is added to meet a file-size target.
