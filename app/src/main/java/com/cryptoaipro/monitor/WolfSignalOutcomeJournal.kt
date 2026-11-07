@@ -102,7 +102,7 @@ internal object WolfSignalOutcomeJournal {
                 rows.add(JSONObject().apply {
                     put("symbol", s.symbol); put("side", s.direction)
                     put("created", now); put("expiresAt", now + VALIDITY_MS)
-                    put("timeframe", SIGNAL_TIMEFRAME)
+                    put("timeframe", s.timeframeCoverage)
                     put("entry", s.entry); put("stop", s.stop)
                     put("tp1", s.tp1); put("tp2", s.tp2); put("tp3", s.tp3)
                     put("status", "ACTIVE"); put("closed", false)
