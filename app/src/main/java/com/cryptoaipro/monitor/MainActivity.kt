@@ -862,7 +862,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 SmallStat("قیمت", formatPrice(item.price))
                 SmallStat("تغییر ۲۴ساعت", String.format(Locale.US, "%.2f%%", item.change), if (item.change >= 0) Green else Red)
                 SmallStat("RSI", String.format(Locale.US, "%.1f", item.rsi))
-                SmallStat("امتیاز", item.score.toString() + "/30")
+                SmallStat("امتیاز خام", item.score.toString())
                 SmallStat("شبکه عصبی", item.neuralScore.toString() + "%")
             }
             Spacer(Modifier.height(8.dp))
