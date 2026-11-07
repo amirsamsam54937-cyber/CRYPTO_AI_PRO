@@ -188,6 +188,6 @@ internal object WolfMarketDataStore {
         imported = imported
     )
 
-    private fun count(db: SQLiteDatabase, table: String, where: String): Int =
+    private fun count(db: SQLiteDatabase, table: String, where: String = "1=1"): Int =
         db.rawQuery("SELECT COUNT(*) FROM $table WHERE $where", null).use { if (it.moveToFirst()) it.getInt(0) else 0 }
 }
