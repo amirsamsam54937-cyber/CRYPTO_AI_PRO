@@ -421,13 +421,13 @@ fun CryptoMonitorScreen() {
                                 Surface(color = Color(0xFF242B2F), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                                         Image(
-                                            painter = painterResource(id = R.drawable.wolf_hero),
+                                            painter = painterResource(id = R.drawable.wolf_poster),
                                             contentDescription = "پوستر اصلی AMIRARSALAN TRADER WOLF",
                                             modifier = Modifier.fillMaxWidth().height(172.dp),
                                             contentScale = androidx.compose.ui.layout.ContentScale.Crop
                                         )
                                         Text("مرکز فرماندهی هوشمند", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                                        Text("تحلیل چندلایه • سیگنال هوشمند • پایش خودکار اخبار و نهنگ‌ها", color = Muted, fontSize = 10.sp)
+                                        Text("تحلیل چندلایه بازار • موتور هوشمند سیگنال‌دهی", color = Muted, fontSize = 10.sp)
                                         MarketSessionsPanel()
                                         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Blue)
                                         Text(scanProgress, color = Muted, fontSize = 10.sp)
