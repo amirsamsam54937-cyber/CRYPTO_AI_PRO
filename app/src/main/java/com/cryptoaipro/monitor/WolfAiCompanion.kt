@@ -118,6 +118,7 @@ internal object WolfKnowledgeSearch {
 
 @Composable
 internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
+    val context = LocalContext.current
     val messages = remember {
         mutableStateListOf(
             WolfChatMessage(
