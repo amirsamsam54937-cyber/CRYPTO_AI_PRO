@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: amirarsalan-trader-wolf-cloud
+    runtime: docker
+    dockerfilePath: ./Dockerfile.cloud
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wolf-brain-db
+          property: connectionString
+      - key: WOLF_CLOUD_TOKEN
+        generateValue: true
+      - key: WOLF_EXCHANGE
+        value: binanceusdm
+      - key: WOLF_SCAN_SECONDS
+        value: "300"
+      - key: WOLF_UNIVERSE_SIZE
+        value: "40"
+databases:
+  - name: wolf-brain-db
+    plan: basic-256mb
+    databaseName: wolfbrain
+    user: wolfbrain
