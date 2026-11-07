@@ -37,6 +37,7 @@ def collect(exchange_id):
             raise RuntimeError(f"{exchange_id}: no active linear USDT perpetual markets")
         per_symbol = math.ceil(TARGET / len(markets))
         rows, errors = [], []
+        market_history = []
         for market in markets:
             symbol = market["symbol"]
             # Request recent history first. XT does not provide 2020-era candles
@@ -67,13 +68,43 @@ def collect(exchange_id):
                 normalized = normalized_symbol(market)
                 rows.extend((exchange_id.upper(), normalized, TIMEFRAME, *r)
                             for r in local[-per_symbol:])
+                market_history.append((market, normalized, local[0][0], len(local)))
             print(f"{exchange_id}: {symbol}: {len(local)} real closed candles; total={len(rows)}", flush=True)
             if len(rows) >= TARGET:
                 break
             time.sleep(max(ex.rateLimit / 1000.0, 0.05))
+
+        # Backfill older closed candles when newer contracts fall short of their quota.
+        if len(rows) < TARGET:
+            for market, normalized, earliest, first_count in market_history:
+                if len(rows) >= TARGET:
+                    break
+                if first_count < 100:
+                    continue
+                try:
+                    page = ex.fetch_ohlcv(market["symbol"], TIMEFRAME,
+                        since=max(START, earliest - 1000 * 3_600_000), limit=1000)
+                    older = []
+                    now = ex.milliseconds()
+                    for candle in page or []:
+                        ts, op, hi, lo, cl, vol = candle
+                        if ts >= earliest or ts + 3_600_000 > now:
+                            continue
+                        if not all(math.isfinite(float(x)) for x in candle):
+                            continue
+                        if min(op,hi,lo,cl) <= 0 or vol < 0 or hi < max(op,cl) or lo > min(op,cl):
+                            continue
+                        older.append((int(ts),float(op),float(hi),float(lo),float(cl),float(vol)))
+                    older = sorted({r[0]: r for r in older}.values(), key=lambda r:r[0])
+                    rows.extend((exchange_id.upper(), normalized, TIMEFRAME, *r) for r in older)
+                    print(f"{exchange_id}: backfill {normalized}: +{len(older)}; total={len(rows)}", flush=True)
+                except Exception as exc:
+                    errors.append(f"{market['symbol']} backfill: {type(exc).__name__}: {exc}")
+                time.sleep(max(ex.rateLimit / 1000.0, 0.05))
+
         rows.sort(key=lambda r: (r[1], r[3]))
-        if len(rows) < MINIMUM:
-            raise RuntimeError(f"{exchange_id}: collected {len(rows):,}; at least {MINIMUM:,} real candles are required; errors={errors[:5]}")
+        if len(rows) < TARGET:
+            raise RuntimeError(f"{exchange_id}: collected {len(rows):,}; the full {TARGET:,} real-candle target is required; errors={errors[:5]}")
         return rows[:TARGET]
     finally:
         ex.close()
