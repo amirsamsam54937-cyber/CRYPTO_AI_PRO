@@ -76,7 +76,9 @@ internal object WolfForecastEngine {
             else -> 0.0
         }
         val trendPersistence = (0.45 * momentum + 0.30 * technicalTrend + 0.25 * supertrend).coerceIn(-2.0, 2.0)
-        val meanReversion = (0.45 * rsiPressure + 0.30 * (-closeLocation) +
+        // Mean reversion must oppose stretched momentum: high RSI / closes near the
+        // candle high are exhaustion evidence for LONG, not bullish confirmation.
+        val meanReversion = (-0.45 * rsiPressure - 0.30 * closeLocation +
             0.25 * (if (efficiency < 0.18) -momentum else 0.0)).coerceIn(-2.0, 2.0)
         val volumeConfirmation = ((relativeVolume - 1.0) / 1.5).coerceIn(-0.5, 1.0) *
             (if (closeLocation >= 0.0) 1.0 else -1.0)
