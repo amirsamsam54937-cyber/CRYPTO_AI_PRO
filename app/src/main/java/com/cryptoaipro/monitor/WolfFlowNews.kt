@@ -85,29 +85,85 @@ internal object WolfFlowNewsRepository {
 
     fun enrichSignals(context: android.content.Context, signals: List<MarketSignal>): List<MarketSignal> {
         val prefs = context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
         val flows = runCatching { JSONArray(prefs.getString("flow_reports", "[]")) }.getOrDefault(JSONArray())
         val headlines = runCatching { JSONArray(prefs.getString("market_news", "[]")) }.getOrDefault(JSONArray())
-        val newsContext = (0 until minOf(3, headlines.length())).mapNotNull { headlines.optJSONObject(it)?.optString("title")?.takeIf { title -> title.isNotBlank() } }.joinToString(" | ")
+        val newsFresh = now - prefs.getLong("market_news_updated_at", 0L) <= 2L * 60L * 60L * 1000L
+        val recentTitles = if (newsFresh) (0 until minOf(12, headlines.length())).mapNotNull {
+            headlines.optJSONObject(it)?.optString("title")?.takeIf(String::isNotBlank)
+        } else emptyList()
+        val newsContext = recentTitles.take(3).joinToString(" | ")
+        val negativeTerms = listOf("hack", "exploit", "bankruptcy", "lawsuit", "crash", "outage", "ban", "insolvency", "attack", "liquidation")
+        val positiveTerms = listOf("approval", "adoption", "inflow", "partnership", "upgrade", "launch", "integration", " etf ")
+        val newsBias = recentTitles.sumOf { title ->
+            val text = " " + title.lowercase(Locale.US) + " "
+            (if (negativeTerms.any { text.contains(it) }) -1 else 0) +
+                (if (positiveTerms.any { text.contains(it) }) 1 else 0)
+        }.coerceIn(-3, 3)
         return signals.map { signal ->
-            val flow = (0 until flows.length()).mapNotNull { flows.optJSONObject(it) }.firstOrNull { it.optString("symbol") == signal.symbol.replace("/", "").replace(":USDT", "") }
-            val flowNote = flow?.let { "جریان معاملات درشت: " + it.optString("summary") + "؛ عدم‌تعادل " + String.format(Locale.US, "%.1f%%", it.optDouble("imbalance") * 100) } ?: "جریان نهنگ هنوز داده تأییدشده‌ای برای این نماد ندارد"
-            val newsNote = if (newsContext.isBlank()) "اخبار بازار هنوز دریافت نشده" else "زمینه خبری عمومی: " + newsContext
-            val researchNote = prefs.getString("auto_research", "").orEmpty().take(900)
-            signal.copy(reason = signal.reason + " | " + flowNote + " | " + newsNote + if (researchNote.isBlank()) "" else " | یادداشت پژوهش خودکار: " + researchNote)
+            val normalized = signal.symbol.replace("/", "").replace(":USDT", "").replace("_", "").uppercase(Locale.US)
+            val flow = (0 until flows.length()).mapNotNull { flows.optJSONObject(it) }.firstOrNull {
+                it.optString("symbol").uppercase(Locale.US) == normalized &&
+                    now - it.optLong("updatedAt", 0L) in 0..(20L * 60L * 1000L) &&
+                    prefs.getString("flow_exchange", "BINANCE") == "BINANCE"
+            }
+            val isLong = signal.direction == "LONG_BIAS"
+            val directionalFlow = flow?.optDouble("imbalance", 0.0)?.times(if (isLong) 1.0 else -1.0) ?: 0.0
+            val flowAdjustment = if (flow != null && abs(directionalFlow) >= 0.18) {
+                if (directionalFlow > 0) 3 else -4
+            } else 0
+            val funding = flow?.optDouble("funding", 0.0) ?: 0.0
+            val crowdedSidePenalty = if ((isLong && funding > 0.001) || (!isLong && funding < -0.001)) -2 else 0
+            val newsAdjustment = if (signal.direction == "NEUTRAL") 0 else
+                (newsBias * if (isLong) 1 else -1).coerceIn(-2, 2)
+            val flowNote = flow?.let {
+                "جریان معاملات تهاجمی تازه: " + it.optString("summary") +
+                    "؛ عدم‌تعادل " + String.format(Locale.US, "%.1f%%", it.optDouble("imbalance") * 100)
+            } ?: "جریان معاملات درشت برای این نماد تازه/قابل‌دسترسی نیست"
+            val newsNote = when {
+                newsContext.isBlank() -> "زمینه خبری تازه در دسترس نیست"
+                else -> "زمینه خبری عمومی: " + newsContext
+            }
+            val researchNote = prefs.getString("auto_research", "").orEmpty().take(500)
+            val adjustment = (flowAdjustment + crowdedSidePenalty + newsAdjustment).coerceIn(-6, 4)
+            signal.copy(
+                score = (signal.score + adjustment).coerceIn(-100, 100),
+                confidence = (signal.confidence + adjustment).coerceIn(0, 95),
+                reason = signal.reason + " | " + flowNote + " | " + newsNote +
+                    if (researchNote.isBlank()) "" else " | پژوهش پس‌زمینه: " + researchNote
+            )
         }
     }
 
-    suspend fun refreshForEngine(context: android.content.Context, signals: List<MarketSignal>) {
-        val last = context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE).getLong("last_refresh", 0L)
-        if (System.currentTimeMillis() - last < 15L * 60L * 1000L) return
-        val reports = signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }.sortedByDescending { it.volume }.take(5).mapNotNull { signal -> runCatching { whale(signal.symbol) }.getOrNull() }
+    suspend fun refreshForEngine(context: android.content.Context, signals: List<MarketSignal>, exchange: String = "BINANCE") {
+        val prefs = context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val last = prefs.getLong("last_refresh", 0L)
+        val previousExchange = prefs.getString("last_refresh_exchange", "")
+        if (now - last < 15L * 60L * 1000L && previousExchange == exchange) return
+        // The whale endpoint below is Binance USD-M aggTrades; never mislabel it as XT order flow.
+        val reports = if (exchange == "BINANCE") {
+            signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
+                .sortedByDescending { it.volume }.take(5)
+                .mapNotNull { signal -> runCatching { whale(signal.symbol) }.getOrNull() }
+        } else emptyList()
         val headlines = runCatching { news() }.getOrDefault(emptyList())
         val focus = signals.maxByOrNull { it.volume }
         val researchQuery = focus?.let { "crypto futures ${it.technical.regime} ${it.technical.candlePattern} market structure order flow risk management research" } ?: "crypto futures market structure volatility risk management research"
         val research = runCatching { WolfKnowledgeSearch.answer(researchQuery) }.getOrNull()
-        val json = JSONArray().apply { reports.forEach { r -> put(org.json.JSONObject().apply { put("symbol", r.symbol); put("imbalance", r.imbalance); put("largeBuys", r.largeBuys); put("largeSells", r.largeSells); put("openInterest", r.openInterest); put("funding", r.funding); put("summary", r.summary); put("updatedAt", System.currentTimeMillis()) }) } }
-        val newsJson = JSONArray().apply { headlines.take(12).forEach { n -> put(org.json.JSONObject().apply { put("title", n.title); put("source", n.source); put("url", n.link); put("date", n.date) }) } }
-        context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE).edit().putString("flow_reports", json.toString()).putString("market_news", newsJson.toString()).putString("auto_research", research?.first.orEmpty()).putString("auto_research_source", research?.second.orEmpty()).putLong("last_refresh", System.currentTimeMillis()).apply()
+        val refreshedAt = System.currentTimeMillis()
+        val json = JSONArray().apply { reports.forEach { r -> put(org.json.JSONObject().apply {
+            put("symbol", r.symbol); put("imbalance", r.imbalance); put("largeBuys", r.largeBuys)
+            put("largeSells", r.largeSells); put("openInterest", r.openInterest); put("funding", r.funding)
+            put("summary", r.summary); put("updatedAt", refreshedAt)
+        }) } }
+        val newsJson = JSONArray().apply { headlines.take(12).forEach { n -> put(org.json.JSONObject().apply {
+            put("title", n.title); put("source", n.source); put("url", n.link); put("date", n.date)
+        }) } }
+        prefs.edit().putString("flow_reports", json.toString()).putString("flow_exchange", exchange)
+            .putString("market_news", newsJson.toString()).putLong("market_news_updated_at", refreshedAt)
+            .putString("auto_research", research?.first.orEmpty()).putString("auto_research_source", research?.second.orEmpty())
+            .putLong("last_refresh", refreshedAt).putString("last_refresh_exchange", exchange).apply()
     }
 
     suspend fun news(): List<MarketNewsItem> = withContext(Dispatchers.IO) {
