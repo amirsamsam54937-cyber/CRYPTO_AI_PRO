@@ -529,7 +529,7 @@ fun CryptoMonitorScreen() {
 }
 
 private fun iranDateTime(timestamp: Long): String {
-    val formatter = SimpleDateFormat("yyyy/MM/dd  HH:mm:ss", Locale("fa", "IR"))
+    val formatter = SimpleDateFormat("yyyy/MM/dd  HH:mm:ss", Locale.US)
     formatter.timeZone = java.util.TimeZone.getTimeZone("Asia/Tehran")
     return formatter.format(Date(timestamp)) + "  (ایران)"
 }
@@ -574,8 +574,6 @@ private fun ActiveCommandSignals(
         }
     }
 }
-
-@Composable
 
 @Composable
 private fun SignalStrengthScreen(
@@ -675,8 +673,8 @@ private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
                 Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(record.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                            Text(if (record.side == "LONG_BIAS") "LONG • صعودی" else "SHORT • نزولی", color = tint, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                            Text(record.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                            Text(if (record.side == "LONG_BIAS") "LONG" else "SHORT", color = tint, fontWeight = FontWeight.Black, fontSize = 16.sp)
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(date, color = Muted, fontSize = 9.sp)
@@ -748,7 +746,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text("پوشش تحلیل: " + item.timeframeCoverage, color = Blue, fontSize = 9.sp)
+            Text("تحلیل چندتایم‌فریمی: " + item.timeframeCoverage + "  |  تایم‌فریم مبنای معامله: 15m", color = Blue, fontSize = 10.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 SmallStat("قیمت", formatPrice(item.price))
                 SmallStat("تغییر ۲۴ساعت", String.format(Locale.US, "%.2f%%", item.change), if (item.change >= 0) Green else Red)
@@ -758,8 +756,8 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
             }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("قدرت هم‌جهتی تایم‌فریم‌ها", color = Muted, fontSize = 10.sp, modifier = Modifier.weight(1f))
-                Text(item.confidence.toString() + "%", color = tint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("قدرت سیگنال", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                Text(String.format(Locale.US, "%d%%", item.confidence), color = tint, fontSize = 16.sp, fontWeight = FontWeight.Black)
             }
             LinearProgressIndicator(
                 progress = { item.confidence / 100f },
@@ -770,14 +768,14 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 Spacer(Modifier.height(8.dp))
                 Surface(color = Color(0xFF19150B), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.22f)), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("ورود مرجع: " + formatPrice(item.entry) + "   |   اهرم سقف: " + item.leverage + "x", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("ENTRY: " + formatPrice(item.entry) + "   |   SMART LEVERAGE: " + item.leverage + "x", color = Blue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             SmallStat("حد ضرر", formatPrice(item.stop), Red)
                             SmallStat("TP1 • 1R", formatPrice(item.tp1), Green)
                             SmallStat("TP2 • 2R", formatPrice(item.tp2), Green)
                             SmallStat("TP3 • 3R", formatPrice(item.tp3), Green)
                         }
-                        Text("استاپ مبتنی بر ۱٫۵ برابر ATR؛ اهرم صرفاً سقف محافظه‌کارانه تخمینی است.", color = Muted, fontSize = 9.sp)
+                        Text("حد ضرر و اهداف بر پایه ATR و ساختار حمایت/مقاومت محاسبه می‌شوند؛ اهرم با فاصله استاپ و ریسک نوسان تنظیم می‌شود، نه عدد ثابت.", color = Muted, fontSize = 9.sp)
                     }
                 }
             }
