@@ -4,7 +4,7 @@ permissions:
   contents: read
 concurrency:
   group: wolf-android-build-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 on:
   workflow_dispatch:
   push:
@@ -24,13 +24,6 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
-      - name: Cancel older builds for this branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh run list --branch "$GITHUB_REF_NAME" --json databaseId,status --jq '.[] | select(.status == "in_progress") | .databaseId' | while read -r run_id; do
-            if [ "$run_id" != "$GITHUB_RUN_ID" ]; then gh run cancel "$run_id" || true; fi
-          done
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
