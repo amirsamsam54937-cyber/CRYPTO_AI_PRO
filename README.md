@@ -1,6 +1,6 @@
 # AMIR ARSALAN TRADER WOLF — CRYPTO AI PRO
 
-**Android release line: 2.13.0**  
+**Android release line: 2.14.0**  
 A Persian-first Android application for live Binance USDⓈ-M perpetual-futures market scanning, explainable technical analysis, signal visualization, and persistent outcome-based learning.
 
 > **Analysis and signals only.** The Android app does not connect exchange accounts, store API keys, submit orders, change leverage, or execute trades. Entry, stop and target levels are analytical references, not orders or guarantees.
@@ -24,13 +24,14 @@ A Persian-first Android application for live Binance USDⓈ-M perpetual-futures 
 
 ## Analysis engine
 
-The Android scanner fetches closed candles for 15m, 1h and 4h, then evaluates:
+The Android scanner fetches closed candles for 15m, 1h and 4h for signal decisions. The embedded TradingView chart independently supports 5m, 15m, 1h, 4h and 1D viewing. The engine evaluates:
 
 - EMA 9/20/50/100/200, RSI, MACD, ADX and ATR
 - Bollinger Bands and bandwidth, VWAP, relative volume and Stochastic RSI
 - Candle patterns: Doji, Hammer, Shooting Star, Engulfing, Morning/Evening Star, Harami, Piercing Line, Dark Cloud and approximate Tweezer patterns
 - Approximate harmonic structures: Gartley, Bat, Butterfly and Crab
-- Swing support/resistance, HH/HL and LH/LL market-structure context
+- Confirmed swing-pivot structure, HH/HL and LH/LL, plus BOS/CHOCH break-of-structure context
+- CCI, ROC, MFI, normalized OBV flow, ATR-based iterative Supertrend, probable RSI divergence, liquidity-sweep and three-candle fair-value-gap context
 - Multi-timeframe agreement and filters for overextension, extreme volatility and higher-timeframe conflict
 - Reference levels based on ATR and nearby structure
 
