@@ -1200,7 +1200,7 @@ private fun formatPrice(value: Double): String = when {
 
 /** Binance USDⓈ-M public futures scanner; public endpoints only. */
 
-private object BinanceMonitor {
+internal object BinanceMonitor {
     // Use the documented canonical USDⓈ-M API endpoint only.
     // Alternate hostnames must not be used to evade an explicit regional-eligibility response.
     private const val BASE_URL = "https://fapi.binance.com"
