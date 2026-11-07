@@ -623,10 +623,11 @@ fun CryptoMonitorScreen() {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
                                     Text("بازار: Binance USDⓈ-M Futures", color = Muted, fontSize = 11.sp)
-                                    Text("تایم‌فریم اصلی: ۱۵ دقیقه • تأیید: ۱ ساعت و ۴ ساعت", color = Muted, fontSize = 11.sp)
+                                    Text("اسکن پایه: ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • بازبینی عمیق ۲۴ نامزد برتر: ۵ دقیقه و ۱ روز", color = Muted, fontSize = 11.sp)
+                                    Text("چارت قابل انتخاب: ۵ دقیقه، ۱۵ دقیقه، ۱ ساعت، ۴ ساعت و ۱ روز", color = Muted, fontSize = 11.sp)
                                     Text("دامنه اسکن: تمام قراردادهای دائمی USDT فعال؛ مرتب‌شده بر اساس حجم معاملات", color = Muted, fontSize = 11.sp)
                                     Text("چرخه اسکن پیوسته: پس از پایان هر دور، ۳ دقیقه مکث و دور بعدی خودکار آغاز می‌شود؛ محدودیت API یا اینترنت می‌تواند وقفه ایجاد کند.", color = Muted, fontSize = 11.sp)
-                                    Text("نسخه: 2.11.0 • Binance USDⓈ-M • تحلیل فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.14.0 • Binance USDⓈ-M • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                             Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← CRYPTO AI PRO ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
@@ -814,6 +815,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 }
             }
             Spacer(Modifier.height(8.dp))
+            Text("پوشش تحلیل: " + item.timeframeCoverage, color = Blue, fontSize = 9.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 SmallStat("قیمت", formatPrice(item.price))
                 SmallStat("تغییر ۲۴ساعت", String.format(Locale.US, "%.2f%%", item.change), if (item.change >= 0) Green else Red)
