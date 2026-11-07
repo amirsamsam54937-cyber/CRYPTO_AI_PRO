@@ -36,6 +36,7 @@ jobs:
         id: train
         shell: bash
         run: |
+          rm -f app/src/main/assets/wolf_pretrained_ensemble.json
           set +e
           python tools/train_wolf_ensemble.py 2>&1 | tee wolf-training.log
           TRAIN_EXIT=${PIPESTATUS[0]}
