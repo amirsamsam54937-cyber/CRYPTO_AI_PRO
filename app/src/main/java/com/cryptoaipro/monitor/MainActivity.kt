@@ -1012,13 +1012,29 @@ private fun PriceLevelRow(label: String, price: Double, tint: Color) {
 @Composable
 private fun TradingViewPairChart(selectedSymbol: String, interval: String) {
     val symbol = "BINANCE:" + selectedSymbol.replace("/", "").replace(":USDT", "").replace("_", "") + ".P"
+    val chartUrl = "https://www.tradingview.com/chart/?symbol=" +
+        java.net.URLEncoder.encode(symbol, "UTF-8") + "&interval=" +
+        java.net.URLEncoder.encode(interval, "UTF-8")
     Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("چارت آنلاین " + selectedSymbol + " • TradingView", color = Color.White, fontWeight = FontWeight.Bold)
             Text("فقط نمودار همان ارزی که سیگنال آن انتخاب شده نمایش داده می‌شود.", color = Muted, fontSize = 9.sp)
             AndroidView(modifier = Modifier.fillMaxWidth().height(320.dp),
-                factory = { context -> WebView(context).apply { settings.javaScriptEnabled = true; settings.domStorageEnabled = true; webViewClient = WebViewClient() } },
-                update = { it.loadUrl("https://www.tradingview.com/chart/?symbol=" + java.net.URLEncoder.encode(symbol, "UTF-8") + "&interval=" + java.net.URLEncoder.encode(interval, "UTF-8")) })
+                factory = { context -> WebView(context).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.allowFileAccess = false
+                    settings.allowContentAccess = false
+                    settings.setSupportZoom(true)
+                    webViewClient = WebViewClient()
+                } },
+                update = { view ->
+                    // Avoid reloading the full chart on every Compose state update.
+                    if (view.tag != chartUrl) {
+                        view.tag = chartUrl
+                        view.loadUrl(chartUrl)
+                    }
+                })
             Text("نمودار مرجع TradingView است؛ محاسبات سیگنال از کندل‌های صرافی انجام می‌شود.", color = Muted, fontSize = 9.sp)
         }
     }
