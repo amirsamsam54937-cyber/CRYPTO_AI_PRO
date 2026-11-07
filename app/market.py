@@ -8,7 +8,7 @@ def make_exchange(exchange_id: str="binanceusdm"):
     return exchange_cls({"enableRateLimit":True,"timeout":15000})
 
 def fetch_ohlcv(symbol: str="BTC/USDT", timeframe: str="1h", limit: int=300,
-                exchange_id: str="binance") -> pd.DataFrame:
+                exchange_id: str="binanceusdm") -> pd.DataFrame:
     if not 50 <= limit <= 1000: raise ValueError("limit must be between 50 and 1000")
     rows=make_exchange(exchange_id).fetch_ohlcv(symbol,timeframe=timeframe,limit=limit)
     if not rows: raise RuntimeError("Exchange returned no candles")
