@@ -37,7 +37,7 @@ jobs:
           java-version: "17"
       - uses: actions/download-artifact@v4
         with:
-          name: AMIR-ARSALAN-TRADER-WOLF-v2.19.0
+          name: AMIR-ARSALAN-TRADER-WOLF-v2.18.0
           path: pretrained-bundle
           run-id: 42365667977
           github-token: ${{ github.token }}
@@ -97,7 +97,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: AMIR-ARSALAN-TRADER-WOLF-v2.18.0
+          name: AMIR-ARSALAN-TRADER-WOLF-v2.19.0
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             market_seed_manifest.json
