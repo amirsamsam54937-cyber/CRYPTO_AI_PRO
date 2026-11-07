@@ -132,7 +132,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         }
     }.map { signal ->
         // Independent scenario analysis followed by a skeptical adversarial review.
-        WolfAdversarialReviewEngine.apply(WolfQuantumScenarioEngine.apply(signal))
+        WolfMathematicsEngine.apply(WolfAdversarialReviewEngine.apply(WolfQuantumScenarioEngine.apply(signal)))
     }.sortedWith(compareByDescending<MarketSignal> {
         if (it.direction == "NEUTRAL") it.score.toDouble() else it.confidence.toDouble()
     }.thenByDescending { it.volume })
