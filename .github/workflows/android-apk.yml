@@ -1,7 +1,7 @@
 name: Build AMIRARSALAN TRADER WOLF APK
 permissions:
   contents: read
-  actions: write
+  actions: read
 on:
   workflow_dispatch:
   push:
@@ -21,6 +21,31 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Attach verified 500k-candle corpus and trained 10-model ensemble
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run download 42396479798 --repo "$GITHUB_REPOSITORY" --name "AMIR-ARSALAN-TRADER-WOLF-500K-TRAINED-APK" --dir /tmp/wolf-trained
+          test -s /tmp/wolf-trained/app-debug.apk
+          mkdir -p app/src/main/assets
+          unzip -p /tmp/wolf-trained/app-debug.apk assets/market_seed.csv > app/src/main/assets/market_seed.csv
+          unzip -p /tmp/wolf-trained/app-debug.apk assets/wolf_corpus_manifest.json > app/src/main/assets/wolf_corpus_manifest.json
+          unzip -p /tmp/wolf-trained/app-debug.apk assets/wolf_model_training_report.json > app/src/main/assets/wolf_model_training_report.json
+          unzip -p /tmp/wolf-trained/app-debug.apk assets/wolf_pretrained_ensemble.json > app/src/main/assets/wolf_pretrained_ensemble.json
+          python - <<'PY'
+          import csv, json, pathlib
+          assets = pathlib.Path("app/src/main/assets")
+          manifest = json.loads((assets / "wolf_corpus_manifest.json").read_text())
+          report = json.loads((assets / "wolf_model_training_report.json").read_text())
+          assert manifest["status"] == "verified_real_exchange_data"
+          assert manifest["rows"] == 500000 and manifest["synthetic_rows"] == 0
+          assert len(report["metrics"]) == 10
+          with (assets / "market_seed.csv").open(newline="") as f:
+              rows = sum(1 for _ in csv.reader(f)) - 1
+          assert rows == 500000, rows
+          print(f"Verified {rows:,} real exchange candle rows and {len(report['metrics'])} trained ensemble members")
+          PY
       - name: Build installable APK (no extra test stage)
         run: gradle --no-daemon :app:assembleDebug
       - name: Verify APK file exists
