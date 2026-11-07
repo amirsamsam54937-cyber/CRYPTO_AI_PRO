@@ -1047,14 +1047,14 @@ private fun detectHarmonicPattern(candles: List<DoubleArray>): String {
     val rAB = ab / xa
     val rBC = bc / ab
     val rCD = cd / bc
-    val rAD = kotlin.math.abs(p[4] - p[1]) / xa
+    val rAD = kotlin.math.abs(p[4] - p[0]) / xa
     fun near(v: Double, target: Double, tolerance: Double = 0.12) = kotlin.math.abs(v - target) <= tolerance
     val side = if (p[4] < p[3]) "صعودی" else "نزولی"
     return when {
-        near(rAB, 0.618, 0.10) && rBC in 0.382..0.886 && near(rCD, 1.272, 0.22) && near(rAD, 0.786, 0.10) -> "گارتلی " + side + " • ناحیه احتمالی تکمیل"
-        rAB in 0.382..0.50 && rBC in 0.382..0.886 && near(rCD, 1.618, 0.28) && near(rAD, 0.886, 0.12) -> "خرچنگ " + side + " • ناحیه احتمالی تکمیل"
+        near(rAB, 0.618, 0.10) && rBC in 0.382..0.886 && rCD in 1.272..1.618 && near(rAD, 0.786, 0.10) -> "گارتلی " + side + " • ناحیه احتمالی تکمیل"
+        rAB in 0.382..0.50 && rBC in 0.382..0.886 && rCD in 1.618..2.618 && near(rAD, 0.886, 0.12) -> "بت " + side + " • ناحیه احتمالی تکمیل"
         near(rAB, 0.786, 0.10) && rBC in 0.382..0.886 && rCD in 1.50..2.20 && near(rAD, 1.27, 0.16) -> "باترفلای " + side + " • ناحیه احتمالی تکمیل"
-        rAB in 0.382..0.618 && rBC in 0.382..0.886 && rCD in 2.0..3.0 -> "احتمال خفاش/خرچنگ " + side + " • نیازمند تأیید بیشتر"
+        rAB in 0.382..0.618 && rBC in 0.382..0.886 && rCD in 2.24..3.618 && near(rAD, 1.618, 0.18) -> "خرچنگ " + side + " • ناحیه احتمالی تکمیل"
         else -> "الگوی هارمونیک تأیید نشد"
     }
 }
@@ -1483,13 +1483,34 @@ private object BinanceMonitor {
 
     private fun detectMarketStructure(data: List<DoubleArray>): String {
         if (data.size < 30) return "داده ناکافی"
-        val chunks = data.takeLast(60).chunked(10).takeLast(4)
-        if (chunks.size < 4) return "در حال شکل‌گیری"
-        val highs = chunks.map { it.maxOf { candle -> candle[1] } }
-        val lows = chunks.map { it.minOf { candle -> candle[2] } }
+        val start = (data.size - 120).coerceAtLeast(0)
+        val highs = mutableListOf<Pair<Int, Double>>()
+        val lows = mutableListOf<Pair<Int, Double>>()
+        for (i in maxOf(2, start) until data.size - 2) {
+            val high = data[i][1]
+            val low = data[i][2]
+            if ((i - 2..i + 2).all { data[it][1] <= high }) highs.add(i to high)
+            if ((i - 2..i + 2).all { data[it][2] >= low }) lows.add(i to low)
+        }
+        if (highs.size < 2 || lows.size < 2) return "در حال شکل‌گیری ساختار"
+        val lastHighs = highs.takeLast(3).map { it.second }
+        val lastLows = lows.takeLast(3).map { it.second }
+        val higherHighs = lastHighs.size >= 2 && lastHighs.zipWithNext().all { it.second > it.first }
+        val higherLows = lastLows.size >= 2 && lastLows.zipWithNext().all { it.second > it.first }
+        val lowerHighs = lastHighs.size >= 2 && lastHighs.zipWithNext().all { it.second < it.first }
+        val lowerLows = lastLows.size >= 2 && lastLows.zipWithNext().all { it.second < it.first }
+        val bullishTrend = higherHighs && higherLows
+        val bearishTrend = lowerHighs && lowerLows
+        val close = data.last()[3]
+        val brokenHigh = close > highs.last().second && data.lastIndex - highs.last().first >= 1
+        val brokenLow = close < lows.last().second && data.lastIndex - lows.last().first >= 1
         return when {
-            highs.zipWithNext().all { it.second > it.first } && lows.zipWithNext().all { it.second > it.first } -> "سقف و کف بالاتر (HH/HL)"
-            highs.zipWithNext().all { it.second < it.first } && lows.zipWithNext().all { it.second < it.first } -> "سقف و کف پایین‌تر (LH/LL)"
+            brokenHigh && bearishTrend -> "CHOCH صعودی • تغییر کاراکتر پس از LH/LL"
+            brokenLow && bullishTrend -> "CHOCH نزولی • تغییر کاراکتر پس از HH/HL"
+            brokenHigh -> "BOS صعودی • شکست سقف ساختاری" + if (bullishTrend) " • HH/HL" else ""
+            brokenLow -> "BOS نزولی • شکست کف ساختاری" + if (bearishTrend) " • LH/LL" else ""
+            bullishTrend -> "ساختار صعودی • HH/HL"
+            bearishTrend -> "ساختار نزولی • LH/LL"
             else -> "رنج / ساختار ترکیبی"
         }
     }
