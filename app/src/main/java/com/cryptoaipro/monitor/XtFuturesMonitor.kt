@@ -49,7 +49,7 @@ internal object XtFuturesMonitor {
         return JSONArray()
     }
 
-    private fun parseCandle(row: Any): DoubleArray? = runCatching {
+    private fun parseCandle(row: Any?): DoubleArray? = runCatching {
         when (row) {
             is JSONArray -> {
                 require(row.length() >= 6)
