@@ -1747,7 +1747,7 @@ class MarketMonitorService : Service() {
                         val signals = applyWolfNeuralScoring(applicationContext, marketSignals)
                         val journalSnapshot = WolfSignalOutcomeJournal.processScan(applicationContext, signals)
                         WolfLearningMemory.processScan(applicationContext, signals, journalSnapshot.records)
-                        WolfFlowNewsRepository.refreshForEngine(applicationContext, signals)
+                        // News and whale-flow feeds are intentionally excluded: this app is technical-analysis only.
                         val active = signals.count { it.direction != "NEUTRAL" }
                         "اسکن ${signals.size} قرارداد $selectedExchange • سیگنال‌های جهت‌دار: $active • فقط تحلیل تکنیکال"
                     }.getOrElse { "خطای اسکن بازار: ${it.message ?: "نامشخص"}" }
