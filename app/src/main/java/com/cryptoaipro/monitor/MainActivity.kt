@@ -72,14 +72,14 @@ import java.util.Locale
 import kotlin.math.abs
 
 // Wolf v2.18 visual system: graphite, silver, electric turquoise and restrained gold.
-private val Navy = Color(0xFF0B0D0F)
-private val Panel = Color(0xFF1B2024)
-private val Muted = Color(0xFFB2BBC2)
-private val Green = Color(0xFF27D6A0)
-private val Red = Color(0xFFFF657A)
-private val Blue = Color(0xFF35E0D0)
-private val Purple = Color(0xFFC5CDD2)
-private val Gold = Color(0xFFE2B95F)
+private val Navy = Color(0xFF080A0C)
+private val Panel = Color(0xFF171B1E)
+private val Muted = Color(0xFFAEB7BC)
+private val Green = Color(0xFFB9D69A)
+private val Red = Color(0xFFE9877E)
+private val Blue = Color(0xFFE1B86B)
+private val Purple = Color(0xFFB7C1C8)
+private val Gold = Color(0xFFF0D18B)
 
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
@@ -258,11 +258,11 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Panel, contentColor = Color.White) {
-                    listOf("خانه", "بازار", "تحلیل", "جریان", "دفترچه", "هوش مصنوعی", "تنظیمات").forEach { entry ->
+                    listOf("خانه", "بازار", "تحلیل", "دفترچه", "هوش مصنوعی", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
                             onClick = { selectedTab = entry },
-                            icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "تحلیل" -> Icons.Outlined.Insights; "جریان" -> Icons.Outlined.Timeline; "دفترچه" -> Icons.Outlined.MenuBook; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
+                            icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "تحلیل" -> Icons.Outlined.Insights; "دفترچه" -> Icons.Outlined.MenuBook; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
                             label = { Text(entry, fontSize = 9.sp, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Blue,
@@ -373,7 +373,7 @@ fun CryptoMonitorScreen() {
                     Surface(
                         color = Color(0xFF242B2F),
                         shape = RoundedCornerShape(13.dp),
-                        modifier = Modifier.size(46.dp),
+                        modifier = Modifier.size(52.dp),
                         shadowElevation = 8.dp
                     ) {
                         Image(
@@ -384,7 +384,7 @@ fun CryptoMonitorScreen() {
                     }
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("AMIRARSALAN TRADER WOLF", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                        Text("AMIRARSALAN TRADER WOLF", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
                         Text("TRADER WOLF  •  LIVE TECHNICAL INTELLIGENCE", color = Muted, fontSize = 8.sp, letterSpacing = 0.5.sp)
                     }
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -421,13 +421,13 @@ fun CryptoMonitorScreen() {
                                 Surface(color = Color(0xFF242B2F), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                                         Image(
-                                            painter = painterResource(id = R.drawable.wolf_poster),
+                                            painter = painterResource(id = R.drawable.wolf_hero),
                                             contentDescription = "پوستر اصلی AMIRARSALAN TRADER WOLF",
-                                            modifier = Modifier.fillMaxWidth().height(142.dp),
+                                            modifier = Modifier.fillMaxWidth().height(172.dp),
                                             contentScale = androidx.compose.ui.layout.ContentScale.Crop
                                         )
-                                        Text("مرکز فرماندهی بازار", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                        Text("اسکن چندتایم‌فریمی • تحلیل تکنیکال • موتور هوشمند سیگنال", color = Muted, fontSize = 10.sp)
+                                        Text("مرکز فرماندهی هوشمند", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                                        Text("تحلیل چندلایه • سیگنال هوشمند • پایش خودکار اخبار و نهنگ‌ها", color = Muted, fontSize = 10.sp)
                                         MarketSessionsPanel()
                                         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Blue)
                                         Text(scanProgress, color = Muted, fontSize = 10.sp)
@@ -451,6 +451,7 @@ fun CryptoMonitorScreen() {
                                     onOpenJournal = { selectedTab = "دفترچه" }
                                 )
                             }
+                            item { WolfAutoIntelPanel(context) }
                             item {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("فرصت‌های برتر بازار", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
@@ -650,22 +651,12 @@ fun CryptoMonitorScreen() {
                                 }
                             }
                         }
-                    }
-
-
-
-
-
-                    "جریان" -> {
-                        WolfFlowNewsScreen(selectedSignal?.symbol ?: "BTCUSDT")
-                    }
-
-                    "دفترچه" -> {
+                    }"دفترچه" -> {
                         SignalJournalScreen(outcomeSnapshot)
                     }
 
                     "هوش مصنوعی" -> {
-                        WolfAiCompanionScreen()
+                        WolfAiCompanionScreen(selectedSignal)
                     }
 
                     else -> {
@@ -710,7 +701,7 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.18.0 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.19.0 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
