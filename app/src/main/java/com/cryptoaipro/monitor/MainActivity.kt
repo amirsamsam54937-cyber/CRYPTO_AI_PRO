@@ -1342,11 +1342,31 @@ private object BinanceMonitor {
             obvAbsVolume += data[i][4]
         }
         val obvTrend = if (obvAbsVolume > 0.0) (obv / obvAbsVolume).coerceIn(-1.0, 1.0) else 0.0
-        val recentAtr = atr(data, 10).coerceAtLeast(lastClose * 1e-8)
-        val midpoint = (data.last()[1] + data.last()[2]) / 2.0
+        // Standardized ATR-based Supertrend band state, iterated candle by candle.
+        val trSeries = (1 until data.size).map { i ->
+            maxOf(data[i][1] - data[i][2], abs(data[i][1] - data[i - 1][3]), abs(data[i][2] - data[i - 1][3]))
+        }
+        var finalUpper = 0.0
+        var finalLower = 0.0
+        var supertrendBull = true
+        for (i in 10 until data.size) {
+            val atrIndex = i - 1
+            val atrValue = trSeries.subList((atrIndex - 9).coerceAtLeast(0), atrIndex + 1).average()
+                .coerceAtLeast(lastClose * 1e-8)
+            val basicUpper = (data[i][1] + data[i][2]) / 2.0 + 3.0 * atrValue
+            val basicLower = (data[i][1] + data[i][2]) / 2.0 - 3.0 * atrValue
+            val previousClose = data[i - 1][3]
+            finalUpper = if (i == 10 || basicUpper < finalUpper || previousClose > finalUpper) basicUpper else finalUpper
+            finalLower = if (i == 10 || basicLower > finalLower || previousClose < finalLower) basicLower else finalLower
+            supertrendBull = when {
+                supertrendBull && data[i][3] < finalLower -> false
+                !supertrendBull && data[i][3] > finalUpper -> true
+                else -> supertrendBull
+            }
+        }
         val supertrendDirection = when {
-            lastClose > midpoint - 3.0 * recentAtr -> if (lastClose > e20) "صعودی" else "خنثی"
-            lastClose < midpoint + 3.0 * recentAtr -> if (lastClose < e20) "نزولی" else "خنثی"
+            supertrendBull && lastClose > finalLower -> "صعودی"
+            !supertrendBull && lastClose < finalUpper -> "نزولی"
             else -> "خنثی"
         }
         val prior = data.dropLast(1).takeLast(20)
