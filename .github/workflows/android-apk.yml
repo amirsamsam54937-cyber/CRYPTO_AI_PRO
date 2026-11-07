@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - "README.md"
       - "app/**"
       - "tools/**"
       - "*.gradle.kts"
