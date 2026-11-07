@@ -59,7 +59,7 @@ internal fun WolfAutoIntelPanel(context: Context) {
                     Text("AUTO", color = green, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
                 }
             }
-            HorizontalDivider(color = Color(0xFF343A3D))
+            Divider(color = Color(0xFF343A3D))
             Text("ردیابی معاملات درشت", color = gold, fontSize = 11.sp)
             if (reports.isEmpty()) {
                 Text("هنوز گزارش تأییدشده‌ای ذخیره نشده است؛ موتور هوشمند پس از اسکن بازار داده‌های عمومی معاملات تجمیعی را بررسی می‌کند.", color = muted, fontSize = 10.sp)
