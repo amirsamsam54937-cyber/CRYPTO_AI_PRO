@@ -92,7 +92,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
     val prefs = context.getSharedPreferences("wolf_learning_memory", Context.MODE_PRIVATE)
     val trainedSamples = prefs.getInt("samples", 0)
     // Load the bundled, historically trained ten-network ensemble once; online DNN remains a secondary learner.
-    WolfPretrainedEnsemble.initialize(context)
+    val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
     return signals.map { signal ->
         if (signal.direction == "NEUTRAL") signal.copy(neuralScore = 50)
         else {
@@ -101,7 +101,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             val neuralProbability = pretrained ?: online
             val neural = (neuralProbability * 100.0).toInt().coerceIn(1, 99)
             val adjustedConfidence = when {
-                pretrained != null -> (signal.confidence * 0.85 + neural * 0.15).toInt().coerceIn(0, 100)
+                pretrained != null && pretrainedStatus.validatedForScoring -> (signal.confidence * 0.90 + neural * 0.10).toInt().coerceIn(0, 100)
                 trainedSamples >= 30 -> (signal.confidence * 0.90 + neural * 0.10).toInt().coerceIn(0, 100)
                 else -> signal.confidence
             }
@@ -456,7 +456,7 @@ fun CryptoMonitorScreen() {
                                             Divider(color = Color(0xFF30415C))
                                             Text("مغز عصبی AMIR WOLF • گروه ۱۰ شبکه پیش‌آموزش‌دیده", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                             val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
-                                            Text(if (pretrainedStatus.loaded) "۱۰ شبکه فعال • نمونه‌ها: " + pretrainedStatus.samples + " • دقت آزمون زمانی: " + String.format(Locale.US, "%.1f%%", pretrainedStatus.testAccuracy * 100.0) + " • خط پایه: " + String.format(Locale.US, "%.1f%%", pretrainedStatus.baselineAccuracy * 100.0) + " • دقت متوازن: " + String.format(Locale.US, "%.1f%%", pretrainedStatus.balancedAccuracy * 100.0) else "مدل پیش‌آموزش‌دیده هنوز در این بسته بارگذاری نشده؛ امتیاز شبکه محلی در حالت پشتیبان است.", color = if (pretrainedStatus.loaded) Green else Gold, fontSize = 10.sp)
+                                            Text(if (pretrainedStatus.loaded) "۱۰ شبکه فعال • نمونه‌ها: " + pretrainedStatus.samples + " • دقت آزمون زمانی: " + String.format(Locale.US, "%.1f%%", pretrainedStatus.testAccuracy * 100.0) + " • خط پایه: " + String.format(Locale.US, "%.1f%%", pretrainedStatus.baselineAccuracy * 100.0) + " • دقت متوازن: " + String.format(Locale.US, "%.1f%%", pretrainedStatus.balancedAccuracy * 100.0) + if (pretrainedStatus.validatedForScoring) " • اثر محدود بر امتیاز سیگنال فعال" else " • مدل آزمایشی؛ بدون اثر بر اعتماد سیگنال" else "مدل پیش‌آموزش‌دیده هنوز در این بسته بارگذاری نشده؛ امتیاز شبکه محلی در حالت پشتیبان است.", color = if (pretrainedStatus.loaded && pretrainedStatus.validatedForScoring) Green else Gold, fontSize = 10.sp)
                                             Text("تاریخ آموزش UTC: " + if (pretrainedStatus.trainedAt.isBlank()) "نامشخص" else pretrainedStatus.trainedAt, color = Muted, fontSize = 9.sp)
                                             Text("حافظه یادگیری تطبیقی و پایدار روی گوشی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                             val memoryStats = WolfLearningMemory.stats(context)
