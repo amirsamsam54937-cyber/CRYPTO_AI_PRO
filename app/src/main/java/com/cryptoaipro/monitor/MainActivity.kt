@@ -1630,7 +1630,8 @@ class MarketMonitorService : Service() {
                         val signals = applyWolfNeuralScoring(applicationContext, marketSignals)
                         val journalSnapshot = WolfSignalOutcomeJournal.processScan(applicationContext, signals)
                         WolfLearningMemory.processScan(applicationContext, signals, journalSnapshot.records)
-                        // Refresh private news and large-trade flow context for the analysis engine; never expose session clocks or raw feed panels in the UI.\n                        runCatching { WolfFlowNewsRepository.refreshForEngine(applicationContext, marketSignals) }
+                        // Refresh private news and large-trade flow context for the analysis engine; never expose session clocks or raw feed panels in the UI.
+                        runCatching { WolfFlowNewsRepository.refreshForEngine(applicationContext, marketSignals) }
                         val active = signals.count { it.direction != "NEUTRAL" }
                         "اسکن ${signals.size} قرارداد $selectedExchange • سیگنال‌های جهت‌دار: $active • فقط تحلیل تکنیکال"
                     }.getOrElse { "خطای اسکن بازار: ${it.message ?: "نامشخص"}" }
