@@ -46,29 +46,56 @@ object WolfConsensusEngine {
             }
         }
         val structure = t.map {
-            when {
-                it.marketStructure.contains("HH/HL") -> 1.0
-                it.marketStructure.contains("LH/LL") -> -1.0
+            val base = when {
+                it.marketStructure.contains("HH/HL") || it.marketStructure.contains("BOS صعودی") || it.marketStructure.contains("CHOCH صعودی") -> 1.0
+                it.marketStructure.contains("LH/LL") || it.marketStructure.contains("BOS نزولی") || it.marketStructure.contains("CHOCH نزولی") -> -1.0
                 else -> 0.0
             }
+            val sweep = when {
+                it.liquiditySweep.contains("برگشت صعودی") -> 0.30
+                it.liquiditySweep.contains("برگشت نزولی") -> -0.30
+                else -> 0.0
+            }
+            clamp(base * 0.80 + sweep)
         }
         val candle = t.map {
-            when {
+            val pattern = when {
                 it.candlePattern.contains("صعودی") || it.candlePattern.contains("چکش") -> 1.0
                 it.candlePattern.contains("نزولی") || it.candlePattern.contains("ثاقب") -> -1.0
                 else -> 0.0
             }
+            val divergence = when {
+                it.rsiDivergence.contains("مثبت") -> 0.25
+                it.rsiDivergence.contains("منفی") -> -0.25
+                else -> 0.0
+            }
+            val imbalance = when {
+                it.fairValueGap.contains("صعودی") -> 0.15
+                it.fairValueGap.contains("نزولی") -> -0.15
+                else -> 0.0
+            }
+            clamp(pattern * 0.70 + divergence + imbalance)
         }
-        val rsiMomentum = t.map { clamp((it.stochasticRsi - 50.0) / 35.0) }.average()
-        val adxMomentum = t.map { trend((it.ema20 - it.ema50) / max(abs(it.ema50), 1e-12)) * (it.adx / 35.0).coerceIn(0.0, 1.0) }.average()
+        val rsiMomentum = t.map {
+            clamp((it.stochasticRsi - 50.0) / 35.0 * 0.65 +
+                (it.cci / 200.0).coerceIn(-1.0, 1.0) * 0.20 +
+                (it.rocPercent / 2.0).coerceIn(-1.0, 1.0) * 0.15)
+        }.average()
+        val adxMomentum = t.map {
+            val emaDirection = trend((it.ema20 - it.ema50) / max(abs(it.ema50), 1e-12))
+            val supertrend = when (it.supertrendDirection) { "صعودی" -> 1.0; "نزولی" -> -1.0; else -> 0.0 }
+            clamp(emaDirection * 0.75 + supertrend * 0.25) * (it.adx / 35.0).coerceIn(0.0, 1.0)
+        }.average()
         val vwapMomentum = t.map {
             val distance = (price - it.vwap) / max(abs(it.vwap), 1e-12)
             trend(distance * 100.0)
         }.average()
         val bandMomentum = t.map {
-            // Avoid treating a near-band extreme as an automatic continuation signal.
             val p = it.bollingerPosition
+            // Mean reversion is considered only in a weak/ranging regime; trend breakouts follow direction.
             when {
+                it.adx < 18.0 && p > 0.96 -> -0.55
+                it.adx < 18.0 && p < 0.04 -> 0.55
                 p in 0.42..0.58 -> 0.0
                 p > 0.92 -> 0.35
                 p < 0.08 -> -0.35
@@ -78,7 +105,8 @@ object WolfConsensusEngine {
         val volumeMomentum = t.map {
             val relative = ((it.relativeVolume - 1.0) / 1.5).coerceIn(0.0, 1.0)
             val side = trend((price - it.vwap) / max(abs(it.vwap), 1e-12) * 100.0)
-            side * relative
+            val moneyFlow = ((it.mfi - 50.0) / 30.0).coerceIn(-1.0, 1.0)
+            clamp((side * 0.40 + moneyFlow * 0.30 + it.obvTrend * 0.30) * relative)
         }.average()
 
         val votes = listOf(
