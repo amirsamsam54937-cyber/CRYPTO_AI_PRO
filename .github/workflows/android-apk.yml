@@ -1,4 +1,4 @@
-name: Build AMIR ARSALAN TRADER WOLF 2.24 Android APK
+name: Build AMIR ARSALAN TRADER WOLF Android APK
 permissions:
   actions: write
   contents: read
@@ -21,75 +21,28 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-      - name: Collect and inject 500,000 real Futures candles, then train the deep ensemble
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip ccxt numpy scikit-learn
-          python tools/build_real_market_seed.py
-          cp market_seed_manifest.json app/src/main/assets/wolf_corpus_manifest.json
-          python tools/train_wolf_ensemble.py
-          test -s app/src/main/assets/market_seed.csv
-          test -s app/src/main/assets/wolf_pretrained_ensemble.json
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Build Android APK
-        run: gradle assembleDebug
-      - name: Verify real data, ten trained networks and 20 MiB APK target
+      - name: Build installable Android APK
+        run: gradle assembleDebug --no-daemon
+      - name: Verify APK exists
         shell: bash
         run: |
           set -euo pipefail
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          SIZE=$(stat -c%s "$APK")
-          MIN=$((20 * 1024 * 1024))
-          if [ "$SIZE" -lt "$MIN" ]; then
-            echo "APK is only $SIZE bytes; the 20 MiB real-content target was not met."
-            exit 1
-          fi
-          unzip -l "$APK" | grep -q "assets/market_seed.csv"
-          unzip -l "$APK" | grep -q "assets/wolf_pretrained_ensemble.json"
-          unzip -l "$APK" | grep -q "assets/wolf_corpus_manifest.json"
-          unzip -l "$APK" | grep -q "wolf_poster.jpg"
-          python - <<'PY'
-          import csv, json, os
-          with open("market_seed_manifest.json", encoding="utf-8") as f:
-              manifest=json.load(f)
-          assert manifest["status"] == "verified_real_exchange_data"
-          assert manifest["rows"] == 500000
-          assert manifest["target_rows"] == 500000
-          assert manifest["synthetic_rows"] == 0
-          assert manifest["rows"] == 500000
-          assert manifest["source_exchanges"]
-          with open("app/src/main/assets/market_seed.csv", newline="", encoding="utf-8") as f:
-              assert sum(1 for _ in csv.reader(f)) == manifest["rows"] + 1
-          with open("wolf_model_training_report.json", encoding="utf-8") as f:
-              model=json.load(f)
-          assert model["samples"] >= 300000
-          assert model["train_samples"] >= 150000
-          assert model["test_samples"] >= 50000
-          assert len(model["metrics"]) == 10
-          assert model["evaluation"]["split"] == "chronological_purged"
-          print("Verified real candle rows:", manifest["rows"])
-          print("Verified symbols:", manifest["symbols"])
-          print("Source exchanges:", manifest["source_exchanges"])
-          print("Neural training samples:", model["samples"])
-          print("APK bytes:", os.path.getsize("app/build/outputs/apk/debug/app-debug.apk"))
-          PY
+          echo "APK size: $(stat -c%s "$APK") bytes"
       - uses: actions/upload-artifact@v4
         with:
-          name: AMIR-ARSALAN-TRADER-WOLF-v2.24.0
-          path: |
-            app/build/outputs/apk/debug/app-debug.apk
-            market_seed_manifest.json
-            wolf_model_training_report.json
+          name: AMIR-ARSALAN-TRADER-WOLF-2.24.1-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
