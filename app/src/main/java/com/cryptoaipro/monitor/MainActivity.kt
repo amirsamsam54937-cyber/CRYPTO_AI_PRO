@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -278,11 +279,17 @@ fun CryptoMonitorScreen() {
                 }
             }
         ) { innerPadding ->
-            Column(
-                Modifier.fillMaxSize().padding(innerPadding).background(
-                Brush.verticalGradient(listOf(Color(0xFF080808), Color(0xFF050505), Color(0xFF171006)))
-            )
-            ) {
+            Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                Image(
+                    painter = painterResource(id = R.drawable.wolf_poster),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 0.105f }
+                )
+                Box(Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(listOf(Color(0xE6080808), Color(0xF2050505), Color(0xEA171006)))
+                ))
+                Column(Modifier.fillMaxSize()) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
