@@ -1668,3 +1668,4 @@ class MarketMonitorService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
     companion object { private const val CHANNEL_ID = "crypto_ai_market_monitor"; private const val NOTIFICATION_ID = 4101 }
 }
+
