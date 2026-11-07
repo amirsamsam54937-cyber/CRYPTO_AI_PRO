@@ -571,8 +571,12 @@ fun CryptoMonitorScreen() {
                                                 }
                                             }
                                             Divider(color = Color(0xFF30415C))
-                                            Text("مغز عصبی AMIR WOLF • گروه ۱۰ شبکه پیش‌آموزش‌دیده", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                             val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
+                                            Text(
+                                                if (pretrainedStatus.loaded) "مغز عصبی AMIR WOLF • ۱۰ شبکه پیش‌آموزش‌دیده"
+                                                else "مغز عصبی AMIR WOLF • یادگیری محلی آزمایشی",
+                                                color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp
+                                            )
                                             Text(if (pretrainedStatus.loaded) "۱۰ شبکه فعال • نمونه‌ها: " + pretrainedStatus.samples + " • دقت آزمون زمانی: " + String.format(Locale.US, "%.1f%%", pretrainedStatus.testAccuracy * 100.0) + " • خط پایه: " + String.format(Locale.US, "%.1f%%", pretrainedStatus.baselineAccuracy * 100.0) + " • دقت متوازن: " + String.format(Locale.US, "%.1f%%", pretrainedStatus.balancedAccuracy * 100.0) + if (pretrainedStatus.validatedForScoring) " • اثر محدود بر امتیاز سیگنال فعال" else " • مدل آزمایشی؛ بدون اثر بر اعتماد سیگنال" else "مدل پیش‌آموزش‌دیده هنوز در این بسته بارگذاری نشده؛ امتیاز شبکه محلی در حالت پشتیبان است.", color = if (pretrainedStatus.loaded && pretrainedStatus.validatedForScoring) Green else Gold, fontSize = 10.sp)
                                             Text("تاریخ آموزش UTC: " + if (pretrainedStatus.trainedAt.isBlank()) "نامشخص" else pretrainedStatus.trainedAt, color = Muted, fontSize = 9.sp)
                                             Text("حافظه یادگیری تطبیقی و پایدار روی گوشی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -582,7 +586,11 @@ fun CryptoMonitorScreen() {
                                             Text("شبکه عصبی از نتایج واقعیِ قابل‌مشاهده سیگنال‌های ثبت‌شده (TP، SL یا انقضای ۱۵ دقیقه‌ای) به‌طور خودکار آموزش می‌بیند؛ افق ارزیابی ۴ ساعته نیز برای نمونه‌های بدون نتیجه بسته‌شده باقی است. وزن‌ها روی گوشی ذخیره می‌شوند.", color = Muted, fontSize = 9.sp)
                                             Text("بازخورد ذخیره‌شده: " + learningSamples + " • درست: " + learningWins + " • نادرست: " + learningLosses, color = Muted, fontSize = 10.sp)
                                             Text("امتیاز اجماع عصبی ۱۰مدلی: " + selectedSignal.neuralScore + " از ۱۰۰", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                            Text("ده شبکه با داده‌های تاریخی فیوچرز آموزش می‌بینند؛ حافظه آنلاین نیز از نتیجه سیگنال‌های بسته‌شده یاد می‌گیرد. معیار آزمون گذشته‌نگر، تضمین سود یا پیش‌بینی قطعی آینده نیست.", color = Muted, fontSize = 9.sp)
+                                            Text(
+                                                if (pretrainedStatus.loaded) "ده شبکه با داده‌های تاریخی فیوچرز آموزش دیده‌اند؛ حافظه آنلاین نیز از نتیجه سیگنال‌های بسته‌شده یاد می‌گیرد. معیار آزمون گذشته‌نگر، تضمین سود یا پیش‌بینی قطعی آینده نیست."
+                                                else "در نبود بسته وزن پیش‌آموزش‌دیده، فقط شبکه محلی از نتایج سیگنال‌های ثبت‌شده یاد می‌گیرد؛ هیچ وزن ساختگی یا امتیاز تأییدنشده‌ای استفاده نمی‌شود.",
+                                                color = Muted, fontSize = 9.sp
+                                            )
                                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                 OutlinedButton(onClick = {
                                                     learningSamples += 1
