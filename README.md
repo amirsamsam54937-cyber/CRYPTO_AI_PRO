@@ -1,13 +1,13 @@
 # AMIR ARSALAN TRADER WOLF — CRYPTO AI PRO
 
-**Android release line: 2.14.0**  
+**Android release line: 2.17.0**  
 A Persian-first Android application for live Binance USDⓈ-M perpetual-futures market scanning, explainable technical analysis, signal visualization, and persistent outcome-based learning.
 
 > **Analysis and signals only.** The Android app does not connect exchange accounts, store API keys, submit orders, change leverage, or execute trades. Entry, stop and target levels are analytical references, not orders or guarantees.
 
 ## Current scope and hard boundaries
 
-- Exchange: **Binance USDⓈ-M public market data only**. XT integration, XT credentials, and account endpoints are removed from the active application and Python research API.
+- Exchange: **Binance USDⓈ-M or XT USDT-M public market data**, selectable in the app. The app uses public market endpoints only; it never connects an account or stores exchange API keys.
 - Universe: active USDT-quoted perpetual contracts, ranked by 24-hour quote turnover.
 - No account connection, no API secrets, no withdrawal permissions, and no automated/manual order placement.
 - Signal output: LONG bias, SHORT bias, or NO TRADE/neutral, with reference entry, stop-loss, TP1–TP3 and a conservative leverage ceiling estimate.
@@ -16,7 +16,7 @@ A Persian-first Android application for live Binance USDⓈ-M perpetual-futures 
 ## Android modules
 
 - **Home / command center:** scan status, scan coverage, update time, market sessions and leading signals.
-- **Market scanner:** every active Binance USDT perpetual contract, volume-ranked results, progressive batch updates, directional filters and manual rescan. The foreground scanner repeats indefinitely: after each full pass it waits the user-selected 1/3/5/10-minute pause and starts another pass; there is no contract quota or scan-session expiry.
+- **Market scanner:** every active USDT perpetual contract on the selected exchange, volume-ranked results, progressive batch updates, directional filters and manual rescan. The foreground scanner repeats indefinitely: after each full pass it waits the user-selected 1/3/5/10-minute pause and starts another pass; there is no contract quota or scan-session expiry.
 - **Technical analysis:** selected-symbol TradingView chart, local candlestick chart, entry/SL/TP level map and detailed technical snapshot.
 - **Market flow & news:** dedicated screen for public aggregate-trade buy/sell imbalance, large-print heuristics, current open interest, funding rate and timestamped public RSS headlines.
 - **Wolf AI:** ten explainable technical voting specialists, a small experimental on-device neural network, expanded Persian knowledge retrieval and outcome journal.
@@ -64,15 +64,15 @@ The default CCXT market adapter is Binance USDⓈ-M (binanceusdm). No API creden
 
 ## Build and install Android APK
 
-Every push affecting Android source starts the **Build Android APK** GitHub Actions workflow.
+Every push affecting Android source starts the **Build Android APK** GitHub Actions workflow. The 2.17 pipeline collects 500,000 real closed hourly candles (Binance first, XT as an independent public-data fallback), trains ten 64/32/16 MLP networks when sufficient real data is available, and verifies that the APK contains both the auditable seed and trained ensemble.
 
 1. Open the repository's **Actions** tab.
 2. Open the newest **Build Android APK** run.
 3. Wait for all jobs to finish successfully.
-4. Download the **AMIR-ARSALAN-TRADER-WOLF-v2.14.0** artifact ZIP.
+4. Download the **AMIR-ARSALAN-TRADER-WOLF-v2.17.0** artifact ZIP.
 5. Extract and install app-debug.apk on Android.
 
-A successful CI build verifies compilation only. It does not prove API availability in every region, signal quality, profitability, background reliability or production readiness. The APK size must be measured from the generated artifact; no artificial padding is added to meet a file-size target.
+The CI pipeline additionally checks the real-data manifest, absence of synthetic rows, bundled neural model and a minimum 20 MiB APK size. A successful CI build still verifies packaging and compilation only. It does not prove API availability in every region, signal quality, profitability, background reliability or production readiness. The 20 MiB target must be met by real bundled data/model assets; no artificial padding is used.
 
 ## Quality and safety roadmap
 
