@@ -122,7 +122,7 @@ internal object WolfMathematicsEngine {
                 for (j in col..n) a[r][j] -= factor * a[col][j]
             }
         }
-        return DoubleArray(n) { a[it][n] }.takeIf { it.all(Double::isFinite) }
+        return DoubleArray(n) { a[it][n] }.takeIf { it.all { value -> value.isFinite() } }
     }
 
     fun bisectionRoot(function: (Double) -> Double, low: Double, high: Double, iterations: Int = 80): Double? {
