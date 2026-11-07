@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from tools.train_wolf_ensemble import chronological_masks
+from tools.time_series_validation import chronological_masks
 
 
 def test_chronological_split_keeps_same_timestamp_rows_together_and_purges_horizon():
