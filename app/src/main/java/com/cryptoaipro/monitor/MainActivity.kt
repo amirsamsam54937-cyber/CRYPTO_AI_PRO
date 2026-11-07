@@ -221,7 +221,7 @@ fun CryptoMonitorScreen() {
             rows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned))
             scannedCount = totalContracts
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
-            scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned) } }
+            scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
             val memoryStats = WolfLearningMemory.processScan(context, rows, outcomeSnapshot.records)
             learningSamples = memoryStats.samples
@@ -1649,7 +1649,7 @@ class MarketMonitorService : Service() {
                         val journalSnapshot = WolfSignalOutcomeJournal.processScan(applicationContext, signals)
                         WolfLearningMemory.processScan(applicationContext, signals, journalSnapshot.records)
                         // Refresh private news and large-trade flow context for the analysis engine; never expose session clocks or raw feed panels in the UI.
-                        runCatching { WolfFlowNewsRepository.refreshForEngine(applicationContext, marketSignals) }
+                        runCatching { WolfFlowNewsRepository.refreshForEngine(applicationContext, marketSignals, selectedExchange) }
                         val active = signals.count { it.direction != "NEUTRAL" }
                         "اسکن ${signals.size} قرارداد $selectedExchange • سیگنال‌های جهت‌دار: $active • فقط تحلیل تکنیکال"
                     }.getOrElse { "خطای اسکن بازار: ${it.message ?: "نامشخص"}" }
