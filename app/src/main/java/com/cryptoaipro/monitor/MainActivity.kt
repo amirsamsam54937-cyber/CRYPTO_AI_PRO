@@ -261,11 +261,11 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Color(0xFF080808), contentColor = Color.White) {
-                    listOf("خانه", "بازار", "تحلیل", "دفترچه", "هوش مصنوعی", "تنظیمات").forEach { entry ->
+                    listOf("خانه", "بازار", "قدرت سیگنال", "دفترچه", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
                             onClick = { selectedTab = entry },
-                            icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "تحلیل" -> Icons.Outlined.Insights; "دفترچه" -> Icons.Outlined.MenuBook; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
+                            icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "قدرت سیگنال" -> Icons.Outlined.Insights; "دفترچه" -> Icons.Outlined.MenuBook; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
                             label = { Text(entry, fontSize = 9.sp, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Blue,
@@ -367,7 +367,7 @@ fun CryptoMonitorScreen() {
                                                 Text("AMIRARSALAN", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
                                                 Text("TRADER WOLF", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                                                 Text("TRADE LIKE A WOLF", color = Gold, fontSize = 9.sp, letterSpacing = 2.sp)
-                                                Text("قدرت تحلیل • هوش مصنوعی • سیگنال هوشمند", color = Color.White, fontSize = 10.sp)
+                                                Text("قدرت تحلیل تکنیکال • رتبه‌بندی سیگنال • مدیریت ریسک", color = Color.White, fontSize = 10.sp)
                                             }
                                             Surface(
                                                 color = Color(0xCC090909), shape = RoundedCornerShape(30.dp),
@@ -425,7 +425,7 @@ fun CryptoMonitorScreen() {
                             if (loading && rows.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Blue) } }
                             error?.let { msg -> item { Text(msg, color = Red, fontSize = 11.sp) } }
                             items(rows.take(5), key = { it.symbol }) { signal ->
-                                SignalCard(signal, onSelect = { selectedSymbol = signal.symbol; selectedTab = "تحلیل" })
+                                SignalCard(signal, onSelect = { selectedSymbol = signal.symbol; selectedTab = "قدرت سیگنال" })
                             }
                             item { Text("سیگنال‌ها ابزار غربالگری‌اند، نه تضمین سود یا توصیه قطعی معامله.", color = Muted, fontSize = 9.sp) }
                         }
@@ -452,181 +452,25 @@ fun CryptoMonitorScreen() {
                             } else {
                                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
                                     items(shown, key = { it.symbol }) { signal ->
-                                        SignalCard(signal, onSelect = { selectedSymbol = signal.symbol; selectedTab = "تحلیل" })
+                                        SignalCard(signal, onSelect = { selectedSymbol = signal.symbol; selectedTab = "قدرت سیگنال" })
                                     }
                                 }
                             }
                         }
                     }
 
-                    "تحلیل" -> {
-                        LazyColumn(
-                            Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            item {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text("مغز تکنیکال گرگ", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                        Text("تحلیل کندل، ساختار، چندتایم‌فریم و حافظه یادگیری محلی", color = Muted, fontSize = 10.sp)
-                                    }
-                                    Button(onClick = { microphonePermission.launch(android.Manifest.permission.RECORD_AUDIO) }) { Text("🎙 صحبت") }
-                                }
-                            }
-                            item {
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    listOf("5" to "۵د", "15" to "۱۵د", "60" to "۱س", "240" to "۴س", "1D" to "۱روز").forEach { (interval, label) ->
-                                        FilterChip(
-                                            selected = chartInterval == interval,
-                                            onClick = { chartInterval = interval },
-                                            label = { Text(label, fontSize = 10.sp) }
-                                        )
-                                    }
-                                }
-                            }
-                            item { TradingViewPairChart(selectedSymbol = selectedSignal?.symbol ?: "BTCUSDT", interval = chartInterval) }
-                            selectedSignal?.let { signal -> item { SignalLevelsChart(signal) } }
-                            if (voiceTranscript.isNotBlank() || voiceReply.isNotBlank()) {
-                                item {
-                                    Surface(color = Color(0xFF252D31), shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
-                                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text("گفت‌وگوی صوتی", color = Blue, fontWeight = FontWeight.Bold)
-                                            if (voiceTranscript.isNotBlank()) Text("تو: " + voiceTranscript, color = Color.White, fontSize = 12.sp)
-                                            if (voiceReply.isNotBlank()) Text("گرگ: " + voiceReply, color = Muted, fontSize = 12.sp)
-                                        }
-                                    }
-                                }
-                            }
-                            if (selectedSignal == null) {
-                                item { Text(if (loading) "در حال دریافت داده بازار..." else "هنوز داده‌ای برای تحلیل وجود ندارد. ابتدا اسکن بازار را اجرا کن.", color = Muted) }
-                            } else {
-                                item {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("نماد تحلیل", color = Muted, fontSize = 11.sp)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(selectedSignal.symbol, color = Blue, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                                item { SignalCard(selectedSignal, onSelect = { selectedSymbol = selectedSignal.symbol }) }
-                                item { SignalOutcomePanel(outcomeSnapshot) }
-                                item {
-                                    Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
-                                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                            Text("نقشه تکنیکال و ساختار بازار", color = Color.White, fontWeight = FontWeight.Bold)
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                SmallStat("EMA 9", formatPrice(selectedSignal.technical.ema9))
-                                                SmallStat("EMA 20", formatPrice(selectedSignal.technical.ema20))
-                                                SmallStat("EMA 50", formatPrice(selectedSignal.technical.ema50))
-                                            }
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                SmallStat("EMA 100", formatPrice(selectedSignal.technical.ema100))
-                                                SmallStat("EMA 200", formatPrice(selectedSignal.technical.ema200))
-                                                SmallStat("VWAP", formatPrice(selectedSignal.technical.vwap))
-                                            }
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                SmallStat("ADX", String.format(Locale.US, "%.1f", selectedSignal.technical.adx))
-                                                SmallStat("RSI", String.format(Locale.US, "%.1f", selectedSignal.rsi))
-                                                SmallStat("ATR %%", String.format(Locale.US, "%.2f", selectedSignal.technical.atrPercent))
-                                            }
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                SmallStat("حجم نسبی", String.format(Locale.US, "%.2fx", selectedSignal.technical.relativeVolume))
-                                                SmallStat("حمایت", formatPrice(selectedSignal.technical.support), Green)
-                                                SmallStat("مقاومت", formatPrice(selectedSignal.technical.resistance), Red)
-                                            }
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                SmallStat("CCI", String.format(Locale.US, "%.1f", selectedSignal.technical.cci))
-                                                SmallStat("ROC %", String.format(Locale.US, "%.2f", selectedSignal.technical.rocPercent))
-                                                SmallStat("MFI", String.format(Locale.US, "%.1f", selectedSignal.technical.mfi))
-                                            }
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                SmallStat("OBV", String.format(Locale.US, "%.2f", selectedSignal.technical.obvTrend))
-                                                SmallStat("Supertrend", selectedSignal.technical.supertrendDirection)
-                                            }
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                SmallStat("MACD", String.format(Locale.US, "%.6f", selectedSignal.technical.macdLine))
-                                                SmallStat("Signal", String.format(Locale.US, "%.6f", selectedSignal.technical.macdSignalLine))
-                                                SmallStat("BB Width %", String.format(Locale.US, "%.2f", selectedSignal.technical.bollingerWidthPct))
-                                            }
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                SmallStat("BB Position", String.format(Locale.US, "%.2f", selectedSignal.technical.bollingerPosition))
-                                                SmallStat("Stoch RSI", String.format(Locale.US, "%.1f", selectedSignal.technical.stochasticRsi))
-                                                SmallStat("ATR %", String.format(Locale.US, "%.2f", selectedSignal.technical.atrPercent))
-                                            }
-                                            Text("الگوی کندلی: " + selectedSignal.technical.candlePattern, color = Blue, fontSize = 11.sp)
-                                            Text("الگوی هارمونیک: " + detectHarmonicPattern(selectedSignal.candles), color = Purple, fontSize = 11.sp)
-                                            Text("ساختار: " + selectedSignal.technical.marketStructure + " • رژیم: " + selectedSignal.technical.regime, color = Muted, fontSize = 10.sp)
-                                            Text("نقدینگی: " + selectedSignal.technical.liquiditySweep, color = Gold, fontSize = 10.sp)
-                                            Text("FVG: " + selectedSignal.technical.fairValueGap, color = Blue, fontSize = 10.sp)
-                                            Text("واگرایی: " + selectedSignal.technical.rsiDivergence, color = Purple, fontSize = 10.sp)
-                                            Divider(color = Color(0xFF3A454A))
-                                            Text("اجماع ۱۰ تحلیلگر تخصصی گرگ", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                            Text("توافق وزنی: " + (selectedSignal.consensus?.agreement ?: 0) + "% • قدرت سیگنال: " + selectedSignal.confidence, color = Blue, fontSize = 10.sp)
-                                            selectedSignal.consensus?.votes?.forEach { vote ->
-                                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                    Text(vote.name, color = Muted, fontSize = 10.sp)
-                                                    Text(vote.direction + " • " + String.format(Locale.US, "%.2f", vote.score), color = when (vote.direction) { "LONG" -> Green; "SHORT" -> Red; else -> Muted }, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                                }
-                                            }
-                                            Divider(color = Color(0xFF3A454A))
-                                            val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
-                                            Text(
-                                                if (pretrainedStatus.loaded) "مغز عصبی AMIR WOLF • ۱۰ شبکه پیش‌آموزش‌دیده"
-                                                else "مغز عصبی AMIR WOLF • یادگیری محلی آزمایشی",
-                                                color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp
-                                            )
-                                            Text(if (pretrainedStatus.loaded) "۱۰ شبکه عمیق فعال • کندل‌های واقعی: " + String.format(Locale.US, "%,d", pretrainedStatus.corpusRows) + " • نمونه‌های آموزش: " + String.format(Locale.US, "%,d", pretrainedStatus.samples) + " • دقت آزمون زمانی: " + String.format(Locale.US, "%.1f%%", pretrainedStatus.testAccuracy * 100.0) + " • خط پایه: " + String.format(Locale.US, "%.1f%%", pretrainedStatus.baselineAccuracy * 100.0) + " • دقت متوازن: " + String.format(Locale.US, "%.1f%%", pretrainedStatus.balancedAccuracy * 100.0) + if (pretrainedStatus.validatedForScoring) " • اثر محدود بر امتیاز سیگنال فعال" else " • مدل آزمایشی؛ بدون اثر بر اعتماد سیگنال" else "مدل پیش‌آموزش‌دیده هنوز در این بسته بارگذاری نشده؛ امتیاز شبکه محلی در حالت پشتیبان است.", color = if (pretrainedStatus.loaded && pretrainedStatus.validatedForScoring) Green else Gold, fontSize = 10.sp)
-                                            Text("تاریخ آموزش UTC: " + if (pretrainedStatus.trainedAt.isBlank()) "نامشخص" else pretrainedStatus.trainedAt, color = Muted, fontSize = 9.sp)
-                                            Text("حافظه یادگیری تطبیقی و پایدار روی گوشی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                            val memoryStats = WolfLearningMemory.stats(context)
-                                            Text("نمونه‌های ارزیابی‌شده: " + memoryStats.samples + " • موفق: " + memoryStats.wins + " • ناموفق: " + memoryStats.losses, color = Muted, fontSize = 10.sp)
-                                            Text("در انتظار ارزیابی ۴ ساعته: " + memoryStats.pending + " • آموزش خودکار امروز: " + memoryStats.learnedToday, color = Blue, fontSize = 10.sp)
-                                            Text("شبکه عصبی از نتایج واقعیِ قابل‌مشاهده سیگنال‌های ثبت‌شده (TP، SL یا انقضای ۱۵ دقیقه‌ای) به‌طور خودکار آموزش می‌بیند؛ افق ارزیابی ۴ ساعته نیز برای نمونه‌های بدون نتیجه بسته‌شده باقی است. وزن‌ها روی گوشی ذخیره می‌شوند.", color = Muted, fontSize = 9.sp)
-                                            Text("بازخورد ذخیره‌شده: " + learningSamples + " • درست: " + learningWins + " • نادرست: " + learningLosses, color = Muted, fontSize = 10.sp)
-                                            Text("امتیاز اجماع عصبی ۱۰مدلی: " + selectedSignal.neuralScore + " از ۱۰۰", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                            Text(
-                                                if (pretrainedStatus.loaded) "ده شبکه با داده‌های تاریخی فیوچرز آموزش دیده‌اند؛ حافظه آنلاین نیز از نتیجه سیگنال‌های بسته‌شده یاد می‌گیرد. معیار آزمون گذشته‌نگر، تضمین سود یا پیش‌بینی قطعی آینده نیست."
-                                                else "در نبود بسته وزن پیش‌آموزش‌دیده، فقط شبکه محلی از نتایج سیگنال‌های ثبت‌شده یاد می‌گیرد؛ هیچ وزن ساختگی یا امتیاز تأییدنشده‌ای استفاده نمی‌شود.",
-                                                color = Muted, fontSize = 9.sp
-                                            )
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                OutlinedButton(onClick = {
-                                                    learningSamples += 1
-                                                    learningWins += 1
-                                                    WolfDeepNeuralNetwork.learn(learningPrefs, selectedSignal, 1.0)
-                                                    learningPrefs.edit().putInt("samples", learningSamples).putInt("wins", learningWins).putInt("losses", learningLosses).putString("last_symbol", selectedSignal.symbol).putString("last_feedback", "correct").apply()
-                                                }, modifier = Modifier.weight(1f)) { Text("✓ تحلیل درست بود", fontSize = 10.sp) }
-                                                OutlinedButton(onClick = {
-                                                    learningSamples += 1
-                                                    learningLosses += 1
-                                                    WolfDeepNeuralNetwork.learn(learningPrefs, selectedSignal, 0.0)
-                                                    learningPrefs.edit().putInt("samples", learningSamples).putInt("wins", learningWins).putInt("losses", learningLosses).putString("last_symbol", selectedSignal.symbol).putString("last_feedback", "wrong").apply()
-                                                }, modifier = Modifier.weight(1f)) { Text("✕ تحلیل نادرست بود", fontSize = 10.sp) }
-                                            }
-                                            if (selectedSignal.candles.isNotEmpty()) {
-                                                Text("نمودار کندل ژاپنی • ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                                CandleChart(selectedSignal.candles)
-                                            }
-                                        }
-                                    }
-                                }
-                                item {
-                                    Text("برای بررسی نماد دیگر، از بخش بازار روی نماد موردنظر بزن و سپس به تحلیل برگرد.", color = Muted, fontSize = 10.sp)
-                                }
-                            }
-                        }
-                    }"دفترچه" -> {
+                    "قدرت سیگنال" -> {
+                        SignalStrengthScreen(signals = rows, loading = loading, progress = scanProgress,
+                            onSelect = { symbol -> selectedSymbol = symbol },
+                            onOpenJournal = { selectedTab = "دفترچه" },
+                            onRescan = { scope.launch { performScan() } })
+                    }
+
+                    "دفترچه" -> {
                         SignalJournalScreen(outcomeSnapshot)
                     }
 
-                    "هوش مصنوعی" -> {
-                        Column(Modifier.fillMaxSize()) {
-                            WolfAiCompanionScreen(selectedSignal)
-                            WolfKnowledgeBaseScreen()
-                        }
-                    }
-
-                    else -> {
+                                        else -> {
                         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text("تنظیمات و پایش پس‌زمینه", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
@@ -652,7 +496,7 @@ fun CryptoMonitorScreen() {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
                                     Text("بازار: Binance USDⓈ-M Futures", color = Muted, fontSize = 11.sp)
                                     Text("اسکن پایه: ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • بازبینی عمیق ۲۴ نامزد برتر: ۵ دقیقه و ۱ روز", color = Muted, fontSize = 11.sp)
-                                    Text("چارت قابل انتخاب: ۵ دقیقه، ۱۵ دقیقه، ۱ ساعت، ۴ ساعت و ۱ روز", color = Muted, fontSize = 11.sp)
+                                    Text("ابزارها: رتبه‌بندی قدرت سیگنال، چندتایم‌فریم، اجماع ۱۰مدلی، مدیریت ریسک و دفترچه سوابق", color = Muted, fontSize = 11.sp)
                                     Text("دامنه اسکن: تمام قراردادهای دائمی USDT فعال؛ مرتب‌شده بر اساس حجم معاملات", color = Muted, fontSize = 11.sp)
                                     Text("فاصله مکث بین دورهای اسکن (پس از پایان هر دور):", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -732,6 +576,52 @@ private fun ActiveCommandSignals(
 }
 
 @Composable
+
+@Composable
+private fun SignalStrengthScreen(
+    signals: List<MarketSignal>, loading: Boolean, progress: String,
+    onSelect: (String) -> Unit, onOpenJournal: () -> Unit, onRescan: () -> Unit
+) {
+    var strengthFilter by remember { mutableStateOf("همه") }
+    val directional = signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
+    val visible = when (strengthFilter) {
+        "صعودی" -> directional.filter { it.direction == "LONG_BIAS" }
+        "نزولی" -> directional.filter { it.direction == "SHORT_BIAS" }
+        "قوی" -> directional.filter { it.confidence >= 75 }
+        else -> signals
+    }.sortedWith(compareByDescending<MarketSignal> { it.confidence }.thenByDescending { it.score })
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            Surface(color = Panel, shape = RoundedCornerShape(17.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.45f)), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("مرکز قدرت سیگنال گرگ", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("رتبه‌بندی زنده فرصت‌ها بر اساس هم‌جهتی تایم‌فریم‌ها، قدرت روند، حجم، ساختار بازار و امتیاز مدل عصبی", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Gold)
+                    Text(progress, color = Muted, fontSize = 9.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        MetricCard("کل نمادها", signals.size.toString(), Modifier.weight(1f))
+                        MetricCard("LONG", directional.count { it.direction == "LONG_BIAS" }.toString(), Modifier.weight(1f), Green)
+                        MetricCard("SHORT", directional.count { it.direction == "SHORT_BIAS" }.toString(), Modifier.weight(1f), Red)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Button(onClick = onRescan, enabled = !loading, modifier = Modifier.weight(1f)) { Text("اسکن بازار") }
+                        OutlinedButton(onClick = onOpenJournal, modifier = Modifier.weight(1f)) { Text("دفترچه سیگنال‌ها") }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("همه", "صعودی", "نزولی", "قوی").forEach { option ->
+                            FilterChip(selected = strengthFilter == option, onClick = { strengthFilter = option }, label = { Text(option, fontSize = 10.sp) })
+                        }
+                    }
+                    Text("سیگنال قوی: قدرت ۷۵٪ به بالا؛ این امتیاز تضمین سود یا احتمال قطعی موفقیت نیست.", color = Gold, fontSize = 9.sp)
+                }
+            }
+        }
+        if (visible.isEmpty()) item { Text(if (loading) "در حال دریافت داده‌های بازار..." else "در این فیلتر هنوز سیگنالی وجود ندارد. اسکن بازار را اجرا کن.", color = Muted, fontSize = 11.sp) }
+        else items(visible, key = { it.symbol }) { signal -> SignalCard(signal, onSelect = { onSelect(signal.symbol) }) }
+        item { Text("ابزارها: فیلتر LONG/SHORT، رتبه‌بندی قدرت، شاخص‌های تکنیکال پیشرفته داخل هر کارت، اهداف سه‌مرحله‌ای، حد ضرر، اهرم پیشنهادی و ثبت خودکار سوابق در دفترچه.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp) }
+    }
+}
+
 private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
     var filter by remember { mutableStateOf("همه") }
     val visible = when (filter) {
@@ -851,7 +741,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(item.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
                 TextButton(onClick = onSelect, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
-                    Text("تحلیل", color = Blue, fontSize = 10.sp)
+                    Text("جزئیات", color = Blue, fontSize = 10.sp)
                 }
                 Surface(color = tint.copy(alpha = .15f), shape = RoundedCornerShape(20.dp)) {
                     Text(label, color = tint, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
