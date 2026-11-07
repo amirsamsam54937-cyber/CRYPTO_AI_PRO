@@ -1159,12 +1159,24 @@ private object BinanceMonitor {
     }
 
     private suspend fun candles(symbol: String, interval: String): List<DoubleArray> {
-        val rawText = requestGate.withPermit { withContext(Dispatchers.IO) { get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval + "&limit=250") } }
+        // 500 closed candles give the 200-period EMA a more useful warm-up window.
+        val rawText = requestGate.withPermit {
+            withContext(Dispatchers.IO) {
+                get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval + "&limit=500")
+            }
+        }
         val raw = JSONArray(rawText)
-        return (0 until (raw.length() - 1).coerceAtLeast(0)).map { i ->
+        val closed = (0 until (raw.length() - 1).coerceAtLeast(0)).map { i ->
             val row = raw.getJSONArray(i)
             doubleArrayOf(row.getString(1).toDouble(), row.getString(2).toDouble(), row.getString(3).toDouble(), row.getString(4).toDouble(), row.getString(5).toDouble())
         }
+        require(closed.size >= 210) { "Insufficient closed candles for EMA200" }
+        require(closed.all { candle ->
+            candle.all { it.isFinite() } && candle[0] > 0.0 && candle[1] > 0.0 && candle[2] > 0.0 && candle[3] > 0.0 &&
+                candle[4] >= 0.0 && candle[1] >= maxOf(candle[0], candle[3]) &&
+                candle[2] <= minOf(candle[0], candle[3]) && candle[1] >= candle[2]
+        }) { "Invalid OHLCV candle data from Binance" }
+        return closed
     }
 
     private fun atr(data: List<DoubleArray>, period: Int = 14): Double {
@@ -1178,7 +1190,7 @@ private object BinanceMonitor {
     // Each candle contains open, high, low, close, base volume.
     private fun indicators(data: List<DoubleArray>): Quad {
         val closes = data.map { it[3] }
-        if (closes.size < 55) throw IllegalStateException("داده کافی نیست")
+        if (closes.size < 210) throw IllegalStateException("برای محاسبه معتبر EMA200 حداقل ۲۱۰ کندل بسته‌شده لازم است")
         val e9 = ema(closes, 9)
         val e20 = ema(closes, 20)
         val e50 = ema(closes, 50)
