@@ -136,6 +136,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WolfCrashReporter.install(applicationContext)
         setContent { CryptoMonitorScreen() }
     }
 }
