@@ -1,27 +1,17 @@
-name: Build AMIR ARSALAN TRADER WOLF — 500K Data + 10 Neural Networks + APK
+name: Build AMIRARSALAN TRADER WOLF APK
 permissions:
-  actions: write
   contents: read
-concurrency:
-  group: wolf-full-training-${{ github.ref }}
-  cancel-in-progress: false
+  actions: write
 on:
   workflow_dispatch:
   push:
     paths:
-      - "README.md"
       - "app/**"
-      - "tools/**"
-      - "knowledge/**"
-      - "docs/**"
-      - "*.gradle.kts"
-      - "settings.gradle.kts"
-      - "gradle.properties"
       - ".github/workflows/android-apk.yml"
 jobs:
-  train-and-build:
+  build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -31,84 +21,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-      - name: Install real-market collection and training dependencies
-        run: python -m pip install --upgrade pip ccxt numpy scikit-learn
-      - name: Collect 500,000 real closed Futures candles
-        run: python tools/build_real_market_seed.py
-      - name: Verify the real corpus and prepare Android model manifest
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import csv, json, hashlib
-          p = "app/src/main/assets/market_seed.csv"
-          with open(p, newline="", encoding="utf-8") as f:
-              rows = sum(1 for _ in f) - 1
-          with open("market_seed_manifest.json", encoding="utf-8") as f:
-              manifest = json.load(f)
-          assert rows == 500000, f"Expected 500000 real rows, got {rows}"
-          assert manifest["rows"] == 500000 and manifest["synthetic_rows"] == 0
-          assert manifest["status"] == "verified_real_exchange_data"
-          import os
-          os.makedirs("app/src/main/assets", exist_ok=True)
-          with open("app/src/main/assets/wolf_corpus_manifest.json", "w") as f:
-              json.dump(manifest, f, separators=(",", ":"))
-          print(json.dumps(manifest, indent=2))
-          PY
-      - name: Train ten 7-64-32-16-1 neural networks on real historical labels
-        run: python tools/train_wolf_ensemble.py
-      - name: Verify trained ensemble artifacts (no predictive-score approval gate)
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import json, os
-          model_path = "app/src/main/assets/wolf_pretrained_ensemble.json"
-          report_path = "wolf_model_training_report.json"
-          assert os.path.isfile(model_path) and os.path.getsize(model_path) > 1000
-          with open(model_path) as f: model = json.load(f)
-          with open("market_seed_manifest.json") as f: corpus = json.load(f)
-          assert model.get("format") == "amir-wolf-ensemble-v1"
-          assert len(model.get("members", [])) == 10
-          assert model.get("samples", 0) >= 500
-          assert corpus.get("rows") == 500000 and corpus.get("synthetic_rows") == 0
-          assert os.path.isfile(report_path)
-          os.makedirs("app/src/main/assets", exist_ok=True)
-          with open(report_path) as src, open("app/src/main/assets/wolf_model_training_report.json", "w") as dst:
-              dst.write(src.read())
-          print("Verified: 500,000 real candles; 10 trained networks; " + str(model["samples"]) + " labeled examples.")
-          print("Holdout metrics are reported transparently in wolf_model_training_report.json; they do not block the user's requested build.")
-          PY
-      - name: Build installable Android APK with trained weights
-        run: gradle assembleDebug --no-daemon
-      - name: Verify APK exists
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-          test -s "$APK"
-          echo "Trained APK size: $(stat -c%s "$APK") bytes"
+      - name: Build installable APK (no extra test stage)
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Verify APK file exists
+        run: test -s app/build/outputs/apk/debug/app-debug.apk
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: AMIR-ARSALAN-TRADER-WOLF-500K-TRAINED-APK
+          name: AMIRARSALAN-TRADER-WOLF-UPDATED-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          retention-days: 30
-      - name: Upload the complete real-candle training corpus and audit reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: AMIR-ARSALAN-WOLF-500K-TRAINING-DATA
-          path: |
-            app/src/main/assets/market_seed.csv
-            market_seed_manifest.json
-            wolf_model_training_report.json
-            app/src/main/assets/wolf_corpus_manifest.json
-          if-no-files-found: error
-          compression-level: 6
           retention-days: 30
