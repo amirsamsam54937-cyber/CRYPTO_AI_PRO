@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -34,6 +35,7 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.viewinterop.AndroidView
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -359,11 +361,14 @@ fun CryptoMonitorScreen() {
                     Surface(
                         color = Color(0xFF142B4B),
                         shape = RoundedCornerShape(13.dp),
-                        modifier = Modifier.size(42.dp)
+                        modifier = Modifier.size(46.dp),
+                        shadowElevation = 8.dp
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("🐺", color = Blue, fontSize = 25.sp, fontWeight = FontWeight.Black)
-                        }
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
+                            contentDescription = "نشان گرگ امیر ارسلان",
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
