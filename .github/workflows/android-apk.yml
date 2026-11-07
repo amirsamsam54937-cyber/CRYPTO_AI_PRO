@@ -1,4 +1,4 @@
-name: Build AMIR ARSALAN TRADER WOLF 2.17 Android APK
+name: Build AMIR ARSALAN TRADER WOLF 2.18 Android APK
 on:
   workflow_dispatch:
   push:
@@ -6,6 +6,8 @@ on:
       - "README.md"
       - "app/**"
       - "tools/**"
+      - "knowledge/**"
+      - "docs/**"
       - "*.gradle.kts"
       - "settings.gradle.kts"
       - "gradle.properties"
@@ -27,7 +29,7 @@ jobs:
         run: python -m pip install --upgrade pip numpy scikit-learn pytest ccxt
       - name: Test chronological training split
         run: PYTHONPATH=. pytest -q tests/test_wolf_training.py
-      - name: Collect exactly 500,000 real closed futures candles
+      - name: Collect up to 200,000 real closed futures candles
         run: python tools/build_real_market_seed.py
       - name: Train ten deep neural networks on collected real candles
         run: python tools/train_wolf_ensemble.py
@@ -36,7 +38,7 @@ jobs:
           gradle-version: "8.9"
       - name: Build Android APK
         run: gradle assembleDebug
-      - name: Verify APK database, size and trained ensemble
+      - name: Verify real data, ten trained networks and 20 MiB APK target
         shell: bash
         run: |
           set -euo pipefail
@@ -53,21 +55,27 @@ jobs:
           python - <<'PY'
           import csv, json, os
           with open("market_seed_manifest.json", encoding="utf-8") as f:
-              m=json.load(f)
-          assert m["rows"] == 500000 and m["synthetic_rows"] == 0
+              manifest=json.load(f)
+          assert manifest["status"] == "verified_real_exchange_data"
+          assert 150000 <= manifest["rows"] <= 200000
+          assert manifest["synthetic_rows"] == 0
+          assert manifest["source_exchanges"]
           with open("app/src/main/assets/market_seed.csv", newline="", encoding="utf-8") as f:
-              assert sum(1 for _ in csv.reader(f)) == 500001
+              assert sum(1 for _ in csv.reader(f)) == manifest["rows"] + 1
           with open("wolf_model_training_report.json", encoding="utf-8") as f:
               model=json.load(f)
           assert model["samples"] >= 500
           assert len(model["metrics"]) == 10
-          print("Verified real candle rows:",m["rows"])
-          print("Neural training samples:",model["samples"])
-          print("APK bytes:",os.path.getsize("app/build/outputs/apk/debug/app-debug.apk"))
+          assert model["evaluation"]["split"] == "chronological_purged"
+          print("Verified real candle rows:", manifest["rows"])
+          print("Verified symbols:", manifest["symbols"])
+          print("Source exchanges:", manifest["source_exchanges"])
+          print("Neural training samples:", model["samples"])
+          print("APK bytes:", os.path.getsize("app/build/outputs/apk/debug/app-debug.apk"))
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: AMIR-ARSALAN-TRADER-WOLF-v2.17.0
+          name: AMIR-ARSALAN-TRADER-WOLF-v2.18.0
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             market_seed_manifest.json
