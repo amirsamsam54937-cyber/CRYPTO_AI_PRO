@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK (auto-trained Wolf AI)
 on:
   workflow_dispatch:
   push:
