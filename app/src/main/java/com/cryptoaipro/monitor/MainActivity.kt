@@ -1119,7 +1119,7 @@ private object BinanceMonitor {
                     requestMethod = "GET"
                     connectTimeout = 7000
                     readTimeout = 9000
-                    setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.12")
+                    setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.14")
                     setRequestProperty("Accept", "application/json")
                 }
                 val code = connection.responseCode
