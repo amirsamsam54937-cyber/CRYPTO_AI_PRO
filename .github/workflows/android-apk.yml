@@ -1,6 +1,8 @@
 name: Build AMIR ARSALAN TRADER WOLF 2.18 Android APK
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * 1' # Weekly public-market refresh and model retraining
   push:
     paths:
       - "README.md"
