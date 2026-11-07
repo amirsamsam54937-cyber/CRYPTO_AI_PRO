@@ -24,7 +24,7 @@ A Persian-first Android application for live Binance USDⓈ-M perpetual-futures 
 
 ## Analysis engine
 
-The Android scanner fetches closed candles for 15m, 1h and 4h for signal decisions. The embedded TradingView chart independently supports 5m, 15m, 1h, 4h and 1D viewing. The engine evaluates:
+The Android scanner fetches closed candles for 15m, 1h and 4h across the full active USDT-perpetual universe, then performs a bounded five-timeframe deep review (5m/15m/1h/4h/1D) on the 24 highest-ranked candidates. The embedded TradingView chart independently supports 5m, 15m, 1h, 4h and 1D viewing. The engine evaluates:
 
 - EMA 9/20/50/100/200, RSI, MACD, ADX and ATR
 - Bollinger Bands and bandwidth, VWAP, relative volume and Stochastic RSI
