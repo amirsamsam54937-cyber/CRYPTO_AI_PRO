@@ -297,54 +297,7 @@ fun CryptoMonitorScreen() {
                         val y = h * i / 19f
                         drawLine(Color(0xFF78848A).copy(alpha = 0.08f), Offset(0f, y), Offset(w, y), 1f)
                     }
-                    val crest = Path().apply {
-                        moveTo(w * 0.17f, h * 0.12f)
-                        lineTo(w * 0.34f, h * 0.25f)
-                        lineTo(w * 0.43f, h * 0.19f)
-                        lineTo(w * 0.50f, h * 0.30f)
-                        lineTo(w * 0.57f, h * 0.19f)
-                        lineTo(w * 0.66f, h * 0.25f)
-                        lineTo(w * 0.83f, h * 0.12f)
-                        lineTo(w * 0.77f, h * 0.48f)
-                        lineTo(w * 0.68f, h * 0.66f)
-                        lineTo(w * 0.50f, h * 0.84f)
-                        lineTo(w * 0.32f, h * 0.66f)
-                        lineTo(w * 0.23f, h * 0.48f)
-                        close()
-                    }
-                    drawPath(crest, Color(0xFF626D72).copy(alpha = 0.18f))
-                    val outline = Path().apply {
-                        moveTo(w * 0.17f, h * 0.12f)
-                        lineTo(w * 0.34f, h * 0.25f)
-                        lineTo(w * 0.43f, h * 0.19f)
-                        lineTo(w * 0.50f, h * 0.30f)
-                        lineTo(w * 0.57f, h * 0.19f)
-                        lineTo(w * 0.66f, h * 0.25f)
-                        lineTo(w * 0.83f, h * 0.12f)
-                        lineTo(w * 0.77f, h * 0.48f)
-                        lineTo(w * 0.68f, h * 0.66f)
-                        lineTo(w * 0.50f, h * 0.84f)
-                        lineTo(w * 0.32f, h * 0.66f)
-                        lineTo(w * 0.23f, h * 0.48f)
-                        close()
-                    }
-                    drawPath(outline, Blue.copy(alpha = 0.24f), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f))
-                    val muzzle = Path().apply {
-                        moveTo(w * 0.35f, h * 0.48f)
-                        lineTo(w * 0.44f, h * 0.57f)
-                        lineTo(w * 0.50f, h * 0.62f)
-                        lineTo(w * 0.56f, h * 0.57f)
-                        lineTo(w * 0.65f, h * 0.48f)
-                        lineTo(w * 0.59f, h * 0.69f)
-                        lineTo(w * 0.50f, h * 0.76f)
-                        lineTo(w * 0.41f, h * 0.69f)
-                        close()
-                    }
-                    drawPath(muzzle, Blue.copy(alpha = 0.13f), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2f))
-                    drawLine(Gold.copy(alpha = 0.24f), Offset(w * 0.37f, h * 0.39f), Offset(w * 0.45f, h * 0.42f), 2.2f)
-                    drawLine(Gold.copy(alpha = 0.24f), Offset(w * 0.55f, h * 0.42f), Offset(w * 0.63f, h * 0.39f), 2.2f)
-                    drawCircle(Gold.copy(alpha = 0.22f), radius = w * 0.012f, center = Offset(w * 0.41f, h * 0.43f))
-                    drawCircle(Gold.copy(alpha = 0.22f), radius = w * 0.012f, center = Offset(w * 0.59f, h * 0.43f))
+                    // Keep the backdrop restrained and photographic; no drawn/cartoon wolf watermark.
                     // Faint rising/falling price trace at the lower edge.
                     val trace = Path().apply {
                         moveTo(0f, h * 0.91f)
