@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, log_loss
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, brier_score_loss, log_loss, roc_auc_score
 
 BASES = ["https://fapi.binance.com", "https://fapi1.binance.com", "https://fapi2.binance.com"]
 SYMBOLS = ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","LINKUSDT","AVAXUSDT","LTCUSDT","TRXUSDT","DOTUSDT","BCHUSDT","ETCUSDT","ATOMUSDT","NEARUSDT","APTUSDT","ARBUSDT","OPUSDT","FILUSDT"]
@@ -124,6 +124,22 @@ def make_rows(raw):
     mask &= np.abs(future) > .0025
     return X[mask],y[mask],a[:,0][mask]
 
+def chronological_masks(timestamps, horizon_bars=HORIZON, interval_ms=60*60*1000, test_fraction=0.2):
+    """Purged chronological split; all rows sharing a timestamp stay in the same fold."""
+    ts = np.asarray(timestamps, dtype=np.int64)
+    unique_times = np.unique(ts)
+    if len(unique_times) < 10:
+        raise ValueError("Not enough unique timestamps for a chronological holdout")
+    cutoff = unique_times[min(len(unique_times)-1, int(len(unique_times)*(1.0-test_fraction)))]
+    train_end = int(cutoff) - int(horizon_bars * interval_ms)
+    train_mask = ts < train_end
+    test_mask = ts >= cutoff
+    purged_mask = (ts >= train_end) & (ts < cutoff)
+    if not train_mask.any() or not test_mask.any():
+        raise ValueError("Purged chronological split produced an empty train or test partition")
+    return train_mask, test_mask, int(purged_mask.sum()), int(cutoff)
+
+
 def fetch_symbol_samples(symbol):
     raw=get_history(symbol)
     x,y,t=make_rows(raw)
@@ -147,25 +163,26 @@ def main():
     X=np.vstack([item[0] for item in chunks])
     y=np.concatenate([item[1] for item in chunks])
     timestamps=np.concatenate([item[2] for item in chunks])
+    # Keep features, labels and timestamps in the same chronological order.
     order=np.argsort(timestamps,kind="stable")
-    X,y=X[order],y[order]
+    X,y,timestamps=X[order],y[order],timestamps[order]
     if len(X)<500 or len(np.unique(y))<2:
         raise SystemExit("Insufficient labeled history or only one class; no model exported.")
-    unique_times=np.unique(timestamps)
-    cutoff=unique_times[min(len(unique_times)-1,int(len(unique_times)*.8))]
-    train_mask=timestamps<cutoff
-    test_mask=timestamps>=cutoff
+    train_mask,test_mask,purged_rows,cutoff=chronological_masks(timestamps)
     X_train,X_test=X[train_mask],X[test_mask]
     y_train,y_test=y[train_mask],y[test_mask]
+    if len(np.unique(y_train))<2 or len(np.unique(y_test))<2:
+        raise SystemExit("Purged chronological partitions must both contain positive and negative labels.")
     scaler=StandardScaler().fit(X_train)
     A,B=scaler.transform(X_train),scaler.transform(X_test)
-    members,metrics=[],[]
+    members,metrics,all_probabilities=[],[],[]
     for index in range(10):
         model=MLPClassifier(hidden_layer_sizes=(64,32,16),activation="tanh",solver="adam",
             alpha=.002,learning_rate_init=.0015,max_iter=300,early_stopping=True,
             validation_fraction=.15,n_iter_no_change=22,random_state=20261107+index)
         model.fit(A,y_train)
         probabilities=model.predict_proba(B)[:,1]
+        all_probabilities.append(probabilities)
         metrics.append({"member":index+1,
             "accuracy":round(float(accuracy_score(y_test,probabilities>=.5)),4),
             "log_loss":round(float(log_loss(y_test,np.clip(probabilities,1e-6,1-1e-6))),4),
@@ -175,16 +192,30 @@ def main():
             "w3":model.coefs_[2].T.tolist(),"b3":model.intercepts_[2].tolist(),
             "w4":model.coefs_[3][:,0].tolist(),"b4":float(model.intercepts_[3][0])})
         print(f"MODEL {index+1}/10 {metrics[-1]}",flush=True)
+    ensemble_probabilities=np.mean(all_probabilities,axis=0)
+    evaluation={
+        "split":"chronological_purged",
+        "cutoff_timestamp_ms":int(cutoff),
+        "purged_rows":int(purged_rows),
+        "positive_rate":round(float(y_test.mean()),6),
+        "majority_class_baseline_accuracy":round(float(max(y_test.mean(),1.0-y_test.mean())),4),
+        "ensemble_accuracy":round(float(accuracy_score(y_test,ensemble_probabilities>=0.5)),4),
+        "ensemble_balanced_accuracy":round(float(balanced_accuracy_score(y_test,ensemble_probabilities>=0.5)),4),
+        "ensemble_log_loss":round(float(log_loss(y_test,np.clip(ensemble_probabilities,1e-6,1-1e-6))),4),
+        "ensemble_brier_score":round(float(brier_score_loss(y_test,ensemble_probabilities)),4),
+        "ensemble_roc_auc":round(float(roc_auc_score(y_test,ensemble_probabilities)),4)
+    }
     output={"format":"amir-wolf-ensemble-v1","trained_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
         "interval":INTERVAL,"horizon_bars":HORIZON,"symbols":SYMBOLS,"samples":int(len(X)),
         "train_samples":int(len(X_train)),"test_samples":int(len(X_test)),
         "feature_mean":scaler.mean_.tolist(),"feature_scale":scaler.scale_.tolist(),
-        "metrics":metrics,"members":members}
+        "evaluation":evaluation,"metrics":metrics,"members":members}
     os.makedirs("app/src/main/assets",exist_ok=True)
     with open("app/src/main/assets/wolf_pretrained_ensemble.json","w") as file:
         json.dump(output,file,separators=(",",":"))
     with open("wolf_model_training_report.json","w") as file:
         json.dump({key:value for key,value in output.items() if key!="members"},file,indent=2)
+    print(f"PURGED HOLDOUT: {evaluation}",flush=True)
     print(f"EXPORTED ten trained networks from {len(X)} real labeled samples.",flush=True)
 
 if __name__=="__main__":
