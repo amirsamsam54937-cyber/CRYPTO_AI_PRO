@@ -55,7 +55,7 @@ internal object WolfKnowledgeSearch {
             requestMethod = "GET"
             connectTimeout = 9000
             readTimeout = 12000
-            setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.5 (Android)")
+            setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.14 (Android)")
             setRequestProperty("Accept", "application/json")
         }
         return try {
