@@ -1,4 +1,4 @@
-name: Build AMIR ARSALAN TRADER WOLF 2.22 Android APK
+name: Build AMIR ARSALAN TRADER WOLF 2.23 Android APK
 permissions:
   actions: write
   contents: read
@@ -97,7 +97,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: AMIR-ARSALAN-TRADER-WOLF-v2.22.0
+          name: AMIR-ARSALAN-TRADER-WOLF-v2.23.0
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             market_seed_manifest.json
