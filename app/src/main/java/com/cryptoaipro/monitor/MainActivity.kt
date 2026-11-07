@@ -677,6 +677,7 @@ fun CryptoMonitorScreen() {
                     }
                 }
             }
+            }
         }
 
 
