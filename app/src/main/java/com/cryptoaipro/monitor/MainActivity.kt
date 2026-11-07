@@ -95,7 +95,9 @@ data class TechnicalSnapshot(
     val supertrendDirection: String = "خنثی",
     val liquiditySweep: String = "مشاهده نشد",
     val fairValueGap: String = "مشاهده نشد",
-    val rsiDivergence: String = "مشاهده نشد"
+    val rsiDivergence: String = "مشاهده نشد",
+    val macdLine: Double = 0.0,
+    val macdSignalLine: Double = 0.0
 )
 
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
@@ -538,6 +540,16 @@ fun CryptoMonitorScreen() {
                                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                                 SmallStat("OBV", String.format(Locale.US, "%.2f", selectedSignal.technical.obvTrend))
                                                 SmallStat("Supertrend", selectedSignal.technical.supertrendDirection)
+                                            }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                SmallStat("MACD", String.format(Locale.US, "%.6f", selectedSignal.technical.macdLine))
+                                                SmallStat("Signal", String.format(Locale.US, "%.6f", selectedSignal.technical.macdSignalLine))
+                                                SmallStat("BB Width %", String.format(Locale.US, "%.2f", selectedSignal.technical.bollingerWidthPct))
+                                            }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                SmallStat("BB Position", String.format(Locale.US, "%.2f", selectedSignal.technical.bollingerPosition))
+                                                SmallStat("Stoch RSI", String.format(Locale.US, "%.1f", selectedSignal.technical.stochasticRsi))
+                                                SmallStat("ATR %", String.format(Locale.US, "%.2f", selectedSignal.technical.atrPercent))
                                             }
                                             Text("الگوی کندلی: " + selectedSignal.technical.candlePattern, color = Blue, fontSize = 11.sp)
                                             Text("الگوی هارمونیک: " + detectHarmonicPattern(selectedSignal.candles), color = Purple, fontSize = 11.sp)
@@ -1543,7 +1555,8 @@ private object BinanceMonitor {
         val technical = TechnicalSnapshot(
             e9, e20, e50, e100, e200, adx, bbWidth, bbPosition, relativeVolume, vwap,
             stochRsi, atrPct, regime, pattern, structure, support, resistance,
-            cci, roc, mfi, obvTrend, supertrendDirection, liquiditySweep, fairValueGap, rsiDivergence
+            cci, roc, mfi, obvTrend, supertrendDirection, liquiditySweep, fairValueGap, rsiDivergence,
+            macdValues.first, macdValues.second
         )
         return Quad(score, reasons.joinToString("، "), rsiValue, technical)
     }
