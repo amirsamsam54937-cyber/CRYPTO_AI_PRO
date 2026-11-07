@@ -134,7 +134,10 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
         "direction": direction, "score": score, "confidence": round(confidence,1),
         "last_price": last, "rsi": round(rv,2), "macd_histogram": round(float(macd_hist.iloc[-1]),8),
         "atr": round(av,10), "atr_percent": round(atr_pct,3), "adx": round(adx,2),
-        "regime": regime, "market_structure": structure, "break_of_structure": bos,\n        "liquidity_sweep": liquidity, "fair_value_gap": fvg, "candle_pattern": candle_pattern,\n        "supertrend": supertrend, "support": round(support,10), "resistance": round(resistance,10),\n        "fibonacci": fibonacci, "bb_width_percent": round(bb_width_pct,3),
+        "regime": regime, "market_structure": structure, "break_of_structure": bos,
+        "liquidity_sweep": liquidity, "fair_value_gap": fvg, "candle_pattern": candle_pattern,
+        "supertrend": supertrend, "support": round(support,10), "resistance": round(resistance,10),
+        "fibonacci": fibonacci, "bb_width_percent": round(bb_width_pct,3),
         "bb_position": round(bb_position,3), "volume_ratio": round(volume_ratio,3),
         "rolling_vwap": round(vwap,10), "reasons": reasons,
     }
