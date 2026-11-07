@@ -1403,6 +1403,8 @@ class MarketMonitorService : Service() {
                     }.getOrElse { "خطای اسکن Binance: ${it.message ?: "نامشخص"}" }
                     val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     manager.notify(NOTIFICATION_ID, buildNotification(result))
+                    // Stop retrying an explicit regional/access denial; polling cannot fix HTTP 451.
+                    if (result.contains("HTTP 451") || result.contains("HTTP 403") || result.contains("HTTP 418")) break
                     delay(180_000L)
                 }
             }
