@@ -147,7 +147,23 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
                 Text("بدون اتصال به حساب صرافی یا امکان ثبت سفارش", color = Color(0xFF27D6A0), fontSize = 10.sp)
             }
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(9.dp))
+        Surface(color = panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("اتصال مدل زبانی (OpenAI-compatible)", color = Color.White, fontSize = 12.sp)
+                Text("برای پاسخ مولد، کلید API شخصی لازم است؛ کلید داخل APK قرار نگرفته است.", color = muted, fontSize = 9.sp)
+                OutlinedTextField(value = endpoint, onValueChange = { endpoint = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("نشانی API") })
+                OutlinedTextField(value = model, onValueChange = { model = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("شناسه مدل") })
+                OutlinedTextField(value = apiKey, onValueChange = { apiKey = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("کلید API") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(configStatus, color = muted, fontSize = 9.sp, modifier = Modifier.weight(1f))
+                    Button(onClick = { llmPrefs.edit().putString("endpoint", endpoint.trim()).putString("model", model.trim()).putString("api_key", apiKey.trim()).apply(); configStatus = if (apiKey.isBlank()) "کلید API وارد نشده؛ دانشنامه فعال است." else "تنظیمات مدل ذخیره شد." }) { Text("ذخیره مدل", fontSize = 10.sp) }
+                }
+                marketSignal?.let { s -> Text("زمینه بازار: " + s.symbol + " • " + s.direction + " • اطمینان " + s.confidence + "% • RSI " + String.format(java.util.Locale.US, "%.1f", s.rsi), color = blue, fontSize = 9.sp) }
+            }
+        }
+        Spacer(Modifier.height(9.dp))
+
         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 8.dp)) {
             items(messages) { message ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.fromUser) Arrangement.End else Arrangement.Start) {
