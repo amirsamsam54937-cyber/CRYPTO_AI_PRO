@@ -100,7 +100,7 @@ internal object WolfFlowNewsRepository {
     suspend fun refreshForEngine(context: android.content.Context, signals: List<MarketSignal>) {
         val last = context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE).getLong("last_refresh", 0L)
         if (System.currentTimeMillis() - last < 15L * 60L * 1000L) return
-        val reports = signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }.sortedByDescending { it.volume }.take(3).mapNotNull { signal -> runCatching { whale(signal.symbol) }.getOrNull() }
+        val reports = signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }.sortedByDescending { it.volume }.take(5).mapNotNull { signal -> runCatching { whale(signal.symbol) }.getOrNull() }
         val headlines = runCatching { news() }.getOrDefault(emptyList())
         val focus = signals.maxByOrNull { it.volume }
         val researchQuery = focus?.let { "crypto futures ${it.technical.regime} ${it.technical.candlePattern} market structure order flow risk management research" } ?: "crypto futures market structure volatility risk management research"
