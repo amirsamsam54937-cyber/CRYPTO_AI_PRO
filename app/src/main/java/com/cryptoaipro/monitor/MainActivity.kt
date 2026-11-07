@@ -151,7 +151,6 @@ fun CryptoMonitorScreen() {
     var scannedCount by remember { mutableIntStateOf(0) }
     var totalContracts by remember { mutableIntStateOf(0) }
     var selectedTab by remember { mutableStateOf("خانه") }
-    var selectedExchange by remember(context) { mutableStateOf(appSettings.getString("market_exchange", "BINANCE") ?: "BINANCE") }
     var selectedSymbol by remember { mutableStateOf("") }
     var chartInterval by remember { mutableStateOf("15") }
     var voiceTranscript by remember { mutableStateOf("") }
@@ -159,6 +158,7 @@ fun CryptoMonitorScreen() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val appSettings = remember(context) { context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE) }
+    var selectedExchange by remember(context) { mutableStateOf(appSettings.getString("market_exchange", "BINANCE") ?: "BINANCE") }
     var scanIntervalMinutes by remember(context) {
         mutableIntStateOf(appSettings.getInt("scan_interval_minutes", 3).coerceIn(1, 10))
     }
