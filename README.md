@@ -36,7 +36,7 @@ The Android scanner fetches closed candles for 15m, 1h and 4h across the full ac
 - Multi-timeframe agreement and filters for overextension, extreme volatility and higher-timeframe conflict
 - Reference levels based on ATR and nearby structure
 
-The ten specialists are deterministic technical rule modules, **not ten independent pretrained generative AI models**. The on-device neural network is a small experimental feed-forward network, not a pretrained foundation model. It is updated from subsequently observed signal outcomes and persists locally. Its output is not a calibrated probability of profit. The app should preserve neutral/NO TRADE decisions when evidence conflicts or data quality is inadequate.
+The ten voting specialists are deterministic technical rule modules, **not ten independent generative AI models**. An optional bundled ensemble contains ten compact MLPs; it is packaged only when historical data can be retrieved from Binance's canonical public endpoint. If that endpoint returns HTTP 451, CI respects the denial and builds without fabricated weights; the app falls back to its local outcome-learning network. Neither model output is a calibrated probability of profit. The app should preserve neutral/NO TRADE decisions when evidence conflicts or data quality is inadequate.
 
 ## Market context and learning
 
