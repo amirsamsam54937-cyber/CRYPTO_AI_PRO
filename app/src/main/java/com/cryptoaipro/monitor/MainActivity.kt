@@ -1244,7 +1244,7 @@ private object BinanceMonitor {
             add(a.technical); add(b.technical); add(c.technical)
             macroStats?.let { add(it.technical) }
         }
-        val score = a.first + b.first + c.first + (microStats?.first ?: 0) * 0.35 + (macroStats?.first ?: 0) * 1.10
+        val score = (a.first + b.first + c.first + (microStats?.first ?: 0) * 0.35 + (macroStats?.first ?: 0) * 1.10).toInt()
         val wolf = WolfConsensusEngine.analyze(frames, price)
         val atrValue = atr(short).coerceAtLeast(price * 0.0001)
         val stretched = abs(price - a.technical.ema20) > atrValue * 2.2
