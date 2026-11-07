@@ -48,7 +48,7 @@ The permanent on-device signal notebook stores up to 5,000 recent directional si
 
 - Android contains a compact, curated Persian knowledge base used by the in-app knowledge assistant.
 - The expanded reference document is knowledge/PERSIAN_CRYPTO_FUTURES_KNOWLEDGE_V2.md.
-- Topics include futures mechanics, market structure, indicators, candlesticks, volume/order flow, risk, backtesting, machine learning, psychology, API safety and data quality.
+- Topics include futures mechanics, market structure, indicators, candlesticks, volume/order flow, Wyckoff, Elliott, order blocks, FVG, Volume Profile, CVD, risk, compounding, chess-inspired decision discipline, backtesting, machine learning validation, psychology, API safety and data quality.
 - This is an extensible reference library, not one million independently verified facts and not a pretrained LLM. Future records should carry sources, dates, scope and confidence.
 
 ## Python research utilities
