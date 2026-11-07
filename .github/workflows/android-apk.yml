@@ -22,9 +22,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install research test dependencies
+        run: python -m pip install --upgrade pip numpy scikit-learn pytest
+      - name: Test chronological training split
+        run: PYTHONPATH=. pytest -q tests/test_wolf_training.py
       - name: Train and package ten pretrained neural networks
         run: |
-          python -m pip install --upgrade pip numpy scikit-learn
           python tools/train_wolf_ensemble.py
       - uses: gradle/actions/setup-gradle@v4
         with:
