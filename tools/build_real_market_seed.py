@@ -8,8 +8,9 @@ Only exchange-returned, closed candles are stored. No synthetic rows are generat
 import csv, json, math, os, sys, time, hashlib
 from datetime import datetime, timezone
 
-TARGET = 500_000
+TARGET = 200_000
 MINIMUM = 150_000
+MAX_SYMBOLS = 200
 TIMEFRAME = "1h"
 OUT = "app/src/main/assets/market_seed.csv"
 META = "market_seed_manifest.json"
@@ -32,12 +33,24 @@ def collect(exchange_id):
                    if m.get("active") is not False and m.get("swap")
                    and m.get("linear") and m.get("quote") == "USDT"
                    and m.get("settle") == "USDT"]
-        markets.sort(key=lambda m: m["symbol"])
         if not markets:
             raise RuntimeError(f"{exchange_id}: no active linear USDT perpetual markets")
-        per_symbol = math.ceil(TARGET / len(markets))
+        # Rank by the exchange's own 24h quote volume, then collect one recent
+        # closed-candle page from the most liquid contracts first. This gives
+        # a broad, reproducible real dataset without waiting on hundreds of
+        # illiquid/delisted markets or pretending to have historical coverage.
+        try:
+            tickers = ex.fetch_tickers([m["symbol"] for m in markets])
+            markets.sort(key=lambda m: float((tickers.get(m["symbol"]) or {}).get("quoteVolume") or 0), reverse=True)
+        except Exception as exc:
+            print(f"{exchange_id}: ticker ranking unavailable; using deterministic symbol order: {exc}", flush=True)
+            markets.sort(key=lambda m: m["symbol"])
+        markets = markets[:MAX_SYMBOLS]
+        per_symbol = min(1000, math.ceil(TARGET / len(markets)))
         rows, errors = [], []
         for market in markets:
+            if len(rows) >= TARGET:
+                break
             symbol = market["symbol"]
             # Request recent history first. XT does not provide 2020-era candles
             # for newly listed contracts; an ancient since= timestamp returned empty pages.
@@ -68,9 +81,7 @@ def collect(exchange_id):
                 rows.extend((exchange_id.upper(), normalized, TIMEFRAME, *r)
                             for r in local[-per_symbol:])
             print(f"{exchange_id}: {symbol}: {len(local)} real closed candles; total={len(rows)}", flush=True)
-            if len(rows) >= TARGET:
-                break
-            time.sleep(max(ex.rateLimit / 1000.0, 0.05))
+            time.sleep(max(ex.rateLimit / 1000.0, 0.02))
         rows.sort(key=lambda r: (r[1], r[3]))
         if len(rows) < MINIMUM:
             raise RuntimeError(f"{exchange_id}: collected {len(rows):,}; at least {MINIMUM:,} real candles are required; errors={errors[:5]}")
