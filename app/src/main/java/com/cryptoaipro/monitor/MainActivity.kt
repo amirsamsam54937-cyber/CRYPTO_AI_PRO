@@ -71,14 +71,15 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
-private val Navy = Color(0xFF0A1020)
-private val Panel = Color(0xFF151F33)
-private val Muted = Color(0xFF9AAAC2)
+// Wolf v2.17 visual system: graphite, silver, electric turquoise and restrained gold.
+private val Navy = Color(0xFF090B0E)
+private val Panel = Color(0xFF171B20)
+private val Muted = Color(0xFFA8B0B8)
 private val Green = Color(0xFF27D6A0)
 private val Red = Color(0xFFFF657A)
-private val Blue = Color(0xFF55B8FF)
-private val Purple = Color(0xFF9B7BFF)
-private val Gold = Color(0xFFFFD166)
+private val Blue = Color(0xFF28D7D0)
+private val Purple = Color(0xFFB9C2CA)
+private val Gold = Color(0xFFE2B95F)
 
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
