@@ -184,6 +184,7 @@ def main():
         "purged_rows":int(purged_rows),
         "positive_rate":round(float(y_test.mean()),6),
         "majority_class_baseline_accuracy":round(float(max(y_test.mean(),1.0-y_test.mean())),4),
+        "prevalence_baseline_log_loss":round(float(log_loss(y_test,np.full(len(y_test),float(y_train.mean())),labels=[0,1])),4),
         "ensemble_accuracy":round(float(accuracy_score(y_test,ensemble_probabilities>=0.5)),4),
         "ensemble_balanced_accuracy":round(float(balanced_accuracy_score(y_test,ensemble_probabilities>=0.5)),4),
         "ensemble_log_loss":round(float(log_loss(y_test,np.clip(ensemble_probabilities,1e-6,1-1e-6))),4),
