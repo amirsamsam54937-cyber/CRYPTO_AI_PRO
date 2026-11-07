@@ -151,6 +151,7 @@ fun CryptoMonitorScreen() {
     var scannedCount by remember { mutableIntStateOf(0) }
     var totalContracts by remember { mutableIntStateOf(0) }
     var selectedTab by remember { mutableStateOf("خانه") }
+    var selectedExchange by remember(context) { mutableStateOf(appSettings.getString("market_exchange", "BINANCE") ?: "BINANCE") }
     var selectedSymbol by remember { mutableStateOf("") }
     var chartInterval by remember { mutableStateOf("15") }
     var voiceTranscript by remember { mutableStateOf("") }
@@ -198,7 +199,7 @@ fun CryptoMonitorScreen() {
         loading = true
         error = null
         try {
-            val scanned = BinanceMonitor.scan { partial, completed, total, failed ->
+            val progress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { partial, completed, total, failed ->
                 withContext(Dispatchers.Main) {
                     rows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial))
                     scannedCount = completed
@@ -207,6 +208,8 @@ fun CryptoMonitorScreen() {
                     if (selectedSymbol.isBlank() || rows.none { it.symbol == selectedSymbol }) selectedSymbol = rows.firstOrNull()?.symbol.orEmpty()
                 }
             }
+            appSettings.edit().putString("market_exchange", selectedExchange).apply()
+            val scanned = if (selectedExchange == "XT") XtFuturesMonitor.scan(progress) else BinanceMonitor.scan(progress)
             rows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned))
             scannedCount = totalContracts
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
@@ -227,7 +230,7 @@ fun CryptoMonitorScreen() {
         }
     }
 
-    LaunchedEffect(scanIntervalMinutes) {
+    LaunchedEffect(scanIntervalMinutes, selectedExchange) {
         while (isActive) {
             performScan()
             // HTTP 451 is an explicit regional-eligibility denial, not a transient outage.
@@ -384,16 +387,26 @@ fun CryptoMonitorScreen() {
                         Text("AMIR ARSALAN", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
                         Text("TRADER WOLF  •  LIVE TECHNICAL INTELLIGENCE", color = Muted, fontSize = 8.sp, letterSpacing = 0.5.sp)
                     }
-                    Surface(
-                        color = if (loading) Color(0xFF3A2C17) else Color(0xFF10382F),
-                        shape = RoundedCornerShape(20.dp)
-                    ) {
-                        Text(
-                            if (loading) "در حال اسکن" else "● BINANCE",
-                            color = if (loading) Color(0xFFFFD166) else Green,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                            fontSize = 10.sp
-                        )
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { if (selectedExchange != "BINANCE") selectedExchange = "BINANCE" },
+                                contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) {
+                                Text("BINANCE", color = if (selectedExchange == "BINANCE") Blue else Muted, fontSize = 9.sp,
+                                    fontWeight = if (selectedExchange == "BINANCE") FontWeight.Bold else FontWeight.Normal)
+                            }
+                            Text("•", color = Muted, fontSize = 9.sp)
+                            TextButton(onClick = { if (selectedExchange != "XT") selectedExchange = "XT" },
+                                contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) {
+                                Text("XT", color = if (selectedExchange == "XT") Blue else Muted, fontSize = 9.sp,
+                                    fontWeight = if (selectedExchange == "XT") FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                        Surface(color = if (loading) Color(0xFF3A2C17) else Color(0xFF10382F),
+                            shape = RoundedCornerShape(20.dp)) {
+                            Text(if (loading) "در حال اسکن" else "● $selectedExchange",
+                                color = if (loading) Gold else Green,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp), fontSize = 9.sp)
+                        }
                     }
                 }
 
