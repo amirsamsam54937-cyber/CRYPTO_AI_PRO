@@ -64,7 +64,7 @@ The Python research adapter supports Binance USDⓈ-M and XT USDT-M public marke
 
 ## Build and install Android APK
 
-Every push affecting Android source starts the **Build Android APK** GitHub Actions workflow. The 2.18 pipeline collects up to 200,000 real closed hourly candles (Binance first, XT as an independent public-data fallback), requiring at least 150,000 verified rows, trains ten 64/32/16 MLP networks when sufficient real data is available, and verifies that the APK contains both the auditable seed and trained ensemble.
+Every push affecting Android source starts the **Build Android APK** GitHub Actions workflow. The 2.18 pipeline collects up to 500,000 real closed hourly candles (Binance first, XT as an independent public-data fallback), requiring at least 150,000 verified rows minimum, trains ten 64/32/16 MLP networks when sufficient real data is available, and verifies that the APK contains both the auditable seed and trained ensemble.
 
 1. Open the repository's **Actions** tab.
 2. Open the newest **Build Android APK** run.
