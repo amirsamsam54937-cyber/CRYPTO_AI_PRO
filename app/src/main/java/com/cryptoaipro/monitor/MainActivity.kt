@@ -451,7 +451,6 @@ fun CryptoMonitorScreen() {
                                     onOpenJournal = { selectedTab = "دفترچه" }
                                 )
                             }
-                            item { WolfAutoIntelPanel(context) }
                             item {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("فرصت‌های برتر بازار", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
