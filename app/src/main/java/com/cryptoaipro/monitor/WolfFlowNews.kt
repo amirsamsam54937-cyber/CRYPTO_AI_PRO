@@ -38,7 +38,7 @@ internal object WolfFlowNewsRepository {
         connection.requestMethod = "GET"
         connection.connectTimeout = 8000
         connection.readTimeout = 10000
-        connection.setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.14 Android")
+        connection.setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.20 Android")
         connection.setRequestProperty("Accept", "application/json, application/rss+xml, application/xml")
         return try {
             val code = connection.responseCode
@@ -88,12 +88,15 @@ internal object WolfFlowNewsRepository {
         val flows = runCatching { JSONArray(prefs.getString("flow_reports", "[]")) }.getOrDefault(JSONArray())
         val headlines = runCatching { JSONArray(prefs.getString("market_news", "[]")) }.getOrDefault(JSONArray())
         val newsContext = (0 until minOf(3, headlines.length())).mapNotNull { headlines.optJSONObject(it)?.optString("title")?.takeIf { title -> title.isNotBlank() } }.joinToString(" | ")
+        val marketContext = prefs.getString("market_context", "").orEmpty()
         return signals.map { signal ->
             val flow = (0 until flows.length()).mapNotNull { flows.optJSONObject(it) }.firstOrNull { it.optString("symbol") == signal.symbol.replace("/", "").replace(":USDT", "") }
             val flowNote = flow?.let { "جریان معاملات درشت: " + it.optString("summary") + "؛ عدم‌تعادل " + String.format(Locale.US, "%.1f%%", it.optDouble("imbalance") * 100) } ?: "جریان نهنگ هنوز داده تأییدشده‌ای برای این نماد ندارد"
             val newsNote = if (newsContext.isBlank()) "اخبار بازار هنوز دریافت نشده" else "زمینه خبری عمومی: " + newsContext
             val researchNote = prefs.getString("auto_research", "").orEmpty().take(900)
-            signal.copy(reason = signal.reason + " | " + flowNote + " | " + newsNote + if (researchNote.isBlank()) "" else " | یادداشت پژوهش خودکار: " + researchNote)
+            signal.copy(reason = signal.reason + " | " + flowNote + " | " + newsNote +
+                if (marketContext.isBlank()) "" else " | نمای کلی بازار از APIهای عمومی: " + marketContext +
+                if (researchNote.isBlank()) "" else " | یادداشت پژوهش خودکار: " + researchNote)
         }
     }
 
@@ -102,18 +105,45 @@ internal object WolfFlowNewsRepository {
         if (System.currentTimeMillis() - last < 15L * 60L * 1000L) return
         val reports = signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }.sortedByDescending { it.volume }.take(5).mapNotNull { signal -> runCatching { whale(signal.symbol) }.getOrNull() }
         val headlines = runCatching { news() }.getOrDefault(emptyList())
+        val marketContext = runCatching { marketContext() }.getOrDefault("")
         val focus = signals.maxByOrNull { it.volume }
         val researchQuery = focus?.let { "crypto futures ${it.technical.regime} ${it.technical.candlePattern} market structure order flow risk management research" } ?: "crypto futures market structure volatility risk management research"
         val research = runCatching { WolfKnowledgeSearch.answer(researchQuery) }.getOrNull()
         val json = JSONArray().apply { reports.forEach { r -> put(org.json.JSONObject().apply { put("symbol", r.symbol); put("imbalance", r.imbalance); put("largeBuys", r.largeBuys); put("largeSells", r.largeSells); put("openInterest", r.openInterest); put("funding", r.funding); put("summary", r.summary); put("updatedAt", System.currentTimeMillis()) }) } }
         val newsJson = JSONArray().apply { headlines.take(12).forEach { n -> put(org.json.JSONObject().apply { put("title", n.title); put("source", n.source); put("url", n.link); put("date", n.date) }) } }
-        context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE).edit().putString("flow_reports", json.toString()).putString("market_news", newsJson.toString()).putString("auto_research", research?.first.orEmpty()).putString("auto_research_source", research?.second.orEmpty()).putLong("last_refresh", System.currentTimeMillis()).apply()
+        context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE).edit().putString("flow_reports", json.toString()).putString("market_news", newsJson.toString()).putString("market_context", marketContext).putString("auto_research", research?.first.orEmpty()).putString("auto_research_source", research?.second.orEmpty()).putLong("last_refresh", System.currentTimeMillis()).apply()
+    }
+
+    suspend fun marketContext(): String = withContext(Dispatchers.IO) {
+        val global = runCatching {
+            org.json.JSONObject(get("https://api.coingecko.com/api/v3/global")).optJSONObject("data")
+        }.getOrNull()
+        val fear = runCatching {
+            org.json.JSONObject(get("https://api.alternative.me/fng/?limit=1&format=json"))
+                .optJSONArray("data")?.optJSONObject(0)
+        }.getOrNull()
+        val parts = mutableListOf<String>()
+        global?.let {
+            val cap = it.optJSONObject("total_market_cap")?.optDouble("usd", 0.0) ?: 0.0
+            val change = it.optDouble("market_cap_change_percentage_24h_usd", 0.0)
+            val btc = it.optJSONObject("market_cap_percentage")?.optDouble("btc", 0.0) ?: 0.0
+            if (cap > 0) parts += "ارزش کل بازار $" + String.format(Locale.US, "%.2fT", cap / 1e12) +
+                "، تغییر ۲۴ساعته " + String.format(Locale.US, "%.2f%%", change) +
+                "، دامیننس BTC " + String.format(Locale.US, "%.1f%%", btc)
+        }
+        fear?.let {
+            val value = it.optString("value")
+            val label = it.optString("value_classification")
+            if (value.isNotBlank()) parts += "شاخص ترس و طمع $value از ۱۰۰ ($label)"
+        }
+        parts.joinToString(" • ")
     }
 
     suspend fun news(): List<MarketNewsItem> = withContext(Dispatchers.IO) {
         val feeds = listOf(
             "https://www.coindesk.com/arc/outboundfeeds/rss/",
-            "https://cointelegraph.com/rss"
+            "https://cointelegraph.com/rss",
+            "https://decrypt.co/feed"
         )
         feeds.flatMap { feed ->
             runCatching {
@@ -139,7 +169,11 @@ internal object WolfFlowNewsRepository {
                                 ?.let { children.item(it).textContent?.trim().orEmpty() }.orEmpty()
                         }
                         val title = tag("title")
-                        if (title.isBlank()) null else MarketNewsItem(title, if (feed.contains("coindesk")) "CoinDesk" else "Cointelegraph", tag("link"), tag("pubDate"))
+                        if (title.isBlank()) null else MarketNewsItem(title, when {
+                            feed.contains("coindesk") -> "CoinDesk"
+                            feed.contains("cointelegraph") -> "Cointelegraph"
+                            else -> "Decrypt"
+                        }, tag("link"), tag("pubDate"))
                     }
                 } finally { connection.disconnect() }
             }.getOrDefault(emptyList())
