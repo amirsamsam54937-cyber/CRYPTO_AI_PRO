@@ -7,7 +7,8 @@ This release remains a market-analysis and signal application only. It has no ex
 ## Implemented in this release
 
 - Refined Compose background: dark terminal grid, layered wolf crest, subtle gold eye accents and a faint market trace. The artwork is drawn locally and does not require a remote image request.
-- TradingView chart interval controls for 5m, 15m, 1h, 4h and 1D. These controls change the chart view only; the signal engine continues to use closed 15m, 1h and 4h candles.
+- TradingView chart interval controls for 5m, 15m, 1h, 4h and 1D.
+- Full-universe scan still evaluates 15m/1h/4h; the 24 strongest candidates receive an additional 5m/1D deep review, with the actual coverage stored in signal cards and the journal.
 - Additional technical context: CCI, ROC, MFI, normalized OBV direction, iterative ATR-band Supertrend, approximate RSI divergence, recent liquidity-sweep detection and three-candle fair-value-gap detection.
 - Swing-pivot market structure with BOS/CHOCH context, replacing the former fixed-size chunk comparison.
 - Corrected harmonic ratio calculation to use the XA leg for AD/XA; separated Bat and Crab ratio ranges.
