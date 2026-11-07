@@ -385,7 +385,7 @@ fun CryptoMonitorScreen() {
                                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp))
                                                 }
                                             }
-                                            MarketSessionsPanel()
+                                            // Market-session timing remains internal to the analysis engine.
                                             if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Gold)
                                             Text(scanProgress, color = Muted, fontSize = 10.sp)
                                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
