@@ -620,6 +620,7 @@ private fun SignalStrengthScreen(
     }
 }
 
+@Composable
 private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
     var filter by remember { mutableStateOf("همه") }
     val visible = when (filter) {
