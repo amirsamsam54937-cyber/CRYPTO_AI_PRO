@@ -6,6 +6,7 @@ import numpy as np
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, brier_score_loss, log_loss, roc_auc_score
+from tools.time_series_validation import chronological_masks
 
 BASES = ["https://fapi.binance.com", "https://fapi1.binance.com", "https://fapi2.binance.com"]
 SYMBOLS = ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","LINKUSDT","AVAXUSDT","LTCUSDT","TRXUSDT","DOTUSDT","BCHUSDT","ETCUSDT","ATOMUSDT","NEARUSDT","APTUSDT","ARBUSDT","OPUSDT","FILUSDT"]
@@ -123,22 +124,6 @@ def make_rows(raw):
     mask = np.arange(len(c)) < len(c)-HORIZON
     mask &= np.abs(future) > .0025
     return X[mask],y[mask],a[:,0][mask]
-
-def chronological_masks(timestamps, horizon_bars=HORIZON, interval_ms=60*60*1000, test_fraction=0.2):
-    """Purged chronological split; all rows sharing a timestamp stay in the same fold."""
-    ts = np.asarray(timestamps, dtype=np.int64)
-    unique_times = np.unique(ts)
-    if len(unique_times) < 10:
-        raise ValueError("Not enough unique timestamps for a chronological holdout")
-    cutoff = unique_times[min(len(unique_times)-1, int(len(unique_times)*(1.0-test_fraction)))]
-    train_end = int(cutoff) - int(horizon_bars * interval_ms)
-    train_mask = ts < train_end
-    test_mask = ts >= cutoff
-    purged_mask = (ts >= train_end) & (ts < cutoff)
-    if not train_mask.any() or not test_mask.any():
-        raise ValueError("Purged chronological split produced an empty train or test partition")
-    return train_mask, test_mask, int(purged_mask.sum()), int(cutoff)
-
 
 def fetch_symbol_samples(symbol):
     raw=get_history(symbol)
