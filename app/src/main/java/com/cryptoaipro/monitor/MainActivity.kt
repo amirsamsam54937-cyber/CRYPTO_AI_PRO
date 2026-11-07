@@ -657,7 +657,10 @@ fun CryptoMonitorScreen() {
                     }
 
                     "هوش مصنوعی" -> {
-                        WolfAiCompanionScreen(selectedSignal)
+                        Column(Modifier.fillMaxSize()) {
+                            WolfAiCompanionScreen(selectedSignal)
+                            WolfKnowledgeBaseScreen()
+                        }
                     }
 
                     else -> {
