@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -115,7 +117,7 @@ internal object WolfKnowledgeSearch {
 }
 
 @Composable
-internal fun WolfAiCompanionScreen() {
+internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
     val messages = remember {
         mutableStateListOf(
             WolfChatMessage(
@@ -126,17 +128,22 @@ internal fun WolfAiCompanionScreen() {
     }
     var input by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    val llmPrefs = remember { context.getSharedPreferences("wolf_llm_settings", android.content.Context.MODE_PRIVATE) }
+    var apiKey by remember { mutableStateOf(llmPrefs.getString("api_key", "").orEmpty()) }
+    var model by remember { mutableStateOf(llmPrefs.getString("model", "openai/gpt-4o-mini") ?: "openai/gpt-4o-mini") }
+    var endpoint by remember { mutableStateOf(llmPrefs.getString("endpoint", "https://openrouter.ai/api/v1/chat/completions") ?: "https://openrouter.ai/api/v1/chat/completions") }
+    var configStatus by remember { mutableStateOf(if (apiKey.isBlank()) "برای پاسخ مولد، کلید API خودت را وارد کن." else "مدل زبانی پیکربندی شده است.") }
     val scope = rememberCoroutineScope()
-    val navy = Color(0xFF0A1020)
-    val panel = Color(0xFF151F33)
-    val blue = Color(0xFF55B8FF)
-    val muted = Color(0xFF9AAAC2)
+    val navy = Color(0xFF090B0D)
+    val panel = Color(0xFF191E21)
+    val blue = Color(0xFFE1B86B)
+    val muted = Color(0xFFAEB7BC)
 
     Column(Modifier.fillMaxSize().background(navy).padding(12.dp)) {
         Surface(color = Color(0xFF14243C), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {
-                Text("WOLF AI • مغز دانشی", color = Color.White, fontSize = 18.sp)
-                Text("دانشنامه آفلاین: ${WolfCryptoKnowledgeBase.entryCount() + WolfMarketKnowledge.count()} مدخل تخصصی + جست‌وجوی وب", color = muted, fontSize = 10.sp)
+                Text("WOLF AI • دستیار زبانی و تحلیلی", color = Color.White, fontSize = 18.sp)
+                Text("دانشنامه تخصصی آفلاین + جست‌وجوی وب + مدل زبانی قابل اتصال", color = muted, fontSize = 10.sp)
                 Text("بدون اتصال به حساب صرافی یا امکان ثبت سفارش", color = Color(0xFF27D6A0), fontSize = 10.sp)
             }
         }
