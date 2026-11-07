@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import java.time.ZoneId
@@ -335,43 +336,67 @@ fun CryptoMonitorScreen() {
                             verticalArrangement = Arrangement.spacedBy(11.dp)
                         ) {
                             item {
-                                Surface(color = Color(0xFF100D07), shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.48f)), modifier = Modifier.fillMaxWidth()) {
-                                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                                        Row(
-                                            Modifier.fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                                        ) {
-                                            Surface(
-                                                color = Color(0xFF0B0B0B),
-                                                shape = RoundedCornerShape(18.dp),
-                                                modifier = Modifier.size(76.dp),
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.55f))
+                                Surface(
+                                    color = Color(0xFF090909),
+                                    shape = RoundedCornerShape(22.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.72f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                                        Box(Modifier.fillMaxWidth().height(196.dp)) {
+                                            Image(
+                                                painter = painterResource(id = R.drawable.wolf_hero),
+                                                contentDescription = "گرگ نمادین AMIRARSALAN TRADER WOLF",
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                            Box(Modifier.fillMaxSize().background(
+                                                Brush.horizontalGradient(listOf(Color(0xEE050505), Color(0x66050505), Color(0x22050505)))
+                                            ))
+                                            Column(
+                                                Modifier.align(Alignment.CenterStart).padding(start = 18.dp, end = 14.dp),
+                                                verticalArrangement = Arrangement.spacedBy(7.dp)
                                             ) {
-                                                Image(
-                                                    painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
-                                                    contentDescription = "نشان گرگ امیرارسلان",
-                                                    modifier = Modifier.padding(5.dp).fillMaxSize()
-                                                )
+                                                Text("AMIRARSALAN", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                                                Text("TRADER WOLF", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                                                Text("TRADE LIKE A WOLF", color = Gold, fontSize = 9.sp, letterSpacing = 2.sp)
+                                                Text("قدرت تحلیل • هوش مصنوعی • سیگنال هوشمند", color = Color.White, fontSize = 10.sp)
                                             }
-                                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                                Text("اتاق فرمان گرگ", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                                                Text("تحلیل تکنیکال زنده  •  Binance / XT", color = Gold, fontSize = 10.sp)
-                                                Text("سیگنال‌های چندتایم‌فریمی و ارزیابی هوشمند", color = Muted, fontSize = 10.sp)
+                                            Surface(
+                                                color = Color(0xCC090909), shape = RoundedCornerShape(30.dp),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.7f)),
+                                                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
+                                            ) {
+                                                Text("FUTURES  •  AI", color = Gold, fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
                                             }
                                         }
-                                        MarketSessionsPanel()
-                                        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Blue)
-                                        Text(scanProgress, color = Muted, fontSize = 10.sp)
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            MetricCard("بازارهای بررسی‌شده", rows.size.toString(), Modifier.weight(1f))
-                                            MetricCard("تمایل صعودی", rows.count { it.direction == "LONG_BIAS" }.toString(), Modifier.weight(1f), Green)
-                                            MetricCard("تمایل نزولی", rows.count { it.direction == "SHORT_BIAS" }.toString(), Modifier.weight(1f), Red)
-                                        }
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            Button(onClick = { selectedTab = "بازار" }, modifier = Modifier.weight(1f)) { Text("مشاهده بازار") }
-                                            OutlinedButton(onClick = { scope.launch { performScan() } }, enabled = !loading, modifier = Modifier.weight(1f)) {
-                                                Text(if (loading) "در حال اسکن..." else "اسکن مجدد")
+                                        Column(Modifier.padding(horizontal = 14.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Text("اتاق فرمان گرگ", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+                                                    Text("تحلیل تکنیکال زنده  •  Binance / XT", color = Gold, fontSize = 10.sp)
+                                                    Text("سازنده: amir arsalan samsami", color = Muted, fontSize = 9.sp)
+                                                }
+                                                Surface(color = Color(0xFF211805), shape = RoundedCornerShape(12.dp),
+                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.55f))) {
+                                                    Text("WOLF  AI", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp))
+                                                }
+                                            }
+                                            MarketSessionsPanel()
+                                            if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Gold)
+                                            Text(scanProgress, color = Muted, fontSize = 10.sp)
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                MetricCard("بازارهای بررسی‌شده", rows.size.toString(), Modifier.weight(1f))
+                                                MetricCard("تمایل صعودی", rows.count { it.direction == "LONG_BIAS" }.toString(), Modifier.weight(1f), Green)
+                                                MetricCard("تمایل نزولی", rows.count { it.direction == "SHORT_BIAS" }.toString(), Modifier.weight(1f), Red)
+                                            }
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Button(onClick = { selectedTab = "بازار" }, modifier = Modifier.weight(1f)) { Text("مشاهده بازار") }
+                                                OutlinedButton(onClick = { scope.launch { performScan() } }, enabled = !loading, modifier = Modifier.weight(1f)) {
+                                                    Text(if (loading) "در حال اسکن..." else "اسکن مجدد")
+                                                }
                                             }
                                         }
                                     }
