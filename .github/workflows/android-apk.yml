@@ -52,6 +52,7 @@ jobs:
           fi
           unzip -l "$APK" | grep -q "assets/market_seed.csv"
           unzip -l "$APK" | grep -q "assets/wolf_pretrained_ensemble.json"
+          unzip -l "$APK" | grep -q "wolf_poster.jpg"
           python - <<'PY'
           import csv, json, os
           with open("market_seed_manifest.json", encoding="utf-8") as f:
