@@ -23,6 +23,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.Locale
+import kotlin.math.abs
 import javax.xml.parsers.DocumentBuilderFactory
 
 internal data class WhaleFlowReport(
