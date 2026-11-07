@@ -27,7 +27,7 @@ data class WolfConsensus(
 object WolfConsensusEngine {
     fun analyze(timeframes: List<TechnicalSnapshot>, price: Double): WolfConsensus {
         require(timeframes.size >= 3 && price > 0.0)
-        val t = timeframes.take(3)
+        val t = timeframes.take(5)
         fun trend(value: Double) = when {
             value > 0.0005 -> 1.0
             value < -0.0005 -> -1.0
@@ -93,14 +93,18 @@ object WolfConsensusEngine {
             WolfAgentVote("الگوی کندلی", direction(candle.average()), candle.average(), 0.6, "الگوهای کندلی سه بازه؛ به‌تنهایی سیگنال‌ساز نیست"),
             WolfAgentVote(
                 "هم‌گرایی تایم‌فریم",
-                if (ema.all { it > 0.0 } && trendStack.count { it > 0.0 } >= 2) "LONG"
-                else if (ema.all { it < 0.0 } && trendStack.count { it < 0.0 } >= 2) "SHORT"
+                if ((if (t.size >= 5) ema.drop(1).all { it > 0.0 } else ema.all { it > 0.0 }) &&
+                    trendStack.count { it > 0.0 } >= if (t.size >= 5) 3 else 2) "LONG"
+                else if ((if (t.size >= 5) ema.drop(1).all { it < 0.0 } else ema.all { it < 0.0 }) &&
+                    trendStack.count { it < 0.0 } >= if (t.size >= 5) 3 else 2) "SHORT"
                 else "NEUTRAL",
-                if (ema.all { it > 0.0 } && trendStack.count { it > 0.0 } >= 2) 1.0
-                else if (ema.all { it < 0.0 } && trendStack.count { it < 0.0 } >= 2) -1.0
+                if ((if (t.size >= 5) ema.drop(1).all { it > 0.0 } else ema.all { it > 0.0 }) &&
+                    trendStack.count { it > 0.0 } >= if (t.size >= 5) 3 else 2) 1.0
+                else if ((if (t.size >= 5) ema.drop(1).all { it < 0.0 } else ema.all { it < 0.0 }) &&
+                    trendStack.count { it < 0.0 } >= if (t.size >= 5) 3 else 2) -1.0
                 else 0.0,
                 1.3,
-                "توافق روند در ۱۵ دقیقه، ۱ ساعت و ۴ ساعت"
+                if (t.size >= 5) "توافق روند در ۱۵ دقیقه، ۱ ساعت، ۴ ساعت و ۱ روز؛ ۵ دقیقه برای زمان‌بندی" else "توافق روند در ۱۵ دقیقه، ۱ ساعت و ۴ ساعت"
             )
         )
 
@@ -112,9 +116,12 @@ object WolfConsensusEngine {
         val agreement = if (directionalWeight <= 0.0) 0 else
             (max(longWeight, shortWeight) / directionalWeight * 100.0).toInt().coerceIn(0, 100)
 
-        val fourHourTrend = ema[2]
-        val alignedLong = ema.count { it > 0.0 } >= 2 && fourHourTrend >= 0.0
-        val alignedShort = ema.count { it < 0.0 } >= 2 && fourHourTrend <= 0.0
+        val fourHourTrend = ema[if (t.size >= 5) 3 else 2]
+        val dailyTrend = if (t.size >= 5) ema[4] else 0.0
+        val alignedLong = ema.count { it > 0.0 } >= if (t.size >= 5) 3 else 2 &&
+            fourHourTrend >= 0.0 && (t.size < 5 || dailyTrend >= 0.0)
+        val alignedShort = ema.count { it < 0.0 } >= if (t.size >= 5) 3 else 2 &&
+            fourHourTrend <= 0.0 && (t.size < 5 || dailyTrend <= 0.0)
         val averageAdx = t.map { it.adx }.average()
         val direction = when {
             weightedScore >= 0.30 && longWeight / totalWeight >= 0.52 && agreement >= 58 &&
