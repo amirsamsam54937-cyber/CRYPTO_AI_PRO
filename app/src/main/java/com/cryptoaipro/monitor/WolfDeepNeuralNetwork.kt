@@ -149,7 +149,16 @@ internal object WolfDeepNeuralNetwork {
         // Use up to 12 examples from each class when available; keep the newest examples.
         val positives = examples.filter { it.second >= 0.5 }.takeLast(12)
         val negatives = examples.filter { it.second < 0.5 }.takeLast(12)
-        val batch = (positives + negatives).ifEmpty { examples.takeLast(24) }
+        // Do not adapt weights from a one-sided sample stream. Keep collecting until
+        // both outcomes have enough observations to form a minimally balanced batch.
+        if (positives.size < 4 || negatives.size < 4) {
+            prefs.edit()
+                .putString(REPLAY_KEY, replay.toString())
+                .putInt("wolf_replay_examples", examples.size)
+                .apply()
+            return
+        }
+        val batch = positives + negatives
         val model = load(prefs)
         repeat(2) {
             batch.forEach { (features, label) -> trainStep(model, features, label, 0.003) }
