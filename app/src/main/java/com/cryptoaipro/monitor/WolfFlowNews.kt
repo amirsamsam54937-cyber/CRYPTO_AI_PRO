@@ -1,12 +1,14 @@
 package com.cryptoaipro.monitor
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -153,6 +155,7 @@ internal fun WolfFlowNewsScreen(symbol: String) {
     var error by remember { mutableStateOf<String?>(null) }
     var refreshed by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    val uriHandler = LocalUriHandler.current
     suspend fun refresh() {
         loading = true; error = null
         try {
@@ -204,7 +207,10 @@ internal fun WolfFlowNewsScreen(symbol: String) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(n.title, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 12.sp)
                         Text(n.source + " • " + n.date, color = Color(0xFF9AAAC2), fontSize = 9.sp)
-                        if (n.link.startsWith("https://")) Text(n.link, color = Color(0xFF55B8FF), fontSize = 9.sp)
+                        if (n.link.startsWith("https://")) Text(
+                            n.link, color = Color(0xFF55B8FF), fontSize = 9.sp,
+                            modifier = Modifier.clickable { uriHandler.openUri(n.link) }
+                        )
                     }
                 }
             }
