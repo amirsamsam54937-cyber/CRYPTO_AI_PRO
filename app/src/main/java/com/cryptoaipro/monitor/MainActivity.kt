@@ -170,6 +170,10 @@ fun CryptoMonitorScreen() {
     var learningSamples by remember { mutableIntStateOf(learningPrefs.getInt("samples", 0)) }
     var learningWins by remember { mutableIntStateOf(learningPrefs.getInt("wins", 0)) }
     var learningLosses by remember { mutableIntStateOf(learningPrefs.getInt("losses", 0)) }
+    var researchStats by remember { mutableStateOf(WolfMarketDataStore.Stats()) }
+    LaunchedEffect(Unit) {
+        researchStats = WolfMarketDataStore.importVerifiedSeed(context)
+    }
     val voiceEngine = remember(context) { TextToSpeech(context) { } }
     DisposableEffect(voiceEngine) { onDispose { voiceEngine.stop(); voiceEngine.shutdown() } }
     LaunchedEffect(voiceReply) { if (voiceReply.isNotBlank()) { voiceEngine.language = Locale("fa", "IR"); voiceEngine.speak(voiceReply, TextToSpeech.QUEUE_FLUSH, null, "wolf-voice-reply") } }
@@ -213,6 +217,7 @@ fun CryptoMonitorScreen() {
             }
             appSettings.edit().putString("market_exchange", selectedExchange).apply()
             val scanned = if (selectedExchange == "XT") XtFuturesMonitor.scan(progress) else BinanceMonitor.scan(progress)
+            researchStats = WolfMarketDataStore.recordLiveScan(context, selectedExchange, scanned)
             rows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned))
             scannedCount = totalContracts
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
@@ -455,6 +460,7 @@ fun CryptoMonitorScreen() {
 
                     "قدرت سیگنال" -> {
                         SignalStrengthScreen(signals = rows, loading = loading, progress = scanProgress,
+                            researchStats = researchStats,
                             onSelect = { symbol -> selectedSymbol = symbol },
                             onOpenJournal = { selectedTab = "دفترچه" },
                             onRescan = { scope.launch { performScan() } })
@@ -572,6 +578,7 @@ private fun ActiveCommandSignals(
 @Composable
 private fun SignalStrengthScreen(
     signals: List<MarketSignal>, loading: Boolean, progress: String,
+    researchStats: WolfMarketDataStore.Stats,
     onSelect: (String) -> Unit, onOpenJournal: () -> Unit, onRescan: () -> Unit
 ) {
     var strengthFilter by remember { mutableStateOf("همه") }
@@ -605,6 +612,16 @@ private fun SignalStrengthScreen(
                         }
                     }
                     Text("سیگنال قوی: قدرت ۷۵٪ به بالا؛ این امتیاز تضمین سود یا احتمال قطعی موفقیت نیست.", color = Gold, fontSize = 9.sp)
+                    val model = WolfPretrainedEnsemble.status()
+                    Text(
+                        "مغز داده: ${if (researchStats.imported) "۵۰۰٬۰۰۰ ردیف تاریخی وارد پایگاه محلی شده" else "در حال آماده‌سازی پایگاه تاریخی"} • کندل زنده ذخیره‌شده: ${researchStats.liveCandles} • سوابق تحلیل: ${researchStats.signalSnapshots}",
+                        color = Muted, fontSize = 9.sp, lineHeight = 14.sp
+                    )
+                    Text(
+                        "شبکه عصبی: ${if (model.loaded) model.members.toString() + " مدل بارگذاری‌شده" else "مدل بارگذاری نشده"} • داده آموزش گزارش‌شده: ${model.samples} • ارزیابی مستقل: ${if (model.validatedForScoring) "مجاز برای امتیازدهی" else "فعلاً فقط آزمایشی"}",
+                        color = if (model.validatedForScoring) Green else Gold, fontSize = 9.sp, lineHeight = 14.sp
+                    )
+                    researchStats.error?.let { Text("وضعیت پایگاه داده: $it", color = Red, fontSize = 9.sp) }
                 }
             }
         }
@@ -1628,6 +1645,7 @@ class MarketMonitorService : Service() {
                         val selectedExchange = getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE).getString("market_exchange", "BINANCE") ?: "BINANCE"
                         val marketSignals = if (selectedExchange == "XT") XtFuturesMonitor.scan() else BinanceMonitor.scan()
                         val signals = applyWolfNeuralScoring(applicationContext, marketSignals)
+                        WolfMarketDataStore.recordLiveScan(applicationContext, selectedExchange, marketSignals)
                         val journalSnapshot = WolfSignalOutcomeJournal.processScan(applicationContext, signals)
                         WolfLearningMemory.processScan(applicationContext, signals, journalSnapshot.records)
                         // Refresh private news and large-trade flow context for the analysis engine; never expose session clocks or raw feed panels in the UI.
