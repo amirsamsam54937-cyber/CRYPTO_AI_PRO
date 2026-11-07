@@ -59,7 +59,7 @@ jobs:
           with open("wolf_model_training_report.json", encoding="utf-8") as f:
               model=json.load(f)
           assert model["samples"] >= 500
-          assert len(model["members"]) == 10
+          assert len(model["metrics"]) == 10
           print("Verified real candle rows:",m["rows"])
           print("Neural training samples:",model["samples"])
           print("APK bytes:",os.path.getsize("app/build/outputs/apk/debug/app-debug.apk"))
