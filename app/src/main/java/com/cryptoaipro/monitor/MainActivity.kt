@@ -256,10 +256,10 @@ fun CryptoMonitorScreen() {
                 NavigationBar(containerColor = Panel, contentColor = Color.White) {
                     listOf("خانه", "بازار", "تحلیل", "جریان", "دفترچه", "هوش مصنوعی", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
-                            selected = selectedTab == entry.first,
-                            onClick = { selectedTab = entry.first },
+                            selected = selectedTab == entry,
+                            onClick = { selectedTab = entry },
                             icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "تحلیل" -> Icons.Outlined.Insights; "جریان" -> Icons.Outlined.Timeline; "دفترچه" -> Icons.Outlined.MenuBook; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
-                            label = { Text(entry.first, fontSize = 9.sp, maxLines = 1) },
+                            label = { Text(entry, fontSize = 9.sp, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Blue,
                                 selectedTextColor = Blue,
