@@ -258,7 +258,7 @@ fun CryptoMonitorScreen() {
         Scaffold(
             containerColor = Navy,
             bottomBar = {
-                NavigationBar(containerColor = Panel, contentColor = Color.White) {
+                NavigationBar(containerColor = Color(0xFF080808), contentColor = Color.White) {
                     listOf("خانه", "بازار", "تحلیل", "دفترچه", "هوش مصنوعی", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
@@ -268,7 +268,7 @@ fun CryptoMonitorScreen() {
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Blue,
                                 selectedTextColor = Blue,
-                                indicatorColor = Color(0xFF3A2B0B),
+                                indicatorColor = Color(0xFF342607),
                                 unselectedIconColor = Muted,
                                 unselectedTextColor = Muted
                             )
@@ -335,7 +335,7 @@ fun CryptoMonitorScreen() {
                             verticalArrangement = Arrangement.spacedBy(11.dp)
                         ) {
                             item {
-                                Surface(color = Color(0xFF17130A), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                                Surface(color = Color(0xFF100D07), shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.48f)), modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                                         Row(
                                             Modifier.fillMaxWidth(),
@@ -662,7 +662,7 @@ private fun ActiveCommandSignals(
     records: List<WolfSignalOutcomeJournal.Record>,
     onOpenJournal: () -> Unit
 ) {
-    Surface(color = Color(0xFF17130A), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(0xFF100D07), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.38f)), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("سیگنال‌های فعال فرماندهی", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
@@ -813,8 +813,8 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
         "SHORT_BIAS" -> "تمایل نزولی"
         else -> "خنثی"
     }
-    Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(13.dp)) {
+    Surface(color = Color(0xFF101010), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.25f)), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(15.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(item.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
                 TextButton(onClick = onSelect, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
@@ -841,11 +841,11 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
             LinearProgressIndicator(
                 progress = { item.confidence / 100f },
                 modifier = Modifier.fillMaxWidth().height(5.dp),
-                color = tint, trackColor = Color(0xFF3A454A)
+                color = tint, trackColor = Color(0xFF3A3020)
             )
             if (item.direction != "NEUTRAL") {
                 Spacer(Modifier.height(8.dp))
-                Surface(color = Color(0xFF20272B), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Surface(color = Color(0xFF19150B), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.22f)), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("ورود مرجع: " + formatPrice(item.entry) + "   |   اهرم سقف: " + item.leverage + "x", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -864,7 +864,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 Text(if (expanded) "بستن جزئیات تحلیل ▲" else "مشاهده شاخص‌های پیشرفته ▼", color = Blue, fontSize = 10.sp)
             }
             if (expanded) {
-                Surface(color = Color(0xFF20272B), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Surface(color = Color(0xFF19150B), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.22f)), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                         Text("تحلیل تکنیکال تایم‌فریم ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1098,7 +1098,7 @@ private fun MarketSessionsPanel() {
     val asia = session("Asia/Tokyo", 9, 18)
     val london = session("Europe/London", 8, 17)
     val ny = session("America/New_York", 8, 17)
-    Surface(color = Color(0xFF101B2D), shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(0xFF100D07), shape = RoundedCornerShape(15.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.28f)), modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(11.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             listOf("آسیا" to asia, "لندن" to london, "نیویورک" to ny).forEach { (name, data) ->
                 Column {
