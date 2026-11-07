@@ -72,14 +72,14 @@ import java.util.Locale
 import kotlin.math.abs
 
 // Wolf v2.18 visual system: graphite, silver, electric turquoise and restrained gold.
-private val Navy = Color(0xFF080A0C)
-private val Panel = Color(0xFF171B1E)
-private val Muted = Color(0xFFAEB7BC)
-private val Green = Color(0xFFB9D69A)
-private val Red = Color(0xFFE9877E)
-private val Blue = Color(0xFFE1B86B)
-private val Purple = Color(0xFFB7C1C8)
-private val Gold = Color(0xFFF0D18B)
+private val Navy = Color(0xFF050505)
+private val Panel = Color(0xFF111111)
+private val Muted = Color(0xFFB8B0A0)
+private val Green = Color(0xFF20D477)
+private val Red = Color(0xFFFF4655)
+private val Blue = Color(0xFFFFC52E)
+private val Purple = Color(0xFFD9A62E)
+private val Gold = Color(0xFFFFD45A)
 
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
@@ -268,7 +268,7 @@ fun CryptoMonitorScreen() {
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Blue,
                                 selectedTextColor = Blue,
-                                indicatorColor = Color(0xFF303A3F),
+                                indicatorColor = Color(0xFF3A2B0B),
                                 unselectedIconColor = Muted,
                                 unselectedTextColor = Muted
                             )
@@ -279,7 +279,7 @@ fun CryptoMonitorScreen() {
         ) { innerPadding ->
             Column(
                 Modifier.fillMaxSize().padding(innerPadding).background(
-                Brush.verticalGradient(listOf(Color(0xFF101719), Color(0xFF090D0F), Color(0xFF141B1D)))
+                Brush.verticalGradient(listOf(Color(0xFF080808), Color(0xFF050505), Color(0xFF171006)))
             )
             ) {
                 Row(
@@ -288,7 +288,7 @@ fun CryptoMonitorScreen() {
                 ) {
                     if (selectedTab != "خانه") TextButton(onClick = { selectedTab = "خانه" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("‹ بازگشت", color = Blue, fontSize = 11.sp) }
                     Surface(
-                        color = Color(0xFF242B2F),
+                        color = Color(0xFF17130A),
                         shape = RoundedCornerShape(13.dp),
                         modifier = Modifier.size(52.dp),
                         shadowElevation = 8.dp
@@ -318,7 +318,7 @@ fun CryptoMonitorScreen() {
                                     fontWeight = if (selectedExchange == "XT") FontWeight.Bold else FontWeight.Normal)
                             }
                         }
-                        Surface(color = if (loading) Color(0xFF3A2C17) else Color(0xFF10382F),
+                        Surface(color = if (loading) Color(0xFF3A2B0B) else Color(0xFF2B2108),
                             shape = RoundedCornerShape(20.dp)) {
                             Text(if (loading) "در حال اسکن" else "● $selectedExchange",
                                 color = if (loading) Gold else Green,
@@ -335,7 +335,7 @@ fun CryptoMonitorScreen() {
                             verticalArrangement = Arrangement.spacedBy(11.dp)
                         ) {
                             item {
-                                Surface(color = Color(0xFF242B2F), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                                Surface(color = Color(0xFF17130A), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                                         Row(
                                             Modifier.fillMaxWidth(),
@@ -343,7 +343,7 @@ fun CryptoMonitorScreen() {
                                             horizontalArrangement = Arrangement.spacedBy(14.dp)
                                         ) {
                                             Surface(
-                                                color = Color(0xFF11191B),
+                                                color = Color(0xFF0B0B0B),
                                                 shape = RoundedCornerShape(18.dp),
                                                 modifier = Modifier.size(76.dp),
                                                 border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.55f))
@@ -662,7 +662,7 @@ private fun ActiveCommandSignals(
     records: List<WolfSignalOutcomeJournal.Record>,
     onOpenJournal: () -> Unit
 ) {
-    Surface(color = Color(0xFF242B2F), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(0xFF17130A), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("سیگنال‌های فعال فرماندهی", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
