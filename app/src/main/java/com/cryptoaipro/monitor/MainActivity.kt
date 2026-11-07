@@ -26,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -260,6 +261,14 @@ fun CryptoMonitorScreen() {
                     // Premium Wolf terminal backdrop: subtle market grid, luminous wolf crest and chart traces.
                     val w = size.width
                     val h = size.height
+                    drawRect(
+                        brush = Brush.linearGradient(
+                            colors = listOf(Color(0xFF070C18), Color(0xFF10243C), Color(0xFF080E1B)),
+                            start = Offset(0f, 0f),
+                            end = Offset(w, h)
+                        )
+                    )
+                    drawCircle(Color(0xFF174B78).copy(alpha = 0.10f), radius = w * 0.62f, center = Offset(w * 0.5f, h * 0.42f))
                     for (i in 1..12) {
                         val x = w * i / 13f
                         drawLine(Color(0xFF29415F).copy(alpha = 0.12f), Offset(x, 0f), Offset(x, h), 1f)
