@@ -1,6 +1,6 @@
 # AMIR ARSALAN TRADER WOLF — CRYPTO AI PRO
 
-**Android release line: 2.17.0**  
+**Android release line: 2.18.0**  
 A Persian-first Android application for live Binance USDⓈ-M or XT USDT-M perpetual-futures market scanning, explainable technical analysis, signal visualization, and persistent outcome-based learning.
 
 > **Analysis and signals only.** The Android app does not connect exchange accounts, store API keys, submit orders, change leverage, or execute trades. Entry, stop and target levels are analytical references, not orders or guarantees.
@@ -36,11 +36,11 @@ The Android scanner fetches closed candles for 15m, 1h and 4h across the full ac
 - Multi-timeframe agreement and filters for overextension, extreme volatility and higher-timeframe conflict
 - Reference levels based on ATR and nearby structure
 
-The ten voting specialists are deterministic technical rule modules, **not ten independent generative AI models**. An optional bundled ensemble contains ten compact MLPs; it is packaged only when historical data can be retrieved from Binance's canonical public endpoint. If that endpoint returns HTTP 451, CI respects the denial and builds without fabricated weights; the app falls back to its local outcome-learning network. Neither model output is a calibrated probability of profit. The app should preserve neutral/NO TRADE decisions when evidence conflicts or data quality is inadequate.
+The ten voting specialists are deterministic technical rule modules, **not ten independent generative AI models**. An optional bundled ensemble contains ten compact MLPs; it is packaged only when sufficient historical data can be retrieved from a permitted public source (Binance USD-M or XT USDT-M). If a source is unavailable, CI tries only the other named exchange; regional access denials are respected and no fabricated weights are created. Neither model output is a calibrated probability of profit. The app should preserve neutral/NO TRADE decisions when evidence conflicts or data quality is inadequate.
 
 ## Market context and learning
 
-The app can collect public Binance aggregate trades, open interest and funding context for a small number of leading candidates, and retrieve public crypto news feeds. These are contextual inputs, not proof of whale intent or a reliable sentiment label. Source, freshness, failures and missing data should remain visible.
+The app can collect public aggregate trades, open interest and funding context from the selected exchange where supported for a small number of leading candidates, and retrieve public crypto news feeds. These are contextual inputs, not proof of whale intent or a reliable sentiment label. Source, freshness, failures and missing data should remain visible.
 
 The permanent on-device signal notebook stores up to 5,000 recent directional signal records, including timestamp, direction, reference entry, stop, three targets, confidence, rationale and observed status. New same-direction signals are deduplicated for 15 minutes. It observes later public candle prices. It does not submit or simulate real exchange orders. Same-candle stop/target ambiguity is handled conservatively. Learning labels are approximate horizon outcomes and must not be described as verified trade fills.
 
@@ -60,16 +60,16 @@ The Python package provides public-market research, indicator analysis and histo
     pip install -r requirements.txt
     PYTHONPATH=. uvicorn app.main:app --reload
 
-The default CCXT market adapter is Binance USDⓈ-M (binanceusdm). No API credentials are needed for public market data. A regional HTTP 451 response is an access-eligibility denial: the app stops polling instead of rotating hostnames or trying to evade the restriction. CI also skips neural retraining on HTTP 451 and packages the analysis app without fabricated weights. Use only market-data services whose terms permit access from your network location.
+The Python research adapter supports Binance USDⓈ-M and XT USDT-M public markets. No API credentials are needed for public market data. A regional HTTP 451 response is an access-eligibility denial: the app stops polling instead of rotating hostnames or trying to evade the restriction. CI respects HTTP 451, attempts only the other explicitly selected public exchange, and never creates fabricated weights. Use only market-data services whose terms permit access from your network location.
 
 ## Build and install Android APK
 
-Every push affecting Android source starts the **Build Android APK** GitHub Actions workflow. The 2.17 pipeline collects 500,000 real closed hourly candles (Binance first, XT as an independent public-data fallback), trains ten 64/32/16 MLP networks when sufficient real data is available, and verifies that the APK contains both the auditable seed and trained ensemble.
+Every push affecting Android source starts the **Build Android APK** GitHub Actions workflow. The 2.18 pipeline collects up to 200,000 real closed hourly candles (Binance first, XT as an independent public-data fallback), requiring at least 150,000 verified rows, trains ten 64/32/16 MLP networks when sufficient real data is available, and verifies that the APK contains both the auditable seed and trained ensemble.
 
 1. Open the repository's **Actions** tab.
 2. Open the newest **Build Android APK** run.
 3. Wait for all jobs to finish successfully.
-4. Download the **AMIR-ARSALAN-TRADER-WOLF-v2.17.0** artifact ZIP.
+4. Download the **AMIR-ARSALAN-TRADER-WOLF-v2.18.0** artifact ZIP.
 5. Extract and install app-debug.apk on Android.
 
 The CI pipeline additionally checks the real-data manifest, absence of synthetic rows, bundled neural model and a minimum 20 MiB APK size. A successful CI build still verifies packaging and compilation only. It does not prove API availability in every region, signal quality, profitability, background reliability or production readiness. The 20 MiB target must be met by real bundled data/model assets; no artificial padding is used.
