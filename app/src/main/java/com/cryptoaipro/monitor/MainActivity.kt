@@ -146,6 +146,10 @@ fun CryptoMonitorScreen() {
     var voiceReply by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val appSettings = remember(context) { context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE) }
+    var scanIntervalMinutes by remember(context) {
+        mutableIntStateOf(appSettings.getInt("scan_interval_minutes", 3).coerceIn(1, 10))
+    }
     var outcomeSnapshot by remember(context) { mutableStateOf(WolfSignalOutcomeJournal.snapshot(context)) }
     val learningPrefs = remember(context) { context.getSharedPreferences("wolf_learning_memory", Context.MODE_PRIVATE) }
     var learningSamples by remember { mutableIntStateOf(learningPrefs.getInt("samples", 0)) }
@@ -212,7 +216,7 @@ fun CryptoMonitorScreen() {
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(scanIntervalMinutes) {
         while (isActive) {
             performScan()
             // HTTP 451 is an explicit regional-eligibility denial, not a transient outage.
@@ -221,7 +225,7 @@ fun CryptoMonitorScreen() {
                 scanProgress = "اسکن خودکار متوقف شد؛ دسترسی Binance از این شبکه مجاز نیست"
                 break
             }
-            delay(180_000)
+            delay(scanIntervalMinutes.toLong() * 60_000L)
         }
     }
 
@@ -651,7 +655,20 @@ fun CryptoMonitorScreen() {
                                     Text("اسکن پایه: ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • بازبینی عمیق ۲۴ نامزد برتر: ۵ دقیقه و ۱ روز", color = Muted, fontSize = 11.sp)
                                     Text("چارت قابل انتخاب: ۵ دقیقه، ۱۵ دقیقه، ۱ ساعت، ۴ ساعت و ۱ روز", color = Muted, fontSize = 11.sp)
                                     Text("دامنه اسکن: تمام قراردادهای دائمی USDT فعال؛ مرتب‌شده بر اساس حجم معاملات", color = Muted, fontSize = 11.sp)
-                                    Text("چرخه اسکن پیوسته: پس از پایان هر دور، ۳ دقیقه مکث و دور بعدی خودکار آغاز می‌شود؛ محدودیت API یا اینترنت می‌تواند وقفه ایجاد کند.", color = Muted, fontSize = 11.sp)
+                                    Text("فاصله مکث بین دورهای اسکن (پس از پایان هر دور):", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf(1, 3, 5, 10).forEach { minutes ->
+                                            FilterChip(
+                                                selected = scanIntervalMinutes == minutes,
+                                                onClick = {
+                                                    scanIntervalMinutes = minutes
+                                                    appSettings.edit().putInt("scan_interval_minutes", minutes).apply()
+                                                },
+                                                label = { Text("$minutes دقیقه", fontSize = 9.sp) }
+                                            )
+                                        }
+                                    }
+                                    Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
                                     Text("نسخه: 2.14.0 • Binance USDⓈ-M • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
@@ -1735,7 +1752,9 @@ class MarketMonitorService : Service() {
                     manager.notify(NOTIFICATION_ID, buildNotification(result))
                     // Stop retrying an explicit regional/access denial; polling cannot fix HTTP 451.
                     if (result.contains("HTTP 451") || result.contains("HTTP 403") || result.contains("HTTP 418")) break
-                    delay(180_000L)
+                    val intervalMinutes = getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE)
+                        .getInt("scan_interval_minutes", 3).coerceIn(1, 10)
+                    delay(intervalMinutes.toLong() * 60_000L)
                 }
             }
         }
