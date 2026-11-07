@@ -24,11 +24,17 @@ internal object WolfForecastEngine {
     private fun mean(x: List<Double>) = if (x.isEmpty()) 0.0 else x.average()
 
     fun forecast(signal: MarketSignal): Forecast? {
-        val candles = signal.candles.filter { c ->
-            c.size >= 5 && c[1].isFinite() && c[2].isFinite() && c[3].isFinite() &&
-                c[4].isFinite() && c[3] > 0.0 && c[4] >= 0.0
-        }
-        if (candles.size < 64) return null
+        // Expected layout from the exchange adapter: [open, high, low, close, volume, openTimeMs].
+        // Do not silently filter broken rows: that could stitch distant candles together and
+        // create a false momentum/breakout signal.
+        val candles = signal.candles
+        if (candles.size < 64 || candles.any { c ->
+                c.size < 6 || c.take(6).any { !it.isFinite() } ||
+                    c[0] <= 0.0 || c[1] <= 0.0 || c[2] <= 0.0 || c[3] <= 0.0 ||
+                    c[4] < 0.0 || c[5] <= 0.0 ||
+                    c[1] < maxOf(c[0], c[3]) || c[2] > minOf(c[0], c[3]) || c[1] < c[2]
+            }) return null
+        if (candles.zipWithNext().any { (a, b) -> b[5] <= a[5] }) return null
         val closes = candles.map { it[3] }
         val returns = closes.zipWithNext { a, b -> ln(b / a) }.filter { it.isFinite() }
         if (returns.size < 48) return null
@@ -55,6 +61,8 @@ internal object WolfForecastEngine {
         val relativeVolume = (volumes.last() / averageVolume).coerceIn(0.0, 3.0)
         val candleRange = (last[1] - last[2]).coerceAtLeast(1e-12)
         val closeLocation = ((last[3] - last[2]) / candleRange * 2.0 - 1.0).coerceIn(-1.0, 1.0)
+        if (!signal.rsi.isFinite() || !signal.technical.ema20.isFinite() ||
+            !signal.technical.ema50.isFinite() || !signal.technical.atrPercent.isFinite()) return null
         val rsiPressure = ((signal.rsi - 50.0) / 25.0).coerceIn(-2.0, 2.0)
         val direction = if (signal.direction == "LONG_BIAS") 1.0 else -1.0
         val technicalTrend = when {
@@ -103,7 +111,7 @@ internal object WolfForecastEngine {
         }
         val veto = f.directionalProbability < 0.36 && f.evidenceCount <= 2
         val note = " | افق سناریویی " + f.horizonBars + " کندل: امتیاز هم‌جهتی مدل " +
-            probabilityPct + "٪ (غیرکالیبره)، حرکت سناریویی " +
+            probabilityPct + "٪ (غیرکالیبره)، حرکت هم‌جهت سیگنال " +
             String.format(java.util.Locale.US, "%.2f", f.expectedMovePct) + "٪، نوسان کوتاه " +
             String.format(java.util.Locale.US, "%.2f", f.volatilityPct) + "٪، شواهد " + f.evidenceCount + "/6"
         val caution = if (penalty >= 8) "؛ شواهد آینده‌نگر با جهت سیگنال تعارض جدی دارد" else ""
