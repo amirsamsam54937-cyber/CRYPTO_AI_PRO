@@ -10,8 +10,8 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 48
-  versionName = "2.31.4"
+  versionCode = 49
+  versionName = "2.32.0"
  }
  buildFeatures { compose = true }
  // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
