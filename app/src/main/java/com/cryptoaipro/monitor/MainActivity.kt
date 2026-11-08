@@ -655,7 +655,7 @@ private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         SmallStat("کل سیگنال‌ها", snapshot.total.toString(), Blue)
                         SmallStat("باز", snapshot.active.toString(), Gold)
-                        SmallStat("TP3", snapshot.tp3.toString(), Green)
+                        SmallStat("TP1", snapshot.tp1.toString(), Green)
                         SmallStat("SL", snapshot.stopped.toString(), Red)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -706,9 +706,8 @@ private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
                             SmallStat("TP1", formatPrice(record.tp1), Green)
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            SmallStat("TP2", formatPrice(record.tp2), Green)
-                            SmallStat("TP3", formatPrice(record.tp3), Green)
                             SmallStat("قدرت سیگنال", record.confidence.toString() + "%", tint)
+                            SmallStat("تایم‌فریم", record.timeframe, Blue)
                         }
                         Text("امتیاز: " + record.score + " • شبکه عصبی: " + record.neuralScore + "% • اهرم پیشنهادی: " + record.leverage + "x • تغییر ۲۴ساعت: " + String.format(Locale.US, "%.2f%%", record.change), color = Muted, fontSize = 9.sp)
                         if (record.closed) {
@@ -786,9 +785,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                         Text("ENTRY: " + formatPrice(item.entry) + "   |   SMART LEVERAGE: " + item.leverage + "x", color = Blue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             SmallStat("حد ضرر", formatPrice(item.stop), Red)
-                            SmallStat("TP1 • 1R", formatPrice(item.tp1), Green)
-                            SmallStat("TP2 • 2R", formatPrice(item.tp2), Green)
-                            SmallStat("TP3 • 3R", formatPrice(item.tp3), Green)
+                            SmallStat("هدف نهایی TP1 • 1R", formatPrice(item.tp1), Green)
                         }
                         Text("حد ضرر و اهداف بر پایه ATR و ساختار حمایت/مقاومت محاسبه می‌شوند؛ اهرم با فاصله استاپ و ریسک نوسان تنظیم می‌شود، نه عدد ثابت.", color = Muted, fontSize = 9.sp)
                     }
@@ -876,8 +873,6 @@ private fun SignalOutcomePanel(snapshot: WolfSignalOutcomeJournal.Snapshot) {
                 SmallStat("کل", snapshot.total.toString())
                 SmallStat("باز", snapshot.active.toString(), Blue)
                 SmallStat("TP1", snapshot.tp1.toString(), Green)
-                SmallStat("TP2", snapshot.tp2.toString(), Green)
-                SmallStat("TP3", snapshot.tp3.toString(), Green)
                 SmallStat("SL", snapshot.stopped.toString(), Red)
             }
             Text("آخرین نتایج", color = Muted, fontSize = 10.sp)
@@ -891,7 +886,7 @@ private fun SignalOutcomePanel(snapshot: WolfSignalOutcomeJournal.Snapshot) {
 @Composable
 private fun SignalLevelsChart(signal: MarketSignal) {
     val candles = signal.candles.takeLast(64)
-    val allPrices = candles.flatMap { listOf(it[1], it[2]) } + listOf(signal.entry, signal.stop, signal.tp1, signal.tp2, signal.tp3)
+    val allPrices = candles.flatMap { listOf(it[1], it[2]) } + listOf(signal.entry, signal.stop, signal.tp1)
     val rawLow = allPrices.filter { it > 0.0 && it.isFinite() }.minOrNull() ?: signal.price * 0.98
     val rawHigh = allPrices.filter { it > 0.0 && it.isFinite() }.maxOrNull() ?: signal.price * 1.02
     val padding = (rawHigh - rawLow).coerceAtLeast(signal.price * 0.001) * 0.06
@@ -932,14 +927,10 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                 level(signal.entry, Blue, 2.5f)
                 level(signal.stop, Red, 2.5f)
                 level(signal.tp1, Green, 2.5f)
-                level(signal.tp2, Green.copy(alpha = 0.75f), 2f)
-                level(signal.tp3, Green.copy(alpha = 0.5f), 1.5f)
             }
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 PriceLevelRow("ورود مرجع", signal.entry, Blue)
-                PriceLevelRow("حد سود ۱", signal.tp1, Green)
-                PriceLevelRow("حد سود ۲", signal.tp2, Green)
-                PriceLevelRow("حد سود ۳", signal.tp3, Green)
+                PriceLevelRow("هدف نهایی TP1", signal.tp1, Green)
                 PriceLevelRow("حد ضرر", signal.stop, Red)
             }
             Text("سطوح از تحلیل فعلی محاسبه شده‌اند؛ رسیدن قیمت به سطح در بازار واقعی تضمین نمی‌شود.", color = Muted, fontSize = 9.sp)
@@ -1234,10 +1225,10 @@ internal object BinanceMonitor {
             maxOf(atrBase, structuralDistance).coerceAtMost(atrValue * 2.5)
         else atrBase
         val stop = when { isLong -> price - stopDistance; isShort -> price + stopDistance; else -> price }
-        // Stagger targets at 1.5R / 2.2R / 3R; TP1 is no longer a 1:1 reward.
-        val tp1 = when { isLong -> price + stopDistance * 1.5; isShort -> price - stopDistance * 1.5; else -> price }
-        val tp2 = when { isLong -> price + stopDistance * 2.2; isShort -> price - stopDistance * 2.2; else -> price }
-        val tp3 = when { isLong -> price + stopDistance * 3.0; isShort -> price - stopDistance * 3.0; else -> price }
+        // One realistic final target only: TP1 at 1R. No unreachable TP2/TP3 ladder.
+        val tp1 = when { isLong -> price + stopDistance; isShort -> price - stopDistance; else -> price }
+        val tp2 = tp1
+        val tp3 = tp1
         val stopPct = stopDistance / price * 100.0
         val leverage = when { !isLong && !isShort -> 1; stopPct <= 0.8 -> 5; stopPct <= 1.5 -> 3; stopPct <= 3.0 -> 2; else -> 1 }
         val agentSummary = wolf.votes.joinToString("، ") { it.name + ":" + it.direction }
