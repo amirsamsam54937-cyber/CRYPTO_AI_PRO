@@ -83,7 +83,6 @@ internal object WolfSignalOutcomeJournal {
                         closeRecord(record, "SL", stopFill, now)
                     } else if (targetHit >= 0) {
                         closeRecord(record, "TP" + (targetHit + 1), targets[targetHit], now)
-                        closedOnBar = true
                     } else {
                         record.put("lastPrice", close)
                     }
