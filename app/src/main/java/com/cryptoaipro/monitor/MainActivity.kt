@@ -688,7 +688,7 @@ private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(date, color = Muted, fontSize = 9.sp)
                             Text(WolfSignalOutcomeJournal.statusLabel(record.status), color = when(record.status) {
-                                "TP1", "TP2", "TP3" -> Green
+                                "TP1" -> Green
                                 "SL" -> Red
                                 "EXPIRED" -> Muted
                                 else -> Gold
