@@ -1663,7 +1663,7 @@ class MarketMonitorService : Service() {
     private fun buildNotification(status: String): Notification {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
         return builder.setSmallIcon(android.R.drawable.ic_menu_info_details)
-            .setContentTitle("CRYPTO AI PRO • پایش پس‌زمینه")
+            .setContentTitle("HOPE HUNTER • پایش پس‌زمینه")
             .setContentText(status).setOngoing(true).build()
     }
     override fun onDestroy() { worker?.cancel(); serviceScope.cancel(); super.onDestroy() }
