@@ -179,7 +179,7 @@ fun CryptoMonitorScreen() {
     }
     val voiceEngine = remember(context) { TextToSpeech(context) { } }
     DisposableEffect(voiceEngine) { onDispose { voiceEngine.stop(); voiceEngine.shutdown() } }
-    LaunchedEffect(voiceReply) { if (voiceReply.isNotBlank()) { voiceEngine.language = Locale("fa", "IR"); voiceEngine.speak(voiceReply, TextToSpeech.QUEUE_FLUSH, null, "wolf-voice-reply") } }
+    LaunchedEffect(voiceReply) { if (voiceReply.isNotBlank()) { voiceEngine.language = Locale("fa", "IR"); voiceEngine.speak(voiceReply, TextToSpeech.QUEUE_FLUSH, null, "hope-hunter-voice-reply") } }
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
         if (spoken.isNotBlank()) {
@@ -353,12 +353,7 @@ fun CryptoMonitorScreen() {
                                 ) {
                                     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                                         Box(Modifier.fillMaxWidth().height(196.dp)) {
-                                            Image(
-                                                painter = painterResource(id = R.drawable.wolf_hero),
-                                                contentDescription = "هویت بصری اتاق شکار امیدها",
-                                                contentScale = ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize()
-                                            )
+                                            HopeHunterHeroArt(Modifier.fillMaxSize())
                                             Box(Modifier.fillMaxSize().background(
                                                 Brush.horizontalGradient(listOf(Color(0xEE050505), Color(0x66050505), Color(0x22050505)))
                                             ))
@@ -417,7 +412,6 @@ fun CryptoMonitorScreen() {
                                     onOpenJournal = { selectedTab = "دفترچه" }
                                 )
                             }
-                            item { WolfAutoIntelPanel(context) }
                             item {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("فرصت‌های برتر بازار", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
@@ -499,7 +493,7 @@ fun CryptoMonitorScreen() {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
                                     Text("بازار: Binance USDⓈ-M Futures", color = Muted, fontSize = 11.sp)
                                     Text("اسکن پایه: ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • بازبینی عمیق ۲۴ نامزد برتر: ۵ دقیقه و ۱ روز", color = Muted, fontSize = 11.sp)
-                                    Text("ابزارها: رتبه‌بندی قدرت سیگنال، چندتایم‌فریم، اجماع ۱۰مدلی، مدیریت ریسک و دفترچه سوابق", color = Muted, fontSize = 11.sp)
+                                    Text("ابزارها: ۱۰ متخصص تحلیلی، شبکه عصبی آزمایشی، چندتایم‌فریم، مدیریت ریسک و دفترچه سوابق", color = Muted, fontSize = 11.sp)
                                     Text("دامنه اسکن: تمام قراردادهای دائمی USDT فعال؛ مرتب‌شده بر اساس حجم معاملات", color = Muted, fontSize = 11.sp)
                                     Text("فاصله مکث بین دورهای اسکن (پس از پایان هر دور):", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -596,7 +590,7 @@ private fun SignalStrengthScreen(
         item {
             Surface(color = Panel, shape = RoundedCornerShape(17.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.45f)), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("مرکز قدرت سیگنال گرگ", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("مرکز هوشمندی سیگنال", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Text("رتبه‌بندی زنده فرصت‌ها بر اساس هم‌جهتی تایم‌فریم‌ها، قدرت روند، حجم، ساختار بازار و امتیاز مدل عصبی", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                     if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Gold)
                     Text(progress, color = Muted, fontSize = 9.sp)
@@ -650,7 +644,7 @@ private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
         item {
             Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text("دفترچه دائمی سیگنال‌های گرگ", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text("دفترچه سوابق سیگنال‌ها", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     Text("زمان ورود و خروج با ساعت ایران ثبت می‌شود. برخورد به حد سود/ضرر یا پایان اعتبار ۱۵ دقیقه‌ای، سیگنال را به دفترچه منتقل می‌کند و سوابق قابل مشاهده می‌مانند. اطلاعات فقط روی همین گوشی نگهداری می‌شود.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         SmallStat("کل سیگنال‌ها", snapshot.total.toString(), Blue)
@@ -1075,7 +1069,7 @@ internal object BinanceMonitor {
                     requestMethod = "GET"
                     connectTimeout = 7000
                     readTimeout = 9000
-                    setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.14")
+                    setRequestProperty("User-Agent", "HopeHunter/2.34")
                     setRequestProperty("Accept", "application/json")
                 }
                 val code = connection.responseCode
@@ -1241,7 +1235,7 @@ internal object BinanceMonitor {
         }
         return MarketSignal(
             symbol, price, change, volume, direction, score, a.third, confidence,
-            "اجماع گرگ " + wolf.agreement + "% | قدرت اجماع (نه احتمال برد): " + wolf.strengthIndex +
+            "اجماع متخصصان " + wolf.agreement + "% | قدرت اجماع (نه احتمال برد): " + wolf.strengthIndex +
                 "% | ۱۰ تحلیلگر: " + agentSummary + " | ۱۵د: " + a.second + " | ۱س: " + b.second +
                 " | ۴س: " + c.second +
                 (microStats?.let { " | ۵د: " + it.second } ?: "") +
@@ -1677,3 +1671,77 @@ class MarketMonitorService : Service() {
     companion object { private const val CHANNEL_ID = "crypto_ai_market_monitor"; private const val NOTIFICATION_ID = 4101 }
 }
 
+
+
+@Composable
+private fun HopeHunterHeroArt(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val gold = Color(0xFFFFD36A)
+        val cx = w * 0.76f
+        val cy = h * 0.50f
+        val radius = minOf(w, h) * 0.34f
+
+        drawRect(
+            brush = Brush.linearGradient(
+                colors = listOf(Color(0xFF080A0A), Color(0xFF17130B), Color(0xFF050606)),
+                start = Offset.Zero,
+                end = Offset(w, h)
+            )
+        )
+        // Quiet precision grid.
+        for (i in 1..6) {
+            val x = w * i / 7f
+            drawLine(Color(0x18D8B56A), Offset(x, 0f), Offset(x, h), 1f)
+        }
+        for (i in 1..3) {
+            val y = h * i / 4f
+            drawLine(Color(0x18D8B56A), Offset(0f, y), Offset(w, y), 1f)
+        }
+        // Radar / target rings create a distinct Hope Hunter identity without animal imagery.
+        for (i in 0..4) {
+            drawCircle(
+                color = gold.copy(alpha = 0.11f + i * 0.025f),
+                radius = radius * (0.42f + i * 0.19f),
+                center = Offset(cx, cy),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = if (i == 4) 2f else 1f)
+            )
+        }
+        drawLine(gold.copy(alpha = 0.28f), Offset(cx - radius * 1.05f, cy), Offset(cx + radius * 1.05f, cy), 1f)
+        drawLine(gold.copy(alpha = 0.28f), Offset(cx, cy - radius * 1.05f), Offset(cx, cy + radius * 1.05f), 1f)
+
+        // Rising market path with a highlighted opportunity point.
+        val points = listOf(
+            Offset(w * 0.39f, h * 0.73f),
+            Offset(w * 0.49f, h * 0.62f),
+            Offset(w * 0.57f, h * 0.67f),
+            Offset(w * 0.66f, h * 0.43f),
+            Offset(w * 0.75f, h * 0.49f),
+            Offset(w * 0.86f, h * 0.25f),
+            Offset(w * 0.94f, h * 0.19f)
+        )
+        val trend = Path().apply {
+            moveTo(points.first().x, points.first().y)
+            points.drop(1).forEach { lineTo(it.x, it.y) }
+        }
+        drawPath(
+            trend,
+            color = gold.copy(alpha = 0.9f),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                width = 3f,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                join = androidx.compose.ui.graphics.StrokeJoin.Round
+            )
+        )
+        points.forEachIndexed { index, point ->
+            drawCircle(
+                color = if (index == points.lastIndex) Color(0xFFFFE8AE) else gold.copy(alpha = 0.72f),
+                radius = if (index == points.lastIndex) 5f else 2.5f,
+                center = point
+            )
+        }
+        // Subtle focal glow.
+        drawCircle(Color(0x22FFD36A), radius * 0.25f, Offset(cx, cy))
+    }
+}
