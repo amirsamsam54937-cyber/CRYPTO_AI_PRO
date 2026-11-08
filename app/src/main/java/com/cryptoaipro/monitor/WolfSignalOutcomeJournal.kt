@@ -21,13 +21,13 @@ internal object WolfSignalOutcomeJournal {
     data class Record(
         val symbol: String, val side: String, val created: Long, val expiresAt: Long,
         val timeframe: String, val entry: Double, val stop: Double,
-        val tp1: Double, val tp2: Double, val tp3: Double,
+        val tp1: Double,
         val status: String, val closed: Boolean, val confidence: Int, val neuralScore: Int, val score: Int,
         val reason: String, val leverage: Int, val change: Double,
         val exitPrice: Double, val pnlPct: Double, val closedAt: Long
     )
     data class Snapshot(
-        val total: Int, val active: Int, val tp1: Int, val tp2: Int, val tp3: Int,
+        val total: Int, val active: Int, val tp1: Int,
         val stopped: Int, val expired: Int, val recent: List<String>,
         val records: List<Record>, val winRate: Double, val totalPnlPct: Double,
         val bestRecord: Record?, val averageWinPct: Double, val averageLossPct: Double
@@ -136,7 +136,7 @@ internal object WolfSignalOutcomeJournal {
                     put("created", now); put("expiresAt", now + VALIDITY_MS)
                     put("timeframe", s.timeframeCoverage)
                     put("entry", s.entry); put("stop", s.stop)
-                    put("tp1", s.tp1); put("tp2", s.tp2); put("tp3", s.tp3)
+                    put("tp1", s.tp1)
                     put("status", "ACTIVE"); put("closed", false)
                     put("confidence", s.confidence); put("neuralScore", s.neuralScore); put("score", s.score)
                     put("reason", s.reason); put("leverage", s.leverage); put("change", s.change)
@@ -179,7 +179,7 @@ internal object WolfSignalOutcomeJournal {
                     r.optLong("expiresAt", created + VALIDITY_MS),
                     r.optString("timeframe", SIGNAL_TIMEFRAME),
                     r.optDouble("entry"), r.optDouble("stop"), r.optDouble("tp1"),
-                    r.optDouble("tp2"), r.optDouble("tp3"), r.optString("status", "ACTIVE"),
+                    r.optString("status", "ACTIVE"),
                     r.optBoolean("closed"), r.optInt("confidence"), r.optInt("neuralScore", 50), r.optInt("score"),
                     r.optString("reason"), r.optInt("leverage", 1), r.optDouble("change"),
                     r.optDouble("exitPrice"), r.optDouble("pnlPct"), r.optLong("closedAt")
@@ -200,8 +200,7 @@ internal object WolfSignalOutcomeJournal {
         }
         return Snapshot(
             rows.size, records.count { !it.closed },
-            records.count { it.status == "TP1" }, records.count { it.status == "TP2" },
-            records.count { it.status == "TP3" }, records.count { it.status == "SL" },
+            records.count { it.status == "TP1" }, records.count { it.status == "SL" },
             records.count { it.status == "EXPIRED" }, recent, records,
             if (closed.isEmpty()) 0.0 else wins.size.toDouble() / closed.size * 100.0,
             closed.sumOf { it.pnlPct }, best,
@@ -212,8 +211,7 @@ internal object WolfSignalOutcomeJournal {
 
     fun statusLabel(status: String): String = when (status) {
         "TP1" -> "حد سود اول • بسته شد"
-        "TP2" -> "حد سود دوم • بسته شد"
-        "TP3" -> "حد سود سوم • بسته شد"
+        "TP2", "TP3" -> "نتیجه نسخه قدیمی • پیش از تک‌هدفه‌شدن"
         "SL" -> "حد ضرر • بسته شد"
         "EXPIRED" -> "منقضی‌شده • پایان تایم‌فریم"
         else -> "فعال • در انتظار نتیجه"
