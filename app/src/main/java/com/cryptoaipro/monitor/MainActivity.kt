@@ -132,7 +132,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         }
     }.map { signal ->
         // Independent scenario analysis followed by a skeptical adversarial review.
-        WolfForecastEngine.apply(WolfRegimeRiskEngine.apply(WolfTimeSeriesEngine.apply(WolfMathematicsEngine.apply(WolfAdversarialReviewEngine.apply(WolfQuantumScenarioEngine.apply(signal))))))
+        WolfSignalQualityEngine.apply(WolfForecastEngine.apply(WolfRegimeRiskEngine.apply(WolfTimeSeriesEngine.apply(WolfMathematicsEngine.apply(WolfAdversarialReviewEngine.apply(WolfQuantumScenarioEngine.apply(signal)))))))
     }.sortedWith(compareByDescending<MarketSignal> {
         if (it.direction == "NEUTRAL") it.score.toDouble() else it.confidence.toDouble()
     }.thenByDescending { it.volume })
@@ -1234,8 +1234,9 @@ internal object BinanceMonitor {
             maxOf(atrBase, structuralDistance).coerceAtMost(atrValue * 2.5)
         else atrBase
         val stop = when { isLong -> price - stopDistance; isShort -> price + stopDistance; else -> price }
-        val tp1 = when { isLong -> price + stopDistance; isShort -> price - stopDistance; else -> price }
-        val tp2 = when { isLong -> price + stopDistance * 2.0; isShort -> price - stopDistance * 2.0; else -> price }
+        // Stagger targets at 1.5R / 2.2R / 3R; TP1 is no longer a 1:1 reward.
+        val tp1 = when { isLong -> price + stopDistance * 1.5; isShort -> price - stopDistance * 1.5; else -> price }
+        val tp2 = when { isLong -> price + stopDistance * 2.2; isShort -> price - stopDistance * 2.2; else -> price }
         val tp3 = when { isLong -> price + stopDistance * 3.0; isShort -> price - stopDistance * 3.0; else -> price }
         val stopPct = stopDistance / price * 100.0
         val leverage = when { !isLong && !isShort -> 1; stopPct <= 0.8 -> 5; stopPct <= 1.5 -> 3; stopPct <= 3.0 -> 2; else -> 1 }
