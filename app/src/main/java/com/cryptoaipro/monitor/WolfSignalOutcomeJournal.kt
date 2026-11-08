@@ -55,7 +55,7 @@ internal object WolfSignalOutcomeJournal {
                 val entry = record.optDouble("entry")
                 val long = record.optString("side") == "LONG_BIAS"
                 val stop = record.optDouble("stop")
-                val targets = listOf(record.optDouble("tp1"), record.optDouble("tp2"), record.optDouble("tp3"))
+                val targets = listOf(record.optDouble("tp1"))
                 // Evaluate every newly closed 15m candle since the previous scan. Using only
                 // the sampled last price misses intrabar SL/TP touches and biases win-rate stats.
                 val cursor = record.optLong("lastEvaluatedCandleOpenTime", created)
