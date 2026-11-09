@@ -63,7 +63,7 @@ jobs:
           d=json.loads(p.read_text())
           e=d["evaluation"]
           assert len(d["members"]) == 10, "Expected ten trained models"
-          assert d["split"] == "chronological_purged"
+          assert e["split"] == "chronological_purged"
           assert d["test_samples"] >= 300
           assert e["ensemble_balanced_accuracy"] > 0.51
           assert e["ensemble_log_loss"] < e["prevalence_baseline_log_loss"]
