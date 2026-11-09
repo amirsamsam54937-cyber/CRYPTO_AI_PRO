@@ -778,7 +778,7 @@ private fun SignalJournalScreen(
                         Divider(color = Gold.copy(alpha = 0.22f))
                         Text("آخرین نتیجه • ${WolfHistoricalBacktestEngine.formatTime(backtest.completedAt)} • مدت: ${backtest.durationMs / 1000} ثانیه", color = Color.White, fontSize = 10.sp)
                         Text("نمادها: ${backtest.symbols.joinToString("، ")} • نقاط ارزیابی: ${backtest.samples} • توافق: ${backtest.agreements} • اختلاف: ${backtest.disagreements}", color = Muted, fontSize = 9.sp)
-                        Text("مقایسه مستقل دو موتور و روش توافقی", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("مقایسه جداگانه دو موتور و روش توافقی", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         val winner = when {
                             backtest.technical.trades == 0 && backtest.neural.trades == 0 -> "داده کافی برای تعیین برنده نیست"
                             backtest.technical.netReturnPct > backtest.neural.netReturnPct -> "در این نمونه: سیستم تکنیکال بازده بیشتری داشت"
@@ -953,7 +953,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("پیش‌بینی مستقل شبکه عصبی • آزمایشی", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("رأی جداگانه شبکه عصبی • آزمایشی", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Text("مدل: " + item.neuralModelSource + " • خروجی خام: " + item.neuralScore + "/100", color = Muted, fontSize = 9.sp)
                         Text("رأی تحلیل تکنیکال: " + (if (item.technicalDirection == "LONG_BIAS") "LONG" else if (item.technicalDirection == "SHORT_BIAS") "SHORT" else "خنثی") + " • وضعیت تطبیق: " + item.agreementStatus, color = if (item.agreementStatus.startsWith("توافق کامل")) Green else Gold, fontSize = 9.sp, lineHeight = 13.sp)
                     }
