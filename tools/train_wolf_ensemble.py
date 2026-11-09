@@ -87,16 +87,18 @@ def app_relative_volume(volume,period=20):
     return result
 
 def app_adx_series(high,low,close,period=14):
+    result=np.zeros(len(close),dtype=float)
     if len(close)<period*2+1:
-        return np.zeros(len(close),dtype=float)
+        return result
     true_ranges=[]; plus_moves=[]; minus_moves=[]
     for i in range(1,len(close)):
         up=high[i]-high[i-1]; down=low[i-1]-low[i]
         plus_moves.append(up if up>down and up>0 else 0.0)
         minus_moves.append(down if down>up and down>0 else 0.0)
         true_ranges.append(max(high[i]-low[i],abs(high[i]-close[i-1]),abs(low[i]-close[i-1])))
-    dx=[]
     smooth_tr=sum(true_ranges[:period]); smooth_plus=sum(plus_moves[:period]); smooth_minus=sum(minus_moves[:period])
+    dx=[]
+    adx=None
     for i in range(period,len(true_ranges)):
         if i>period:
             smooth_tr=smooth_tr-smooth_tr/period+true_ranges[i]
@@ -104,17 +106,17 @@ def app_adx_series(high,low,close,period=14):
             smooth_minus=smooth_minus-smooth_minus/period+minus_moves[i]
         safe=max(smooth_tr,1e-12)
         plus_di=100.0*smooth_plus/safe; minus_di=100.0*smooth_minus/safe
-        dx.append(abs(plus_di-minus_di)/max(plus_di+minus_di,1e-12)*100.0)
-    if not dx:
-        return np.zeros(len(close),dtype=float)
-    result=np.full(len(close),float(dx[-1]),dtype=float)
-    if len(dx)>=period:
-        adx=float(np.mean(dx[:period]))
-        for j in range(period,len(dx)):
-            adx=(adx*(period-1)+dx[j])/period
-        result[:]=adx
-    else:
-        result[:]=float(np.mean(dx))
+        dx_value=abs(plus_di-minus_di)/max(plus_di+minus_di,1e-12)*100.0
+        dx.append(dx_value)
+        if len(dx)<period:
+            adx=dx_value
+        elif len(dx)==period:
+            adx=float(np.mean(dx[:period]))
+        else:
+            adx=(adx*(period-1)+dx_value)/period
+        # Kotlin's trueRanges[0] corresponds to candle index 1; loop index i
+        # therefore writes the current estimate to candle index i+1.
+        result[i+1]=adx
     return np.clip(result,0.0,100.0)
 
 def make_rows(raw):
