@@ -55,8 +55,24 @@ def run_backtest(
     data = frame.copy().reset_index(drop=True)
     for col in required:
         data[col] = pd.to_numeric(data[col], errors="coerce")
-    if data[list(required)].isna().any().any() or len(data) <= warmup + 2:
-        raise ValueError("Insufficient or invalid OHLCV history")
+    values = data[["open", "high", "low", "close", "volume"]].to_numpy(dtype=float)
+    if len(data) <= warmup + 2 or not np.isfinite(values).all():
+        raise ValueError("Insufficient or non-finite OHLCV history")
+
+    prices = data[["open", "high", "low", "close"]]
+    if (prices <= 0).any().any() or (data["volume"] < 0).any():
+        raise ValueError("OHLC prices must be positive and volume cannot be negative")
+    invalid_bounds = (
+        (data["high"] < data[["open", "close"]].max(axis=1))
+        | (data["low"] > data[["open", "close"]].min(axis=1))
+        | (data["high"] < data["low"])
+    )
+    if invalid_bounds.any():
+        raise ValueError("OHLC candle high/low bounds are inconsistent")
+    if "timestamp" in data.columns:
+        timestamps = pd.to_datetime(data["timestamp"], utc=True, errors="coerce")
+        if timestamps.isna().any() or timestamps.duplicated().any() or not timestamps.is_monotonic_increasing:
+            raise ValueError("Candle timestamps must be valid, unique and strictly increasing")
     if initial_equity <= 0 or not 0 < risk_per_trade <= 0.02:
         raise ValueError("Invalid equity or risk fraction")
     if not 1 <= max_leverage <= 5 or fee_rate < 0 or slippage_rate < 0 or funding_rate_8h < 0:
