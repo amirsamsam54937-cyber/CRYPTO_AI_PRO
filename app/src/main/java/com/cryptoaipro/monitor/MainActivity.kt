@@ -1270,7 +1270,7 @@ internal object BinanceMonitor {
     // Use the documented canonical USDⓈ-M API endpoint only.
     // Alternate hostnames must not be used to evade an explicit regional-eligibility response.
     private const val BASE_URL = "https://fapi.binance.com"
-    private val requestGate = Semaphore(permits = 8)
+    private val requestGate = Semaphore(permits = 4)
 
     private fun get(path: String): String {
         var lastError = "اتصال به API عمومی Binance برقرار نشد"
@@ -1281,7 +1281,7 @@ internal object BinanceMonitor {
                     requestMethod = "GET"
                     connectTimeout = 7000
                     readTimeout = 9000
-                    setRequestProperty("User-Agent", "HopeHunter/2.34")
+                    setRequestProperty("User-Agent", "HopeHunter/2.39.0")
                     setRequestProperty("Accept", "application/json")
                 }
                 val code = connection.responseCode
@@ -1333,6 +1333,8 @@ internal object BinanceMonitor {
     }
 
     suspend fun scan(onProgress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { _, _, _, _ -> }): List<MarketSignal> = withContext(Dispatchers.IO) {
+        // Official lightweight preflight: fail early if Futures API access is unavailable.
+        get("/fapi/v1/ping")
         val exchangeInfo = JSONObject(get("/fapi/v1/exchangeInfo"))
         val allowed = mutableSetOf<String>()
         val symbols = exchangeInfo.getJSONArray("symbols")
@@ -1348,7 +1350,7 @@ internal object BinanceMonitor {
         val results = mutableListOf<MarketSignal>()
         var completed = 0
         var failed = 0
-        for (batch in ranked.chunked(12)) {
+        for (batch in ranked.chunked(6)) {
             val batchResults = coroutineScope {
                 batch.map { ticker -> async {
                     runCatching { analyze(ticker.optString("symbol"), ticker.optDouble("lastPrice"), ticker.optDouble("priceChangePercent"), ticker.optDouble("quoteVolume")) }
