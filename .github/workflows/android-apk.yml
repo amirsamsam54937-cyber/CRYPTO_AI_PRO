@@ -1,4 +1,4 @@
-name: Build AMIRARSALAN TRADER WOLF APK
+name: Build HOPE HUNTER APK
 permissions:
   contents: read
   actions: read
@@ -63,13 +63,19 @@ jobs:
           d=json.loads(p.read_text())
           e=d["evaluation"]
           assert len(d["members"]) == 10, "Expected ten trained models"
-          assert e["split"] == "chronological_purged"
-          assert d["test_samples"] >= 300
-          assert e["ensemble_balanced_accuracy"] > 0.51
-          assert e["ensemble_log_loss"] < e["prevalence_baseline_log_loss"]
+          assert e["split"] == "chronological_purged", "Missing chronological purged holdout"
+          assert d["test_samples"] >= 300, "Insufficient holdout samples"
+          assert d["samples"] >= 10000, "Insufficient real labeled samples"
+          validated = (
+              e["ensemble_balanced_accuracy"] >= 0.52
+              and e["ensemble_log_loss"] < e["prevalence_baseline_log_loss"]
+              and e["ensemble_accuracy"] >= e["majority_class_baseline_accuracy"]
+          )
           report={k:v for k,v in d.items() if k != "members"}
+          report["validation_status"] = "validated_for_scoring" if validated else "trained_but_not_validated"
+          report["validated_for_scoring"] = bool(validated)
           pathlib.Path("wolf_model_training_report.json").write_text(json.dumps(report,indent=2))
-          print(json.dumps({"trained_models":len(d["members"]),"samples":d["samples"],"evaluation":e},indent=2))
+          print(json.dumps({"trained_models":len(d["members"]),"samples":d["samples"],"validation_status":report["validation_status"],"evaluation":e},indent=2))
           PY
       - name: Build installable APK (no extra test stage)
         run: gradle --no-daemon :app:assembleDebug
