@@ -74,7 +74,9 @@ jobs:
           report={k:v for k,v in d.items() if k != "members"}
           report["validation_status"] = "validated_for_scoring" if validated else "trained_but_not_validated"
           report["validated_for_scoring"] = bool(validated)
-          pathlib.Path("wolf_model_training_report.json").write_text(json.dumps(report,indent=2))
+          report_text = json.dumps(report,indent=2)
+          pathlib.Path("wolf_model_training_report.json").write_text(report_text)
+          pathlib.Path("app/src/main/assets/wolf_model_training_report.json").write_text(report_text)
           print(json.dumps({"trained_models":len(d["members"]),"samples":d["samples"],"validation_status":report["validation_status"],"evaluation":e},indent=2))
           PY
       - name: Build installable APK (no extra test stage)
