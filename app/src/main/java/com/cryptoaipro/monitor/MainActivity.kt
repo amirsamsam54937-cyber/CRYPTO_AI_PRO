@@ -93,7 +93,11 @@ data class MarketSignal(
     val neuralScore: Int = 50,
     val timeframeCoverage: String = "15m / 1h / 4h",
     val neuralDirection: String = "NEUTRAL",
-    val neuralModelSource: String = "در انتظار مدل"
+    val neuralModelSource: String = "در انتظار مدل",
+    val technicalDirection: String = "NEUTRAL",
+    val tradeTimeframe: String = "در انتظار انتخاب",
+    val signalTier: String = "بدون رتبه",
+    val agreementStatus: String = "در انتظار تطبیق"
 )
 
 data class TechnicalSnapshot(
@@ -151,6 +155,34 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
     }.map { signal ->
         // Independent scenario analysis followed by a skeptical adversarial review.
         WolfSignalQualityEngine.apply(WolfForecastEngine.apply(WolfRegimeRiskEngine.apply(WolfTimeSeriesEngine.apply(WolfMathematicsEngine.apply(WolfAdversarialReviewEngine.apply(WolfQuantumScenarioEngine.apply(signal)))))))
+    }.map { reviewed ->
+        // A directional signal is promoted only when the technical engine and neural model agree.
+        val tech = reviewed.technicalDirection
+        val neural = reviewed.neuralDirection
+        val bothDirectional = (tech == "LONG_BIAS" || tech == "SHORT_BIAS") &&
+            (neural == "LONG_BIAS" || neural == "SHORT_BIAS")
+        val agree = bothDirectional && tech == neural && reviewed.neuralScore >= 55
+        val tier = when {
+            !agree || reviewed.direction == "NEUTRAL" -> "بدون رتبه"
+            reviewed.confidence >= 82 && reviewed.neuralScore >= 70 -> "نوع ۱ • ممتاز"
+            reviewed.confidence >= 72 && reviewed.neuralScore >= 62 -> "نوع ۲ • تأییدشده"
+            reviewed.confidence >= 62 && reviewed.neuralScore >= 55 -> "نوع ۳ • محتاطانه"
+            else -> "بدون رتبه"
+        }
+        val promoted = agree && tier != "بدون رتبه" && reviewed.direction == tech
+        reviewed.copy(
+            direction = if (promoted) tech else "NEUTRAL",
+            score = if (promoted) reviewed.score else 0,
+            confidence = if (promoted) reviewed.confidence else minOf(reviewed.confidence, 49),
+            signalTier = if (promoted) tier else "بدون رتبه",
+            agreementStatus = when {
+                !bothDirectional -> "داده کافی برای رأی دوگانه نیست"
+                tech != neural -> "اختلاف تحلیل تکنیکال و شبکه عصبی • سیگنال رد شد"
+                reviewed.neuralScore < 55 -> "جهت یکسان، قدرت عصبی ناکافی"
+                !promoted -> "توافق وجود دارد اما کیفیت به حد انتشار نرسید"
+                else -> "توافق کامل دو موتور • مجاز به نمایش سیگنال"
+            }
+        )
     }.sortedWith(compareByDescending<MarketSignal> {
         if (it.direction == "NEUTRAL") it.score.toDouble() else it.confidence.toDouble()
     }.thenByDescending { it.volume })
@@ -771,7 +803,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text("تحلیل چندتایم‌فریمی: " + item.timeframeCoverage + "  |  تایم‌فریم مبنای معامله: 15m", color = Blue, fontSize = 10.sp)
+            Text("تحلیل چندتایم‌فریمی: " + item.timeframeCoverage + "  |  تایم‌فریم پیشنهادی معامله: " + item.tradeTimeframe + "  |  " + item.signalTier, color = Blue, fontSize = 10.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 SmallStat("قیمت", formatPrice(item.price))
                 SmallStat("تغییر ۲۴ساعت", String.format(Locale.US, "%.2f%%", item.change), if (item.change >= 0) Green else Red)
@@ -797,6 +829,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                     Column(Modifier.weight(1f)) {
                         Text("پیش‌بینی مستقل شبکه عصبی • آزمایشی", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Text("مدل: " + item.neuralModelSource + " • خروجی خام: " + item.neuralScore + "/100", color = Muted, fontSize = 9.sp)
+                        Text("رأی تحلیل تکنیکال: " + (if (item.technicalDirection == "LONG_BIAS") "LONG" else if (item.technicalDirection == "SHORT_BIAS") "SHORT" else "خنثی") + " • وضعیت تطبیق: " + item.agreementStatus, color = if (item.agreementStatus.startsWith("توافق کامل")) Green else Gold, fontSize = 9.sp, lineHeight = 13.sp)
                     }
                     Text(
                         when (item.neuralDirection) {
@@ -1287,7 +1320,16 @@ internal object BinanceMonitor {
                 (microStats?.let { " | ۵د: " + it.second } ?: "") +
                 (macroStats?.let { " | ۱روز: " + it.second } ?: "") + filterNote,
             price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical, short.takeLast(80), wolf,
-            timeframeCoverage = if (microStats != null && macroStats != null) "5m / 15m / 1h / 4h / 1D" else "15m / 1h / 4h"
+            timeframeCoverage = if (microStats != null && macroStats != null) "5m / 15m / 1h / 4h / 1D" else "15m / 1h / 4h",
+            technicalDirection = direction,
+            tradeTimeframe = when {
+                direction == "NEUTRAL" -> "بدون معامله"
+                wolf.direction == "LONG_BIAS" && c.first >= b.first && c.first >= a.first -> "4h"
+                wolf.direction == "SHORT_BIAS" && c.first <= b.first && c.first <= a.first -> "4h"
+                wolf.direction == "LONG_BIAS" && b.first >= a.first -> "1h"
+                wolf.direction == "SHORT_BIAS" && b.first <= a.first -> "1h"
+                else -> "15m"
+            }
         )
     }
 
