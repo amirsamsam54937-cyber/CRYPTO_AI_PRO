@@ -91,7 +91,9 @@ data class MarketSignal(
     val candles: List<DoubleArray> = emptyList(),
     val consensus: WolfConsensus? = null,
     val neuralScore: Int = 50,
-    val timeframeCoverage: String = "15m / 1h / 4h"
+    val timeframeCoverage: String = "15m / 1h / 4h",
+    val neuralDirection: String = "NEUTRAL",
+    val neuralModelSource: String = "در انتظار مدل"
 )
 
 data class TechnicalSnapshot(
@@ -115,20 +117,36 @@ data class TechnicalSnapshot(
 
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
     val prefs = context.getSharedPreferences("wolf_learning_memory", Context.MODE_PRIVATE)
-    // Load the bundled, historically trained ten-network ensemble once; online DNN remains a secondary learner.
+    // The network's independent directional forecast is exposed for user testing.
+    // It remains isolated from the primary technical ranking until chronological validation is adequate.
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
     return signals.map { signal ->
-        if (signal.direction == "NEUTRAL") signal.copy(neuralScore = 50)
+        val candidate = when {
+            signal.direction != "NEUTRAL" -> signal
+            signal.score > 0 -> signal.copy(direction = "LONG_BIAS")
+            signal.score < 0 -> signal.copy(direction = "SHORT_BIAS")
+            else -> null
+        }
+        if (candidate == null) signal.copy(neuralScore = 50, neuralDirection = "NEUTRAL",
+            neuralModelSource = if (pretrainedStatus.loaded) "۱۰مدلی" else "مدل داخلی")
         else {
-            val pretrained = WolfPretrainedEnsemble.predict(signal)
-            val online = WolfDeepNeuralNetwork.predict(prefs, signal)
-            val neuralProbability = pretrained ?: online
-            val neural = (neuralProbability * 100.0).toInt().coerceIn(1, 99)
-            // Experimental scores remain visible, but only a model that beats a temporal baseline may affect confidence.
+            val pretrained = WolfPretrainedEnsemble.predict(candidate)
+            val online = WolfDeepNeuralNetwork.predict(prefs, candidate)
+            val probability = pretrained ?: online
+            // The training target estimates whether the candidate side is correct.
+            // Below 50%, the independent forecast flips to the opposite side.
+            val predictedSide = if (probability >= 0.50) candidate.direction
+                else if (candidate.direction == "LONG_BIAS") "SHORT_BIAS" else "LONG_BIAS"
+            val rawOutput = (probability * 100.0).toInt().coerceIn(1, 99)
             val adjustedConfidence = if (pretrained != null && pretrainedStatus.validatedForScoring)
-                (signal.confidence * 0.90 + neural * 0.10).toInt().coerceIn(0, 100)
+                (signal.confidence * 0.90 + rawOutput * 0.10).toInt().coerceIn(0, 100)
             else signal.confidence
-            signal.copy(neuralScore = neural, confidence = adjustedConfidence)
+            signal.copy(
+                neuralScore = rawOutput,
+                neuralDirection = predictedSide,
+                neuralModelSource = if (pretrained != null) "۱۰مدلی آموزش‌دیده" else "مدل داخلی آنلاین",
+                confidence = adjustedConfidence
+            )
         }
     }.map { signal ->
         // Independent scenario analysis followed by a skeptical adversarial review.
@@ -137,7 +155,6 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         if (it.direction == "NEUTRAL") it.score.toDouble() else it.confidence.toDouble()
     }.thenByDescending { it.volume })
 }
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -615,7 +632,7 @@ private fun SignalStrengthScreen(
                         color = Muted, fontSize = 9.sp, lineHeight = 14.sp
                     )
                     Text(
-                        "شبکه عصبی: ${if (model.loaded) model.members.toString() + " مدل بارگذاری‌شده" else "مدل بارگذاری نشده"} • داده آموزش گزارش‌شده: ${model.samples} • ارزیابی مستقل: ${if (model.validatedForScoring) "مجاز برای امتیازدهی" else "فعلاً فقط آزمایشی"}",
+                        "شبکه عصبی: ${if (model.loaded) model.members.toString() + " مدل بارگذاری‌شده" else "مدل بارگذاری نشده"} • داده آموزش گزارش‌شده: ${model.samples} • پیش‌بینی مستقل در کارت‌ها فعال است؛ اثر بر رتبه‌بندی اصلی: ${if (model.validatedForScoring) "مجاز" else "غیرفعال تا اعتبارسنجی"}",
                         color = if (model.validatedForScoring) Green else Gold, fontSize = 9.sp, lineHeight = 14.sp
                     )
                     researchStats.error?.let { Text("وضعیت پایگاه داده: $it", color = Red, fontSize = 9.sp) }
@@ -624,7 +641,7 @@ private fun SignalStrengthScreen(
         }
         if (visible.isEmpty()) item { Text(if (loading) "در حال دریافت داده‌های بازار..." else "در این فیلتر هنوز سیگنالی وجود ندارد. اسکن بازار را اجرا کن.", color = Muted, fontSize = 11.sp) }
         else items(visible, key = { it.symbol }) { signal -> SignalCard(signal, onSelect = { onSelect(signal.symbol) }) }
-        item { Text("ابزارها: فیلتر LONG/SHORT، رتبه‌بندی قدرت، شاخص‌های تکنیکال پیشرفته داخل هر کارت، اهداف سه‌مرحله‌ای، حد ضرر، اهرم پیشنهادی و ثبت خودکار سوابق در دفترچه.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp) }
+        item { Text("ابزارها: فیلتر LONG/SHORT، پیش‌بینی مستقل شبکه عصبی آزمایشی، شاخص‌های تکنیکال، هدف TP1، حد ضرر، اهرم پیشنهادی و ثبت خودکار سوابق.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp) }
     }
 }
 
@@ -761,6 +778,35 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 SmallStat("RSI", String.format(Locale.US, "%.1f", item.rsi))
                 SmallStat("امتیاز خام", item.score.toString())
                 SmallStat("امتیاز عصبی", item.neuralScore.toString() + "/100")
+            }
+            val neuralTint = when (item.neuralDirection) {
+                "LONG_BIAS" -> Green
+                "SHORT_BIAS" -> Red
+                else -> Muted
+            }
+            Surface(
+                color = Color(0xFF17130A),
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.25f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("پیش‌بینی مستقل شبکه عصبی • آزمایشی", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("مدل: " + item.neuralModelSource + " • خروجی خام: " + item.neuralScore + "/100", color = Muted, fontSize = 9.sp)
+                    }
+                    Text(
+                        when (item.neuralDirection) {
+                            "LONG_BIAS" -> "LONG"
+                            "SHORT_BIAS" -> "SHORT"
+                            else -> "بدون جهت"
+                        },
+                        color = neuralTint, fontSize = 16.sp, fontWeight = FontWeight.Black
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
