@@ -31,7 +31,7 @@ internal data class WhaleFlowReport(
     val largeBuys: Int, val largeSells: Int, val imbalance: Double,
     val openInterest: Double, val funding: Double, val summary: String
 )
-internal data class MarketNewsItem(val title: String, val source: String, val link: String, val date: String)
+internal data class MarketNewsItem(val title: String, val source: String, val link: String, val date: String, val description: String = "")
 
 internal object WolfFlowNewsRepository {
     private fun get(url: String): String {
@@ -84,25 +84,43 @@ internal object WolfFlowNewsRepository {
     }
 
 
+    private fun headlineSentiment(text: String): Int {
+        val value = " " + text.lowercase(Locale.US).replace(Regex("[^a-z0-9 ]"), " ") + " "
+        val positive = listOf(" approval ", " approved ", " adoption ", " inflow ", " partnership ", " upgrade ", " launch ", " integration ", " bullish ", " breakout ", " etf ", " listing ", " mainnet ", " funding secured ")
+        val negative = listOf(" hack ", " exploit ", " bankruptcy ", " lawsuit ", " crash ", " outage ", " ban ", " insolvency ", " attack ", " liquidation ", " delist ", " breach ", " exploit ", " bearish ", " fraud ", " investigation ", " arrest ", " rejection ")
+        return (positive.count { value.contains(it) } - negative.count { value.contains(it) }).coerceIn(-2, 2)
+    }
+
     fun enrichSignals(context: android.content.Context, signals: List<MarketSignal>): List<MarketSignal> {
         val prefs = context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         val flows = runCatching { JSONArray(prefs.getString("flow_reports", "[]")) }.getOrDefault(JSONArray())
         val headlines = runCatching { JSONArray(prefs.getString("market_news", "[]")) }.getOrDefault(JSONArray())
         val newsFresh = now - prefs.getLong("market_news_updated_at", 0L) <= 2L * 60L * 60L * 1000L
-        val recentTitles = if (newsFresh) (0 until minOf(12, headlines.length())).mapNotNull {
-            headlines.optJSONObject(it)?.optString("title")?.takeIf(String::isNotBlank)
-        } else emptyList()
-        val newsContext = recentTitles.take(3).joinToString(" | ")
-        val negativeTerms = listOf("hack", "exploit", "bankruptcy", "lawsuit", "crash", "outage", "ban", "insolvency", "attack", "liquidation")
-        val positiveTerms = listOf("approval", "adoption", "inflow", "partnership", "upgrade", "launch", "integration", " etf ")
-        val newsBias = recentTitles.sumOf { title ->
-            val text = " " + title.lowercase(Locale.US) + " "
-            (if (negativeTerms.any { text.contains(it) }) -1 else 0) +
-                (if (positiveTerms.any { text.contains(it) }) 1 else 0)
-        }.coerceIn(-3, 3)
+        val articles = if (newsFresh) (0 until headlines.length()).mapNotNull { headlines.optJSONObject(it) } else emptyList()
+        val globalTerms = listOf("crypto market", "digital assets", "market-wide", "federal reserve", "interest rate", "sec ")
         return signals.map { signal ->
             val normalized = signal.symbol.replace("/", "").replace(":USDT", "").replace("_", "").uppercase(Locale.US)
+            val base = normalized.removeSuffix("USDT").removeSuffix("USD")
+            val aliases = when (base) {
+                "BTC" -> listOf("bitcoin", "btc")
+                "ETH" -> listOf("ethereum", "ether", "eth")
+                "BNB" -> listOf("binance coin", "bnb")
+                "SOL" -> listOf("solana", "sol")
+                "XRP" -> listOf("ripple", "xrp")
+                "DOGE" -> listOf("dogecoin", "doge")
+                else -> listOf(base.lowercase(Locale.US))
+            }
+            val related = articles.filter { article ->
+                val text = (article.optString("title") + " " + article.optString("description")).lowercase(Locale.US)
+                aliases.any { alias -> Regex("(^|[^a-z0-9])" + Regex.escape(alias) + "([^a-z0-9]|$)").containsMatchIn(text) }
+            }.take(12)
+            val assetNewsBias = related.sumOf { headlineSentiment(it.optString("title") + " " + it.optString("description")) }.coerceIn(-3, 3)
+            val broadNews = articles.filter { article ->
+                val text = (article.optString("title") + " " + article.optString("description")).lowercase(Locale.US)
+                globalTerms.any { text.contains(it) }
+            }.take(5)
+            val broadBias = broadNews.sumOf { headlineSentiment(it.optString("title") + " " + it.optString("description")) }.coerceIn(-1, 1)
             val flow = (0 until flows.length()).mapNotNull { flows.optJSONObject(it) }.firstOrNull {
                 it.optString("symbol").uppercase(Locale.US) == normalized &&
                     now - it.optLong("updatedAt", 0L) in 0..(20L * 60L * 1000L) &&
@@ -115,15 +133,18 @@ internal object WolfFlowNewsRepository {
             } else 0
             val funding = flow?.optDouble("funding", 0.0) ?: 0.0
             val crowdedSidePenalty = if ((isLong && funding > 0.001) || (!isLong && funding < -0.001)) -2 else 0
-            val newsAdjustment = if (signal.direction == "NEUTRAL") 0 else
-                (newsBias * if (isLong) 1 else -1).coerceIn(-2, 2)
+            val newsDirectional = (assetNewsBias + broadBias) * if (isLong) 1 else -1
+            // Headlines are a low-weight risk/context modifier, never a standalone trade trigger.
+            val newsAdjustment = if (signal.direction == "NEUTRAL") 0 else newsDirectional.coerceIn(-2, 2)
             val flowNote = flow?.let {
                 "جریان معاملات تهاجمی تازه: " + it.optString("summary") +
                     "؛ عدم‌تعادل " + String.format(Locale.US, "%.1f%%", it.optDouble("imbalance") * 100)
             } ?: "جریان معاملات درشت برای این نماد تازه/قابل‌دسترسی نیست"
             val newsNote = when {
-                newsContext.isBlank() -> "زمینه خبری تازه در دسترس نیست"
-                else -> "زمینه خبری عمومی: " + newsContext
+                related.isNotEmpty() -> "خبرهای مرتبط با " + base + ": " + related.take(2).joinToString(" | ") { it.optString("title").take(110) } +
+                    "؛ امتیاز احساس خبر " + assetNewsBias
+                broadNews.isNotEmpty() -> "زمینه خبر کل بازار دریافت شد؛ امتیاز محدود " + broadBias
+                else -> "خبر معتبر و مرتبط تازه برای این دارایی در دسترس نیست"
             }
             val researchNote = prefs.getString("auto_research", "").orEmpty().take(500)
             val adjustment = (flowAdjustment + crowdedSidePenalty + newsAdjustment).coerceIn(-6, 4)
@@ -168,6 +189,23 @@ internal object WolfFlowNewsRepository {
     }
 
     suspend fun news(): List<MarketNewsItem> = withContext(Dispatchers.IO) {
+        // Prefer the multi-source public aggregator; retain independent RSS fallbacks.
+        val aggregated = runCatching {
+            val root = org.json.JSONObject(get("https://cryptocurrency.cv/api/news?limit=40"))
+            val items = root.optJSONArray("articles") ?: root.optJSONArray("data") ?: root.optJSONArray("news") ?: JSONArray()
+            (0 until items.length()).mapNotNull { i ->
+                val item = items.optJSONObject(i) ?: return@mapNotNull null
+                val title = item.optString("title").ifBlank { item.optString("headline") }.trim()
+                if (title.isBlank()) return@mapNotNull null
+                val link = item.optString("link").ifBlank { item.optString("url") }
+                val source = item.optString("source").ifBlank { item.optString("publisher") }.ifBlank { "Crypto News Feed" }
+                val date = item.optString("pubDate").ifBlank { item.optString("publishedAt") }.ifBlank { item.optString("date") }
+                val description = item.optString("description").ifBlank { item.optString("summary") }
+                MarketNewsItem(title, source, link, date, description)
+            }.distinctBy { it.title.lowercase(Locale.US) }.take(30)
+        }.getOrDefault(emptyList())
+        if (aggregated.isNotEmpty()) return@withContext aggregated
+
         val feeds = listOf(
             "https://www.coindesk.com/arc/outboundfeeds/rss/",
             "https://cointelegraph.com/rss"
@@ -182,7 +220,7 @@ internal object WolfFlowNewsRepository {
                     requestMethod = "GET"
                     connectTimeout = 7000
                     readTimeout = 9000
-                    setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.14 Android")
+                    setRequestProperty("User-Agent", "HopeHunter/2.40.0 Android")
                     setRequestProperty("Accept", "application/rss+xml, application/xml")
                 }
                 try {
@@ -196,7 +234,10 @@ internal object WolfFlowNewsRepository {
                                 ?.let { children.item(it).textContent?.trim().orEmpty() }.orEmpty()
                         }
                         val title = tag("title")
-                        if (title.isBlank()) null else MarketNewsItem(title, if (feed.contains("coindesk")) "CoinDesk" else "Cointelegraph", tag("link"), tag("pubDate"))
+                        if (title.isBlank()) null else MarketNewsItem(
+                            title, if (feed.contains("coindesk")) "CoinDesk" else "Cointelegraph",
+                            tag("link"), tag("pubDate"), tag("description")
+                        )
                     }
                 } finally { connection.disconnect() }
             }.getOrDefault(emptyList())
