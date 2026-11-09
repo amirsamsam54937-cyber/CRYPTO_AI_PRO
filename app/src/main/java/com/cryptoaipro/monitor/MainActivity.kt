@@ -1289,25 +1289,36 @@ internal object BinanceMonitor {
                 val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 if (code in 200..299) return body
 
-                val detail = body.take(180)
+                // Never leak an HTML WAF/error page into the signal UI.
+                val compactBody = body
+                    .replace(Regex("(?is)<script[^>]*>.*?</script>"), " ")
+                    .replace(Regex("(?is)<style[^>]*>.*?</style>"), " ")
+                    .replace(Regex("<[^>]+>"), " ")
+                    .replace(Regex("\\s+"), " ")
+                    .trim()
+                val detail = compactBody.take(140).ifBlank { "پاسخ سرور فاقد پیام قابل‌خواندن بود" }
                 when {
                     code == 451 -> throw IllegalStateException(
-                        "Binance HTTP 451: دسترسی این سرویس از شبکه یا موقعیت فعلی مجاز نیست. " +
-                        "این خطا با تکرار درخواست یا تعویض آدرس حل نمی‌شود. اسکن Binance متوقف شد؛ " +
-                        "برای داده زنده باید از منبعی استفاده شود که ارائه‌دهنده‌اش دسترسی آن را برای محل اتصال شما مجاز کرده باشد. " +
-                        detail
+                        "دسترسی Binance برای شبکه یا موقعیت فعلی مجاز نیست (HTTP 451). " +
+                        "اسکن متوقف شد؛ از مسیر رسمی و منبع داده مجاز استفاده کنید."
                     )
                     code == 418 -> throw IllegalStateException(
-                        "Binance HTTP 418: آی‌پی موقتاً مسدود شده است؛ درخواست‌های خودکار متوقف شدند. $detail"
+                        "Binance آی‌پی را موقتاً محدود کرده است (HTTP 418). درخواست‌ها متوقف شدند؛ کمی بعد دوباره بررسی کنید."
                     )
                     code == 403 -> throw IllegalStateException(
-                        "Binance HTTP 403: درخواست توسط سیاست دسترسی یا WAF رد شد. $detail"
+                        "Binance درخواست را با سیاست دسترسی یا WAF رد کرد (HTTP 403). " +
+                        "این پاسخ معمولاً با تکرار درخواست حل نمی‌شود و ممکن است به IP، شبکه یا محدودیت منطقه‌ای مربوط باشد. " +
+                        "برنامه از نمایش صفحه HTML خطا جلوگیری کرد. $detail"
                     )
-                    code == 429 || code in 500..599 -> {
-                        lastError = "Binance HTTP $code: $detail"
-                        if (attempt < 2) Thread.sleep(700L * (attempt + 1))
+                    code == 429 -> {
+                        lastError = "محدودیت تعداد درخواست Binance (HTTP 429)"
+                        if (attempt < 2) Thread.sleep(1200L * (attempt + 1))
                     }
-                    else -> throw IllegalStateException("Binance HTTP $code: $detail")
+                    code in 500..599 -> {
+                        lastError = "اختلال موقت سرور Binance (HTTP $code)"
+                        if (attempt < 2) Thread.sleep(900L * (attempt + 1))
+                    }
+                    else -> throw IllegalStateException("پاسخ ناموفق Binance (HTTP $code): $detail")
                 }
             } catch (e: IllegalStateException) {
                 throw e
