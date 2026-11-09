@@ -748,6 +748,48 @@ private fun SignalJournalScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
+            Surface(
+                color = Color(0xFF15120B), shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.45f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text("آزمایشگاه بک‌تست تاریخی", color = Gold, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("تایم‌فریم را خود موتور تحلیل از میان ۵دقیقه، ۱۵دقیقه، ۱ساعت و ۴ساعت انتخاب می‌کند. هر اجرا نقطه شروع تازه و تصادفی از تاریخ گذشته می‌گیرد؛ داده یا نتیجه ثابت نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(if (backtestEnabled) "بک‌تست فعال" else "بک‌تست خاموش", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("فقط با لمس دکمه اجرا می‌شود؛ خاموش‌کردن، اجرا را متوقف می‌کند.", color = Muted, fontSize = 9.sp)
+                        }
+                        Switch(checked = backtestEnabled, onCheckedChange = onToggleBacktest)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onRunBacktest, enabled = backtestEnabled && !backtestLoading,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Color.Black)
+                        ) { Text(if (backtestLoading) "در حال آزمایش..." else "اجرای بک‌تست") }
+                        OutlinedButton(onClick = onStopBacktest, enabled = backtestLoading) {
+                            Text("توقف", color = Red)
+                        }
+                    }
+                    Text(backtestStatus, color = if (backtestLoading) Gold else Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    if (backtest.completedAt > 0L) {
+                        Divider(color = Gold.copy(alpha = 0.22f))
+                        Text("آخرین نتیجه • ${WolfHistoricalBacktestEngine.formatTime(backtest.completedAt)} • مدت: ${backtest.durationMs / 1000} ثانیه", color = Color.White, fontSize = 10.sp)
+                        Text("نمادها: ${backtest.symbols.joinToString("، ")} • نقاط ارزیابی: ${backtest.samples} • توافق: ${backtest.agreements} • اختلاف: ${backtest.disagreements}", color = Muted, fontSize = 9.sp)
+                        Text("مقایسه مستقل دو موتور و روش توافقی", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        BacktestStrategyRow("سیستم تحلیل تکنیکال", backtest.technical)
+                        BacktestStrategyRow("شبکه عصبی", backtest.neural)
+                        BacktestStrategyRow("فقط سیگنال‌های مورد توافق", backtest.agreement)
+                        Text("بازه کندل‌های دریافت‌شده: ${if (backtest.sampleWindowStart > 0L) WolfHistoricalBacktestEngine.formatTime(backtest.sampleWindowStart) else "—"} تا ${if (backtest.sampleWindowEnd > 0L) WolfHistoricalBacktestEngine.formatTime(backtest.sampleWindowEnd) else "—"}", color = Muted, fontSize = 9.sp)
+                        if (backtest.errors.isNotEmpty()) Text("خطاهای دریافت: ${backtest.errors.joinToString(" | ")}", color = Red, fontSize = 9.sp)
+                    }
+                    Text("هدف زمان اجرا حدود ۲ دقیقه است و به اینترنت و پاسخ Binance بستگی دارد. کارمزد و لغزش با فرض تقریبی ۰٫۱۰٪ رفت‌وبرگشت روی ارزش اسمی لحاظ شده است. نتایج شبیه‌سازی‌اند، نه تضمین سود آینده.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                }
+            }
+        }
+        item {
             Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Text("دفترچه سوابق سیگنال‌ها", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
@@ -822,6 +864,26 @@ private fun SignalJournalScreen(
             }
         }
         item { Text("سود/ضرر بر اساس قیمت عمومی و اهرم پیشنهادی به‌صورت تخمینی محاسبه می‌شود؛ کارمزد، فاندینگ، لغزش قیمت و اجرای سفارش واقعی لحاظ نشده‌اند. مدل کوچک داخلی پس از بسته‌شدن سیگنال‌ها به‌طور خودکار از نتایج برچسب‌دار یاد می‌گیرد.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp) }
+    }
+}
+
+@Composable
+private fun BacktestStrategyRow(title: String, stats: WolfHistoricalBacktestEngine.StrategyStats) {
+    Surface(color = Color(0xFF0D0D0D), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("معامله: ${stats.trades}", color = Muted, fontSize = 9.sp)
+                Text("برد: ${stats.wins}", color = Green, fontSize = 9.sp)
+                Text("باخت: ${stats.losses}", color = Red, fontSize = 9.sp)
+                Text("نرخ برد: ${String.format(Locale.US, "%.1f", stats.winRate)}٪", color = Color.White, fontSize = 9.sp)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("بازده خالص: ${String.format(Locale.US, "%+.2f", stats.netReturnPct)}٪", color = if (stats.netReturnPct >= 0) Green else Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("PF: ${String.format(Locale.US, "%.2f", stats.profitFactor)}", color = Muted, fontSize = 9.sp)
+                Text("افت سرمایه: ${String.format(Locale.US, "%.1f", stats.maxDrawdownPct)}٪", color = Red, fontSize = 9.sp)
+            }
+        }
     }
 }
 
