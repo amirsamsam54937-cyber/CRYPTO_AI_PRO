@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train ten compact MLPs on historical Binance USD-M Futures candles."""
+"""Train ten compact MLPs on verified historical futures OHLCV candles."""
 import csv, json, os, time, urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
@@ -55,28 +55,86 @@ def ema(values, period):
         result[i] = alpha * values[i] + (1.0 - alpha) * result[i-1]
     return result
 
+def wilder_rsi(close, period=14):
+    result=np.full(len(close),50.0,dtype=float)
+    if len(close)<=period:
+        return result
+    delta=np.diff(close)
+    gains=np.maximum(delta,0.0); losses=np.maximum(-delta,0.0)
+    avg_gain=float(gains[:period].mean()); avg_loss=float(losses[:period].mean())
+    def value(g,l):
+        return 100.0 if l<=1e-12 else 100.0-100.0/(1.0+g/l)
+    result[period]=value(avg_gain,avg_loss)
+    for i in range(period+1,len(close)):
+        avg_gain=(avg_gain*(period-1)+gains[i-1])/period
+        avg_loss=(avg_loss*(period-1)+losses[i-1])/period
+        result[i]=value(avg_gain,avg_loss)
+    return result
+
+def app_atr_series(high,low,close,period=14):
+    previous=np.r_[close[0],close[:-1]]
+    tr=np.maximum(high-low,np.maximum(abs(high-previous),abs(low-previous)))
+    result=np.zeros(len(close),dtype=float)
+    for i in range(len(close)):
+        start=max(1,i-period+1)
+        result[i]=float(tr[start:i+1].mean()) if i>=period else close[i]*.01
+    return result
+
+def app_relative_volume(volume,period=20):
+    result=np.ones(len(volume),dtype=float)
+    for i in range(period,len(volume)):
+        result[i]=volume[i]/max(float(volume[i-period:i].mean()),1e-9)
+    return result
+
+def app_adx_series(high,low,close,period=14):
+    if len(close)<period*2+1:
+        return np.zeros(len(close),dtype=float)
+    true_ranges=[]; plus_moves=[]; minus_moves=[]
+    for i in range(1,len(close)):
+        up=high[i]-high[i-1]; down=low[i-1]-low[i]
+        plus_moves.append(up if up>down and up>0 else 0.0)
+        minus_moves.append(down if down>up and down>0 else 0.0)
+        true_ranges.append(max(high[i]-low[i],abs(high[i]-close[i-1]),abs(low[i]-close[i-1])))
+    dx=[]
+    smooth_tr=sum(true_ranges[:period]); smooth_plus=sum(plus_moves[:period]); smooth_minus=sum(minus_moves[:period])
+    for i in range(period,len(true_ranges)):
+        if i>period:
+            smooth_tr=smooth_tr-smooth_tr/period+true_ranges[i]
+            smooth_plus=smooth_plus-smooth_plus/period+plus_moves[i]
+            smooth_minus=smooth_minus-smooth_minus/period+minus_moves[i]
+        safe=max(smooth_tr,1e-12)
+        plus_di=100.0*smooth_plus/safe; minus_di=100.0*smooth_minus/safe
+        dx.append(abs(plus_di-minus_di)/max(plus_di+minus_di,1e-12)*100.0)
+    if not dx:
+        return np.zeros(len(close),dtype=float)
+    result=np.full(len(close),float(dx[-1]),dtype=float)
+    if len(dx)>=period:
+        adx=float(np.mean(dx[:period]))
+        for j in range(period,len(dx)):
+            adx=(adx*(period-1)+dx[j])/period
+        result[:]=adx
+    else:
+        result[:]=float(np.mean(dx))
+    return np.clip(result,0.0,100.0)
+
 def make_rows(raw):
     a = np.asarray(raw, dtype=float)
     o,h,l,c,v = a[:,1],a[:,2],a[:,3],a[:,4],a[:,5]
     e20,e50 = ema(c,20),ema(c,50)
-    delta = np.diff(c, prepend=c[0])
-    gain,loss = np.maximum(delta,0),np.maximum(-delta,0)
-    ag,al = ema(gain,14),ema(loss,14)
-    rsi = 100.0 - 100.0/(1.0 + ag/np.maximum(al,1e-9))
-    tr = np.maximum(h-l,np.maximum(abs(h-np.r_[c[0],c[:-1]]),abs(l-np.r_[c[0],c[:-1]])))
-    atr = ema(tr,14)
-    rv = v/np.maximum(ema(v,20),1e-9)
-    adx_proxy = np.clip(ema(abs(np.diff(e20,prepend=e20[0]))/np.maximum(atr,1e-9)*100,14),0,60)
+    rsi = wilder_rsi(c,14)
+    atr = app_atr_series(h,l,c,14)
+    rv = app_relative_volume(v,20)
+    adx = app_adx_series(h,l,c,14)
     trend = np.where(e20>=e50,1.0,-1.0)
     raw_score = np.clip(trend*25.0 + (50.0-rsi)*.55 + np.clip(rv-1.0,-1.0,2.0)*8.0,-100,100)
     direction = np.where(raw_score>=0,1.0,-1.0)
     body = (c-o)/np.maximum(h-l,1e-9)
     atr_pct = atr/np.maximum(c,1e-9)*100.0
-    # Feature order and transformations mirror WolfPretrainedEnsemble.predict().
+    # Exact 1h feature definitions mirror the Android inference path.
     X = np.column_stack([
         trend*direction,
         ((rsi-50.0)/50.0)*direction,
-        np.clip(adx_proxy/50.0,0.0,1.0),
+        np.clip(adx/50.0,0.0,1.0),
         np.clip((rv-1.0)/2.0,-1.0,1.0),
         np.where(body>.25,1.0,np.where(body<-.25,-1.0,0.0))*direction,
         np.clip((atr_pct-2.0)/5.0,-1.0,1.0),
