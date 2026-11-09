@@ -779,6 +779,13 @@ private fun SignalJournalScreen(
                         Text("آخرین نتیجه • ${WolfHistoricalBacktestEngine.formatTime(backtest.completedAt)} • مدت: ${backtest.durationMs / 1000} ثانیه", color = Color.White, fontSize = 10.sp)
                         Text("نمادها: ${backtest.symbols.joinToString("، ")} • نقاط ارزیابی: ${backtest.samples} • توافق: ${backtest.agreements} • اختلاف: ${backtest.disagreements}", color = Muted, fontSize = 9.sp)
                         Text("مقایسه مستقل دو موتور و روش توافقی", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        val winner = when {
+                            backtest.technical.trades == 0 && backtest.neural.trades == 0 -> "داده کافی برای تعیین برنده نیست"
+                            backtest.technical.netReturnPct > backtest.neural.netReturnPct -> "در این نمونه: سیستم تکنیکال بازده بیشتری داشت"
+                            backtest.neural.netReturnPct > backtest.technical.netReturnPct -> "در این نمونه: شبکه عصبی بازده بیشتری داشت"
+                            else -> "بازده دو موتور در این نمونه برابر بود"
+                        }
+                        Text(winner, color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         BacktestStrategyRow("سیستم تحلیل تکنیکال", backtest.technical)
                         BacktestStrategyRow("شبکه عصبی", backtest.neural)
                         BacktestStrategyRow("فقط سیگنال‌های مورد توافق", backtest.agreement)
