@@ -124,9 +124,7 @@ data class TechnicalSnapshot(
 )
 
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
-    val prefs = context.getSharedPreferences("wolf_learning_memory", Context.MODE_PRIVATE)
-    // The network's independent directional forecast is exposed for user testing.
-    // It remains isolated from the primary technical ranking until chronological validation is adequate.
+    // The pretrained model can influence signals only after a chronological holdout validates it.
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
     return signals.map { signal ->
         val candidate = when {
@@ -136,7 +134,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             else -> null
         }
         if (candidate == null) signal.copy(neuralScore = 50, neuralDirection = "NEUTRAL",
-            neuralModelSource = if (pretrainedStatus.loaded) "۱۰مدلی" else "مدل داخلی")
+            neuralModelSource = if (pretrainedStatus.validatedForScoring) "۱۰مدلی • معتبر" else "مدل در انتظار اعتبارسنجی")
         else {
             // Never let unvalidated pretrained weights or randomly initialized online weights
             // decide a public signal. Until the chronological holdout beats its baseline,
