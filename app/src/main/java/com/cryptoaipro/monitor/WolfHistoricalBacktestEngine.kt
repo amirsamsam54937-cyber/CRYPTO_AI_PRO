@@ -2,6 +2,9 @@ package com.cryptoaipro.monitor
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -97,13 +100,16 @@ internal object WolfHistoricalBacktestEngine {
                     Triple("1h", 60L * 60_000L, "confirm"),
                     Triple("4h", 4L * 60L * 60_000L, "trend")
                 )
-                val history = LinkedHashMap<String, List<DoubleArray>>()
-                for ((interval, intervalMs, _) in frames) {
-                    currentCoroutineContext().ensureActive()
-                    history[interval] = BinanceMonitor.historicalCandles(
-                        symbol, interval, anchor - WARMUP_BARS * intervalMs, 1000
-                    )
+                val loadedFrames = coroutineScope {
+                    frames.map { (interval, intervalMs, _) ->
+                        async {
+                            interval to BinanceMonitor.historicalCandles(
+                                symbol, interval, anchor - WARMUP_BARS * intervalMs, 1000
+                            )
+                        }
+                    }.awaitAll()
                 }
+                val history = loadedFrames.toMap()
                 val micro = history.getValue("5m")
                 val sampleIndexes = (250 until (micro.size - 100).coerceAtLeast(251))
                     .toList().shuffled(random).take(SAMPLES_PER_SYMBOL).sorted()
