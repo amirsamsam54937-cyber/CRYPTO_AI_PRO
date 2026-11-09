@@ -134,29 +134,44 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         if (candidate == null) signal.copy(neuralScore = 50, neuralDirection = "NEUTRAL",
             neuralModelSource = if (pretrainedStatus.loaded) "۱۰مدلی" else "مدل داخلی")
         else {
-            val pretrained = WolfPretrainedEnsemble.predict(candidate)
-            val online = WolfDeepNeuralNetwork.predict(prefs, candidate)
-            val probability = pretrained ?: online
-            // Convert candidate-relative correctness into one fixed directional scale:
-            // 0..49 = SHORT (lower is stronger), 51..100 = LONG (higher is stronger).
-            val candidateConfidence = (probability * 100.0).toInt().coerceIn(1, 99)
-            val directionalScore = if (candidate.direction == "LONG_BIAS")
-                candidateConfidence else 100 - candidateConfidence
-            val predictedSide = when {
-                directionalScore > 50 -> "LONG_BIAS"
-                directionalScore < 50 -> "SHORT_BIAS"
-                else -> "NEUTRAL"
+            // Never let unvalidated pretrained weights or randomly initialized online weights
+            // decide a public signal. Until the chronological holdout beats its baseline,
+            // the neural vote is explicitly neutral and the final gate returns NO TRADE.
+            if (!pretrainedStatus.validatedForScoring) {
+                signal.copy(
+                    neuralScore = 50,
+                    neuralDirection = "NEUTRAL",
+                    neuralModelSource = "مدل آموزش دیده اما اعتبارسنجی نشده • رأی غیرفعال"
+                )
+            } else {
+                val probability = WolfPretrainedEnsemble.predict(candidate)
+                if (probability == null) {
+                    signal.copy(
+                        neuralScore = 50,
+                        neuralDirection = "NEUTRAL",
+                        neuralModelSource = "مدل معتبر در دسترس نیست"
+                    )
+                } else {
+                    // Candidate-relative correctness mapped onto a fixed LONG/SHORT axis.
+                    val candidateConfidence = (probability * 100.0).toInt().coerceIn(1, 99)
+                    val directionalScore = if (candidate.direction == "LONG_BIAS")
+                        candidateConfidence else 100 - candidateConfidence
+                    val predictedSide = when {
+                        directionalScore > 50 -> "LONG_BIAS"
+                        directionalScore < 50 -> "SHORT_BIAS"
+                        else -> "NEUTRAL"
+                    }
+                    val directionalStrength = maxOf(directionalScore, 100 - directionalScore)
+                    val adjustedConfidence =
+                        (signal.confidence * 0.90 + directionalStrength * 0.10).toInt().coerceIn(0, 100)
+                    signal.copy(
+                        neuralScore = directionalScore,
+                        neuralDirection = predictedSide,
+                        neuralModelSource = "۱۰مدلی • اعتبارسنجی‌شده",
+                        confidence = adjustedConfidence
+                    )
+                }
             }
-            val directionalStrength = maxOf(directionalScore, 100 - directionalScore)
-            val adjustedConfidence = if (pretrained != null && pretrainedStatus.validatedForScoring)
-                (signal.confidence * 0.90 + directionalStrength * 0.10).toInt().coerceIn(0, 100)
-            else signal.confidence
-            signal.copy(
-                neuralScore = directionalScore,
-                neuralDirection = predictedSide,
-                neuralModelSource = if (pretrained != null) "۱۰مدلی آموزش‌دیده" else "مدل داخلی آنلاین",
-                confidence = adjustedConfidence
-            )
         }
     }.map { signal ->
         // Independent scenario analysis followed by a skeptical adversarial review.
