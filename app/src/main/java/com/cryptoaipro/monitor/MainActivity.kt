@@ -1333,57 +1333,44 @@ internal object BinanceMonitor {
         )
     }
 
-    internal suspend fun historicalFiveMinuteCandles(symbol: String, limit: Int = 1000): List<DoubleArray> = withContext(Dispatchers.IO) {
+    internal suspend fun historicalCandles(
+        symbol: String, interval: String, startTime: Long, limit: Int = 1000
+    ): List<DoubleArray> = withContext(Dispatchers.IO) {
         require(symbol.matches(Regex("[A-Z0-9]{3,30}"))) { "نماد نامعتبر است" }
-        val raw = JSONArray(get("/fapi/v1/klines?symbol=" + symbol + "&interval=5m&limit=" + limit.coerceIn(300, 1000)))
+        val intervalMs = when (interval) {
+            "5m" -> 5L * 60_000L
+            "15m" -> 15L * 60_000L
+            "1h" -> 60L * 60_000L
+            "4h" -> 4L * 60L * 60_000L
+            else -> throw IllegalArgumentException("Unsupported historical interval: $interval")
+        }
+        val rawText = requestGate.withPermit {
+            withContext(Dispatchers.IO) {
+                get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval +
+                    "&startTime=" + startTime + "&limit=" + limit.coerceIn(300, 1000))
+            }
+        }
+        val raw = JSONArray(rawText)
         val now = System.currentTimeMillis()
-        (0 until (raw.length() - 1).coerceAtLeast(0)).map { i ->
+        (0 until raw.length()).map { i ->
             val row = raw.getJSONArray(i)
-            doubleArrayOf(row.getString(1).toDouble(), row.getString(2).toDouble(), row.getString(3).toDouble(),
-                row.getString(4).toDouble(), row.getString(5).toDouble(), row.getLong(0).toDouble())
-        }.filter { it.size >= 6 && it[5].toLong() + 5L * 60_000L <= now }
-            .also { require(it.size >= 220) { "برای بک‌تست ۵دقیقه‌ای حداقل ۲۲۰ کندل تاریخی بسته‌شده لازم است؛ دریافت‌شده: ${it.size}" } }
+            doubleArrayOf(row.getString(1).toDouble(), row.getString(2).toDouble(),
+                row.getString(3).toDouble(), row.getString(4).toDouble(),
+                row.getString(5).toDouble(), row.getLong(0).toDouble())
+        }.filter { it.size >= 6 && it[5].toLong() + intervalMs <= now }
+            .also { require(it.size >= 210) {
+                "تاریخچه کافی برای $interval وجود ندارد؛ کندل بسته‌شده: ${it.size}"
+            } }
     }
 
-    internal fun analyzeFiveMinuteWindow(symbol: String, history: List<DoubleArray>): MarketSignal? {
-        if (history.size < 210) return null
-        val data = history.takeLast(500)
-        val q = indicators(data)
-        val price = data.last()[3]
-        val longSetup = q.first >= 2 && price > q.technical.ema20 && q.technical.ema20 > q.technical.ema50
-        val shortSetup = q.first <= -2 && price < q.technical.ema20 && q.technical.ema20 < q.technical.ema50
-        val direction = when { longSetup -> "LONG_BIAS"; shortSetup -> "SHORT_BIAS"; else -> "NEUTRAL" }
-        val atrValue = atr(data).coerceAtLeast(price * 0.0001)
-        val structural = when (direction) {
-            "LONG_BIAS" -> price - q.technical.support + atrValue * 0.2
-            "SHORT_BIAS" -> q.technical.resistance - price + atrValue * 0.2
-            else -> atrValue * 1.5
-        }
-        val stopDistance = maxOf(atrValue * 1.35, price * 0.0015,
-            if (structural.isFinite() && structural > 0.0) structural else 0.0).coerceAtMost(atrValue * 3.0)
-        val stop = when (direction) {
-            "LONG_BIAS" -> price - stopDistance
-            "SHORT_BIAS" -> price + stopDistance
-            else -> price
-        }
-        val targetDistance = stopDistance * 1.5
-        val tp1 = when (direction) {
-            "LONG_BIAS" -> price + targetDistance
-            "SHORT_BIAS" -> price - targetDistance
-            else -> price
-        }
-        val stopPct = stopDistance / price * 100.0
-        val leverage = when { direction == "NEUTRAL" -> 1; stopPct < 0.7 -> 4; stopPct < 1.2 -> 3; stopPct < 2.0 -> 2; else -> 1 }
-        val consensus = WolfConsensusEngine.analyze(listOf(q.technical), price)
-        return MarketSignal(
-            symbol, price, 0.0, data.last()[4], direction, q.first, q.third,
-            consensus.strengthIndex.coerceIn(0, 100),
-            "بک‌تست تاریخی ۵دقیقه‌ای • ${q.second} • اجماع تک‌تایم‌فریم؛ بدون ادعای تأیید ۱ساعته/۴ساعته",
-            price, stop, tp1, tp1, tp1, leverage, atrValue, q.technical,
-            data.takeLast(80), consensus,
-            timeframeCoverage = "۵ دقیقه • داده تاریخی",
-            technicalDirection = direction, tradeTimeframe = "5m"
-        )
+    internal fun analyzeHistoricalWindow(
+        symbol: String, short15m: List<DoubleArray>, confirm1h: List<DoubleArray>,
+        trend4h: List<DoubleArray>, micro5m: List<DoubleArray>, price: Double
+    ): MarketSignal {
+        val change = if (short15m.size >= 2 && short15m[short15m.lastIndex - 1][3] != 0.0)
+            (short15m.last()[3] / short15m[short15m.lastIndex - 1][3] - 1.0) * 100.0 else 0.0
+        return analyzeWithCandles(symbol, price, change, micro5m.last()[4],
+            short15m, confirm1h, trend4h, micro5m, null)
     }
 
     private suspend fun candles(symbol: String, interval: String): List<DoubleArray> {
