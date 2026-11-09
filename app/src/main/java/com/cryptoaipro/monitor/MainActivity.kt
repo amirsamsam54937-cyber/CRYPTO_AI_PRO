@@ -558,7 +558,7 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.24.0 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.35.0 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
@@ -872,7 +872,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
             if (expanded) {
                 Surface(color = Color(0xFF19150B), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.22f)), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                        Text("تحلیل تکنیکال تایم‌فریم ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("جزئیات تحلیل تکنیکال • تایم‌فریم منتخب " + item.tradeTimeframe, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             SmallStat("EMA 9", formatPrice(item.technical.ema9))
                             SmallStat("EMA 20", formatPrice(item.technical.ema20))
