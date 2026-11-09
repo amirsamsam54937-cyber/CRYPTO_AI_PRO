@@ -218,6 +218,11 @@ fun CryptoMonitorScreen() {
         mutableIntStateOf(appSettings.getInt("scan_interval_minutes", 3).coerceIn(1, 10))
     }
     var outcomeSnapshot by remember(context) { mutableStateOf(WolfSignalOutcomeJournal.snapshot(context)) }
+    var backtestSnapshot by remember(context) { mutableStateOf(WolfHistoricalBacktestEngine.load(context)) }
+    var backtestEnabled by remember(context) { mutableStateOf(appSettings.getBoolean("historical_backtest_enabled", true)) }
+    var backtestLoading by remember { mutableStateOf(false) }
+    var backtestStatus by remember { mutableStateOf("بک‌تست هنوز اجرا نشده است.") }
+    var backtestJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val learningPrefs = remember(context) { context.getSharedPreferences("wolf_learning_memory", Context.MODE_PRIVATE) }
     var learningSamples by remember { mutableIntStateOf(learningPrefs.getInt("samples", 0)) }
     var learningWins by remember { mutableIntStateOf(learningPrefs.getInt("wins", 0)) }
@@ -513,7 +518,50 @@ fun CryptoMonitorScreen() {
                     }
 
                     "دفترچه" -> {
-                        SignalJournalScreen(outcomeSnapshot)
+                        SignalJournalScreen(
+                            outcomeSnapshot, backtestSnapshot, backtestEnabled, backtestLoading, backtestStatus,
+                            onToggleBacktest = { enabled ->
+                                backtestEnabled = enabled
+                                appSettings.edit().putBoolean("historical_backtest_enabled", enabled).apply()
+                                if (!enabled) {
+                                    backtestJob?.cancel()
+                                    backtestJob = null
+                                    backtestLoading = false
+                                    backtestStatus = "بک‌تست غیرفعال شد."
+                                } else backtestStatus = "بک‌تست فعال است؛ فقط با فشردن دکمه اجرا می‌شود."
+                            },
+                            onRunBacktest = {
+                                if (!backtestEnabled) backtestStatus = "ابتدا بک‌تست را فعال کن."
+                                else if (selectedExchange != "BINANCE") backtestStatus = "داده تاریخی این نسخه از Binance USDT Futures دریافت می‌شود؛ صرافی را روی Binance بگذار."
+                                else if (rows.isEmpty()) backtestStatus = "ابتدا اسکن بازار را اجرا کن."
+                                else if (backtestJob?.isActive != true) {
+                                    backtestJob = scope.launch {
+                                        backtestLoading = true
+                                        backtestStatus = "در حال انتخاب بازه تاریخی تازه و دریافت تاریخچه چندتایم‌فریمی..."
+                                        try {
+                                            backtestSnapshot = WolfHistoricalBacktestEngine.run(
+                                                context, rows.sortedByDescending { it.confidence }.take(2).map { it.symbol }
+                                            )
+                                            backtestStatus = "پایان آزمایش • ${backtestSnapshot.samples} نقطه • ${backtestSnapshot.durationMs / 1000} ثانیه"
+                                        } catch (e: kotlinx.coroutines.CancellationException) {
+                                            backtestStatus = "بک‌تست متوقف شد."
+                                            throw e
+                                        } catch (e: Exception) {
+                                            backtestStatus = "بک‌تست کامل نشد: " + (e.message ?: e.javaClass.simpleName)
+                                        } finally {
+                                            backtestLoading = false
+                                            backtestJob = null
+                                        }
+                                    }
+                                }
+                            },
+                            onStopBacktest = {
+                                backtestJob?.cancel()
+                                backtestJob = null
+                                backtestLoading = false
+                                backtestStatus = "درخواست توقف ارسال شد."
+                            }
+                        )
                     }
 
                                         else -> {
@@ -678,7 +726,16 @@ private fun SignalStrengthScreen(
 }
 
 @Composable
-private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
+private fun SignalJournalScreen(
+    snapshot: WolfSignalOutcomeJournal.Snapshot,
+    backtest: WolfHistoricalBacktestEngine.Snapshot,
+    backtestEnabled: Boolean,
+    backtestLoading: Boolean,
+    backtestStatus: String,
+    onToggleBacktest: (Boolean) -> Unit,
+    onRunBacktest: () -> Unit,
+    onStopBacktest: () -> Unit
+) {
     var filter by remember { mutableStateOf("همه") }
     val visible = when (filter) {
         "باز" -> snapshot.records.filter { !it.closed }
