@@ -97,7 +97,11 @@ data class MarketSignal(
     val technicalDirection: String = "NEUTRAL",
     val tradeTimeframe: String = "در انتظار انتخاب",
     val signalTier: String = "بدون رتبه",
-    val agreementStatus: String = "در انتظار تطبیق"
+    val agreementStatus: String = "در انتظار تطبیق",
+    // Dedicated 1h snapshot: the pretrained model was trained on 1h candles.
+    val neuralTechnical: TechnicalSnapshot? = null,
+    val neuralRsi: Double? = null,
+    val neuralCandles: List<DoubleArray> = emptyList()
 )
 
 data class TechnicalSnapshot(
@@ -1490,7 +1494,10 @@ internal object BinanceMonitor {
                 wolf.direction == "LONG_BIAS" && b.first >= a.first -> "1h"
                 wolf.direction == "SHORT_BIAS" && b.first <= a.first -> "1h"
                 else -> "15m"
-            }
+            },
+            neuralTechnical = b.technical,
+            neuralRsi = b.third,
+            neuralCandles = confirm.takeLast(80)
         )
     }
 
