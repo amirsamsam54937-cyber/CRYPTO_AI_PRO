@@ -171,6 +171,7 @@ def load_seed_samples():
 
 def main():
     chunks=[]
+    used_symbols=[]
     seeded=load_seed_samples()
     if seeded:
         for symbol,raw in seeded.items():
@@ -178,6 +179,7 @@ def main():
             x,y,t=make_rows(raw)
             if len(x)>100:
                 chunks.append((x,y,t))
+                used_symbols.append(symbol)
             print(f"REAL SEED {symbol}: {len(x)} labeled samples",flush=True)
     else:
         with ThreadPoolExecutor(max_workers=4) as pool:
@@ -188,6 +190,7 @@ def main():
                     _,x,y,t=future.result()
                     if len(x)>100:
                         chunks.append((x,y,t))
+                        used_symbols.append(symbol)
                     print(f"{symbol}: {len(x)} labeled samples",flush=True)
                 except Exception as exc:
                     print(f"SKIP {symbol}: {exc}",flush=True)
@@ -240,7 +243,7 @@ def main():
         "ensemble_roc_auc":round(float(roc_auc_score(y_test,ensemble_probabilities)),4)
     }
     output={"format":"amir-wolf-ensemble-v1","trained_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
-        "interval":INTERVAL,"horizon_bars":HORIZON,"symbols":SYMBOLS,"samples":int(len(X)),
+        "interval":INTERVAL,"horizon_bars":HORIZON,"symbols":sorted(used_symbols),"symbols_count":len(used_symbols),"samples":int(len(X)),
         "train_samples":int(len(X_train)),"test_samples":int(len(X_test)),
         "feature_mean":scaler.mean_.tolist(),"feature_scale":scaler.scale_.tolist(),
         "evaluation":evaluation,"metrics":metrics,"members":members}
