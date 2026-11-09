@@ -906,9 +906,9 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
         else -> Muted
     }
     val label = when (item.direction) {
-        "LONG_BIAS" -> "تمایل صعودی"
-        "SHORT_BIAS" -> "تمایل نزولی"
-        else -> "خنثی"
+        "LONG_BIAS" -> "LONG"
+        "SHORT_BIAS" -> "SHORT"
+        else -> "NO TRADE"
     }
     Surface(color = Color(0xFF101010), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.25f)), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(15.dp)) {
