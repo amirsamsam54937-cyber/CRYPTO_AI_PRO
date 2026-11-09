@@ -515,11 +515,11 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.24.0 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.33.1 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
-                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← CRYPTO AI PRO ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← HOPE HUNTER ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                         }
                     }
                 }
@@ -596,7 +596,7 @@ private fun SignalStrengthScreen(
         item {
             Surface(color = Panel, shape = RoundedCornerShape(17.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.45f)), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("مرکز قدرت سیگنال گرگ", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("مرکز قدرت سیگنال", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Text("رتبه‌بندی زنده فرصت‌ها بر اساس هم‌جهتی تایم‌فریم‌ها، قدرت روند، حجم، ساختار بازار و امتیاز مدل عصبی", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                     if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Gold)
                     Text(progress, color = Muted, fontSize = 9.sp)
@@ -630,7 +630,7 @@ private fun SignalStrengthScreen(
         }
         if (visible.isEmpty()) item { Text(if (loading) "در حال دریافت داده‌های بازار..." else "در این فیلتر هنوز سیگنالی وجود ندارد. اسکن بازار را اجرا کن.", color = Muted, fontSize = 11.sp) }
         else items(visible, key = { it.symbol }) { signal -> SignalCard(signal, onSelect = { onSelect(signal.symbol) }) }
-        item { Text("ابزارها: فیلتر LONG/SHORT، رتبه‌بندی قدرت، شاخص‌های تکنیکال پیشرفته داخل هر کارت، اهداف سه‌مرحله‌ای، حد ضرر، اهرم پیشنهادی و ثبت خودکار سوابق در دفترچه.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp) }
+        item { Text("ابزارها: فیلتر LONG/SHORT، رتبه‌بندی قدرت، شاخص‌های تکنیکال پیشرفته داخل هر کارت، هدف نهایی TP1، حد ضرر، اهرم پیشنهادی و ثبت خودکار سوابق در دفترچه.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp) }
     }
 }
 
@@ -650,7 +650,7 @@ private fun SignalJournalScreen(snapshot: WolfSignalOutcomeJournal.Snapshot) {
         item {
             Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text("دفترچه دائمی سیگنال‌های گرگ", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text("دفترچه دائمی سیگنال‌ها", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     Text("زمان ورود و خروج با ساعت ایران ثبت می‌شود. برخورد به حد سود/ضرر یا پایان اعتبار ۱۵ دقیقه‌ای، سیگنال را به دفترچه منتقل می‌کند و سوابق قابل مشاهده می‌مانند. اطلاعات فقط روی همین گوشی نگهداری می‌شود.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         SmallStat("کل سیگنال‌ها", snapshot.total.toString(), Blue)
@@ -1241,7 +1241,7 @@ internal object BinanceMonitor {
         }
         return MarketSignal(
             symbol, price, change, volume, direction, score, a.third, confidence,
-            "اجماع گرگ " + wolf.agreement + "% | قدرت اجماع (نه احتمال برد): " + wolf.strengthIndex +
+            "اجماع چندمدلی " + wolf.agreement + "% | قدرت اجماع (نه احتمال برد): " + wolf.strengthIndex +
                 "% | ۱۰ تحلیلگر: " + agentSummary + " | ۱۵د: " + a.second + " | ۱س: " + b.second +
                 " | ۴س: " + c.second +
                 (microStats?.let { " | ۵د: " + it.second } ?: "") +
