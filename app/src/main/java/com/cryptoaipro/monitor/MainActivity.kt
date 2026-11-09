@@ -137,16 +137,22 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             val pretrained = WolfPretrainedEnsemble.predict(candidate)
             val online = WolfDeepNeuralNetwork.predict(prefs, candidate)
             val probability = pretrained ?: online
-            // The training target estimates whether the candidate side is correct.
-            // Below 50%, the independent forecast flips to the opposite side.
-            val predictedSide = if (probability >= 0.50) candidate.direction
-                else if (candidate.direction == "LONG_BIAS") "SHORT_BIAS" else "LONG_BIAS"
-            val rawOutput = (probability * 100.0).toInt().coerceIn(1, 99)
+            // Convert candidate-relative correctness into one fixed directional scale:
+            // 0..49 = SHORT (lower is stronger), 51..100 = LONG (higher is stronger).
+            val candidateConfidence = (probability * 100.0).toInt().coerceIn(1, 99)
+            val directionalScore = if (candidate.direction == "LONG_BIAS")
+                candidateConfidence else 100 - candidateConfidence
+            val predictedSide = when {
+                directionalScore > 50 -> "LONG_BIAS"
+                directionalScore < 50 -> "SHORT_BIAS"
+                else -> "NEUTRAL"
+            }
+            val directionalStrength = maxOf(directionalScore, 100 - directionalScore)
             val adjustedConfidence = if (pretrained != null && pretrainedStatus.validatedForScoring)
-                (signal.confidence * 0.90 + rawOutput * 0.10).toInt().coerceIn(0, 100)
+                (signal.confidence * 0.90 + directionalStrength * 0.10).toInt().coerceIn(0, 100)
             else signal.confidence
             signal.copy(
-                neuralScore = rawOutput,
+                neuralScore = directionalScore,
                 neuralDirection = predictedSide,
                 neuralModelSource = if (pretrained != null) "۱۰مدلی آموزش‌دیده" else "مدل داخلی آنلاین",
                 confidence = adjustedConfidence
@@ -161,12 +167,13 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         val neural = reviewed.neuralDirection
         val bothDirectional = (tech == "LONG_BIAS" || tech == "SHORT_BIAS") &&
             (neural == "LONG_BIAS" || neural == "SHORT_BIAS")
-        val agree = bothDirectional && tech == neural && reviewed.neuralScore >= 55
+        val neuralStrength = maxOf(reviewed.neuralScore, 100 - reviewed.neuralScore)
+        val agree = bothDirectional && tech == neural && neuralStrength >= 55
         val tier = when {
             !agree || reviewed.direction == "NEUTRAL" -> "بدون رتبه"
-            reviewed.confidence >= 82 && reviewed.neuralScore >= 70 -> "نوع ۱ • ممتاز"
-            reviewed.confidence >= 72 && reviewed.neuralScore >= 62 -> "نوع ۲ • تأییدشده"
-            reviewed.confidence >= 62 && reviewed.neuralScore >= 55 -> "نوع ۳ • محتاطانه"
+            reviewed.confidence >= 82 && neuralStrength >= 70 -> "نوع ۱ • ممتاز"
+            reviewed.confidence >= 72 && neuralStrength >= 62 -> "نوع ۲ • تأییدشده"
+            reviewed.confidence >= 62 && neuralStrength >= 55 -> "نوع ۳ • محتاطانه"
             else -> "بدون رتبه"
         }
         val promoted = agree && tier != "بدون رتبه" && reviewed.direction == tech
@@ -178,7 +185,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             agreementStatus = when {
                 !bothDirectional -> "داده کافی برای رأی دوگانه نیست"
                 tech != neural -> "اختلاف تحلیل تکنیکال و شبکه عصبی • سیگنال رد شد"
-                reviewed.neuralScore < 55 -> "جهت یکسان، قدرت عصبی ناکافی"
+                neuralStrength < 55 -> "جهت یکسان، قدرت عصبی ناکافی"
                 !promoted -> "توافق وجود دارد اما کیفیت به حد انتشار نرسید"
                 else -> "توافق کامل دو موتور • مجاز به نمایش سیگنال"
             }
@@ -935,7 +942,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 SmallStat("تغییر ۲۴ساعت", String.format(Locale.US, "%.2f%%", item.change), if (item.change >= 0) Green else Red)
                 SmallStat("RSI", String.format(Locale.US, "%.1f", item.rsi))
                 SmallStat("امتیاز خام", item.score.toString())
-                SmallStat("امتیاز عصبی", item.neuralScore.toString() + "/100")
+                SmallStat("امتیاز جهت‌دار", item.neuralScore.toString() + "/100")
             }
             val neuralTint = when (item.neuralDirection) {
                 "LONG_BIAS" -> Green
