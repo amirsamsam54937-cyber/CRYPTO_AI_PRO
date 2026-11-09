@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 60
-  versionName = "2.41.0"
-  // Release 2.40: asset-aware multi-source news sentiment context.
+  versionCode = 61
+  versionName = "2.42.0"
+  // Release 2.42: strict neural validation gate and honest training status in app assets.
  }
  buildFeatures { compose = true }
  // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
