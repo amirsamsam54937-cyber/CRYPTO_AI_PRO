@@ -2,6 +2,9 @@ name: Build HOPE HUNTER APK
 permissions:
   contents: read
   actions: read
+concurrency:
+  group: hope-hunter-apk-${{ github.ref }}
+  cancel-in-progress: true
 on:
   workflow_dispatch:
   push:
