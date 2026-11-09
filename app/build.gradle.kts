@@ -12,6 +12,7 @@ android {
   targetSdk = 35
   versionCode = 59
   versionName = "2.40.0"
+  // Release 2.40: asset-aware multi-source news sentiment context.
  }
  buildFeatures { compose = true }
  // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
