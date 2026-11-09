@@ -155,7 +155,11 @@ internal object WolfHistoricalBacktestEngine {
                             val stopHit = if (long) bar[2] <= stop else bar[1] >= stop
                             val targetHit = if (long) bar[1] >= target else bar[2] <= target
                             // If both levels occur within one OHLC candle, assume the adverse stop filled first.
-                            if (stopHit) { exit = stop; break }
+                            if (stopHit) {
+                                // Model adverse opening gaps at the worse open rather than granting a perfect stop fill.
+                                exit = if ((long && bar[0] < stop) || (!long && bar[0] > stop)) bar[0] else stop
+                                break
+                            }
                             if (targetHit) { exit = target; break }
                         }
                         val gross = if (long) (exit / entry - 1.0) * 100.0
