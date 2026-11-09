@@ -792,7 +792,7 @@ private fun SignalJournalScreen(
                         Text("بازه کندل‌های دریافت‌شده: ${if (backtest.sampleWindowStart > 0L) WolfHistoricalBacktestEngine.formatTime(backtest.sampleWindowStart) else "—"} تا ${if (backtest.sampleWindowEnd > 0L) WolfHistoricalBacktestEngine.formatTime(backtest.sampleWindowEnd) else "—"}", color = Muted, fontSize = 9.sp)
                         if (backtest.errors.isNotEmpty()) Text("خطاهای دریافت: ${backtest.errors.joinToString(" | ")}", color = Red, fontSize = 9.sp)
                     }
-                    Text("هدف زمان اجرا حدود ۲ دقیقه است و به اینترنت و پاسخ Binance بستگی دارد. کارمزد و لغزش با فرض تقریبی ۰٫۱۰٪ رفت‌وبرگشت روی ارزش اسمی لحاظ شده است. نتایج شبیه‌سازی‌اند، نه تضمین سود آینده.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                    Text("هدف زمان اجرا حدود ۲ دقیقه است و به اینترنت و پاسخ Binance بستگی دارد. کارمزد و لغزش با فرض تقریبی ۰٫۱۰٪ رفت‌وبرگشت روی ارزش اسمی لحاظ شده است. رأی شبکه عصبی با وزن‌های فعلی مدل محاسبه می‌شود و هنوز بازآموزی Walk-Forward در هر نقطه تاریخی انجام نمی‌شود؛ پس مقایسه فعلاً آزمایشی است. نتایج گذشته تضمین سود آینده نیست.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
                 }
             }
         }
