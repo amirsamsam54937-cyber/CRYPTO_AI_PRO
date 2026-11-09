@@ -46,6 +46,31 @@ jobs:
           assert rows == 500000, rows
           print(f"Verified {rows:,} real exchange candle rows and {len(report['metrics'])} trained ensemble members")
           PY
+      - name: Set up Python for fresh neural-network training
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Train ten neural networks on verified real futures history
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip numpy scikit-learn
+          python tools/train_wolf_ensemble.py 2>&1 | tee wolf-training.log
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path("app/src/main/assets/wolf_pretrained_ensemble.json")
+          assert p.is_file() and p.stat().st_size > 10000, "Fresh model weights were not exported"
+          d=json.loads(p.read_text())
+          e=d["evaluation"]
+          assert len(d["members"]) == 10, "Expected ten trained models"
+          assert d["split"] == "chronological_purged"
+          assert d["test_samples"] >= 300
+          assert e["ensemble_balanced_accuracy"] > 0.51
+          assert e["ensemble_log_loss"] < e["prevalence_baseline_log_loss"]
+          report={k:v for k,v in d.items() if k != "members"}
+          pathlib.Path("wolf_model_training_report.json").write_text(json.dumps(report,indent=2))
+          print(json.dumps({"trained_models":len(d["members"]),"samples":d["samples"],"evaluation":e},indent=2))
+          PY
       - name: Build installable APK (no extra test stage)
         run: gradle --no-daemon :app:assembleDebug
       - name: Verify APK file exists
