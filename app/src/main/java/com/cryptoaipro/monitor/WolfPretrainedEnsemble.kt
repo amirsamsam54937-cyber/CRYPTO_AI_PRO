@@ -68,17 +68,26 @@ internal object WolfPretrainedEnsemble {
 
     fun predict(signal:MarketSignal):Double? {
         if(members.size!=10) return null
-        val technical=signal.technical
-        val direction=if(signal.direction=="SHORT_BIAS") -1.0 else 1.0
+        // The training corpus is 1h OHLCV. Never feed 15m features into this model.
+        val technical=signal.neuralTechnical ?: return null
+        val rsiValue=signal.neuralRsi?.takeIf { it.isFinite() } ?: return null
+        val candle=signal.neuralCandles.lastOrNull() ?: return null
+        if(candle.size<5) return null
         val trend=if(technical.ema20>=technical.ema50) 1.0 else -1.0
-        val rsi=((signal.rsi-50.0)/50.0).coerceIn(-1.0,1.0)
+        val rawScore=(trend*25.0+(50.0-rsiValue)*0.55+
+            ((technical.relativeVolume-1.0).coerceIn(-1.0,2.0))*8.0).coerceIn(-100.0,100.0)
+        val modelSide=if(rawScore>=0.0) "LONG_BIAS" else "SHORT_BIAS"
+        // Training labels and directional normalization use this same 1h rule.
+        // If the live multi-timeframe engine disagrees, abstain instead of misusing the model.
+        if(modelSide!=signal.direction) return null
+        val direction=if(modelSide=="SHORT_BIAS") -1.0 else 1.0
+        val rsi=((rsiValue-50.0)/50.0).coerceIn(-1.0,1.0)
         val adx=(technical.adx/50.0).coerceIn(0.0,1.0)
         val volume=((technical.relativeVolume-1.0)/2.0).coerceIn(-1.0,1.0)
-        val candle=signal.candles.lastOrNull()
-        val body=if(candle!=null && candle.size>=4) (candle[3]-candle[0])/((candle[1]-candle[2]).coerceAtLeast(1e-9)) else 0.0
+        val body=(candle[3]-candle[0])/((candle[1]-candle[2]).coerceAtLeast(1e-9))
         val bodyFeature=when{body>.25->1.0;body<-.25->-1.0;else->0.0}
         val volatility=((technical.atrPercent-2.0)/5.0).coerceIn(-1.0,1.0)
-        val raw=doubleArrayOf(trend*direction,rsi*direction,adx,volume,bodyFeature*direction,volatility,(signal.score/100.0).coerceIn(-1.0,1.0))
+        val raw=doubleArrayOf(trend*direction,rsi*direction,adx,volume,bodyFeature*direction,volatility,rawScore/100.0)
         val x=DoubleArray(7){i->((raw[i]-mean[i])/scale[i]).coerceIn(-8.0,8.0)}
         val predictions=members.map { member ->
             val h1=DoubleArray(member.b1.size){i->tanh(member.b1[i]+x.indices.sumOf{j->member.w1[i][j]*x[j]})}
