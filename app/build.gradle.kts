@@ -10,8 +10,8 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 59
-  versionName = "2.40.0"
+  versionCode = 60
+  versionName = "2.41.0"
   // Release 2.40: asset-aware multi-source news sentiment context.
  }
  buildFeatures { compose = true }
