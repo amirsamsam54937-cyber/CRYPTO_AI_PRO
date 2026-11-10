@@ -778,6 +778,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 modifier = Modifier.fillMaxWidth().height(5.dp),
                 color = tint, trackColor = Color(0xFF3A3020)
             )
+            Text("این درصد امتیاز قانون‌محورِ هم‌خوانی شواهد است؛ احتمال برد یا تضمین نتیجه نیست.", color = Muted, fontSize = 9.sp)
             if (item.direction != "NEUTRAL") {
                 Spacer(Modifier.height(8.dp))
                 Surface(color = Color(0xFF19150B), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.22f)), modifier = Modifier.fillMaxWidth()) {
