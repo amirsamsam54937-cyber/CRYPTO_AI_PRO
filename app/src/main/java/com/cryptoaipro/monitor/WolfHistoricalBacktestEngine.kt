@@ -194,7 +194,10 @@ internal object WolfHistoricalBacktestEngine {
         val agreementStats = agreementTally.stats()
         if (neuralEvaluated == 0) {
             errors.add("شبکه عصبی در هیچ نمونه‌ای پیش‌بینی مستقل نداد؛ وزن‌ها یا ورودی ۱ساعته در دسترس نیست.")
-        } else if (!WolfPretrainedEnsemble.status().validatedForScoring) {
+        } else {
+            errors.add("پیش‌بینی‌های مستقل شبکه عصبی: $neuralEvaluated از $sampleCount نقطه ارزیابی شدند؛ حداقل قدرت رأی برای ورود به آزمایش ۵۵ از ۱۰۰ است.")
+        }
+        if (neuralEvaluated > 0 && !WolfPretrainedEnsemble.status().validatedForScoring) {
             errors.add("نتایج شبکه عصبی صرفاً پژوهشی و آزمایشی هستند؛ مدل هنوز مجوز اثرگذاری بر سیگنال زنده را ندارد.")
         }
         if (neuralUnavailable > 0) errors.add("$neuralUnavailable نمونه به‌دلیل نبود داده/وزن معتبر شبکه عصبی ارزیابی نشد.")
