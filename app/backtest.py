@@ -192,7 +192,9 @@ def run_backtest(
         funding = position["notional"]*funding_rate_8h*(elapsed_hours/8.0)
         fees = position["entry_fee"]+exit_fee
         slip_cost = position["entry_slip_cost"]+abs(raw_exit-exit_price)*position["quantity"]
-        net = gross-fees-funding  # include both entry and exit fees in trade-level net PnL
+        # Entry fee is already deducted from equity; include it here only in
+        # trade-level net PnL so the cash balance is not charged twice.
+        net = gross-fees-funding
         equity += gross-exit_fee-funding
         trades.append(Trade(
             side=side, signal_time=position["signal_time"], entry_time=position["entry_time"],
