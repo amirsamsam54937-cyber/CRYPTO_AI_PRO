@@ -15,15 +15,14 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
-import kotlin.random.Random
 
 /** Randomized chronological replay of the app's multi-timeframe technical engine and neural vote. */
 internal object WolfHistoricalBacktestEngine {
     private const val PREFS = "hope_hunter_historical_backtest"
     private const val KEY = "latest_v2"
     private const val COST_PCT_NOTIONAL_ROUND_TRIP = 0.10
-    private const val SYMBOL_LIMIT = 4
-    private const val SAMPLES_PER_SYMBOL = 12
+    private const val SYMBOL_LIMIT = 6
+    private const val SAMPLES_PER_SYMBOL = 48
     private const val WARMUP_BARS = 230
     private const val DAY_MS = 86_400_000L
 
@@ -76,8 +75,7 @@ internal object WolfHistoricalBacktestEngine {
         val symbols = candidates.distinct().take(SYMBOL_LIMIT)
         require(symbols.isNotEmpty()) { "ابتدا اسکن بازار را اجرا کن تا نمادهای منتخب مشخص شوند." }
         val started = System.currentTimeMillis()
-        val random = Random(System.nanoTime())
-        val technicalTally = Tally()
+                val technicalTally = Tally()
         val neuralTally = Tally()
         val agreementTally = Tally()
         val errors = mutableListOf<String>()
@@ -94,8 +92,9 @@ internal object WolfHistoricalBacktestEngine {
         for (symbol in symbols) {
             currentCoroutineContext().ensureActive()
             try {
-                // Every run chooses a new historical anchor, not the latest/fixed chart segment.
-                val anchor = System.currentTimeMillis() - random.nextLong(45L * DAY_MS, 180L * DAY_MS)
+                // Use a stable daily anchor so repeated runs on the same day are reproducible.
+                // The replay window is historical and never includes candles after each decision point.
+                val anchor = (System.currentTimeMillis() / DAY_MS) * DAY_MS - 90L * DAY_MS
                 val frames = listOf(
                     Triple("5m", 5L * 60_000L, "micro"),
                     Triple("15m", 15L * 60_000L, "short"),
@@ -113,8 +112,13 @@ internal object WolfHistoricalBacktestEngine {
                 }
                 val history = loadedFrames.toMap()
                 val micro = history.getValue("5m")
-                val sampleIndexes = (250 until (micro.size - 100).coerceAtLeast(251))
-                    .toList().shuffled(random).take(SAMPLES_PER_SYMBOL).sorted()
+                val eligibleIndexes = (250 until (micro.size - 150).coerceAtLeast(251)).toList()
+                // Evenly spaced chronological samples reduce random variance and preserve
+                // coverage across the fetched window instead of clustering trades together.
+                val sampleIndexes = if (eligibleIndexes.size <= SAMPLES_PER_SYMBOL) eligibleIndexes
+                    else (0 until SAMPLES_PER_SYMBOL).map { slot ->
+                        eligibleIndexes[(slot.toLong() * (eligibleIndexes.size - 1) / (SAMPLES_PER_SYMBOL - 1)).toInt()]
+                    }.distinct()
                 for (idx in sampleIndexes) {
                     currentCoroutineContext().ensureActive()
                     val decisionTime = micro[idx][5].toLong() + 5L * 60_000L
@@ -129,10 +133,9 @@ internal object WolfHistoricalBacktestEngine {
                     )
                     // Keep the production gate intact, but score the neural model independently
                     // in research mode so an unvalidated model can still be measured offline.
-                    val neuralStatus = WolfPretrainedEnsemble.initialize(context)
+                    WolfPretrainedEnsemble.initialize(context)
                     val researchPrediction = WolfPretrainedEnsemble.predictResearch(technical)
-                    val liveReviewed = applyWolfNeuralScoring(context, listOf(technical)).first()
-                    val technicalSide = technical.technicalDirection
+                                        val technicalSide = technical.technicalDirection
                     val neuralSide = researchPrediction?.predictedDirection ?: "NEUTRAL"
                     if (researchPrediction != null) neuralEvaluated++ else neuralUnavailable++
                     val isTech = technicalSide == "LONG_BIAS" || technicalSide == "SHORT_BIAS"
@@ -175,11 +178,12 @@ internal object WolfHistoricalBacktestEngine {
                     }
                     replay(technicalSide)?.let { technicalTally.trades.add(PaperTrade(it)) }
                     replay(neuralSide)?.let { neuralTally.trades.add(PaperTrade(it)) }
-                    // Production combined strategy remains disabled unless chronological
-                    // holdout validation passes and the normal live gate agrees.
-                    if (neuralStatus.validatedForScoring &&
-                        (liveReviewed.direction == "LONG_BIAS" || liveReviewed.direction == "SHORT_BIAS")) {
-                        replay(liveReviewed.direction)?.let { agreementTally.trades.add(PaperTrade(it)) }
+                    // Research-only agreement portfolio: score the independent technical and neural
+                    // votes on the same timestamp. This never changes the live-signal gate.
+                    // The combined result remains a research metric until holdout validation passes.
+                    if (isTech && isNeural && technicalSide == neuralSide &&
+                        (researchPrediction?.strength ?: 0) >= 55) {
+                        replay(technicalSide)?.let { agreementTally.trades.add(PaperTrade(it)) }
                     }
                     sampleCount++
                 }
