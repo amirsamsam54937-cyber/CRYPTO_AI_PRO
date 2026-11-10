@@ -789,7 +789,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                             SmallStat("هدف نهایی TP1 • 1R", formatPrice(item.tp1), Green)
                         }
                         Text("حد ضرر و اهداف بر پایه ATR و ساختار حمایت/مقاومت محاسبه می‌شوند؛ اهرم با فاصله استاپ و ریسک نوسان تنظیم می‌شود، نه عدد ثابت.", color = Muted, fontSize = 9.sp)
-                        Text("اعتبار سیگنال: ۱۵ دقیقه از زمان ثبت؛ پس از انقضا، پیش از هر تصمیمی تحلیل را تازه‌سازی کن.", color = Gold, fontSize = 9.sp)
+                        Text("اعتبار سیگنال: ۱۵ دقیقه از زمان ثبت؛ پس از انقضا، آن را منقضی‌شده بدان و دوباره تحلیل کن.", color = Gold, fontSize = 9.sp)
                     }
                 }
             }
