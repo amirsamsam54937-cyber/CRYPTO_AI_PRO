@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Train ten compact MLPs on verified historical futures OHLCV candles."""
-import csv, json, os, time, urllib.request
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import csv, json, os, time
 import numpy as np
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
@@ -11,9 +10,8 @@ try:
 except ModuleNotFoundError:  # direct execution as `python tools/train_wolf_ensemble.py`
     from time_series_validation import chronological_masks
 
-BASE_URL = "https://fapi.binance.com"
-SYMBOLS = ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","LINKUSDT","AVAXUSDT","LTCUSDT","TRXUSDT","DOTUSDT","BCHUSDT","ETCUSDT","ATOMUSDT","NEARUSDT","APTUSDT","ARBUSDT","OPUSDT","FILUSDT"]
-INTERVAL, PAGE_LIMIT, HISTORY_BARS, HORIZON = "1h", 1500, 6000, 6
+DATA_SOURCE = "verified XT USDT perpetual historical corpus"
+INTERVAL, HORIZON = "1h", 6
 
 def get_json(path):
     # Use only Binance's canonical public USD-M endpoint. Never rotate hosts or mirrors
@@ -182,18 +180,10 @@ def main():
                 used_symbols.append(symbol)
             print(f"REAL SEED {symbol}: {len(x)} labeled samples",flush=True)
     else:
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            futures={pool.submit(fetch_symbol_samples,symbol):symbol for symbol in SYMBOLS}
-            for future in as_completed(futures):
-                symbol=futures[future]
-                try:
-                    _,x,y,t=future.result()
-                    if len(x)>100:
-                        chunks.append((x,y,t))
-                        used_symbols.append(symbol)
-                    print(f"{symbol}: {len(x)} labeled samples",flush=True)
-                except Exception as exc:
-                    print(f"SKIP {symbol}: {exc}",flush=True)
+        raise SystemExit(
+            "Verified XT Futures training corpus is missing; refusing to fetch from another exchange "
+            "or create synthetic samples."
+        )
     if not chunks:
         raise SystemExit("No real historical data received; refusing to create fake pretrained weights.")
     X=np.vstack([item[0] for item in chunks])
