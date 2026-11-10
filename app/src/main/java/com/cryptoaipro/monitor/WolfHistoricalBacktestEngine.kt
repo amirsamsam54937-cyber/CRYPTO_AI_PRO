@@ -104,7 +104,7 @@ internal object WolfHistoricalBacktestEngine {
                 val loadedFrames = coroutineScope {
                     frames.map { (interval, intervalMs, _) ->
                         async {
-                            interval to BinanceMonitor.historicalCandles(
+                            interval to XtFuturesMonitor.historicalCandles(
                                 symbol, interval, anchor - WARMUP_BARS * intervalMs, 1000
                             )
                         }
@@ -128,7 +128,7 @@ internal object WolfHistoricalBacktestEngine {
                     val trend = history.getValue("4h").filter { it[5].toLong() + 4L * 60L * 60_000L <= decisionTime }.takeLast(500)
                     if (microClosed.size < 210 || short.size < 210 || confirm.size < 210 || trend.size < 210) continue
                     val price = microClosed.last()[3]
-                    val technical = BinanceMonitor.analyzeHistoricalWindow(
+                    val technical = MarketAnalysisEngine.analyzeHistoricalWindow(
                         symbol, short, confirm, trend, microClosed, price
                     )
                     // Keep the production gate intact, but score the neural model independently
