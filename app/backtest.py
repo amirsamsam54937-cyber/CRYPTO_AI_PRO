@@ -203,6 +203,14 @@ def run_backtest(
             net_pnl=net, exit_reason="END_OF_DATA", equity_after=equity,
         ))
 
+    # End-of-data liquidation occurs after the bar loop. Reconcile the terminal
+    # equity point and drawdown with that realized close, rather than leaving the
+    # curve at the pre-liquidation balance.
+    if equity_curve:
+        equity_curve[-1]["equity"] = equity
+    peak = max(peak, equity)
+    max_dd = max(max_dd, (peak-equity)/peak if peak > 0 else 1.0)
+
     pnls = [t.net_pnl for t in trades]
     wins = [p for p in pnls if p > 0]
     losses = [p for p in pnls if p < 0]

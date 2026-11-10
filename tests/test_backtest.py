@@ -65,3 +65,29 @@ def test_backtest_rejects_duplicate_or_out_of_order_timestamps():
     out_of_order.loc[120, "timestamp"] = out_of_order.loc[119, "timestamp"] - pd.Timedelta(hours=1)
     with pytest.raises(ValueError, match="timestamps"):
         run_backtest(out_of_order, warmup=100)
+
+
+def test_backtest_terminal_liquidation_updates_equity_curve_and_drawdown(monkeypatch):
+    frame = sample_frame(104)
+    frame.loc[100:102, ["open", "high", "low", "close"]] = [100.0, 100.5, 99.5, 100.0]
+    frame.loc[103, ["open", "high", "low", "close"]] = [100.0, 100.5, 98.9, 99.0]
+    monkeypatch.setattr(
+        "app.backtest.analyze_ohlcv",
+        lambda history: {"direction": "LONG_BIAS", "atr": 1.0},
+    )
+
+    result = run_backtest(
+        frame,
+        initial_equity=1000.0,
+        risk_per_trade=0.02,
+        fee_rate=0.0,
+        slippage_rate=0.0,
+        funding_rate_8h=0.0,
+        warmup=100,
+    )
+
+    assert result["trade_count"] == 1
+    assert result["trades"][0]["exit_reason"] == "END_OF_DATA"
+    assert result["equity_curve"][-1]["equity"] == pytest.approx(result["final_equity"])
+    expected_drawdown = (1000.0 - result["final_equity"]) / 1000.0 * 100.0
+    assert result["max_drawdown_percent"] == pytest.approx(expected_drawdown)
