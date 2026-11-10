@@ -149,31 +149,45 @@ internal object WolfHistoricalBacktestEngine {
                     val entry = entryBar[0]
                     if (!entry.isFinite() || entry <= 0.0) continue
                     val timeframe = technical.tradeTimeframe
-                    val holdBars = when (timeframe) { "4h" -> 144; "1h" -> 72; else -> 36 }
+                    // Hold for at most 12 bars of the selected signal timeframe, replayed on 5m candles.
+                    val holdBars = when (timeframe) { "4h" -> 12 * 48; "1h" -> 12 * 12; "15m" -> 12 * 3; else -> 12 }
                     val leverage = technical.leverage.coerceIn(1, 5)
-                    val risk = maxOf(abs(technical.price - technical.stop), technical.atr * 1.5, entry * 0.002)
-                    val reward = maxOf(abs(technical.tp1 - technical.price), risk)
+                    // Preserve the actual signal's stop/TP1 geometry. The old replay invented a new
+                    // stop and forced reward >= risk, which materially distorted the reported edge.
+                    val riskDistance = abs(technical.price - technical.stop)
+                    val rewardDistance = abs(technical.tp1 - technical.price)
+                    if (!riskDistance.isFinite() || !rewardDistance.isFinite() || riskDistance <= 0.0 ||
+                        rewardDistance <= 0.0 || rewardDistance / riskDistance < 1.0) continue
+                    val slippagePctPerSide = 0.02
                     fun replay(side: String): Double? {
                         if (side != "LONG_BIAS" && side != "SHORT_BIAS") return null
                         val long = side == "LONG_BIAS"
-                        val stop = if (long) entry - risk else entry + risk
-                        val target = if (long) entry + reward else entry - reward
+                        val rawEntry = entryBar[0]
+                        if (!rawEntry.isFinite() || rawEntry <= 0.0) return null
+                        val stop = if (long) rawEntry - riskDistance else rawEntry + riskDistance
+                        val target = if (long) rawEntry + rewardDistance else rawEntry - rewardDistance
+                        if (stop <= 0.0 || target <= 0.0) return null
+                        // Adverse market-entry slippage; stop/target distances remain identical for all portfolios.
+                        val entryFill = rawEntry * (1.0 + (if (long) 1.0 else -1.0) * slippagePctPerSide / 100.0)
                         val end = minOf(micro.lastIndex, entryIndex + holdBars)
-                        var exit = micro[end][3]
+                        var rawExit = micro[end][3]
                         for (j in entryIndex..end) {
                             val bar = micro[j]
                             val stopHit = if (long) bar[2] <= stop else bar[1] >= stop
                             val targetHit = if (long) bar[1] >= target else bar[2] <= target
-                            // If both levels occur within one OHLC candle, assume the adverse stop filled first.
+                            // Conservative OHLC ambiguity: if both levels hit, stop is assumed first.
                             if (stopHit) {
-                                // Model adverse opening gaps at the worse open rather than granting a perfect stop fill.
-                                exit = if ((long && bar[0] < stop) || (!long && bar[0] > stop)) bar[0] else stop
+                                rawExit = if ((long && bar[0] < stop) || (!long && bar[0] > stop)) bar[0] else stop
                                 break
                             }
-                            if (targetHit) { exit = target; break }
+                            if (targetHit) { rawExit = target; break }
                         }
-                        val gross = if (long) (exit / entry - 1.0) * 100.0
-                            else (entry / exit - 1.0) * 100.0
+                        // Adverse exit slippage applies to stop, target and time-based exits alike.
+                        val exitFill = rawExit * (1.0 + (if (long) -1.0 else 1.0) * slippagePctPerSide / 100.0)
+                        if (entryFill <= 0.0 || exitFill <= 0.0) return null
+                        val gross = if (long) (exitFill / entryFill - 1.0) * 100.0
+                            else (entryFill / exitFill - 1.0) * 100.0
+                        // Fee assumption is round-trip 0.10% notional; funding is not modelled and is disclosed.
                         return gross * leverage - COST_PCT_NOTIONAL_ROUND_TRIP * leverage
                     }
                     replay(technicalSide)?.let { technicalTally.trades.add(PaperTrade(it)) }
