@@ -588,18 +588,7 @@ fun CryptoMonitorScreen() {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     Text("پایش زنده بازار", color = Color.White, fontWeight = FontWeight.Bold)
                                     Text("با شروع سرویس، اعلان دائمی اندروید نمایش داده می‌شود و اسکن بازار در پس‌زمینه ادامه می‌یابد. توقف اجباری، قطع اینترنت یا محدودیت باتری می‌تواند سرویس را متوقف کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                                    Button(
-                                        onClick = {
-                                            val intent = Intent(context, MarketMonitorService::class.java)
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
-                                            else context.startService(intent)
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) { Text("شروع پایش پس‌زمینه") }
-                                    OutlinedButton(
-                                        onClick = { context.stopService(Intent(context, MarketMonitorService::class.java)) },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) { Text("توقف پایش") }
+                                    Text("پایش زنده هنگام باز بودن برنامه فعال است. برای دریافت داده‌های تازه، اسکن بازار را از صفحهٔ خانه اجرا کنید.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
                                 }
                             }
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
@@ -1703,5 +1692,36 @@ internal object MarketAnalysisEngine {
         }
         val macd = fast.zip(slow) { x, y -> x - y }
         return macd.last() to ema(macd, 9)
+    }
+}
+
+@Composable
+private fun HopeHunterHeroArt(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        drawRect(
+            brush = Brush.linearGradient(
+                colors = listOf(Color(0xFF050505), Color(0xFF241B0B), Color(0xFF080808)),
+                start = Offset.Zero,
+                end = Offset(size.width, size.height)
+            )
+        )
+        drawCircle(
+            color = Color(0xFFFFC52E).copy(alpha = 0.16f),
+            radius = size.minDimension * 0.42f,
+            center = Offset(size.width * 0.82f, size.height * 0.48f)
+        )
+        drawCircle(
+            color = Color(0xFFFFD45A).copy(alpha = 0.20f),
+            radius = size.minDimension * 0.27f,
+            center = Offset(size.width * 0.82f, size.height * 0.48f)
+        )
+        val path = Path().apply {
+            moveTo(size.width * 0.58f, size.height * 0.78f)
+            lineTo(size.width * 0.70f, size.height * 0.30f)
+            lineTo(size.width * 0.82f, size.height * 0.65f)
+            lineTo(size.width * 0.93f, size.height * 0.28f)
+            lineTo(size.width, size.height * 0.76f)
+        }
+        drawPath(path, color = Color(0xFFFFD45A).copy(alpha = 0.62f), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.2f))
     }
 }
