@@ -21,7 +21,7 @@ Consolidated from the user's prior conversations on 2026-11-10. This is a requir
 - Historical desire for a substantial APK must not be met by artificial size inflation or unused assets.
 
 ## 3. Market coverage and data
-- Discover broad available Binance USDⓈ-M USDT perpetual and XT USDT perpetual universes; no silent tiny hardcoded watchlist.
+- Discover broad available XT USDⓈ-M USDT perpetual and XT USDT perpetual universes; no silent tiny hardcoded watchlist.
 - Prioritize by liquidity/volume/data quality and report eligible, scanned, successful, skipped and failed counts.
 - Respect rate limits and exchange terms. Never bypass WAF, 403/451, regional restrictions or access controls. Bounded concurrency, timeout, cancellation, sensible backoff for 429/transient errors.
 - HTML/WAF responses are errors, never JSON/candles. Validate OHLCV, timestamps, duplicates, gaps, freshness and history length.
@@ -97,12 +97,12 @@ Every signal: exchange, symbol, LONG/SHORT/NO TRADE, tier/type 1/2/3, dynamic ti
 
 ## 10. Source audit snapshot at consolidation
 Observed in source:
-- Compose Android app; Binance/XT read-only scanners; multi-timeframe technical snapshots; ten rule-based consensus specialists; separate ten-member pretrained MLP; quality, regime, adversarial, forecast, math and time-series review engines; outcome journal, learning-memory components and historical backtest engine.
+- Compose Android app; XT/XT read-only scanners; multi-timeframe technical snapshots; ten rule-based consensus specialists; separate ten-member pretrained MLP; quality, regime, adversarial, forecast, math and time-series review engines; outcome journal, learning-memory components and historical backtest engine.
 - Strict live neural validation gate exists; unvalidated models abstain.
 - Signal construction calculates TP1 dynamically but retains legacy tp2/tp3 fields set equal to TP1; migrate all references before deleting fields.
-- XT discovers broad perpetual universe. Binance universe completeness still needs audit.
+- XT discovers broad perpetual universe. XT universe completeness still needs audit.
 - Incomplete/unproven: 2-minute backtest refresh cadence; fully fair independent three-way backtest; walk-forward retraining at each historical decision; complete fees/funding/slippage/intrabar simulation; safe automatic retraining/promotion; full news/whale/funding/OI integrations; physical-device stability.
-- User-reported issue: Binance WAF/HTTP 403 and intermittent Binance/XT failures. Do not claim fixed until verified with real responses.
+- User-reported issue: XT WAF/HTTP 403 and intermittent XT/XT failures. Do not claim fixed until verified with real responses.
 - 2.44.0 introduced reproducible evenly spaced historical samples, expanded research sampling, independent neural research vote and minimum-trade comparison guard. 2.45.0 is the XT-only migration; build and behavior still need verification.
 
 ## 11. Release acceptance criteria
