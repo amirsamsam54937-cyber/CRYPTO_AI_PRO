@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 64
-  versionName = "2.45.0"
-  // Release 2.45: XT-only market data, analysis, historical replay and training.
+  versionCode = 65
+  versionName = "2.46.0"
+  // Release 2.46: corrected historical decision-point counts and chronological portfolio equity ordering.
  }
  buildFeatures { compose = true }
  // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
