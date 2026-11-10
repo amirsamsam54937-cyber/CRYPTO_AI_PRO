@@ -1,4 +1,4 @@
-name: Build AMIRARSALAN TRADER WOLF APK
+name: Build HOPE HUNTER APK
 permissions:
   contents: read
   actions: read
@@ -53,7 +53,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: AMIRARSALAN-TRADER-WOLF-UPDATED-APK
+          name: HOPE-HUNTER-2.33.3-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
