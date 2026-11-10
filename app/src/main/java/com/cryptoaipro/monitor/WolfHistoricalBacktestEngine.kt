@@ -22,8 +22,8 @@ internal object WolfHistoricalBacktestEngine {
     private const val PREFS = "hope_hunter_historical_backtest"
     private const val KEY = "latest_v2"
     private const val COST_PCT_NOTIONAL_ROUND_TRIP = 0.10
-    private const val SYMBOL_LIMIT = 2
-    private const val SAMPLES_PER_SYMBOL = 6
+    private const val SYMBOL_LIMIT = 4
+    private const val SAMPLES_PER_SYMBOL = 12
     private const val WARMUP_BARS = 230
     private const val DAY_MS = 86_400_000L
 
@@ -82,6 +82,8 @@ internal object WolfHistoricalBacktestEngine {
         val agreementTally = Tally()
         val errors = mutableListOf<String>()
         var sampleCount = 0
+        var neuralEvaluated = 0
+        var neuralUnavailable = 0
         var agreements = 0
         var disagreements = 0
         var neuralWins = 0
@@ -125,12 +127,17 @@ internal object WolfHistoricalBacktestEngine {
                     val technical = BinanceMonitor.analyzeHistoricalWindow(
                         symbol, short, confirm, trend, microClosed, price
                     )
-                    val neuralReviewed = applyWolfNeuralScoring(context, listOf(technical)).first()
+                    // Keep the production gate intact, but score the neural model independently
+                    // in research mode so an unvalidated model can still be measured offline.
+                    val neuralStatus = WolfPretrainedEnsemble.initialize(context)
+                    val researchPrediction = WolfPretrainedEnsemble.predictResearch(technical)
+                    val liveReviewed = applyWolfNeuralScoring(context, listOf(technical)).first()
                     val technicalSide = technical.technicalDirection
-                    val neuralSide = neuralReviewed.neuralDirection
+                    val neuralSide = researchPrediction?.predictedDirection ?: "NEUTRAL"
+                    if (researchPrediction != null) neuralEvaluated++ else neuralUnavailable++
                     val isTech = technicalSide == "LONG_BIAS" || technicalSide == "SHORT_BIAS"
                     val isNeural = neuralSide == "LONG_BIAS" || neuralSide == "SHORT_BIAS"
-                    if (isTech && isNeural && technicalSide == neuralSide && neuralReviewed.neuralScore >= 55) agreements++
+                    if (isTech && isNeural && technicalSide == neuralSide && (researchPrediction?.strength ?: 0) >= 55) agreements++
                     else if (isTech && isNeural && technicalSide != neuralSide) disagreements++
 
                     val entryIndex = idx + 1
@@ -140,7 +147,7 @@ internal object WolfHistoricalBacktestEngine {
                     if (!entry.isFinite() || entry <= 0.0) continue
                     val timeframe = technical.tradeTimeframe
                     val holdBars = when (timeframe) { "4h" -> 144; "1h" -> 72; else -> 36 }
-                    val leverage = neuralReviewed.leverage.coerceIn(1, 5)
+                    val leverage = technical.leverage.coerceIn(1, 5)
                     val risk = maxOf(abs(technical.price - technical.stop), technical.atr * 1.5, entry * 0.002)
                     val reward = maxOf(abs(technical.tp1 - technical.price), risk)
                     fun replay(side: String): Double? {
@@ -168,9 +175,11 @@ internal object WolfHistoricalBacktestEngine {
                     }
                     replay(technicalSide)?.let { technicalTally.trades.add(PaperTrade(it)) }
                     replay(neuralSide)?.let { neuralTally.trades.add(PaperTrade(it)) }
-                    // Combined/production strategy only takes a side when the live quality gate agrees.
-                    if (neuralReviewed.direction == "LONG_BIAS" || neuralReviewed.direction == "SHORT_BIAS") {
-                        replay(neuralReviewed.direction)?.let { agreementTally.trades.add(PaperTrade(it)) }
+                    // Production combined strategy remains disabled unless chronological
+                    // holdout validation passes and the normal live gate agrees.
+                    if (neuralStatus.validatedForScoring &&
+                        (liveReviewed.direction == "LONG_BIAS" || liveReviewed.direction == "SHORT_BIAS")) {
+                        replay(liveReviewed.direction)?.let { agreementTally.trades.add(PaperTrade(it)) }
                     }
                     sampleCount++
                 }
@@ -183,6 +192,12 @@ internal object WolfHistoricalBacktestEngine {
         val techStats = technicalTally.stats()
         val neuralStats = neuralTally.stats()
         val agreementStats = agreementTally.stats()
+        if (neuralEvaluated == 0) {
+            errors.add("شبکه عصبی در هیچ نمونه‌ای پیش‌بینی مستقل نداد؛ وزن‌ها یا ورودی ۱ساعته در دسترس نیست.")
+        } else if (!WolfPretrainedEnsemble.status().validatedForScoring) {
+            errors.add("نتایج شبکه عصبی صرفاً پژوهشی و آزمایشی هستند؛ مدل هنوز مجوز اثرگذاری بر سیگنال زنده را ندارد.")
+        }
+        if (neuralUnavailable > 0) errors.add("$neuralUnavailable نمونه به‌دلیل نبود داده/وزن معتبر شبکه عصبی ارزیابی نشد.")
         val snapshot = Snapshot(
             System.currentTimeMillis(), System.currentTimeMillis() - started, symbols, sampleCount,
             techStats, neuralStats, agreementStats, agreements, disagreements,
