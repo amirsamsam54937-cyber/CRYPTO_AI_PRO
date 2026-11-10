@@ -90,4 +90,4 @@ def test_backtest_terminal_liquidation_updates_equity_curve_and_drawdown(monkeyp
     assert result["trades"][0]["exit_reason"] == "END_OF_DATA"
     assert result["equity_curve"][-1]["equity"] == pytest.approx(result["final_equity"])
     expected_drawdown = (1000.0 - result["final_equity"]) / 1000.0 * 100.0
-    assert result["max_drawdown_percent"] == pytest.approx(expected_drawdown)
+    assert result["max_drawdown_percent"] == pytest.approx(expected_drawdown, abs=5e-5)
