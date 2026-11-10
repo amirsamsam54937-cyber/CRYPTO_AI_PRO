@@ -5,7 +5,7 @@ Consolidated from the user's prior conversations on 2026-11-10. This is a requir
 ## 1. Current scope and hard exclusions
 - Android app for crypto futures technical analysis and signals only.
 - The older autonomous-trader request is superseded. No account login, API keys, order placement, automatic trading, position management, or manual trading terminal.
-- Read-only public market data from Binance USDⓈ-M futures and XT USDT perpetuals.
+- Read-only public market data from XT USDⓈ-M futures and XT USDT perpetuals.
 - Signal quality over quantity. NO TRADE is a correct result when evidence is insufficient.
 - Technical and neural engines must be separate. Live LONG/SHORT requires both independently voting the same direction plus every quality/risk gate passing. Disagreement, neutral/unavailable vote, stale data, or unvalidated model => NO TRADE.
 - Never describe confidence/consensus as calibrated win probability without calibration evidence. Never promise profit.
@@ -103,7 +103,7 @@ Observed in source:
 - XT discovers broad perpetual universe. Binance universe completeness still needs audit.
 - Incomplete/unproven: 2-minute backtest refresh cadence; fully fair independent three-way backtest; walk-forward retraining at each historical decision; complete fees/funding/slippage/intrabar simulation; safe automatic retraining/promotion; full news/whale/funding/OI integrations; physical-device stability.
 - User-reported issue: Binance WAF/HTTP 403 and intermittent Binance/XT failures. Do not claim fixed until verified with real responses.
-- 2.44.0 code changes: reproducible evenly spaced historical samples, expanded research sampling, independent neural research vote, minimum-trade comparison guard. Build and behavior still need verification.
+- 2.44.0 introduced reproducible evenly spaced historical samples, expanded research sampling, independent neural research vote and minimum-trade comparison guard. 2.45.0 is the XT-only migration; build and behavior still need verification.
 
 ## 11. Release acceptance criteria
 1. Automated tests pass.
