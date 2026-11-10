@@ -11,7 +11,12 @@ import kotlin.math.tanh
  */
 internal object WolfPretrainedEnsemble {
     data class ResearchPrediction(val referenceDirection:String,val probability:Double) {
-        val predictedDirection:String get() = if (probability >= 0.5) referenceDirection else if (referenceDirection == "LONG_BIAS") "SHORT_BIAS" else "LONG_BIAS"
+        val predictedDirection:String get() = when {
+            strength < 55 -> "NEUTRAL"
+            probability >= 0.5 -> referenceDirection
+            referenceDirection == "LONG_BIAS" -> "SHORT_BIAS"
+            else -> "LONG_BIAS"
+        }
         val strength:Int get() = (maxOf(probability, 1.0-probability) * 100.0).toInt().coerceIn(1,99)
     }
     data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double,val baselineAccuracy:Double=0.0,val balancedAccuracy:Double=0.0,val logLoss:Double=0.0,val validatedForScoring:Boolean=false,val corpusRows:Int=0)
