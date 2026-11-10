@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 65
-  versionName = "2.46.0"
-  // Release 2.46: corrected historical decision-point counts and chronological portfolio equity ordering.
+  versionCode = 66
+  versionName = "2.47.0"
+  // Release 2.47: independent technical/neural risk geometry and holding horizons in research replay.
  }
  buildFeatures { compose = true }
  // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
