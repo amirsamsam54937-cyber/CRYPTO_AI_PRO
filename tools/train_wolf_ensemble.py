@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Train ten compact MLPs on verified historical futures OHLCV candles."""
-import csv, json, os, time
+import csv, json, os
 import numpy as np
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
@@ -12,38 +12,6 @@ except ModuleNotFoundError:  # direct execution as `python tools/train_wolf_ense
 
 DATA_SOURCE = "verified XT USDT perpetual historical corpus"
 INTERVAL, HORIZON = "1h", 6
-
-def get_json(path):
-    # Use only Binance's canonical public USD-M endpoint. Never rotate hosts or mirrors
-    # after a regional-eligibility denial.
-    req = urllib.request.Request(BASE_URL + path, headers={"User-Agent":"AmirWolf-Research/2.14"})
-    try:
-        with urllib.request.urlopen(req, timeout=20) as response:
-            return json.loads(response.read())
-    except Exception as exc:
-        raise RuntimeError(f"Canonical Binance public futures endpoint unavailable: {exc}") from exc
-
-def get_history(symbol):
-    # Historical training uses the same canonical public endpoint as the app.
-    # If Binance denies access, skip the symbol rather than trying a mirror.
-    rows=[]
-    start=int(time.time()*1000)-HISTORY_BARS*60*60*1000
-    while len(rows)<HISTORY_BARS:
-        query=f"/fapi/v1/klines?symbol={symbol}&interval={INTERVAL}&limit={PAGE_LIMIT}&startTime={start}"
-        page=get_json(query)
-        if not page:
-            break
-        rows.extend(page)
-        next_start=int(page[-1][6])+1
-        if next_start<=start:
-            break
-        start=next_start
-        if len(page)<PAGE_LIMIT:
-            break
-        time.sleep(.08)
-    unique={int(row[0]):row for row in rows}
-    return [unique[key] for key in sorted(unique)][-HISTORY_BARS:]
-
 
 def ema(values, period):
     result = np.empty(len(values), dtype=float)
