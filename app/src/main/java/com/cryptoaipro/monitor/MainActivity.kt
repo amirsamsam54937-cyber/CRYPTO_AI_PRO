@@ -1695,6 +1695,7 @@ internal object MarketAnalysisEngine {
     }
 }
 
+// XT-only release: background monitoring is intentionally limited to the active app session.
 @Composable
 private fun HopeHunterHeroArt(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
