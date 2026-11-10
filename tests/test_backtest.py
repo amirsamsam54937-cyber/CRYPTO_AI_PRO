@@ -80,7 +80,7 @@ def test_backtest_terminal_liquidation_updates_equity_curve_and_drawdown(monkeyp
         frame,
         initial_equity=1000.0,
         risk_per_trade=0.02,
-        fee_rate=0.0,
+        fee_rate=0.001,
         slippage_rate=0.0,
         funding_rate_8h=0.0,
         warmup=100,
@@ -88,6 +88,8 @@ def test_backtest_terminal_liquidation_updates_equity_curve_and_drawdown(monkeyp
 
     assert result["trade_count"] == 1
     assert result["trades"][0]["exit_reason"] == "END_OF_DATA"
+    assert result["trades"][0]["net_pnl"] == pytest.approx(result["final_equity"] - 1000.0)
+    assert result["trades"][0]["fees"] > 0
     assert result["equity_curve"][-1]["equity"] == pytest.approx(result["final_equity"])
     expected_drawdown = (1000.0 - result["final_equity"]) / 1000.0 * 100.0
     assert result["max_drawdown_percent"] == pytest.approx(expected_drawdown, abs=5e-5)
