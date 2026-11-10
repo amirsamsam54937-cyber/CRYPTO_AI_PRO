@@ -93,6 +93,37 @@ internal object XtFuturesMonitor {
         }
     }
 
+    internal suspend fun historicalCandles(
+        symbol: String, interval: String, startTime: Long, limit: Int = 1000
+    ): List<DoubleArray> = withContext(Dispatchers.IO) {
+        require(symbol.matches(Regex("[a-z0-9_]{3,40}"))) { "نماد XT نامعتبر است" }
+        val intervalMs = when (interval) {
+            "5m" -> 5L * 60_000L
+            "15m" -> 15L * 60_000L
+            "1h" -> 60L * 60_000L
+            "4h" -> 4L * 60L * 60_000L
+            else -> throw IllegalArgumentException("Unsupported XT historical interval: $interval")
+        }
+        val encoded = URLEncoder.encode(symbol, "UTF-8")
+        val raw = get("/future/market/v1/public/q/kline?symbol=$encoded&interval=$interval&startTime=$startTime&limit=${limit.coerceIn(300, 1000)}")
+        val rows = extractRows(raw)
+        val now = System.currentTimeMillis()
+        val parsed = (0 until rows.length()).mapNotNull { parseCandle(rows.opt(it)) }
+            .sortedBy { it[5] }.distinctBy { it[5].toLong() }
+            .filter { it[5].toLong() >= startTime && it[5].toLong() + intervalMs <= now }
+        require(parsed.size >= 210) {
+            "تاریخچه XT برای $interval کافی نیست؛ کندل بسته‌شده: ${parsed.size}"
+        }
+        require(parsed.all { x -> x.all(Double::isFinite) && x[0] > 0 && x[1] >= maxOf(x[0], x[3]) &&
+            x[2] <= minOf(x[0], x[3]) && x[1] >= x[2] && x[4] >= 0 && x[5] > 0 }) {
+            "ساختار OHLCV تاریخی XT معتبر نیست: $symbol"
+        }
+        require(parsed.zipWithNext().all { (a,b) -> b[5] > a[5] && b[5]-a[5] <= intervalMs*2.0 }) {
+            "تاریخچه XT دارای تکرار یا شکاف زمانی است: $symbol"
+        }
+        parsed
+    }
+
     suspend fun scan(onProgress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { _,_,_,_ -> }): List<MarketSignal> =
         withContext(Dispatchers.IO) {
             val contracts = extractRows(get("/future/market/v1/public/cg/contracts"))
@@ -127,7 +158,7 @@ internal object XtFuturesMonitor {
                                 val d = async { candles(item.first,"4h") }
                                 Triple(a.await(),b.await(),d.await())
                             }
-                            BinanceMonitor.analyzeWithCandles(item.second,price,change,volume,f.first,f.second,f.third)
+                            MarketAnalysisEngine.analyzeWithCandles(item.second,price,change,volume,f.first,f.second,f.third)
                         }
                     } }.awaitAll()
                 }
