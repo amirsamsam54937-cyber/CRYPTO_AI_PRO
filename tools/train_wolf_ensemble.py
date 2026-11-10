@@ -171,9 +171,11 @@ def main():
     A,B=scaler.transform(X_train),scaler.transform(X_test)
     members,metrics,all_probabilities=[],[],[]
     for index in range(10):
+        # Do not use sklearn's random internal early-stopping split: the dataset is time ordered
+        # and random validation would leak later market regimes into earlier training decisions.
         model=MLPClassifier(hidden_layer_sizes=(64,32,16),activation="tanh",solver="adam",
-            alpha=.002,learning_rate_init=.0015,max_iter=300,early_stopping=True,
-            validation_fraction=.15,n_iter_no_change=22,random_state=20261107+index)
+            alpha=.002,learning_rate_init=.0015,max_iter=300,early_stopping=False,
+            tol=1e-4,n_iter_no_change=22,random_state=20261107+index)
         model.fit(A,y_train)
         probabilities=model.predict_proba(B)[:,1]
         all_probabilities.append(probabilities)
