@@ -313,7 +313,12 @@ fun CryptoMonitorScreen() {
                 selectedSymbol = rows.firstOrNull()?.symbol.orEmpty()
             }
         } catch (e: Exception) {
-            error = e.message ?: "خطا در دریافت اطلاعات بازار"
+            val rawMessage = e.message ?: "خطا در دریافت اطلاعات بازار"
+            error = if (rawMessage.contains("<html", ignoreCase = true) ||
+                rawMessage.contains("<!doctype", ignoreCase = true) ||
+                rawMessage.contains("<head", ignoreCase = true)) {
+                "پاسخ وب به‌جای داده بازار دریافت شد؛ احتمالاً WAF یا محدودیت دسترسی صرافی است. HTML خام حذف شد. در صورت تداوم خطای Binance، منبع XT را انتخاب کن."
+            } else rawMessage.replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ").trim().take(240)
         } finally {
             loading = false
         }
@@ -564,7 +569,7 @@ fun CryptoMonitorScreen() {
                                         backtestStatus = "در حال انتخاب بازه تاریخی تازه و دریافت تاریخچه چندتایم‌فریمی..."
                                         try {
                                             backtestSnapshot = WolfHistoricalBacktestEngine.run(
-                                                context, rows.sortedByDescending { it.confidence }.take(2).map { it.symbol }
+                                                context, rows.sortedByDescending { it.confidence }.take(4).map { it.symbol }
                                             )
                                             backtestStatus = "پایان آزمایش • ${backtestSnapshot.samples} نقطه • ${backtestSnapshot.durationMs / 1000} ثانیه"
                                         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -779,7 +784,7 @@ private fun SignalJournalScreen(
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Text("آزمایشگاه بک‌تست تاریخی", color = Gold, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("تایم‌فریم را خود موتور تحلیل از میان ۵دقیقه، ۱۵دقیقه، ۱ساعت و ۴ساعت انتخاب می‌کند. هر اجرا نقطه شروع تازه و تصادفی از تاریخ گذشته می‌گیرد؛ داده یا نتیجه ثابت نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    Text("تایم‌فریم را موتور تحلیل انتخاب می‌کند. شبکه عصبی مستقل از شرط تأیید سیگنال زنده در داده تاریخی ارزیابی می‌شود؛ تا زمان عبور از اعتبارسنجی، نتیجه آن فقط پژوهشی است و اجازه صدور سیگنال زنده ندارد. هر اجرا از نقطه تاریخی تازه استفاده می‌کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(if (backtestEnabled) "بک‌تست فعال" else "بک‌تست خاموش", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
