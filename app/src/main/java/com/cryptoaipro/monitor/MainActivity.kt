@@ -237,7 +237,7 @@ fun CryptoMonitorScreen() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val appSettings = remember(context) { context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE) }
-    var selectedExchange by remember(context) { mutableStateOf(appSettings.getString("market_exchange", "BINANCE") ?: "BINANCE") }
+    var selectedExchange by remember(context) { mutableStateOf("XT") }
     var scanIntervalMinutes by remember(context) {
         mutableIntStateOf(appSettings.getInt("scan_interval_minutes", 3).coerceIn(1, 10))
     }
@@ -297,7 +297,7 @@ fun CryptoMonitorScreen() {
                 }
             }
             appSettings.edit().putString("market_exchange", selectedExchange).apply()
-            val scanned = if (selectedExchange == "XT") XtFuturesMonitor.scan(progress) else BinanceMonitor.scan(progress)
+            val scanned = XtFuturesMonitor.scan(progress)
             researchStats = WolfMarketDataStore.recordLiveScan(context, selectedExchange, scanned)
             rows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned))
             scannedCount = totalContracts
@@ -317,7 +317,7 @@ fun CryptoMonitorScreen() {
             error = if (rawMessage.contains("<html", ignoreCase = true) ||
                 rawMessage.contains("<!doctype", ignoreCase = true) ||
                 rawMessage.contains("<head", ignoreCase = true)) {
-                "پاسخ وب به‌جای داده بازار دریافت شد؛ احتمالاً WAF یا محدودیت دسترسی صرافی است. HTML خام حذف شد. در صورت تداوم خطای Binance، منبع XT را انتخاب کن."
+                "پاسخ وب به‌جای داده بازار دریافت شد؛ احتمالاً WAF یا محدودیت دسترسی صرافی است. HTML خام حذف شد. در صورت تداوم خطای XT، منبع XT را انتخاب کن."
             } else rawMessage.replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ").trim().take(240)
         } finally {
             loading = false
@@ -398,19 +398,7 @@ fun CryptoMonitorScreen() {
                         Text("HOPE HUNTER  •  INTELLIGENT MARKET ANALYSIS", color = Muted, fontSize = 8.sp, letterSpacing = 0.5.sp)
                     }
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { if (selectedExchange != "BINANCE") selectedExchange = "BINANCE" },
-                                contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) {
-                                Text("BINANCE", color = if (selectedExchange == "BINANCE") Blue else Muted, fontSize = 9.sp,
-                                    fontWeight = if (selectedExchange == "BINANCE") FontWeight.Bold else FontWeight.Normal)
-                            }
-                            Text("•", color = Muted, fontSize = 9.sp)
-                            TextButton(onClick = { if (selectedExchange != "XT") selectedExchange = "XT" },
-                                contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) {
-                                Text("XT", color = if (selectedExchange == "XT") Blue else Muted, fontSize = 9.sp,
-                                    fontWeight = if (selectedExchange == "XT") FontWeight.Bold else FontWeight.Normal)
-                            }
-                        }
+                        Text("XT FUTURES", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Surface(color = if (loading) Color(0xFF3A2B0B) else Color(0xFF2B2108),
                             shape = RoundedCornerShape(20.dp)) {
                             Text(if (loading) "در حال اسکن" else "● $selectedExchange",
@@ -462,7 +450,7 @@ fun CryptoMonitorScreen() {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                                     Text("اتاق شکار امیدها", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
-                                                    Text("تحلیل تکنیکال زنده  •  Binance / XT", color = Gold, fontSize = 10.sp)
+                                                    Text("تحلیل تکنیکال زنده  •  XT Futures", color = Gold, fontSize = 10.sp)
                                                     Text("سازنده: amir arsalan samsami", color = Muted, fontSize = 9.sp)
                                                 }
                                                 Surface(color = Color(0xFF211805), shape = RoundedCornerShape(12.dp),
@@ -561,7 +549,7 @@ fun CryptoMonitorScreen() {
                             },
                             onRunBacktest = {
                                 if (!backtestEnabled) backtestStatus = "ابتدا بک‌تست را فعال کن."
-                                else if (selectedExchange != "BINANCE") backtestStatus = "داده تاریخی این نسخه از Binance USDT Futures دریافت می‌شود؛ صرافی را روی Binance بگذار."
+                                
                                 else if (rows.isEmpty()) backtestStatus = "ابتدا اسکن بازار را اجرا کن."
                                 else if (backtestJob?.isActive != true) {
                                     backtestJob = scope.launch {
@@ -617,7 +605,7 @@ fun CryptoMonitorScreen() {
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
-                                    Text("بازار: Binance USDⓈ-M Futures", color = Muted, fontSize = 11.sp)
+                                    Text("بازار: XT USDT-M Futures", color = Muted, fontSize = 11.sp)
                                     Text("اسکن پایه: ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • بازبینی عمیق ۲۴ نامزد برتر: ۵ دقیقه و ۱ روز", color = Muted, fontSize = 11.sp)
                                     Text("ابزارها: ۱۰ متخصص تحلیلی، شبکه عصبی آزمایشی، چندتایم‌فریم، مدیریت ریسک و دفترچه سوابق", color = Muted, fontSize = 11.sp)
                                     Text("دامنه اسکن: تمام قراردادهای دائمی USDT فعال؛ مرتب‌شده بر اساس حجم معاملات", color = Muted, fontSize = 11.sp)
@@ -635,7 +623,7 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.36.0 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.45.0 • XT Futures • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
@@ -1176,7 +1164,7 @@ private fun PriceLevelRow(label: String, price: Double, tint: Color) {
 
 @Composable
 private fun TradingViewPairChart(selectedSymbol: String, interval: String) {
-    val symbol = "BINANCE:" + selectedSymbol.replace("/", "").replace(":USDT", "").replace("_", "") + ".P"
+    val symbol = "XT:" + selectedSymbol.replace("/", "").replace(":USDT", "").replace("_", "") + ".P"
     val chartUrl = "https://www.tradingview.com/chart/?symbol=" +
         java.net.URLEncoder.encode(symbol, "UTF-8") + "&interval=" +
         java.net.URLEncoder.encode(interval, "UTF-8")
@@ -1288,142 +1276,7 @@ private fun formatPrice(value: Double): String = when {
 
 /** Binance USDⓈ-M public futures scanner; public endpoints only. */
 
-internal object BinanceMonitor {
-    // Use the documented canonical USDⓈ-M API endpoint only.
-    // Alternate hostnames must not be used to evade an explicit regional-eligibility response.
-    private const val BASE_URL = "https://fapi.binance.com"
-    private val requestGate = Semaphore(permits = 4)
-
-    private fun get(path: String): String {
-        var lastError = "اتصال به API عمومی Binance برقرار نشد"
-        for (attempt in 0..2) {
-            var connection: HttpURLConnection? = null
-            try {
-                connection = (URL(BASE_URL + path).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "GET"
-                    connectTimeout = 7000
-                    readTimeout = 9000
-                    setRequestProperty("User-Agent", "HopeHunter/2.39.0")
-                    setRequestProperty("Accept", "application/json")
-                }
-                val code = connection.responseCode
-                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                if (code in 200..299) return body
-
-                // Never leak an HTML WAF/error page into the signal UI.
-                val compactBody = body
-                    .replace(Regex("(?is)<script[^>]*>.*?</script>"), " ")
-                    .replace(Regex("(?is)<style[^>]*>.*?</style>"), " ")
-                    .replace(Regex("<[^>]+>"), " ")
-                    .replace(Regex("\\s+"), " ")
-                    .trim()
-                val detail = compactBody.take(140).ifBlank { "پاسخ سرور فاقد پیام قابل‌خواندن بود" }
-                when {
-                    code == 451 -> throw IllegalStateException(
-                        "دسترسی Binance برای شبکه یا موقعیت فعلی مجاز نیست (HTTP 451). " +
-                        "اسکن متوقف شد؛ از مسیر رسمی و منبع داده مجاز استفاده کنید."
-                    )
-                    code == 418 -> throw IllegalStateException(
-                        "Binance آی‌پی را موقتاً محدود کرده است (HTTP 418). درخواست‌ها متوقف شدند؛ کمی بعد دوباره بررسی کنید."
-                    )
-                    code == 403 -> throw IllegalStateException(
-                        "Binance درخواست را با سیاست دسترسی یا WAF رد کرد (HTTP 403). " +
-                        "این پاسخ معمولاً با تکرار درخواست حل نمی‌شود و ممکن است به IP، شبکه یا محدودیت منطقه‌ای مربوط باشد. " +
-                        "برای این پاسخ، دریافت داده از Binance متوقف شد. از منبع داده مجاز یا شبکه‌ای که دسترسی رسمی دارد استفاده کنید."
-                    )
-                    code == 429 -> {
-                        lastError = "محدودیت تعداد درخواست Binance (HTTP 429)"
-                        if (attempt < 2) Thread.sleep(1200L * (attempt + 1))
-                    }
-                    code in 500..599 -> {
-                        lastError = "اختلال موقت سرور Binance (HTTP $code)"
-                        if (attempt < 2) Thread.sleep(900L * (attempt + 1))
-                    }
-                    else -> throw IllegalStateException("پاسخ ناموفق Binance (HTTP $code): $detail")
-                }
-            } catch (e: IllegalStateException) {
-                throw e
-            } catch (e: Exception) {
-                lastError = e.message ?: e.javaClass.simpleName
-                if (attempt < 2) Thread.sleep(500L * (attempt + 1))
-            } finally {
-                connection?.disconnect()
-            }
-        }
-        throw IllegalStateException("دریافت داده Binance پس از تلاش محدود ناموفق بود: $lastError")
-    }
-
-    suspend fun scan(onProgress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { _, _, _, _ -> }): List<MarketSignal> = withContext(Dispatchers.IO) {
-        // Official lightweight preflight: fail early if Futures API access is unavailable.
-        get("/fapi/v1/ping")
-        val exchangeInfo = JSONObject(get("/fapi/v1/exchangeInfo"))
-        val allowed = mutableSetOf<String>()
-        val symbols = exchangeInfo.getJSONArray("symbols")
-        for (i in 0 until symbols.length()) {
-            val s = symbols.getJSONObject(i)
-            if (s.optString("status") == "TRADING" && s.optString("quoteAsset") == "USDT" && s.optString("contractType") == "PERPETUAL") allowed.add(s.optString("symbol"))
-        }
-        val tickers = JSONArray(get("/fapi/v1/ticker/24hr"))
-        val ranked = (0 until tickers.length()).map { tickers.getJSONObject(it) }
-            .filter { allowed.contains(it.optString("symbol")) && it.optDouble("quoteVolume", 0.0) > 0.0 }
-            .sortedByDescending { it.optDouble("quoteVolume", 0.0) }
-        if (ranked.isEmpty()) throw IllegalStateException("Binance هیچ قرارداد دائمی USDT قابل اسکن برنگرداند")
-        val results = mutableListOf<MarketSignal>()
-        var completed = 0
-        var failed = 0
-        for (batch in ranked.chunked(6)) {
-            val batchResults = coroutineScope {
-                batch.map { ticker -> async {
-                    runCatching { analyze(ticker.optString("symbol"), ticker.optDouble("lastPrice"), ticker.optDouble("priceChangePercent"), ticker.optDouble("quoteVolume")) }
-                } }.awaitAll()
-            }
-            batchResults.forEach { result -> result.onSuccess { results.add(it) }.onFailure { failed++ } }
-            completed += batch.size
-            onProgress(results.sortedByDescending { abs(it.score) }, completed, ranked.size, failed)
-        }
-        if (results.isEmpty()) throw IllegalStateException("هیچ کندلی دریافت نشد؛ خطا در " + failed + " نماد. اتصال اینترنت، محدودیت منطقه‌ای یا پاسخ Binance را بررسی کن.")
-
-        // Deep-review only the strongest candidates on 5m and 1D. This preserves
-        // broad universe coverage while keeping request volume bounded.
-        val rankedResults = results.sortedByDescending { abs(it.score) }
-        val deepReview = rankedResults.take(24)
-        val refined = coroutineScope {
-            deepReview.map { base -> async {
-                runCatching { analyzeExtended(base.symbol, base.price, base.change, base.volume) }
-            } }.awaitAll()
-        }
-        val replacements = mutableMapOf<String, MarketSignal>()
-        refined.forEach { result -> result.onSuccess { replacements[it.symbol] = it }.onFailure { failed++ } }
-        val finalResults = rankedResults.map { replacements[it.symbol] ?: it }.sortedByDescending { abs(it.score) }
-        onProgress(finalResults, completed, ranked.size, failed)
-        finalResults
-    }
-
-    private suspend fun analyze(symbol: String, price: Double, change: Double, volume: Double): MarketSignal {
-        // Broad scan: 15m / 1h / 4h for every active USDT perpetual contract.
-        val frames = coroutineScope {
-            val short = async { candles(symbol, "15m") }
-            val confirm = async { candles(symbol, "1h") }
-            val trend = async { candles(symbol, "4h") }
-            Triple(short.await(), confirm.await(), trend.await())
-        }
-        return analyzeWithCandles(symbol, price, change, volume, frames.first, frames.second, frames.third)
-    }
-
-    private suspend fun analyzeExtended(symbol: String, price: Double, change: Double, volume: Double): MarketSignal {
-        // Bounded deep review for top-ranked candidates adds micro timing and daily context.
-        val frames = coroutineScope {
-            val micro = async { candles(symbol, "5m") }
-            val short = async { candles(symbol, "15m") }
-            val confirm = async { candles(symbol, "1h") }
-            val trend = async { candles(symbol, "4h") }
-            val macro = async { candles(symbol, "1d") }
-            listOf(micro.await(), short.await(), confirm.await(), trend.await(), macro.await())
-        }
-        return analyzeWithCandles(symbol, price, change, volume, frames[1], frames[2], frames[3], frames[0], frames[4])
-    }
-
+internal object MarketAnalysisEngine {
     internal fun analyzeWithCandles(symbol: String, price: Double, change: Double, volume: Double,
                                     short: List<DoubleArray>, confirm: List<DoubleArray>,
                                     trend: List<DoubleArray>, micro: List<DoubleArray>? = null,
@@ -1504,36 +1357,6 @@ internal object BinanceMonitor {
         )
     }
 
-    internal suspend fun historicalCandles(
-        symbol: String, interval: String, startTime: Long, limit: Int = 1000
-    ): List<DoubleArray> = withContext(Dispatchers.IO) {
-        require(symbol.matches(Regex("[A-Z0-9]{3,30}"))) { "نماد نامعتبر است" }
-        val intervalMs = when (interval) {
-            "5m" -> 5L * 60_000L
-            "15m" -> 15L * 60_000L
-            "1h" -> 60L * 60_000L
-            "4h" -> 4L * 60L * 60_000L
-            else -> throw IllegalArgumentException("Unsupported historical interval: $interval")
-        }
-        val rawText = requestGate.withPermit {
-            withContext(Dispatchers.IO) {
-                get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval +
-                    "&startTime=" + startTime + "&limit=" + limit.coerceIn(300, 1000))
-            }
-        }
-        val raw = JSONArray(rawText)
-        val now = System.currentTimeMillis()
-        (0 until raw.length()).map { i ->
-            val row = raw.getJSONArray(i)
-            doubleArrayOf(row.getString(1).toDouble(), row.getString(2).toDouble(),
-                row.getString(3).toDouble(), row.getString(4).toDouble(),
-                row.getString(5).toDouble(), row.getLong(0).toDouble())
-        }.filter { it.size >= 6 && it[5].toLong() + intervalMs <= now }
-            .also { require(it.size >= 210) {
-                "تاریخچه کافی برای $interval وجود ندارد؛ کندل بسته‌شده: ${it.size}"
-            } }
-    }
-
     internal fun analyzeHistoricalWindow(
         symbol: String, short15m: List<DoubleArray>, confirm1h: List<DoubleArray>,
         trend4h: List<DoubleArray>, micro5m: List<DoubleArray>, price: Double
@@ -1542,42 +1365,6 @@ internal object BinanceMonitor {
             (short15m.last()[3] / short15m[short15m.lastIndex - 1][3] - 1.0) * 100.0 else 0.0
         return analyzeWithCandles(symbol, price, change, micro5m.last()[4],
             short15m, confirm1h, trend4h, micro5m, null)
-    }
-
-    private suspend fun candles(symbol: String, interval: String): List<DoubleArray> {
-        // 500 closed candles give the 200-period EMA a more useful warm-up window.
-        val rawText = requestGate.withPermit {
-            withContext(Dispatchers.IO) {
-                get("/fapi/v1/klines?symbol=" + symbol + "&interval=" + interval + "&limit=500")
-            }
-        }
-        val raw = JSONArray(rawText)
-        val intervalMs = when (interval) {
-            "5m" -> 5L * 60_000L
-            "15m" -> 15L * 60_000L
-            "1h" -> 60L * 60_000L
-            "4h" -> 4L * 60L * 60_000L
-            "1d" -> 24L * 60L * 60_000L
-            else -> throw IllegalArgumentException("Unsupported Binance interval: $interval")
-        }
-        val closed = (0 until (raw.length() - 1).coerceAtLeast(0)).map { i ->
-            val row = raw.getJSONArray(i)
-            // Index 5 stores the candle open timestamp; analysis fields remain at indexes 0..4.
-            doubleArrayOf(row.getString(1).toDouble(), row.getString(2).toDouble(), row.getString(3).toDouble(),
-                row.getString(4).toDouble(), row.getString(5).toDouble(), row.getLong(0).toDouble())
-        }
-        require(closed.size >= 210) { "Insufficient closed candles for EMA200" }
-        require(closed.all { candle ->
-            candle.all { it.isFinite() } && candle[0] > 0.0 && candle[1] > 0.0 && candle[2] > 0.0 && candle[3] > 0.0 &&
-                candle[4] >= 0.0 && candle[1] >= maxOf(candle[0], candle[3]) &&
-                candle[2] <= minOf(candle[0], candle[3]) && candle[1] >= candle[2] && candle[5] > 0.0
-        }) { "Invalid OHLCV candle data from Binance" }
-        val timestamps = closed.map { it[5].toLong() }
-        require(timestamps.zipWithNext().all { (a, b) -> b > a }) { "Duplicate or out-of-order candle timestamps" }
-        require(timestamps.zipWithNext().all { (a, b) -> b - a <= intervalMs * 2L }) { "Candle history contains a material time gap" }
-        val lastClosedAt = timestamps.last() + intervalMs
-        require(System.currentTimeMillis() - lastClosedAt <= intervalMs * 2L) { "Stale candle data from Binance" }
-        return closed
     }
 
     private fun atr(data: List<DoubleArray>, period: Int = 14): Double {
@@ -1916,131 +1703,5 @@ internal object BinanceMonitor {
         }
         val macd = fast.zip(slow) { x, y -> x - y }
         return macd.last() to ema(macd, 9)
-    }
-}
-
-/** User-visible on-device monitor. Android can still stop it under force-stop, battery policy, reboot, or OS limits. */
-class MarketMonitorService : Service() {
-    private var worker: kotlinx.coroutines.Job? = null
-    private val serviceScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
-    override fun onCreate() { super.onCreate(); createChannel() }
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, buildNotification("در حال آماده‌سازی پایش بازار"))
-        if (worker?.isActive != true) {
-            worker = serviceScope.launch {
-                while (kotlin.coroutines.coroutineContext.isActive) {
-                    val result = runCatching {
-                        val selectedExchange = getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE).getString("market_exchange", "BINANCE") ?: "BINANCE"
-                        val marketSignals = if (selectedExchange == "XT") XtFuturesMonitor.scan() else BinanceMonitor.scan()
-                        val signals = applyWolfNeuralScoring(applicationContext, marketSignals)
-                        WolfMarketDataStore.recordLiveScan(applicationContext, selectedExchange, marketSignals)
-                        val journalSnapshot = WolfSignalOutcomeJournal.processScan(applicationContext, signals)
-                        WolfLearningMemory.processScan(applicationContext, signals, journalSnapshot.records)
-                        // Refresh private news and large-trade flow context for the analysis engine; never expose session clocks or raw feed panels in the UI.
-                        runCatching { WolfFlowNewsRepository.refreshForEngine(applicationContext, marketSignals, selectedExchange) }
-                        val active = signals.count { it.direction != "NEUTRAL" }
-                        "اسکن ${signals.size} قرارداد $selectedExchange • سیگنال‌های جهت‌دار: $active • فقط تحلیل تکنیکال"
-                    }.getOrElse { "خطای اسکن بازار: ${it.message ?: "نامشخص"}" }
-                    val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    manager.notify(NOTIFICATION_ID, buildNotification(result))
-                    // Stop retrying an explicit regional/access denial; polling cannot fix HTTP 451.
-                    if (result.contains("HTTP 451") || result.contains("HTTP 403") || result.contains("HTTP 418")) break
-                    val intervalMinutes = getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE)
-                        .getInt("scan_interval_minutes", 3).coerceIn(1, 10)
-                    delay(intervalMinutes.toLong() * 60_000L)
-                }
-            }
-        }
-        return START_STICKY
-    }
-    private fun createChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "پایش بازار اتاق شکار امیدها", NotificationManager.IMPORTANCE_LOW)
-            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
-        }
-    }
-    private fun buildNotification(status: String): Notification {
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
-        return builder.setSmallIcon(android.R.drawable.ic_menu_info_details)
-            .setContentTitle("HOPE HUNTER • پایش پس‌زمینه")
-            .setContentText(status).setOngoing(true).build()
-    }
-    override fun onDestroy() { worker?.cancel(); serviceScope.cancel(); super.onDestroy() }
-    override fun onBind(intent: Intent?): IBinder? = null
-    companion object { private const val CHANNEL_ID = "crypto_ai_market_monitor"; private const val NOTIFICATION_ID = 4101 }
-}
-
-
-
-@Composable
-private fun HopeHunterHeroArt(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val gold = Color(0xFFFFD36A)
-        val cx = w * 0.76f
-        val cy = h * 0.50f
-        val radius = minOf(w, h) * 0.34f
-
-        drawRect(
-            brush = Brush.linearGradient(
-                colors = listOf(Color(0xFF080A0A), Color(0xFF17130B), Color(0xFF050606)),
-                start = Offset.Zero,
-                end = Offset(w, h)
-            )
-        )
-        // Quiet precision grid.
-        for (i in 1..6) {
-            val x = w * i / 7f
-            drawLine(Color(0x18D8B56A), Offset(x, 0f), Offset(x, h), 1f)
-        }
-        for (i in 1..3) {
-            val y = h * i / 4f
-            drawLine(Color(0x18D8B56A), Offset(0f, y), Offset(w, y), 1f)
-        }
-        // Radar / target rings create a distinct Hope Hunter identity without animal imagery.
-        for (i in 0..4) {
-            drawCircle(
-                color = gold.copy(alpha = 0.11f + i * 0.025f),
-                radius = radius * (0.42f + i * 0.19f),
-                center = Offset(cx, cy),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = if (i == 4) 2f else 1f)
-            )
-        }
-        drawLine(gold.copy(alpha = 0.28f), Offset(cx - radius * 1.05f, cy), Offset(cx + radius * 1.05f, cy), 1f)
-        drawLine(gold.copy(alpha = 0.28f), Offset(cx, cy - radius * 1.05f), Offset(cx, cy + radius * 1.05f), 1f)
-
-        // Rising market path with a highlighted opportunity point.
-        val points = listOf(
-            Offset(w * 0.39f, h * 0.73f),
-            Offset(w * 0.49f, h * 0.62f),
-            Offset(w * 0.57f, h * 0.67f),
-            Offset(w * 0.66f, h * 0.43f),
-            Offset(w * 0.75f, h * 0.49f),
-            Offset(w * 0.86f, h * 0.25f),
-            Offset(w * 0.94f, h * 0.19f)
-        )
-        val trend = Path().apply {
-            moveTo(points.first().x, points.first().y)
-            points.drop(1).forEach { lineTo(it.x, it.y) }
-        }
-        drawPath(
-            trend,
-            color = gold.copy(alpha = 0.9f),
-            style = androidx.compose.ui.graphics.drawscope.Stroke(
-                width = 3f,
-                cap = androidx.compose.ui.graphics.StrokeCap.Round,
-                join = androidx.compose.ui.graphics.StrokeJoin.Round
-            )
-        )
-        points.forEachIndexed { index, point ->
-            drawCircle(
-                color = if (index == points.lastIndex) Color(0xFFFFE8AE) else gold.copy(alpha = 0.72f),
-                radius = if (index == points.lastIndex) 5f else 2.5f,
-                center = point
-            )
-        }
-        // Subtle focal glow.
-        drawCircle(Color(0x22FFD36A), radius * 0.25f, Offset(cx, cy))
     }
 }
