@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 62
-  versionName = "2.43.0"
-  // Release 2.43: independent research neural backtest with strict live signal validation.
+  versionCode = 63
+  versionName = "2.44.0"
+  // Release 2.44: reproducible dense backtest sampling and independent neural research votes.
  }
  buildFeatures { compose = true }
  // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
