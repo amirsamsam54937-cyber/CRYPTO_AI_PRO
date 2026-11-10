@@ -96,7 +96,10 @@ internal object XtFuturesMonitor {
     internal suspend fun historicalCandles(
         symbol: String, interval: String, startTime: Long, limit: Int = 1000
     ): List<DoubleArray> = withContext(Dispatchers.IO) {
-        require(symbol.matches(Regex("[a-z0-9_]{3,40}"))) { "نماد XT نامعتبر است" }
+        val apiSymbol = symbol.lowercase().replace("-", "_").replace("/", "_").removeSuffix(":usdt").let {
+            if (it.endsWith("_usdt")) it else "${it}_usdt"
+        }
+        require(apiSymbol.matches(Regex("[a-z0-9_]{3,40}"))) { "نماد XT نامعتبر است" }
         val intervalMs = when (interval) {
             "5m" -> 5L * 60_000L
             "15m" -> 15L * 60_000L
@@ -104,7 +107,7 @@ internal object XtFuturesMonitor {
             "4h" -> 4L * 60L * 60_000L
             else -> throw IllegalArgumentException("Unsupported XT historical interval: $interval")
         }
-        val encoded = URLEncoder.encode(symbol, "UTF-8")
+        val encoded = URLEncoder.encode(apiSymbol, "UTF-8")
         val raw = get("/future/market/v1/public/q/kline?symbol=$encoded&interval=$interval&startTime=$startTime&limit=${limit.coerceIn(300, 1000)}")
         val rows = extractRows(raw)
         val now = System.currentTimeMillis()
