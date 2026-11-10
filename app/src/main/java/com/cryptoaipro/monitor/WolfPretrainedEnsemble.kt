@@ -98,8 +98,9 @@ internal object WolfPretrainedEnsemble {
             ((technical.relativeVolume-1.0).coerceIn(-1.0,2.0))*8.0).coerceIn(-100.0,100.0)
         val modelSide=if(rawScore>=0.0) "LONG_BIAS" else "SHORT_BIAS"
         // Training labels and directional normalization use this same 1h rule.
-        // If the live multi-timeframe engine disagrees, abstain instead of misusing the model.
-        if(modelSide!=signal.direction) return null
+        // Research must retain the model's independent side even when it disagrees with
+        // the technical engine; otherwise disagreement and agreement backtests are biased.
+        // The production predict() wrapper still enforces side agreement before live use.
         val direction=if(modelSide=="SHORT_BIAS") -1.0 else 1.0
         val rsi=((rsiValue-50.0)/50.0).coerceIn(-1.0,1.0)
         val adx=(technical.adx/50.0).coerceIn(0.0,1.0)
