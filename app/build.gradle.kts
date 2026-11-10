@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 63
-  versionName = "2.44.0"
-  // Release 2.44: reproducible dense backtest sampling and independent neural research votes.
+  versionCode = 64
+  versionName = "2.45.0"
+  // Release 2.45: XT-only market data, analysis, historical replay and training.
  }
  buildFeatures { compose = true }
  // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
