@@ -44,7 +44,7 @@ internal object WolfHistoricalBacktestEngine {
         }
     }
 
-    private data class PaperTrade(val pnlPct: Double)
+    private data class PaperTrade(val pnlPct: Double, val entryTime: Long)
     private class Tally {
         val trades = mutableListOf<PaperTrade>()
         fun stats(): StrategyStats {
@@ -56,7 +56,7 @@ internal object WolfHistoricalBacktestEngine {
             var equity = 100.0
             var peak = 100.0
             var drawdown = 0.0
-            trades.forEach {
+            trades.sortedBy { it.entryTime }.forEach {
                 equity *= (1.0 + it.pnlPct / 100.0).coerceAtLeast(0.0)
                 peak = max(peak, equity)
                 if (peak > 0.0) drawdown = max(drawdown, (peak - equity) / peak * 100.0)
@@ -127,6 +127,9 @@ internal object WolfHistoricalBacktestEngine {
                     val confirm = history.getValue("1h").filter { it[5].toLong() + 60L * 60_000L <= decisionTime }.takeLast(500)
                     val trend = history.getValue("4h").filter { it[5].toLong() + 4L * 60L * 60_000L <= decisionTime }.takeLast(500)
                     if (microClosed.size < 210 || short.size < 210 || confirm.size < 210 || trend.size < 210) continue
+                    // Count every valid decision point before entry/side filters; this keeps the
+                    // neural prediction denominator consistent with the number of evaluated points.
+                    sampleCount++
                     val price = microClosed.last()[3]
                     val technical = MarketAnalysisEngine.analyzeHistoricalWindow(
                         symbol, short, confirm, trend, microClosed, price
@@ -190,16 +193,15 @@ internal object WolfHistoricalBacktestEngine {
                         // Fee assumption is round-trip 0.10% notional; funding is not modelled and is disclosed.
                         return gross * leverage - COST_PCT_NOTIONAL_ROUND_TRIP * leverage
                     }
-                    replay(technicalSide)?.let { technicalTally.trades.add(PaperTrade(it)) }
-                    replay(neuralSide)?.let { neuralTally.trades.add(PaperTrade(it)) }
+                    replay(technicalSide)?.let { technicalTally.trades.add(PaperTrade(it, entryBar[5].toLong())) }
+                    replay(neuralSide)?.let { neuralTally.trades.add(PaperTrade(it, entryBar[5].toLong())) }
                     // Research-only agreement portfolio: score the independent technical and neural
                     // votes on the same timestamp. This never changes the live-signal gate.
                     // The combined result remains a research metric until holdout validation passes.
                     if (isTech && isNeural && technicalSide == neuralSide &&
                         (researchPrediction?.strength ?: 0) >= 55) {
-                        replay(technicalSide)?.let { agreementTally.trades.add(PaperTrade(it)) }
+                        replay(technicalSide)?.let { agreementTally.trades.add(PaperTrade(it, entryBar[5].toLong())) }
                     }
-                    sampleCount++
                 }
                 earliest = minOf(earliest, micro.firstOrNull()?.get(5)?.toLong() ?: anchor)
                 latest = maxOf(latest, micro.lastOrNull()?.get(5)?.toLong() ?: anchor)
