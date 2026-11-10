@@ -175,7 +175,8 @@ internal object WolfHistoricalBacktestEngine {
                         side: String,
                         riskDistance: Double,
                         rewardDistance: Double,
-                        leverage: Int
+                        leverage: Int,
+                        holdBars: Int
                     ): Double? {
                         if (side != "LONG_BIAS" && side != "SHORT_BIAS") return null
                         if (!riskDistance.isFinite() || !rewardDistance.isFinite() ||
@@ -189,7 +190,7 @@ internal object WolfHistoricalBacktestEngine {
                         if (stop <= 0.0 || target <= 0.0) return null
                         // Adverse market-entry slippage; stop/target distances remain fixed for all portfolios.
                         val entryFill = rawEntry * (1.0 + (if (long) 1.0 else -1.0) * slippagePctPerSide / 100.0)
-                        val end = minOf(micro.lastIndex, entryIndex + holdBarsFor(if (side == neuralSide) "1h" else technical.tradeTimeframe))
+                        val end = minOf(micro.lastIndex, entryIndex + holdBars)
                         var rawExit = micro[end][3]
                         for (j in entryIndex..end) {
                             val bar = micro[j]
@@ -210,10 +211,10 @@ internal object WolfHistoricalBacktestEngine {
                         return gross * leverage.coerceIn(1, 5) - COST_PCT_NOTIONAL_ROUND_TRIP * leverage.coerceIn(1, 5)
                     }
 
-                    if (isTech) replay(technicalSide, technicalRisk, technicalReward, technicalLeverage)
+                    if (isTech) replay(technicalSide, technicalRisk, technicalReward, technicalLeverage, holdBarsFor(technical.tradeTimeframe))
                         ?.let { technicalTally.trades.add(PaperTrade(it, entryBar[5].toLong())) }
                     if (isNeural && neuralRisk != null && neuralReward != null) {
-                        replay(neuralSide, neuralRisk, neuralReward, neuralLeverage)
+                        replay(neuralSide, neuralRisk, neuralReward, neuralLeverage, holdBarsFor("1h"))
                             ?.let { neuralTally.trades.add(PaperTrade(it, entryBar[5].toLong())) }
                     }
                     // Agreement is evaluated on the same entry timestamp with conservative shared
@@ -223,7 +224,7 @@ internal object WolfHistoricalBacktestEngine {
                         neuralRisk != null && neuralReward != null) {
                         val sharedRisk = max(technicalRisk, neuralRisk)
                         val sharedReward = minOf(technicalReward, neuralReward)
-                        replay(technicalSide, sharedRisk, sharedReward, minOf(technicalLeverage, neuralLeverage))
+                        replay(technicalSide, sharedRisk, sharedReward, minOf(technicalLeverage, neuralLeverage), maxOf(holdBarsFor(technical.tradeTimeframe), holdBarsFor("1h")))
                             ?.let { agreementTally.trades.add(PaperTrade(it, entryBar[5].toLong())) }
                     }
                 }
