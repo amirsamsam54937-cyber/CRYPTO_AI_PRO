@@ -10,6 +10,10 @@ import kotlin.math.tanh
  * Weights are trained from verified historical exchange futures candles by tools/train_wolf_ensemble.py.
  */
 internal object WolfPretrainedEnsemble {
+    data class ResearchPrediction(val referenceDirection:String,val probability:Double) {
+        val predictedDirection:String get() = if (probability >= 0.5) referenceDirection else if (referenceDirection == "LONG_BIAS") "SHORT_BIAS" else "LONG_BIAS"
+        val strength:Int get() = (maxOf(probability, 1.0-probability) * 100.0).toInt().coerceIn(1,99)
+    }
     data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double,val baselineAccuracy:Double=0.0,val balancedAccuracy:Double=0.0,val logLoss:Double=0.0,val validatedForScoring:Boolean=false,val corpusRows:Int=0)
     private data class Member(
         val w1:Array<DoubleArray>,val b1:DoubleArray,
@@ -66,7 +70,18 @@ internal object WolfPretrainedEnsemble {
 
     fun status()=status
 
+    /** Production prediction: only return a probability when the model's reference side matches the live technical side. */
     fun predict(signal:MarketSignal):Double? {
+        val research = predictResearch(signal) ?: return null
+        return research.probability.takeIf { research.referenceDirection == signal.direction }
+    }
+
+    /**
+     * Research-only prediction for chronological historical replay.
+     * It deliberately bypasses the live validation gate and side-agreement gate,
+     * but MUST never be used to publish a live signal.
+     */
+    fun predictResearch(signal:MarketSignal):ResearchPrediction? {
         if(members.size!=10) return null
         // The training corpus is 1h OHLCV. Never feed 15m features into this model.
         val technical=signal.neuralTechnical ?: return null
@@ -96,6 +111,6 @@ internal object WolfPretrainedEnsemble {
             val logit=member.b4+h3.indices.sumOf{j->member.w4[j]*h3[j]}
             1.0/(1.0+exp(-logit.coerceIn(-30.0,30.0)))
         }
-        return predictions.average().coerceIn(.01,.99)
+        return ResearchPrediction(modelSide, predictions.average().coerceIn(.01,.99))
     }
 }
