@@ -784,7 +784,7 @@ private fun SignalJournalScreen(
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Text("آزمایشگاه بک‌تست تاریخی", color = Gold, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("تایم‌فریم را موتور تحلیل انتخاب می‌کند. شبکه عصبی مستقل از شرط تأیید سیگنال زنده در داده تاریخی ارزیابی می‌شود؛ تا زمان عبور از اعتبارسنجی، نتیجه آن فقط پژوهشی است و اجازه صدور سیگنال زنده ندارد. هر اجرا از نقطه تاریخی تازه استفاده می‌کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    Text("تایم‌فریم را موتور تحلیل انتخاب می‌کند. شبکه عصبی مستقل از شرط تأیید سیگنال زنده در داده تاریخی ارزیابی می‌شود؛ تا زمان عبور از اعتبارسنجی، نتیجه آن فقط پژوهشی است و اجازه صدور سیگنال زنده ندارد. نمونه‌گیری زمانی به‌صورت یکنواخت و قابل تکرار انجام می‌شود.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(if (backtestEnabled) "بک‌تست فعال" else "بک‌تست خاموش", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -809,7 +809,7 @@ private fun SignalJournalScreen(
                         Text("نمادها: ${backtest.symbols.joinToString("، ")} • نقاط ارزیابی: ${backtest.samples} • توافق: ${backtest.agreements} • اختلاف: ${backtest.disagreements}", color = Muted, fontSize = 9.sp)
                         Text("مقایسه جداگانه دو موتور و روش توافقی", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         val winner = when {
-                            backtest.technical.trades == 0 && backtest.neural.trades == 0 -> "داده کافی برای تعیین برنده نیست"
+                            backtest.technical.trades < 30 || backtest.neural.trades < 30 -> "نمونه معاملات برای انتخاب برنده کافی نیست؛ حداقل ۳۰ معامله برای هر موتور لازم است."
                             backtest.technical.netReturnPct > backtest.neural.netReturnPct -> "در این نمونه: سیستم تکنیکال بازده بیشتری داشت"
                             backtest.neural.netReturnPct > backtest.technical.netReturnPct -> "در این نمونه: شبکه عصبی بازده بیشتری داشت"
                             else -> "بازده دو موتور در این نمونه برابر بود"
@@ -821,7 +821,7 @@ private fun SignalJournalScreen(
                         Text("بازه کندل‌های دریافت‌شده: ${if (backtest.sampleWindowStart > 0L) WolfHistoricalBacktestEngine.formatTime(backtest.sampleWindowStart) else "—"} تا ${if (backtest.sampleWindowEnd > 0L) WolfHistoricalBacktestEngine.formatTime(backtest.sampleWindowEnd) else "—"}", color = Muted, fontSize = 9.sp)
                         if (backtest.errors.isNotEmpty()) Text("خطاهای دریافت: ${backtest.errors.joinToString(" | ")}", color = Red, fontSize = 9.sp)
                     }
-                    Text("هدف زمان اجرا حدود ۲ دقیقه است و به اینترنت و پاسخ Binance بستگی دارد. کارمزد و لغزش با فرض تقریبی ۰٫۱۰٪ رفت‌وبرگشت روی ارزش اسمی لحاظ شده است. رأی شبکه عصبی با وزن‌های فعلی مدل محاسبه می‌شود و هنوز بازآموزی Walk-Forward در هر نقطه تاریخی انجام نمی‌شود؛ پس مقایسه فعلاً آزمایشی است. نتایج گذشته تضمین سود آینده نیست.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                    Text("بک‌تست پژوهشی است، نه تضمین سود. نمونه‌ها در طول زمان پخش شده‌اند و مقایسه سه روش فقط وقتی معتبر تلقی می‌شود که هر موتور دست‌کم ۳۰ معامله داشته باشد. کارمزد و لغزش با فرض ۰٫۱۰٪ رفت‌وبرگشت روی ارزش اسمی لحاظ شده است؛ فاندینگ و اجرای واقعی سفارش شبیه‌سازی نمی‌شود. شبکه عصبی در این بخش مستقل ارزیابی می‌شود، اما تا عبور از اعتبارسنجی زمانی همچنان از سیگنال زنده کنار گذاشته می‌ماند.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
                 }
             }
         }
