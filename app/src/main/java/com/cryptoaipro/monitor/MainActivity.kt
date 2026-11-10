@@ -330,7 +330,7 @@ fun CryptoMonitorScreen() {
             // HTTP 451 is an explicit regional-eligibility denial, not a transient outage.
             // Stop automatic polling instead of repeatedly hitting a blocked endpoint.
             if (error?.contains("HTTP 451") == true) {
-                scanProgress = "اسکن خودکار متوقف شد؛ دسترسی Binance از این شبکه مجاز نیست"
+                scanProgress = "اسکن خودکار XT متوقف شد؛ دسترسی به داده‌های عمومی XT برقرار نیست"
                 break
             }
             delay(scanIntervalMinutes.toLong() * 60_000L)
@@ -1274,7 +1274,7 @@ private fun formatPrice(value: Double): String = when {
 }
 
 
-/** Binance USDⓈ-M public futures scanner; public endpoints only. */
+/** Shared technical-analysis engine for XT USDT perpetual futures candles. */
 
 internal object MarketAnalysisEngine {
     internal fun analyzeWithCandles(symbol: String, price: Double, change: Double, volume: Double,
