@@ -107,13 +107,32 @@ internal object XtFuturesMonitor {
             "4h" -> 4L * 60L * 60_000L
             else -> throw IllegalArgumentException("Unsupported XT historical interval: $interval")
         }
+        require(limit in 300..30_000) { "سقف تاریخچه درخواستی خارج از محدوده امن است." }
         val encoded = URLEncoder.encode(apiSymbol, "UTF-8")
-        val raw = get("/future/market/v1/public/q/kline?symbol=$encoded&interval=$interval&startTime=$startTime&limit=${limit.coerceIn(300, 1000)}")
-        val rows = extractRows(raw)
         val now = System.currentTimeMillis()
-        val parsed = (0 until rows.length()).mapNotNull { parseCandle(rows.opt(it)) }
-            .sortedBy { it[5] }.distinctBy { it[5].toLong() }
-            .filter { it[5].toLong() >= startTime && it[5].toLong() + intervalMs <= now }
+        val pageSize = 1000
+        val collected = linkedMapOf<Long, DoubleArray>()
+        var cursor = startTime
+        var pages = 0
+        val maxPages = (limit + pageSize - 1) / pageSize
+        // XT caps a single kline response. Page forward by the last candle timestamp
+        // so a 90-day replay is not silently reduced to the most recent ~3.5 days.
+        while (collected.size < limit && pages < maxPages) {
+            currentCoroutineContext().ensureActive()
+            val raw = get("/future/market/v1/public/q/kline?symbol=$encoded&interval=$interval&startTime=$cursor&limit=$pageSize")
+            val rows = extractRows(raw)
+            val page = (0 until rows.length()).mapNotNull { parseCandle(rows.opt(it)) }
+                .filter { it[5].toLong() >= cursor && it[5].toLong() + intervalMs <= now }
+                .sortedBy { it[5] }.distinctBy { it[5].toLong() }
+            if (page.isEmpty()) break
+            page.forEach { collected[it[5].toLong()] = it }
+            val nextCursor = page.last()[5].toLong() + intervalMs
+            if (nextCursor <= cursor) break
+            cursor = nextCursor
+            pages++
+            if (page.size < pageSize) break
+        }
+        val parsed = collected.values.sortedBy { it[5] }.take(limit)
         require(parsed.size >= 210) {
             "تاریخچه XT برای $interval کافی نیست؛ کندل بسته‌شده: ${parsed.size}"
         }
