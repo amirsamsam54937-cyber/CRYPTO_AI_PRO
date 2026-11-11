@@ -10,7 +10,10 @@ import kotlin.math.tanh
  * Weights are trained from verified historical exchange futures candles by tools/train_wolf_ensemble.py.
  */
 internal object WolfPretrainedEnsemble {
-    data class ResearchPrediction(val referenceDirection:String,val probability:Double) {
+    data class ResearchPrediction(
+        val referenceDirection:String, val probability:Double,
+        val memberProbabilities:List<Double>
+    ) {
         val predictedDirection:String get() = when {
             strength < 55 -> "NEUTRAL"
             probability >= 0.5 -> referenceDirection
@@ -117,6 +120,6 @@ internal object WolfPretrainedEnsemble {
             val logit=member.b4+h3.indices.sumOf{j->member.w4[j]*h3[j]}
             1.0/(1.0+exp(-logit.coerceIn(-30.0,30.0)))
         }
-        return ResearchPrediction(modelSide, predictions.average().coerceIn(.01,.99))
+        return ResearchPrediction(modelSide, predictions.average().coerceIn(.01,.99), predictions)
     }
 }
