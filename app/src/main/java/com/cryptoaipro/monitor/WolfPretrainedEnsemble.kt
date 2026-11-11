@@ -22,7 +22,7 @@ internal object WolfPretrainedEnsemble {
         }
         val strength:Int get() = (maxOf(probability, 1.0-probability) * 100.0).toInt().coerceIn(1,99)
     }
-    data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double,val baselineAccuracy:Double=0.0,val balancedAccuracy:Double=0.0,val logLoss:Double=0.0,val validatedForScoring:Boolean=false,val corpusRows:Int=0)
+    data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double,val baselineAccuracy:Double=0.0,val balancedAccuracy:Double=0.0,val logLoss:Double=0.0,val validatedForScoring:Boolean=false,val corpusRows:Int=0,val brierScore:Double=0.0,val rocAuc:Double=0.0,val calibrationError:Double=1.0)
     private data class Member(
         val w1:Array<DoubleArray>,val b1:DoubleArray,
         val w2:Array<DoubleArray>,val b2:DoubleArray,
@@ -67,12 +67,18 @@ internal object WolfPretrainedEnsemble {
             val balanced=evaluation?.optDouble("ensemble_balanced_accuracy",0.0) ?: 0.0
             val loss=evaluation?.optDouble("ensemble_log_loss",Double.POSITIVE_INFINITY) ?: Double.POSITIVE_INFINITY
             val baselineLoss=evaluation?.optDouble("prevalence_baseline_log_loss",Double.POSITIVE_INFINITY) ?: Double.POSITIVE_INFINITY
+            val brier=evaluation?.optDouble("ensemble_brier_score",Double.POSITIVE_INFINITY) ?: Double.POSITIVE_INFINITY
+            val baselineBrier=evaluation?.optDouble("prevalence_baseline_brier_score",Double.POSITIVE_INFINITY) ?: Double.POSITIVE_INFINITY
+            val auc=evaluation?.optDouble("ensemble_roc_auc",0.0) ?: 0.0
+            val ece=evaluation?.optDouble("ensemble_expected_calibration_error",Double.POSITIVE_INFINITY) ?: Double.POSITIVE_INFINITY
             val testSamples=root.optInt("test_samples",0)
             val chronological=evaluation?.optString("split","")=="chronological_purged"
             val validated=evaluation!=null && chronological && testSamples>=300 &&
                 balanced.isFinite() && balanced>=0.52 && loss.isFinite() &&
-                baselineLoss.isFinite() && loss<baselineLoss && accuracy.isFinite() && accuracy>=baseline
-            status=Status(true,members.size,root.optInt("samples"),root.optString("trained_at_utc"),accuracy,baseline,balanced,loss,validated,corpusRows)
+                baselineLoss.isFinite() && loss<baselineLoss && accuracy.isFinite() && accuracy>=baseline &&
+                brier.isFinite() && baselineBrier.isFinite() && brier<baselineBrier &&
+                auc.isFinite() && auc>=0.55 && ece.isFinite() && ece<=0.10
+            status=Status(true,members.size,root.optInt("samples"),root.optString("trained_at_utc"),accuracy,baseline,balanced,loss,validated,corpusRows,brier,auc,ece)
         }.onFailure {
             members=emptyList()
             status=Status(false,0,0,"",0.0)
