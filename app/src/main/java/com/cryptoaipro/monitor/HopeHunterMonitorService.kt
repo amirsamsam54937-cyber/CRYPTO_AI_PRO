@@ -52,7 +52,7 @@ class HopeHunterMonitorService : Service() {
                     }
                     WolfMarketDataStore.recordLiveScan(this@HopeHunterMonitorService, "XT", signals)
                     // Background intelligence refresh is throttled internally to 15 minutes.
-                    runCatching { WolfFlowNewsRepository.refreshForEngine(this@HopeHunterMonitorService, signals, "XT") }
+                    WolfFlowNewsRepository.refreshForEngine(this@HopeHunterMonitorService, signals, "XT")
                     // Keep background scans behaviorally identical to foreground scans:
                     // score with the guarded neural ensemble, update outcome memory, and
                     // advance the virtual ledger. This engine has no exchange-order adapter.
