@@ -35,9 +35,56 @@ internal object HopeResearchEngine {
     private const val DATA = "brave_key_ciphertext"
     private const val ALIAS = "hope_hunter_research_aes_v1"
     private const val LAST_REFRESH = "core_refresh_at"
+    private const val KNOWLEDGE = "durable_research_memory_v1"
+    private const val KNOWLEDGE_TTL_MS = 2592000000L
+    private const val MAX_KNOWLEDGE_ITEMS = 120
     private const val TTL_MS = 20 * 60 * 1000L
     private const val REFRESH_MS = 6 * 60 * 60 * 1000L
     private val cache = LinkedHashMap<String, Pair<Long, List<HopeResearchSource>>>()
+
+    private fun remember(context: Context, query: String, sources: List<HopeResearchSource>) {
+        if (sources.isEmpty()) return
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val old = runCatching { JSONArray(prefs.getString(KNOWLEDGE, "[]")) }.getOrElse { JSONArray() }
+        val rows = LinkedHashMap<String, JSONObject>()
+        for (i in 0 until old.length()) {
+            val item = old.optJSONObject(i) ?: continue
+            val url = item.optString("url")
+            if (url.startsWith("https://") && now - item.optLong("savedAt") < KNOWLEDGE_TTL_MS) rows[url] = item
+        }
+        sources.forEach { source ->
+            if (source.url.startsWith("https://")) rows[source.url] = JSONObject().apply {
+                put("title", source.title.take(180))
+                put("url", source.url.take(1200))
+                put("snippet", source.snippet.take(1400))
+                put("query", query.take(300))
+                put("savedAt", now)
+            }
+        }
+        val saved = JSONArray()
+        rows.values.toList().takeLast(MAX_KNOWLEDGE_ITEMS).forEach { saved.put(it) }
+        prefs.edit().putString(KNOWLEDGE, saved.toString()).apply()
+    }
+
+    private fun remembered(context: Context): List<HopeResearchSource> {
+        val now = System.currentTimeMillis()
+        val rows = runCatching {
+            JSONArray(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KNOWLEDGE, "[]"))
+        }.getOrElse { JSONArray() }
+        return (0 until rows.length()).mapNotNull { i ->
+            val item = rows.optJSONObject(i) ?: return@mapNotNull null
+            if (now - item.optLong("savedAt") >= KNOWLEDGE_TTL_MS) return@mapNotNull null
+            val url = item.optString("url")
+            val title = item.optString("title")
+            val snippet = item.optString("snippet")
+            if (!url.startsWith("https://") || title.isBlank() || snippet.isBlank()) null
+            else HopeResearchSource(title, url, snippet)
+        }
+    }
+
+    fun memoryCount(context: Context): Int = remembered(context).size
+
 
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
@@ -173,21 +220,24 @@ internal object HopeResearchEngine {
             cache[q.lowercase()] = now to unique
             while (cache.size > 32) cache.remove(cache.keys.first())
         }
+        remember(context, q, unique)
         unique
     }
 
-    suspend fun refreshCoreKnowledge(context: Context): Int {
+    suspend fun refreshCoreKnowledge(context: Context, topics: List<String> = emptyList()): Int {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         if (now - prefs.getLong(LAST_REFRESH, 0L) < REFRESH_MS) return 0
-        val topics = listOf(
-            "official XT USDT-M perpetual futures contract specifications order quantity tick size funding API documentation",
-            "cryptocurrency futures market structure liquidity order book open interest funding rate research",
-            "quantitative trading walk forward validation data leakage transaction costs slippage risk management",
-            "cryptocurrency global market capitalization altcoin breadth bitcoin dominance stablecoin dominance methodology"
-        )
+        val researchTopics = topics.ifEmpty {
+            listOf(
+                "official XT USDT-M perpetual futures contract specifications order quantity tick size funding API documentation",
+                "cryptocurrency futures market structure liquidity order book open interest funding rate research",
+                "quantitative trading walk forward validation data leakage transaction costs slippage risk management",
+                "cryptocurrency global market capitalization altcoin breadth bitcoin dominance stablecoin dominance methodology"
+            )
+        }.distinct().take(8)
         var completed = 0
-        for (topic in topics) {
+        for (topic in researchTopics) {
             runCatching { search(context, topic) }.onSuccess { if (it.isNotEmpty()) completed++ }
         }
         prefs.edit().putLong(LAST_REFRESH, now).apply()
@@ -196,7 +246,7 @@ internal object HopeResearchEngine {
 
     suspend fun contextFor(context: Context, question: String): String {
         val direct = runCatching { search(context, question) }.getOrDefault(emptyList())
-        val related = synchronized(cache) { cache.values.flatMap { it.second } }
+        val related = synchronized(cache) { cache.values.flatMap { it.second } } + remembered(context)
         val tokens = question.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 3 }.toSet()
         val ranked = (direct + related).distinctBy { it.url }.sortedByDescending { source ->
             val words = (source.title + " " + source.snippet).lowercase()
