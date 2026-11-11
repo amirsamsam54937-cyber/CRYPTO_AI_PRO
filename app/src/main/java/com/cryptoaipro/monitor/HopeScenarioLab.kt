@@ -32,7 +32,8 @@ internal data class HopeScenarioForecast(
     val horizonBars: Int, val scenarios: List<HopePriceScenario>, val method: String
 ) { val dominant: HopePriceScenario? get() = scenarios.maxByOrNull { it.probabilityPct } }
 internal data class HopeScenarioScorecard(
-    val forecast: HopeScenarioForecast?, val evaluated: Int, val correct: Int, val accuracyPct: Double
+    val forecast: HopeScenarioForecast?, val evaluated: Int, val correct: Int,
+    val accuracyPct: Double, val brierScore: Double
 )
 
 /** Empirical block-bootstrap paths. Frequencies are not calibrated market odds. */
@@ -122,26 +123,40 @@ internal object HopeScenarioLab {
             if (!actual.isFinite()) { item.put("invalid", true); return@forEach }
             val threshold = item.optDouble("thresholdPct", 0.30)
             val realized = when { actual >= threshold -> "صعودی"; actual <= -threshold -> "نزولی"; else -> "خنثی" }
+            val probabilities = item.optJSONArray("probabilities") ?: JSONArray()
+            var brier = 0.0
+            for (i in 0 until probabilities.length()) {
+                val p = probabilities.optJSONObject(i) ?: continue
+                val predicted = (p.optDouble("probability", 0.0) / 100.0).coerceIn(0.0, 1.0)
+                val observed = if (p.optString("label") == realized) 1.0 else 0.0
+                brier += (predicted - observed) * (predicted - observed)
+            }
             item.put("resolved", true).put("actual", realized).put("actualMovePct", actual)
-                .put("correct", item.optString("dominant") == realized)
+                .put("brier", brier).put("correct", item.optString("dominant") == realized)
         }
         var latest: HopeScenarioForecast? = null
-        signals.forEach { s ->
+        signals.sortedByDescending { it.confidence }.take(12).forEach { s ->
             val f = forecast(s) ?: return@forEach
             if (items.any { it.optString("symbol") == f.symbol && it.optLong("candleTimeMs") == f.candleTimeMs }) return@forEach
             val dominant = f.dominant ?: return@forEach
             val threshold = max(0.30, (s.technical.atrPercent.takeIf { it.isFinite() && it > 0.0 } ?: 0.8)*sqrt(HORIZON.toDouble())*0.38)
+            val probabilities = JSONArray().apply {
+                f.scenarios.forEach { put(JSONObject().put("label",it.label).put("probability",it.probabilityPct)) }
+            }
             items += JSONObject().put("symbol",f.symbol).put("basePrice",f.basePrice)
                 .put("candleTimeMs",f.candleTimeMs).put("dominant",dominant.label)
-                .put("thresholdPct",threshold).put("resolved",false).put("createdAt",System.currentTimeMillis())
+                .put("probabilities",probabilities).put("thresholdPct",threshold)
+                .put("resolved",false).put("createdAt",System.currentTimeMillis())
             latest = f
         }
         while (items.size > 240) items.removeAt(0)
         prefs.edit().putString(KEY, JSONObject().put("items",JSONArray().apply { items.forEach { put(it) } }).toString()).apply()
         val done = items.filter { it.optBoolean("resolved") }
         val wins = done.count { it.optBoolean("correct") }
+        val brierValues = done.mapNotNull { it.optDouble("brier", Double.NaN).takeIf { value -> value.isFinite() } }
+        val meanBrier = if (brierValues.isEmpty()) 0.0 else brierValues.average()
         return HopeScenarioScorecard(latest ?: current.values.firstNotNullOfOrNull { forecast(it) },
-            done.size, wins, if (done.isEmpty()) 0.0 else wins.toDouble()/done.size*100.0)
+            done.size, wins, if (done.isEmpty()) 0.0 else wins.toDouble()/done.size*100.0, meanBrier)
     }
 }
 
@@ -179,8 +194,9 @@ internal fun HopeScenarioLabCard(scorecard: HopeScenarioScorecard?) {
                     color=gold,fontSize=10.sp,fontWeight=FontWeight.Bold)
                 Text("روش: ${f.method}. این فراوانی شبیه‌سازی است، نه احتمال کالیبره‌شده بازار و نه تضمین قیمت.",color=muted,fontSize=8.sp)
             }
-            if (scorecard != null) Text("کارنامه پیش‌بینی‌های ارزیابی‌شده: ${scorecard.correct}/${scorecard.evaluated} درست • " +
-                (if(scorecard.evaluated>0) String.format(Locale.US,"%.1f",scorecard.accuracyPct)+"٪" else "هنوز نمونه کافی نیست"),
+            if (scorecard != null) Text("کارنامه پیش‌بینی‌ها: ${scorecard.correct}/${scorecard.evaluated} درست • " +
+                (if(scorecard.evaluated>0) String.format(Locale.US,"%.1f",scorecard.accuracyPct)+"٪ دقت جهت • Brier " +
+                    String.format(Locale.US,"%.3f",scorecard.brierScore) else "هنوز نمونه کافی نیست"),
                 color=gold,fontSize=9.sp)
         }
     }
