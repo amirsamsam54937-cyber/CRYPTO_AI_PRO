@@ -1431,7 +1431,12 @@ internal object MarketAnalysisEngine {
                 (microStats?.let { " | ۵د: " + it.second } ?: "") +
                 (macroStats?.let { " | ۱روز: " + it.second } ?: "") + filterNote,
             price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical, short.takeLast(80), wolf,
-            timeframeCoverage = if (microStats != null && macroStats != null) "5m / 15m / 1h / 4h / 1D" else "15m / 1h / 4h",
+            timeframeCoverage = when {
+                microStats != null && macroStats != null -> "5m / 15m / 1h / 4h / 1D"
+                microStats != null -> "5m / 15m / 1h / 4h"
+                macroStats != null -> "15m / 1h / 4h / 1D"
+                else -> "15m / 1h / 4h"
+            },
             technicalDirection = direction,
             tradeTimeframe = when {
                 direction == "NEUTRAL" -> "بدون معامله"
