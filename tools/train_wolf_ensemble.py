@@ -85,6 +85,19 @@ def app_adx_series(high,low,close,period=14):
         result[i+1]=adx
     return np.clip(result,0.0,100.0)
 
+def expected_calibration_error(y_true, probabilities, bins=10):
+    y_true=np.asarray(y_true,dtype=float)
+    probabilities=np.asarray(probabilities,dtype=float)
+    edges=np.linspace(0.0,1.0,bins+1)
+    error=0.0
+    for index in range(bins):
+        mask=(probabilities>=edges[index]) & (
+            probabilities < edges[index+1] if index < bins-1 else probabilities <= edges[index+1]
+        )
+        if np.any(mask):
+            error += float(mask.mean()) * abs(float(y_true[mask].mean())-float(probabilities[mask].mean()))
+    return float(error)
+
 def make_rows(raw):
     a = np.asarray(raw, dtype=float)
     o,h,l,c,v = a[:,1],a[:,2],a[:,3],a[:,4],a[:,5]
@@ -211,6 +224,8 @@ def main():
         "ensemble_balanced_accuracy":round(float(balanced_accuracy_score(y_test,ensemble_probabilities>=0.5)),4),
         "ensemble_log_loss":round(float(log_loss(y_test,np.clip(ensemble_probabilities,1e-6,1-1e-6))),4),
         "ensemble_brier_score":round(float(brier_score_loss(y_test,ensemble_probabilities)),4),
+        "prevalence_baseline_brier_score":round(float(np.mean((y_test-float(y_train.mean()))**2)),4),
+        "ensemble_expected_calibration_error":round(expected_calibration_error(y_test,ensemble_probabilities),4),
         "ensemble_roc_auc":round(float(roc_auc_score(y_test,ensemble_probabilities)),4)
     }
     output={"format":"amir-wolf-ensemble-v1","trained_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
