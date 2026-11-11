@@ -140,14 +140,16 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             // Always expose the ten raw specialist outputs for transparency, but never
             // let an unvalidated ensemble affect the published direction or confidence.
             val research = WolfPretrainedEnsemble.predictResearch(candidate)
-            val memberVotes = research?.memberProbabilities?.mapIndexed { index, p ->
-                val side = when {
-                    p >= 0.55 -> research.referenceDirection
-                    p <= 0.45 -> if (research.referenceDirection == "LONG_BIAS") "SHORT_BIAS" else "LONG_BIAS"
-                    else -> "NEUTRAL"
+            val memberVotes = research?.let { prediction ->
+                prediction.memberProbabilities.mapIndexed { index, p ->
+                    val side = when {
+                        p >= 0.55 -> prediction.referenceDirection
+                        p <= 0.45 -> if (prediction.referenceDirection == "LONG_BIAS") "SHORT_BIAS" else "LONG_BIAS"
+                        else -> "NEUTRAL"
+                    }
+                    val label = when (side) { "LONG_BIAS" -> "LONG"; "SHORT_BIAS" -> "SHORT"; else -> "خنثی" }
+                    "شبکه ${index + 1}: $label ${(maxOf(p,1.0-p)*100.0).toInt()}٪"
                 }
-                val label = when (side) { "LONG_BIAS" -> "LONG"; "SHORT_BIAS" -> "SHORT"; else -> "خنثی" }
-                "شبکه ${index + 1}: $label ${(maxOf(p,1.0-p)*100.0).toInt()}٪"
             }.orEmpty()
             if (!pretrainedStatus.validatedForScoring) {
                 signal.copy(
