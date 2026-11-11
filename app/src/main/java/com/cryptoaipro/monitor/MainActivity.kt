@@ -741,7 +741,7 @@ private fun SignalStrengthScreen(
         }
         if (visible.isEmpty()) item { Text(if (loading) "در حال دریافت داده‌های بازار..." else "در این فیلتر هنوز سیگنالی وجود ندارد. اسکن بازار را اجرا کن.", color = Muted, fontSize = 11.sp) }
         else items(visible, key = { it.symbol }) { signal -> SignalCard(signal, onSelect = { onSelect(signal.symbol) }) }
-        item { Text("ابزارها: فیلتر LONG/SHORT، پیش‌بینی مستقل شبکه عصبی آزمایشی، شاخص‌های تکنیکال، هدف TP1، حد ضرر، اهرم پیشنهادی و ثبت خودکار سوابق.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp) }
+        item { Text("ابزارها: فیلتر LONG/SHORT، اجماع چندتحلیلی، تحلیل چندتایم‌فریمی، نظر مستقل شبکه عصبی، اهداف پلکانی TP1/TP2/TP3، حد ضرر تطبیقی، اهرم پیشنهادی و ژورنال نتایج.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp) }
     }
 }
 
@@ -1091,9 +1091,13 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                         Text("ENTRY: " + formatPrice(item.entry) + "   |   SMART LEVERAGE: " + item.leverage + "x", color = Blue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             SmallStat("حد ضرر", formatPrice(item.stop), Red)
-                            SmallStat("هدف نهایی TP1 • 1R", formatPrice(item.tp1), Green)
+                            SmallStat("TP1 • 1R", formatPrice(item.tp1), Green)
                         }
-                        Text("حد ضرر و اهداف بر پایه ATR و ساختار حمایت/مقاومت محاسبه می‌شوند؛ اهرم با فاصله استاپ و ریسک نوسان تنظیم می‌شود، نه عدد ثابت.", color = Muted, fontSize = 9.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SmallStat("TP2 • 2R", formatPrice(item.tp2), Green)
+                            SmallStat("TP3 • 3R / ساختاری", formatPrice(item.tp3), Gold)
+                        }
+                        Text("سه پله هدف بر اساس فاصله ریسک: ۱R، ۲R و ۳R؛ هدف سوم در صورت وجود مانع ساختاری معتبر نزدیک، با آن تطبیق داده می‌شود. برخورد قیمت تضمین‌شده نیست.", color = Muted, fontSize = 9.sp)
                     }
                 }
             }
@@ -1409,10 +1413,18 @@ internal object MarketAnalysisEngine {
             maxOf(atrBase, structuralDistance).coerceAtMost(atrValue * 2.5)
         else atrBase
         val stop = when { isLong -> price - stopDistance; isShort -> price + stopDistance; else -> price }
-        // One realistic final target only: TP1 at 1R. No unreachable TP2/TP3 ladder.
+        // Three staged targets: 1R / 2R / 3R. TP3 respects a nearby confirmed
+        // structural barrier only when that barrier is beyond TP2; targets never collapse
+        // into a duplicate single level. These are analytical levels, not guaranteed fills.
         val tp1 = when { isLong -> price + stopDistance; isShort -> price - stopDistance; else -> price }
-        val tp2 = tp1
-        val tp3 = tp1
+        val tp2 = when { isLong -> price + stopDistance * 2.0; isShort -> price - stopDistance * 2.0; else -> price }
+        val rawTp3 = when { isLong -> price + stopDistance * 3.0; isShort -> price - stopDistance * 3.0; else -> price }
+        val structuralTp3 = when {
+            isLong && a.technical.resistance > tp2 && a.technical.resistance < rawTp3 -> a.technical.resistance
+            isShort && a.technical.support < tp2 && a.technical.support > rawTp3 -> a.technical.support
+            else -> rawTp3
+        }
+        val tp3 = structuralTp3
         val stopPct = stopDistance / price * 100.0
         val leverage = when { !isLong && !isShort -> 1; stopPct <= 0.8 -> 5; stopPct <= 1.5 -> 3; stopPct <= 3.0 -> 2; else -> 1 }
         val agentSummary = wolf.votes.joinToString("، ") { it.name + ":" + it.direction }
