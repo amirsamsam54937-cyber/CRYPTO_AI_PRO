@@ -42,7 +42,7 @@ internal object HopeResearchEngine {
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey(ALIAS, null) as? SecretKey)?.let { return it }
-        val generator = KeyGenerator.getInstance(KeyProperties.ALGORITHM_AES, "AndroidKeyStore")
+        val generator = KeyGenerator.getInstance(android.security.keystore.KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
         generator.init(android.security.keystore.KeyGenParameterSpec.Builder(
             ALIAS, android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or
                 android.security.keystore.KeyProperties.PURPOSE_DECRYPT
