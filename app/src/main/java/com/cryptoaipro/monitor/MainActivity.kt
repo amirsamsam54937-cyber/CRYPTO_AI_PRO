@@ -645,7 +645,6 @@ fun CryptoMonitorScreen() {
                             }
                             PaperTradingSafetyPanel(context, appSettings)
                             XtApiCredentialPanel(context)
-                            HopeResearchSettingsPanel(context)
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
