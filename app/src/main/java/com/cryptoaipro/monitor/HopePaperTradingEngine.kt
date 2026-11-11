@@ -112,7 +112,9 @@ internal object HopePaperTradingEngine {
                 if (exit == null && signal.price > 0.0) {
                     survivors += p.copy(mark = signal.price)
                 }
-            } else if (now - p.openedAt < MAX_HOLD_MS) {
+            } else {
+                // Missing/stale symbol data must never silently erase an open simulated position.
+                // Keep the last known mark until fresh data returns; do not invent an exit price.
                 survivors += p
             }
             if (exit != null) {
