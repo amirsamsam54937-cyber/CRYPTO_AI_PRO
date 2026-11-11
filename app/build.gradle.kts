@@ -15,8 +15,7 @@ android {
   // Release 2.54.0: scenario simulation, forecast scorecard, macro dashboard, and flow intelligence.
  }
  buildFeatures { compose = true }
- // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
- androidResources { noCompress += listOf("csv") }
+ // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
  compileOptions {
   sourceCompatibility = JavaVersion.VERSION_17
   targetCompatibility = JavaVersion.VERSION_17
