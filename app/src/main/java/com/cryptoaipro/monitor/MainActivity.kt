@@ -338,7 +338,9 @@ fun CryptoMonitorScreen() {
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
             paperSnapshot = HopePaperTradingEngine.processScan(context, rows)
-            scenarioScorecard = HopeScenarioLab.recordAndEvaluate(context, rows)
+            scenarioScorecard = withContext(Dispatchers.Default) {
+                HopeScenarioLab.recordAndEvaluate(context, rows)
+            }
             val memoryStats = WolfLearningMemory.processScan(context, rows, outcomeSnapshot.records)
             learningSamples = memoryStats.samples
             learningWins = memoryStats.wins
