@@ -644,7 +644,7 @@ fun CryptoMonitorScreen() {
                                     Text("با فعال‌سازی، سرویس پیش‌زمینه اندروید اسکن عمومی قراردادهای XT را در بازه انتخابی ادامه می‌دهد و اعلان وضعیت می‌فرستد. این سرویس سفارش ثبت نمی‌کند. توقف اجباری، قطع اینترنت یا محدودیت باتری می‌تواند آن را متوقف کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                                 }
                             }
-                            HopeLivingBrainPanel(context)
+                            HopeLivingBrainPanel(context) { scanIntervalMinutes = it }
                             PaperTradingSafetyPanel(context, appSettings)
                             XtApiCredentialPanel(context)
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
