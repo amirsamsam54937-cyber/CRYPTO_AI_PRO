@@ -629,6 +629,7 @@ fun CryptoMonitorScreen() {
                                     Text("با فعال‌سازی، سرویس پیش‌زمینه اندروید اسکن عمومی قراردادهای XT را در بازه انتخابی ادامه می‌دهد و اعلان وضعیت می‌فرستد. این سرویس سفارش ثبت نمی‌کند. توقف اجباری، قطع اینترنت یا محدودیت باتری می‌تواند آن را متوقف کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                                 }
                             }
+                            PaperTradingSafetyPanel(context, appSettings)
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
