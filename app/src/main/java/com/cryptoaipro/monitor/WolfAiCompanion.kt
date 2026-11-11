@@ -254,7 +254,7 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
                         } else {
                             localPersianReply(q)?.let { it to "" }
                                 ?: WolfCryptoKnowledgeBase.answer(q)
-                                ?: runCatching { WolfKnowledgeSearch.answer(q) }
+                                ?: runCatching { WolfKnowledgeSearch.answer(context, q) }
                                     .getOrElse { ("جست‌وجوی اینترنتی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
                         }
                         messages.add(WolfChatMessage(response.first, false, response.second))
