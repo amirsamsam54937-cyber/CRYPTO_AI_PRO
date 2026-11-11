@@ -244,7 +244,7 @@ internal fun HopeMacroMarketDashboard() {
                 }
                 Text("تغییر ۲۴ساعته • TOTAL ${pct(m.total24hPct)} | TOTAL2 ${pct(m.total2_24hPct)} | TOTAL3 ${pct(m.total3_24hPct)}",
                     color=muted,fontSize=9.sp)
-                Text("برداشت مدل از ریسک‌پذیری بازار: ${m.biasScore}/100 • منبع: ${m.sourceLabel}",
+                Text("امتیاز گرایش کلان بازار: ${m.biasScore} از ۱۰ • منبع: ${m.sourceLabel}",
                     color=Color(0xFFECE5D6),fontSize=9.sp)
                 Text("TOTAL2 و TOTAL3 در این نسخه برآورد محاسباتی‌اند، نه کندل رسمی شاخص.",color=muted,fontSize=8.sp)
             }
