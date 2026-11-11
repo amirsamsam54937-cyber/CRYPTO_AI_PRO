@@ -179,32 +179,46 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         // Independent scenario analysis followed by a skeptical adversarial review.
         WolfSignalQualityEngine.apply(WolfForecastEngine.apply(WolfRegimeRiskEngine.apply(WolfTimeSeriesEngine.apply(WolfMathematicsEngine.apply(WolfAdversarialReviewEngine.apply(WolfQuantumScenarioEngine.apply(signal)))))))
     }.map { reviewed ->
-        // A directional signal is promoted only when the technical engine and neural model agree.
+        // A not-yet-validated neural model must never become a hard lock on all live signals.
+        // Until it beats the chronological baseline, publish only independently strong
+        // technical setups; keep the neural vote visibly disabled and advisory-only.
         val tech = reviewed.technicalDirection
         val neural = reviewed.neuralDirection
         val bothDirectional = (tech == "LONG_BIAS" || tech == "SHORT_BIAS") &&
             (neural == "LONG_BIAS" || neural == "SHORT_BIAS")
         val neuralStrength = maxOf(reviewed.neuralScore, 100 - reviewed.neuralScore)
-        val agree = bothDirectional && tech == neural && neuralStrength >= 55
+        val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
+        val neuralAgreement = neuralValidated && bothDirectional && tech == neural && neuralStrength >= 55
+        val technicalOnlyQualified = !neuralValidated &&
+            (tech == "LONG_BIAS" || tech == "SHORT_BIAS") &&
+            reviewed.direction == tech &&
+            reviewed.confidence >= 68 &&
+            (reviewed.consensus?.agreement ?: 0) >= 65 &&
+            reviewed.technical.adx >= 18.0 &&
+            reviewed.technical.relativeVolume >= 0.80
         val tier = when {
-            !agree || reviewed.direction == "NEUTRAL" -> "بدون رتبه"
-            reviewed.confidence >= 82 && neuralStrength >= 70 -> "نوع ۱ • ممتاز"
-            reviewed.confidence >= 72 && neuralStrength >= 62 -> "نوع ۲ • تأییدشده"
-            reviewed.confidence >= 62 && neuralStrength >= 55 -> "نوع ۳ • محتاطانه"
+            reviewed.direction == "NEUTRAL" -> "بدون رتبه"
+            neuralAgreement && reviewed.confidence >= 82 && neuralStrength >= 70 -> "نوع ۱ • ممتاز"
+            neuralAgreement && reviewed.confidence >= 72 && neuralStrength >= 62 -> "نوع ۲ • تأییدشده"
+            neuralAgreement && reviewed.confidence >= 62 && neuralStrength >= 55 -> "نوع ۳ • محتاطانه"
+            technicalOnlyQualified -> "نوع ۳ • تکنیکال مستقل"
             else -> "بدون رتبه"
         }
-        val promoted = agree && tier != "بدون رتبه" && reviewed.direction == tech
+        val promoted = (neuralAgreement || technicalOnlyQualified) &&
+            tier != "بدون رتبه" && reviewed.direction == tech
         reviewed.copy(
             direction = if (promoted) tech else "NEUTRAL",
             score = if (promoted) reviewed.score else 0,
             confidence = if (promoted) reviewed.confidence else minOf(reviewed.confidence, 49),
             signalTier = if (promoted) tier else "بدون رتبه",
             agreementStatus = when {
+                promoted && technicalOnlyQualified -> "تأیید مستقل تکنیکال؛ رأی شبکه عصبی تا اعتبارسنجی غیرفعال است"
+                promoted -> "توافق دو موتور معتبر • مجاز به نمایش سیگنال"
+                !neuralValidated -> "مدل عصبی هنوز اعتبارسنجی نشده؛ شرایط مستقل تکنیکال برای انتشار کافی نیست"
                 !bothDirectional -> "داده کافی برای رأی دوگانه نیست"
                 tech != neural -> "اختلاف تحلیل تکنیکال و شبکه عصبی • سیگنال رد شد"
                 neuralStrength < 55 -> "جهت یکسان، قدرت عصبی ناکافی"
-                !promoted -> "توافق وجود دارد اما کیفیت به حد انتشار نرسید"
-                else -> "توافق کامل دو موتور • مجاز به نمایش سیگنال"
+                else -> "توافق وجود دارد اما کیفیت به حد انتشار نرسید"
             }
         )
     }.sortedWith(compareByDescending<MarketSignal> {
