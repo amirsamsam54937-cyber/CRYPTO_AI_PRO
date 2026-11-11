@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 67
-  versionName = "2.48.0"
-  // Release 2.47: independent technical/neural risk geometry and holding horizons in research replay.
+  versionCode = 68
+  versionName = "2.49.0"
+  // Release 2.49: paper execution ledger, explicit risk acknowledgement, and serialized market scans.
  }
  buildFeatures { compose = true }
  // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
