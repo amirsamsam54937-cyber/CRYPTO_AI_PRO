@@ -112,7 +112,11 @@ internal object HopeScenarioLab {
             if (item.optBoolean("resolved") || item.optBoolean("invalid")) return@forEach
             val s = current[item.optString("symbol")] ?: return@forEach
             val origin = item.optLong("candleTimeMs")
-            val bar = s.candles.lastOrNull { it.size >= 6 && it[5].toLong() >= origin + HORIZON*BAR_MS } ?: return@forEach
+            val targetTime = origin + HORIZON*BAR_MS
+            // Score at the forecast horizon, not at whatever much-later candle happens
+            // to be newest when the app next wakes up. Allow at most one missing interval.
+            val bar = s.candles.firstOrNull { it.size >= 6 &&
+                it[5].toLong() >= targetTime && it[5].toLong() <= targetTime + BAR_MS } ?: return@forEach
             val base = item.optDouble("basePrice", 0.0)
             val actual = if (base > 0.0) (bar[3]/base-1.0)*100.0 else Double.NaN
             if (!actual.isFinite()) { item.put("invalid", true); return@forEach }
