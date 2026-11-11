@@ -21,7 +21,9 @@ import kotlin.math.*
 
 internal data class HopePriceScenario(
     val label: String, val probabilityPct: Double, val medianMovePct: Double,
-    val lowerMovePct: Double, val upperMovePct: Double, val samples: Int
+    val lowerMovePct: Double, val upperMovePct: Double, val samples: Int,
+    val medianPrice: Double, val lowerPrice: Double, val upperPrice: Double,
+    val invalidationPrice: Double?
 )
 internal data class HopeScenarioForecast(
     val symbol: String, val basePrice: Double, val candleTimeMs: Long,
@@ -80,8 +82,18 @@ internal object HopeScenarioLab {
             "خنثی" to moves.filter { it > -threshold && it < threshold },
             "نزولی" to moves.filter { it <= -threshold })
         val scenarios = groups.map { (name, values) ->
+            val medianMove = q(values,0.50)
+            val lowerMove = q(values,0.10)
+            val upperMove = q(values,0.90)
+            val invalidation = when (name) {
+                "صعودی" -> base * (1.0 - threshold / 100.0)
+                "نزولی" -> base * (1.0 + threshold / 100.0)
+                else -> null
+            }
             HopePriceScenario(name, values.size.toDouble()/moves.size*100.0,
-                q(values,0.50), q(values,0.10), q(values,0.90), values.size)
+                medianMove, lowerMove, upperMove, values.size,
+                base * (1.0 + medianMove/100.0), base * (1.0 + lowerMove/100.0),
+                base * (1.0 + upperMove/100.0), invalidation)
         }
         return HopeScenarioForecast(signal.symbol, base, c.last()[5].toLong(), HORIZON,
             scenarios, "۱۶۰۰ مسیر مونت‌کارلو با بازنمونه‌گیری بلوکی بازده‌های تاریخی")
@@ -151,7 +163,10 @@ internal fun HopeScenarioLabCard(scorecard: HopeScenarioScorecard?) {
                     Box(Modifier.fillMaxWidth().height(7.dp).background(Color(0xFF302A1D),RoundedCornerShape(8.dp))) {
                         Box(Modifier.fillMaxWidth((s.probabilityPct/100.0).toFloat().coerceIn(0f,1f)).height(7.dp).background(tint,RoundedCornerShape(8.dp)))
                     }
-                    Text("حرکت میانه ${String.format(Locale.US,"%+.2f",s.medianMovePct)}٪ • بازه ۱۰ تا ۹۰٪: ${String.format(Locale.US,"%+.2f",s.lowerMovePct)} تا ${String.format(Locale.US,"%+.2f",s.upperMovePct)}٪",
+                    Text("قیمت میانه ${String.format(Locale.US,"%.6f",s.medianPrice)} • محدوده شبیه‌سازی ${String.format(Locale.US,"%.6f",s.lowerPrice)} تا ${String.format(Locale.US,"%.6f",s.upperPrice)}",
+                        color=muted,fontSize=9.sp)
+                    Text("تغییر: ${String.format(Locale.US,"%+.2f",s.medianMovePct)}٪ میانه • بازه ۱۰ تا ۹۰٪: ${String.format(Locale.US,"%+.2f",s.lowerMovePct)} تا ${String.format(Locale.US,"%+.2f",s.upperMovePct)}٪" +
+                        (s.invalidationPrice?.let { " • سطح ابطال: ${String.format(Locale.US,"%.6f",it)}" } ?: " • ابطال: خروج از محدوده نوسان"),
                         color=muted,fontSize=9.sp)
                 }
                 Text("سناریوی غالب شبیه‌سازی: ${f.dominant?.label ?: "نامشخص"} • فراوانی شرطی ${String.format(Locale.US,"%.1f",f.dominant?.probabilityPct ?: 0.0)}٪",
