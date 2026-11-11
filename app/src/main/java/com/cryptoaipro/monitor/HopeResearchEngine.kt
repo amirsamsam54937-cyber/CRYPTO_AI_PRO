@@ -166,7 +166,7 @@ internal object HopeResearchEngine {
         for (topic in topics) {
             runCatching { search(context, topic) }.onSuccess { if (it.isNotEmpty()) completed++ }
         }
-        prefs.edit().putLong(LAST_REFRESH, now).apply()
+        if (completed > 0) prefs.edit().putLong(LAST_REFRESH, now).apply()
         return completed
     }
 
