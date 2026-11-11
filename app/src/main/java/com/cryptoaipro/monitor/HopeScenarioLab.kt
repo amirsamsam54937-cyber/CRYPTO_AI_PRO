@@ -147,7 +147,7 @@ internal object HopeScenarioLab {
                 .put("candleTimeMs",f.candleTimeMs).put("dominant",dominant.label)
                 .put("probabilities",probabilities).put("thresholdPct",threshold)
                 .put("resolved",false).put("createdAt",System.currentTimeMillis())
-            latest = f
+            if (latest == null) latest = f
         }
         while (items.size > 240) items.removeAt(0)
         prefs.edit().putString(KEY, JSONObject().put("items",JSONArray().apply { items.forEach { put(it) } }).toString()).apply()
@@ -155,7 +155,8 @@ internal object HopeScenarioLab {
         val wins = done.count { it.optBoolean("correct") }
         val brierValues = done.mapNotNull { it.optDouble("brier", Double.NaN).takeIf { value -> value.isFinite() } }
         val meanBrier = if (brierValues.isEmpty()) 0.0 else brierValues.average()
-        return HopeScenarioScorecard(latest ?: current.values.firstNotNullOfOrNull { forecast(it) },
+        val bestAvailable = signals.maxByOrNull { it.confidence }?.let { forecast(it) }
+        return HopeScenarioScorecard(latest ?: bestAvailable,
             done.size, wins, if (done.isEmpty()) 0.0 else wins.toDouble()/done.size*100.0, meanBrier)
     }
 }
