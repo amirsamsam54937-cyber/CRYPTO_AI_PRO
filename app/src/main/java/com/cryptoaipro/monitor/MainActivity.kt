@@ -389,6 +389,12 @@ fun CryptoMonitorScreen() {
             }
         ) { innerPadding ->
             Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                Image(
+                    painter = painterResource(id = R.drawable.hope_hunter_hero),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().height(190.dp).align(Alignment.TopCenter).graphicsLayer { alpha = 0.34f }
+                )
                 Box(Modifier.fillMaxSize().background(
                     Brush.verticalGradient(listOf(Color(0xE6080808), Color(0xF2050505), Color(0xEA171006)))
                 ))
