@@ -74,14 +74,16 @@ internal object HopeLivingBrain {
         )
     }
 
-    fun setAutoInterval(context: Context, enabled: Boolean) {
+    fun setAutoInterval(context: Context, enabled: Boolean): Int? {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(AUTO_INTERVAL, enabled).apply()
         if (enabled) {
             val recommended = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .getInt("recommended_interval", 3).coerceIn(1, 10)
             context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE)
                 .edit().putInt("scan_interval_minutes", recommended).apply()
+            return recommended
         }
+        return null
     }
 
     private fun researchPlan(
@@ -182,7 +184,7 @@ internal object HopeLivingBrain {
 }
 
 @Composable
-internal fun HopeLivingBrainPanel(context: Context) {
+internal fun HopeLivingBrainPanel(context: Context, onIntervalChanged: (Int) -> Unit = {}) {
     var status by remember { mutableStateOf(HopeLivingBrain.status(context)) }
     LaunchedEffect(context) {
         while (true) {
@@ -221,7 +223,7 @@ internal fun HopeLivingBrainPanel(context: Context) {
                 Switch(
                     checked = status.autoInterval,
                     onCheckedChange = {
-                        HopeLivingBrain.setAutoInterval(context, it)
+                        HopeLivingBrain.setAutoInterval(context, it)?.let(onIntervalChanged)
                         status = HopeLivingBrain.status(context)
                     }
                 )
