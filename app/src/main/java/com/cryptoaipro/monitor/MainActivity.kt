@@ -320,14 +320,15 @@ fun CryptoMonitorScreen() {
             scannedCount = totalContracts
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
-            // Refresh trusted public research on a six-hour cadence; it never directly changes signal scores.
-            scope.launch { runCatching { HopeResearchEngine.refreshCoreKnowledge(context) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
             paperSnapshot = HopePaperTradingEngine.processScan(context, rows)
             val memoryStats = WolfLearningMemory.processScan(context, rows, outcomeSnapshot.records)
             learningSamples = memoryStats.samples
             learningWins = memoryStats.wins
             learningLosses = memoryStats.losses
+            val brainSignals = rows.toList()
+            val brainOutcomes = outcomeSnapshot.records.toList()
+            scope.launch { runCatching { HopeLivingBrain.runCycle(context, brainSignals, memoryStats, brainOutcomes) } }
             updated = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             if (selectedSymbol.isBlank() || rows.none { it.symbol == selectedSymbol }) {
                 selectedSymbol = rows.firstOrNull()?.symbol.orEmpty()
@@ -643,6 +644,7 @@ fun CryptoMonitorScreen() {
                                     Text("با فعال‌سازی، سرویس پیش‌زمینه اندروید اسکن عمومی قراردادهای XT را در بازه انتخابی ادامه می‌دهد و اعلان وضعیت می‌فرستد. این سرویس سفارش ثبت نمی‌کند. توقف اجباری، قطع اینترنت یا محدودیت باتری می‌تواند آن را متوقف کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                                 }
                             }
+                            HopeLivingBrainPanel(context)
                             PaperTradingSafetyPanel(context, appSettings)
                             XtApiCredentialPanel(context)
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
@@ -666,7 +668,7 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.49.0 • XT USDT-M • تحلیل + شبیه‌ساز معاملات", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.53.0 • XT USDT-M • مغز تطبیقی + تحلیل + شبیه‌ساز", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
