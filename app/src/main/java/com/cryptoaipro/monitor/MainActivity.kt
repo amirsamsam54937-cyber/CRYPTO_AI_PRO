@@ -252,6 +252,7 @@ fun CryptoMonitorScreen() {
     val context = LocalContext.current
     val appSettings = remember(context) { context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE) }
     var selectedExchange by remember(context) { mutableStateOf("XT") }
+    var backgroundMonitoring by remember(context) { mutableStateOf(appSettings.getBoolean("background_monitoring", false)) }
     var scanIntervalMinutes by remember(context) {
         mutableIntStateOf(appSettings.getInt("scan_interval_minutes", 3).coerceIn(1, 10))
     }
@@ -600,9 +601,32 @@ fun CryptoMonitorScreen() {
                             Text("تنظیمات و پایش پس‌زمینه", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Text("پایش زنده بازار", color = Color.White, fontWeight = FontWeight.Bold)
-                                    Text("با شروع سرویس، اعلان دائمی اندروید نمایش داده می‌شود و اسکن بازار در پس‌زمینه ادامه می‌یابد. توقف اجباری، قطع اینترنت یا محدودیت باتری می‌تواند سرویس را متوقف کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                                    Text("پایش زنده هنگام باز بودن برنامه فعال است. برای دریافت داده‌های تازه، اسکن بازار را از صفحهٔ خانه اجرا کنید.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text("پایش زنده بازار", color = Color.White, fontWeight = FontWeight.Bold)
+                                            Text(if (backgroundMonitoring) "سرویس پایش پس‌زمینه فعال است" else "سرویس پایش پس‌زمینه متوقف است", color = if (backgroundMonitoring) Green else Muted, fontSize = 10.sp)
+                                        }
+                                        Switch(
+                                            checked = backgroundMonitoring,
+                                            onCheckedChange = { enabled ->
+                                                val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
+                                                if (enabled) {
+                                                    if (Build.VERSION.SDK_INT >= 33 &&
+                                                        context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                                        (context as? ComponentActivity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 501)
+                                                    }
+                                                    serviceIntent.action = HopeHunterMonitorService.ACTION_START
+                                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent) else context.startService(serviceIntent)
+                                                } else {
+                                                    serviceIntent.action = HopeHunterMonitorService.ACTION_STOP
+                                                    context.startService(serviceIntent)
+                                                }
+                                                backgroundMonitoring = enabled
+                                                appSettings.edit().putBoolean("background_monitoring", enabled).apply()
+                                            }
+                                        )
+                                    }
+                                    Text("با فعال‌سازی، سرویس پیش‌زمینه اندروید اسکن عمومی قراردادهای XT را در بازه انتخابی ادامه می‌دهد و اعلان وضعیت می‌فرستد. این سرویس سفارش ثبت نمی‌کند. توقف اجباری، قطع اینترنت یا محدودیت باتری می‌تواند آن را متوقف کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                                 }
                             }
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
@@ -1813,7 +1837,6 @@ internal object MarketAnalysisEngine {
     }
 }
 
-// XT-only release: background monitoring is intentionally limited to the active app session.
 @Composable
 private fun HopeHunterHeroArt(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
