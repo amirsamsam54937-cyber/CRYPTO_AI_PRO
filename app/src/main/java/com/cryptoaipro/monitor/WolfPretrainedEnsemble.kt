@@ -41,7 +41,11 @@ internal object WolfPretrainedEnsemble {
             require(root.optString("format")=="amir-wolf-ensemble-v1")
             val corpus=JSONObject(context.assets.open("wolf_corpus_manifest.json").bufferedReader().use{it.readText()})
             val corpusRows=corpus.optInt("rows",0)
-            require(corpus.optString("status")=="verified_real_exchange_data" && corpusRows==500000 && corpus.optInt("synthetic_rows",-1)==0)
+            val sources=corpus.optJSONArray("source_exchanges")
+            require(corpus.optString("status")=="verified_real_exchange_data" &&
+                corpusRows>=1_000_000 && corpus.optInt("synthetic_rows",-1)==0 &&
+                corpus.optString("data_source_policy")=="XT_USDT_M_ONLY" &&
+                sources!=null && sources.length()==1 && sources.optString(0).equals("XT",ignoreCase=true))
             fun vector(a:org.json.JSONArray)=DoubleArray(a.length()){a.getDouble(it)}
             fun matrix(a:org.json.JSONArray)=Array(a.length()){r->vector(a.getJSONArray(r))}
             val data=root.getJSONArray("members")
