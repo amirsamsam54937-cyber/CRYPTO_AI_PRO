@@ -29,6 +29,11 @@ internal object WolfMarketDataStore {
     private const val DB_VERSION = 1
     private const val MINIMUM_SEED_ROWS = 1_000_000
 
+    private fun canonicalSymbol(raw: String): String {
+        val compact = raw.uppercase(java.util.Locale.US).replace(Regex("[^A-Z0-9]"), "")
+        return if (compact.endsWith("USDTUSDT")) compact.dropLast(4) else compact
+    }
+
     private class Helper(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL("""
@@ -165,7 +170,7 @@ internal object WolfMarketDataStore {
                                 candle[5] > 0.0 && candle[0] > 0.0 && candle[1] >= maxOf(candle[0], candle[3]) &&
                                 candle[2] <= minOf(candle[0], candle[3]) && candle[1] >= candle[2] && candle[4] >= 0.0) {
                                 val values = ContentValues().apply {
-                                    put("exchange", exchange); put("symbol", s.symbol); put("timeframe", "15m")
+                                    put("exchange", exchange); put("symbol", canonicalSymbol(s.symbol)); put("timeframe", "15m")
                                     put("timestamp", candle[5].toLong()); put("open", candle[0]); put("high", candle[1])
                                     put("low", candle[2]); put("close", candle[3]); put("volume", candle[4])
                                     put("source", "live")
@@ -175,7 +180,7 @@ internal object WolfMarketDataStore {
                         }
                         val t = s.technical
                         val row = ContentValues().apply {
-                            put("created_at", now); put("exchange", exchange); put("symbol", s.symbol)
+                            put("created_at", now); put("exchange", exchange); put("symbol", canonicalSymbol(s.symbol))
                             put("side", s.direction); put("price", s.price); put("confidence", s.confidence)
                             put("neural_score", s.neuralScore); put("score", s.score); put("regime", t.regime)
                             put("rsi", s.rsi); put("adx", t.adx); put("atr_pct", t.atrPercent)
