@@ -50,7 +50,10 @@ class HopeHunterMonitorService : Service() {
                     val signals = XtFuturesMonitor.scan { _, completed, universe, failed ->
                         updateNotification("پایش XT • " + completed + " از " + universe + " قرارداد • خطا: " + failed)
                     }
-                    updateNotification("پایش کامل شد • " + signals.size + " تحلیل")
+                    val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, signals)
+                    val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, signals, outcomeSnapshot.records)
+                    HopeLivingBrain.runCycle(this@HopeHunterMonitorService, signals, learningStats, outcomeSnapshot.records)
+                    updateNotification("پایش کامل شد • " + signals.size + " تحلیل • مغز در حال یادگیری")
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
