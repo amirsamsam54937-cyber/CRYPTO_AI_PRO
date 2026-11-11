@@ -53,8 +53,9 @@ internal object WolfFlowNewsRepository {
     suspend fun whale(symbolInput: String): WhaleFlowReport = withContext(Dispatchers.IO) {
         // XT-native public recent trades only. This is large-trade/order-flow estimation,
         // not proof of a whale's identity or wallet ownership.
-        val symbol = symbolInput.replace("/", "").replace(":USDT", "").replace("_", "").lowercase(Locale.US)
-            .let { if (it.endsWith("usdt")) it.removeSuffix("usdt") + "_usdt" else it + "_usdt" }
+        val normalizedSymbol = symbolInput.uppercase(Locale.US).replace(Regex("[^A-Z0-9]"), "")
+        val baseAsset = normalizedSymbol.removeSuffix("USDT")
+        val symbol = baseAsset.lowercase(Locale.US) + "_usdt"
         require(symbol.matches(Regex("[a-z0-9_]{4,24}"))) { "نماد برای تحلیل جریان سفارش معتبر نیست" }
         val tradesRoot = org.json.JSONObject(get("https://fapi.xt.com/future/market/v1/public/q/deal?symbol=$symbol&num=50"))
         val trades = tradesRoot.optJSONArray("result") ?: JSONArray()
@@ -73,8 +74,8 @@ internal object WolfFlowNewsRepository {
             val usd = price * amount
             if (!usd.isFinite() || usd <= 0.0) continue
             when (t.optString("m").uppercase(Locale.US)) {
-                "BUY", "BID", "BUYER" -> { buy += usd; if (usd >= threshold) bigBuy++ }
-                "SELL", "ASK", "SELLER" -> { sell += usd; if (usd >= threshold) bigSell++ }
+                "BUY", "BID", "BUYER", "B" -> { buy += usd; if (usd >= threshold) bigBuy++ }
+                "SELL", "ASK", "SELLER", "S" -> { sell += usd; if (usd >= threshold) bigSell++ }
             }
         }
         val contracts = runCatching {
@@ -98,7 +99,8 @@ internal object WolfFlowNewsRepository {
             imbalance < -0.18 && bigSell > bigBuy -> "غلبه فروش تهاجمی و معاملات بزرگ بر اساس معاملات عمومی XT"
             else -> "جریان سفارش عمومی XT متعادل یا بدون برتری روشن است"
         }
-        WhaleFlowReport(symbol, buy, sell, bigBuy, bigSell, imbalance, oi, funding, summary)
+        WhaleFlowReport(symbol, buy, sell, bigBuy, bigSell, imbalance, oi, funding,
+            summary + " • ارزش معاملات برآوردی است؛ هویت معامله‌گران مشخص نیست")
     }
 
     private fun headlineSentiment(text: String): Int {
