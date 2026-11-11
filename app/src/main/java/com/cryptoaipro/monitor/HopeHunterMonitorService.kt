@@ -50,10 +50,19 @@ class HopeHunterMonitorService : Service() {
                     val signals = XtFuturesMonitor.scan { _, completed, universe, failed ->
                         updateNotification("پایش XT • " + completed + " از " + universe + " قرارداد • خطا: " + failed)
                     }
-                    val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, signals)
-                    val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, signals, outcomeSnapshot.records)
-                    HopeLivingBrain.runCycle(this@HopeHunterMonitorService, signals, learningStats, outcomeSnapshot.records)
-                    updateNotification("پایش کامل شد • " + signals.size + " تحلیل • مغز در حال یادگیری")
+                    // Keep background scans behaviorally identical to foreground scans:
+                    // score with the guarded neural ensemble, update outcome memory, and
+                    // advance the virtual ledger. This engine has no exchange-order adapter.
+                    val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, signals)
+                    val paperSnapshot = HopePaperTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
+                    val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, scoredSignals)
+                    val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records)
+                    HopeLivingBrain.runCycle(this@HopeHunterMonitorService, scoredSignals, learningStats, outcomeSnapshot.records)
+                    updateNotification(
+                        "پایش کامل • " + scoredSignals.size + " تحلیل • مجازی: " +
+                            String.format(java.util.Locale.US, "%.2f", paperSnapshot.equity) +
+                            " USDT • موقعیت باز: " + paperSnapshot.positions.size
+                    )
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
