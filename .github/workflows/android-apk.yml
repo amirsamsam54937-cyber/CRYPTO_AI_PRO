@@ -31,37 +31,53 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Attach verified 500k-candle corpus and trained 10-model ensemble
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh run download 42396479798 --repo "$GITHUB_REPOSITORY" --name "AMIR-ARSALAN-TRADER-WOLF-500K-TRAINED-APK" --dir /tmp/wolf-trained
-          test -s /tmp/wolf-trained/app-debug.apk
-          mkdir -p app/src/main/assets
-          unzip -p /tmp/wolf-trained/app-debug.apk assets/market_seed.csv > app/src/main/assets/market_seed.csv
-          unzip -p /tmp/wolf-trained/app-debug.apk assets/wolf_corpus_manifest.json > app/src/main/assets/wolf_corpus_manifest.json
-          unzip -p /tmp/wolf-trained/app-debug.apk assets/wolf_model_training_report.json > app/src/main/assets/wolf_model_training_report.json
-          unzip -p /tmp/wolf-trained/app-debug.apk assets/wolf_pretrained_ensemble.json > app/src/main/assets/wolf_pretrained_ensemble.json
-          python - <<'PY'
-          import csv, json, pathlib
-          assets = pathlib.Path("app/src/main/assets")
-          manifest = json.loads((assets / "wolf_corpus_manifest.json").read_text())
-          report = json.loads((assets / "wolf_model_training_report.json").read_text())
-          assert manifest["status"] == "verified_real_exchange_data"
-          assert manifest["rows"] == 500000 and manifest["synthetic_rows"] == 0
-          assert len(report["metrics"]) == 10
-          with (assets / "market_seed.csv").open(newline="") as f:
-              rows = sum(1 for _ in csv.reader(f)) - 1
-          assert rows == 500000, rows
-          print(f"Verified {rows:,} real exchange candle rows and {len(report['metrics'])} trained ensemble members")
-          PY
-      - name: Set up Python for fresh neural-network training
+      - name: Set up Python for XT-only historical data and model training
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.retrain_models }}
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
+      - name: Build one million real XT USDT-M candles
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.retrain_models }}
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip ccxt numpy scikit-learn
+          python tools/build_real_market_seed.py
+          cp market_seed_manifest.json app/src/main/assets/wolf_corpus_manifest.json
+      - name: Attach latest verified one-million XT-only training bundle
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.retrain_models) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ARTIFACT_RUN_ID=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq '.artifacts[] | select(.name == "HOPE-HUNTER-1M-XT-TRAINING-DATA" and .expired == false) | .workflow_run.id' | head -n 1)
+          test -n "$ARTIFACT_RUN_ID"
+          gh run download "$ARTIFACT_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "HOPE-HUNTER-1M-XT-TRAINING-DATA" --dir /tmp/wolf-trained
+          mkdir -p app/src/main/assets
+          cp /tmp/wolf-trained/market_seed.csv app/src/main/assets/market_seed.csv
+          cp /tmp/wolf-trained/wolf_corpus_manifest.json app/src/main/assets/wolf_corpus_manifest.json
+          cp /tmp/wolf-trained/wolf_model_training_report.json app/src/main/assets/wolf_model_training_report.json
+          cp /tmp/wolf-trained/wolf_pretrained_ensemble.json app/src/main/assets/wolf_pretrained_ensemble.json
+      - name: Verify XT-only corpus provenance and row count
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv, json, pathlib
+          assets=pathlib.Path("app/src/main/assets")
+          m=json.loads((assets/"wolf_corpus_manifest.json").read_text())
+          assert m["status"] == "verified_real_exchange_data"
+          assert m["data_source_policy"] == "XT_USDT_M_ONLY"
+          assert m["source_exchanges"] == ["XT"]
+          assert m["rows"] >= 1_000_000 and m["synthetic_rows"] == 0
+          with (assets/"market_seed.csv").open(newline="") as f:
+              reader=csv.DictReader(f)
+              rows=0
+              for row in reader:
+                  assert row["exchange"].upper() == "XT"
+                  rows += 1
+          assert rows == m["rows"], (rows,m["rows"])
+          print(f"Verified {rows:,} real XT USDT-M candles; no mixed-exchange or synthetic rows")
+          PY
       - name: Train ten neural networks on verified real futures history
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.retrain_models }}
         run: |
@@ -91,6 +107,18 @@ jobs:
           pathlib.Path("app/src/main/assets/wolf_model_training_report.json").write_text(report_text)
           print(json.dumps({"trained_models":len(d["members"]),"samples":d["samples"],"validation_status":report["validation_status"],"evaluation":e},indent=2))
           PY
+      - name: Publish verified XT-only training bundle
+        if: ${{ success() && github.event_name == 'workflow_dispatch' && inputs.retrain_models }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: HOPE-HUNTER-1M-XT-TRAINING-DATA
+          path: |
+            app/src/main/assets/market_seed.csv
+            app/src/main/assets/wolf_corpus_manifest.json
+            app/src/main/assets/wolf_model_training_report.json
+            app/src/main/assets/wolf_pretrained_ensemble.json
+          if-no-files-found: error
+          retention-days: 90
       - name: Build installable APK with diagnostic log
         env:
           JAVA_TOOL_OPTIONS: "-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
