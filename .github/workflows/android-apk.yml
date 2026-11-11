@@ -91,10 +91,31 @@ jobs:
           pathlib.Path("app/src/main/assets/wolf_model_training_report.json").write_text(report_text)
           print(json.dumps({"trained_models":len(d["members"]),"samples":d["samples"],"validation_status":report["validation_status"],"evaluation":e},indent=2))
           PY
-      - name: Build installable APK (no extra test stage)
-        run: gradle --no-daemon :app:assembleDebug
-      - name: Verify APK file exists
-        run: test -s app/build/outputs/apk/debug/app-debug.apk
+      - name: Build installable APK with diagnostic log
+        env:
+          JAVA_TOOL_OPTIONS: "-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
+          GRADLE_OPTS: "-Dorg.gradle.workers.max=2 -Dorg.gradle.parallel=false"
+        run: |
+          set -o pipefail
+          gradle --no-daemon --stacktrace --info :app:assembleDebug 2>&1 | tee build.log
+      - name: Verify APK package integrity and metadata
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee apk-metadata.txt
+          grep -q "com.cryptoaipro.monitor" apk-metadata.txt
+      - name: Upload build diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HOPE-HUNTER-2.54.0-build-diagnostics
+          path: |
+            build.log
+            apk-metadata.txt
+          if-no-files-found: warn
+          retention-days: 7
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
