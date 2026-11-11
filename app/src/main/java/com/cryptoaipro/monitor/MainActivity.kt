@@ -159,7 +159,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     neuralMemberVotes = memberVotes
                 )
             } else {
-                val probability = research?.probability?.takeIf { research.referenceDirection == candidate.direction }
+                val probability = research?.takeIf { it.referenceDirection == candidate.direction }?.probability
                 if (probability == null) {
                     signal.copy(
                         neuralScore = 50,
