@@ -51,38 +51,55 @@ internal object WolfFlowNewsRepository {
     }
 
     suspend fun whale(symbolInput: String): WhaleFlowReport = withContext(Dispatchers.IO) {
-        val symbol = symbolInput.replace("/", "").replace(":USDT", "").replace("_", "").uppercase(Locale.US)
-        require(symbol.matches(Regex("[A-Z0-9]{4,24}"))) { "نماد برای تحلیل جریان سفارش معتبر نیست" }
-        val trades = JSONArray(get("https://fapi.binance.com/fapi/v1/aggTrades?symbol=$symbol&limit=1000"))
-        val notionals = (0 until trades.length()).map { i ->
-            val t = trades.getJSONObject(i)
-            t.optString("p").toDoubleOrNull()?.times(t.optString("q").toDoubleOrNull() ?: 0.0) ?: 0.0
-        }.filter { it > 0.0 }.sorted()
+        // XT-native public recent trades only. This is large-trade/order-flow estimation,
+        // not proof of a whale's identity or wallet ownership.
+        val symbol = symbolInput.replace("/", "").replace(":USDT", "").replace("_", "").lowercase(Locale.US)
+            .let { if (it.endsWith("usdt")) it.removeSuffix("usdt") + "_usdt" else it + "_usdt" }
+        require(symbol.matches(Regex("[a-z0-9_]{4,24}"))) { "نماد برای تحلیل جریان سفارش معتبر نیست" }
+        val tradesRoot = org.json.JSONObject(get("https://fapi.xt.com/future/market/v1/public/q/deal?symbol=$symbol&num=50"))
+        val trades = tradesRoot.optJSONArray("result") ?: JSONArray()
+        val notionals = (0 until trades.length()).mapNotNull { i ->
+            val t = trades.optJSONObject(i) ?: return@mapNotNull null
+            val price = t.optString("p").toDoubleOrNull() ?: return@mapNotNull null
+            val amount = t.optString("a").toDoubleOrNull() ?: return@mapNotNull null
+            (price * amount).takeIf { it > 0.0 && it.isFinite() }
+        }.sorted()
         val threshold = maxOf(25_000.0, notionals.getOrNull((notionals.size * 0.90).toInt().coerceAtMost((notionals.size - 1).coerceAtLeast(0))) ?: 25_000.0)
         var buy = 0.0; var sell = 0.0; var bigBuy = 0; var bigSell = 0
         for (i in 0 until trades.length()) {
-            val t = trades.getJSONObject(i)
-            val usd = (t.optString("p").toDoubleOrNull() ?: 0.0) * (t.optString("q").toDoubleOrNull() ?: 0.0)
-            val buyerIsMaker = t.optBoolean("m", false)
-            if (buyerIsMaker) { sell += usd; if (usd >= threshold) bigSell++ }
-            else { buy += usd; if (usd >= threshold) bigBuy++ }
+            val t = trades.optJSONObject(i) ?: continue
+            val price = t.optString("p").toDoubleOrNull() ?: continue
+            val amount = t.optString("a").toDoubleOrNull() ?: continue
+            val usd = price * amount
+            if (!usd.isFinite() || usd <= 0.0) continue
+            when (t.optString("m").uppercase(Locale.US)) {
+                "BUY", "BID", "BUYER" -> { buy += usd; if (usd >= threshold) bigBuy++ }
+                "SELL", "ASK", "SELLER" -> { sell += usd; if (usd >= threshold) bigSell++ }
+            }
         }
-        val oi = runCatching {
-            org.json.JSONObject(get("https://fapi.binance.com/fapi/v1/openInterest?symbol=$symbol")).optString("openInterest").toDoubleOrNull() ?: 0.0
-        }.getOrDefault(0.0)
-        val funding = runCatching {
-            org.json.JSONObject(get("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=$symbol")).optString("lastFundingRate").toDoubleOrNull() ?: 0.0
-        }.getOrDefault(0.0)
+        val contracts = runCatching {
+            val root = get("https://fapi.xt.com/future/market/v1/public/cg/contracts")
+            val rows = if (root.trim().startsWith("[")) JSONArray(root) else {
+                val obj = org.json.JSONObject(root)
+                obj.optJSONArray("result") ?: obj.optJSONObject("result")?.optJSONArray("items") ?: JSONArray()
+            }
+            (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }.firstOrNull {
+                it.optString("symbol").equals(symbol, true)
+            }
+        }.getOrNull()
+        val oi = contracts?.optString("open_interest")?.toDoubleOrNull() ?: 0.0
+        val rawFunding = contracts?.optString("funding_rate")?.toDoubleOrNull() ?: 0.0
+        val funding = if (kotlin.math.abs(rawFunding) > 0.01) rawFunding / 100.0 else rawFunding
         val total = (buy + sell).coerceAtLeast(1.0)
         val imbalance = (buy - sell) / total
         val summary = when {
-            imbalance > 0.18 && bigBuy > bigSell -> "غلبه خرید تهاجمی و معاملات درشت؛ احتمال جذب نقدینگی فروشندگان"
-            imbalance < -0.18 && bigSell > bigBuy -> "غلبه فروش تهاجمی و معاملات درشت؛ فشار عرضه بیشتر است"
-            else -> "جریان سفارش متعادل یا بدون برتری روشن؛ منتظر تأیید ساختار قیمت بمان"
+            notionals.isEmpty() -> "داده معاملات عمومی XT برای محاسبه جریان کافی نیست"
+            imbalance > 0.18 && bigBuy > bigSell -> "غلبه خرید تهاجمی و معاملات بزرگ بر اساس معاملات عمومی XT"
+            imbalance < -0.18 && bigSell > bigBuy -> "غلبه فروش تهاجمی و معاملات بزرگ بر اساس معاملات عمومی XT"
+            else -> "جریان سفارش عمومی XT متعادل یا بدون برتری روشن است"
         }
         WhaleFlowReport(symbol, buy, sell, bigBuy, bigSell, imbalance, oi, funding, summary)
     }
-
 
     private fun headlineSentiment(text: String): Int {
         val value = " " + text.lowercase(Locale.US).replace(Regex("[^a-z0-9 ]"), " ") + " "
@@ -124,7 +141,7 @@ internal object WolfFlowNewsRepository {
             val flow = (0 until flows.length()).mapNotNull { flows.optJSONObject(it) }.firstOrNull {
                 it.optString("symbol").uppercase(Locale.US) == normalized &&
                     now - it.optLong("updatedAt", 0L) in 0..(20L * 60L * 1000L) &&
-                    prefs.getString("flow_exchange", "BINANCE") == "BINANCE"
+                    prefs.getString("flow_exchange", "XT") == "XT"
             }
             val isLong = signal.direction == "LONG_BIAS"
             val directionalFlow = flow?.optDouble("imbalance", 0.0)?.times(if (isLong) 1.0 else -1.0) ?: 0.0
@@ -163,8 +180,8 @@ internal object WolfFlowNewsRepository {
         val last = prefs.getLong("last_refresh", 0L)
         val previousExchange = prefs.getString("last_refresh_exchange", "")
         if (now - last < 15L * 60L * 1000L && previousExchange == exchange) return
-        // The whale endpoint below is Binance USD-M aggTrades; never mislabel it as XT order flow.
-        val reports = if (exchange == "BINANCE") {
+        // Use only XT USDT-M public trades; no Binance fallback or mixed-exchange flow.
+        val reports = if (exchange == "XT") {
             signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
                 .sortedByDescending { it.volume }.take(5)
                 .mapNotNull { signal -> runCatching { whale(signal.symbol) }.getOrNull() }
