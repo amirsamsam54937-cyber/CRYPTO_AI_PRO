@@ -107,6 +107,9 @@ jobs:
               e["ensemble_balanced_accuracy"] >= 0.52
               and e["ensemble_log_loss"] < e["prevalence_baseline_log_loss"]
               and e["ensemble_accuracy"] >= e["majority_class_baseline_accuracy"]
+              and e["ensemble_brier_score"] < e["prevalence_baseline_brier_score"]
+              and e["ensemble_roc_auc"] >= 0.55
+              and e["ensemble_expected_calibration_error"] <= 0.10
           )
           report={k:v for k,v in d.items() if k != "members"}
           report["validation_status"] = "validated_for_scoring" if validated else "trained_but_not_validated"
