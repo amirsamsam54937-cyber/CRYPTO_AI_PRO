@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 68
-  versionName = "2.49.0"
-  // Release 2.49: paper execution ledger, explicit risk acknowledgement, and serialized market scans.
+  versionCode = 69
+  versionName = "2.50.0"
+  // Release 2.50: global TOTAL proxies, dominance context, and hidden adaptive session features.
  }
  buildFeatures { compose = true }
  // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
