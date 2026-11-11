@@ -179,3 +179,49 @@ internal fun HopeScenarioLabCard(scorecard: HopeScenarioScorecard?) {
         }
     }
 }
+
+
+@Composable
+internal fun HopeMacroMarketDashboard() {
+    var context by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<MacroMarketContext?>(null) }
+    var loading by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        loading = true
+        context = runCatching { HopeMacroMarketEngine.fetch() }.getOrNull()
+        loading = false
+    }
+    val gold = Color(0xFFFFD45A)
+    val muted = Color(0xFFB8B0A0)
+    Surface(color=Color(0xFF100E09), shape=RoundedCornerShape(17.dp),
+        border=androidx.compose.foundation.BorderStroke(1.dp,gold.copy(alpha=0.35f)), modifier=Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(13.dp), verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Text("نبض کلان بازار کریپتو", color=Color(0xFFECE5D6), fontWeight=FontWeight.Bold, fontSize=13.sp, modifier=Modifier.weight(1f))
+                Text(if(context?.fresh==true) "داده تازه" else if(loading) "در حال دریافت" else "داده در دسترس نیست",
+                    color=if(context?.fresh==true) Color(0xFF38C987) else gold, fontSize=9.sp)
+            }
+            val m=context
+            if(m==null) {
+                Text("داده کلان دریافت نشد؛ در این وضعیت این بخش هیچ امتیازی به سیگنال اضافه نمی‌کند.", color=muted, fontSize=9.sp)
+            } else {
+                fun billions(v: Double)=String.format(Locale.US,"%.2fB",v/1_000_000_000.0)
+                fun pct(v: Double)=String.format(Locale.US,"%+.2f%%",v)
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                    Column { Text("TOTAL",color=muted,fontSize=9.sp); Text(billions(m.totalUsd),color=Color.White,fontSize=11.sp,fontWeight=FontWeight.Bold) }
+                    Column { Text("TOTAL2≈",color=muted,fontSize=9.sp); Text(billions(m.total2Usd),color=Color.White,fontSize=11.sp,fontWeight=FontWeight.Bold) }
+                    Column { Text("TOTAL3≈",color=muted,fontSize=9.sp); Text(billions(m.total3Usd),color=Color.White,fontSize=11.sp,fontWeight=FontWeight.Bold) }
+                }
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                    Column { Text("BTC.D",color=muted,fontSize=9.sp); Text(pct(m.btcDominance),color=gold,fontSize=10.sp) }
+                    Column { Text("ETH.D",color=muted,fontSize=9.sp); Text(pct(m.ethDominance),color=gold,fontSize=10.sp) }
+                    Column { Text("USDT.D",color=muted,fontSize=9.sp); Text(pct(m.usdtDominance),color=gold,fontSize=10.sp) }
+                }
+                Text("تغییر ۲۴ساعته • TOTAL ${pct(m.total24hPct)} | TOTAL2 ${pct(m.total2_24hPct)} | TOTAL3 ${pct(m.total3_24hPct)}",
+                    color=muted,fontSize=9.sp)
+                Text("برداشت مدل از ریسک‌پذیری بازار: ${m.biasScore}/100 • منبع: ${m.sourceLabel}",
+                    color=Color(0xFFECE5D6),fontSize=9.sp)
+                Text("TOTAL2 و TOTAL3 در این نسخه برآورد محاسباتی‌اند، نه کندل رسمی شاخص.",color=muted,fontSize=8.sp)
+            }
+        }
+    }
+}
