@@ -82,7 +82,14 @@ internal object XtFuturesMonitor {
             val rows = extractRows(raw)
             val parsed = (0 until rows.length()).mapNotNull { parseCandle(rows.opt(it)) }
                 .sortedBy { it[5] }.distinctBy { it[5].toLong() }
-            val ms = when (interval) { "15m" -> 900000L; "1h" -> 3600000L; "4h" -> 14400000L; else -> error("Unsupported XT timeframe") }
+            val ms = when (interval) {
+                "5m" -> 300000L
+                "15m" -> 900000L
+                "1h" -> 3600000L
+                "4h" -> 14400000L
+                "1d" -> 86400000L
+                else -> error("Unsupported XT timeframe")
+            }
             val closed = parsed.filter { it[5].toLong() + ms <= System.currentTimeMillis() }
             require(closed.size >= 210) { "XT برای $symbol کندل بسته‌شده کافی برنگرداند (${closed.size})" }
             require(closed.all { x -> x.all(Double::isFinite) && x[0] > 0 && x[1] >= maxOf(x[0], x[3]) &&
@@ -175,12 +182,20 @@ internal object XtFuturesMonitor {
                             val change = if (open > 0) (price/open-1)*100 else c.optDouble("price_change_percent")
                             val volume = c.optString("target_volume").toDoubleOrNull() ?: c.optDouble("target_volume")
                             val f = coroutineScope {
+                                val micro = async { candles(item.first,"5m") }
                                 val a = async { candles(item.first,"15m") }
                                 val b = async { candles(item.first,"1h") }
                                 val d = async { candles(item.first,"4h") }
-                                Triple(a.await(),b.await(),d.await())
+                                // Daily context is useful but optional: a missing daily endpoint
+                                // must not discard otherwise valid intraday market analysis.
+                                val macro = async { runCatching { candles(item.first,"1d") }.getOrNull() }
+                                listOf(micro.await(), a.await(), b.await(), d.await()) to macro.await()
                             }
-                            MarketAnalysisEngine.analyzeWithCandles(item.second,price,change,volume,f.first,f.second,f.third)
+                            MarketAnalysisEngine.analyzeWithCandles(
+                                item.second, price, change, volume,
+                                f.first[1], f.first[2], f.first[3],
+                                micro = f.first[0], macro = f.second
+                            )
                         }
                     } }.awaitAll()
                 }
