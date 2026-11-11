@@ -320,6 +320,8 @@ fun CryptoMonitorScreen() {
             scannedCount = totalContracts
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
+            // Refresh trusted public research on a six-hour cadence; it never directly changes signal scores.
+            scope.launch { runCatching { HopeResearchEngine.refreshCoreKnowledge(context) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
             paperSnapshot = HopePaperTradingEngine.processScan(context, rows)
             val memoryStats = WolfLearningMemory.processScan(context, rows, outcomeSnapshot.records)
@@ -643,6 +645,7 @@ fun CryptoMonitorScreen() {
                             }
                             PaperTradingSafetyPanel(context, appSettings)
                             XtApiCredentialPanel(context)
+                            HopeResearchSettingsPanel(context)
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
