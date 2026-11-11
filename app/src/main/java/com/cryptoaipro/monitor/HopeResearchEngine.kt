@@ -166,7 +166,8 @@ internal object HopeResearchEngine {
         for (topic in topics) {
             runCatching { search(context, topic) }.onSuccess { if (it.isNotEmpty()) completed++ }
         }
-        if (completed > 0) prefs.edit().putLong(LAST_REFRESH, now).apply()
+        // Record attempts too, so a broken key/network cannot trigger four searches on every market scan.
+        prefs.edit().putLong(LAST_REFRESH, now).apply()
         return completed
     }
 
