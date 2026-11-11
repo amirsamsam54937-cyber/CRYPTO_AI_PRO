@@ -376,11 +376,11 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Color(0xFF080808), contentColor = Color.White) {
-                    listOf("خانه", "بازار", "قدرت سیگنال", "دفترچه", "تنظیمات").forEach { entry ->
+                    listOf("خانه", "بازار", "قدرت سیگنال", "جریان بازار", "دفترچه", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
                             onClick = { selectedTab = entry },
-                            icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "قدرت سیگنال" -> Icons.Outlined.Insights; "دفترچه" -> Icons.Outlined.MenuBook; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
+                            icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "قدرت سیگنال" -> Icons.Outlined.Insights; "جریان بازار" -> Icons.Outlined.Timeline; "دفترچه" -> Icons.Outlined.MenuBook; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
                             label = { Text(entry, fontSize = 9.sp, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Blue,
@@ -514,6 +514,9 @@ fun CryptoMonitorScreen() {
                                 HopeScenarioLabCard(scorecard = scenarioScorecard)
                             }
                             item {
+                                HopeMacroMarketDashboard()
+                            }
+                            item {
                                 ActiveCommandSignals(
                                     records = outcomeSnapshot.records.filter { !it.closed },
                                     onOpenJournal = { selectedTab = "دفترچه" }
@@ -568,6 +571,10 @@ fun CryptoMonitorScreen() {
                             onSelect = { symbol -> selectedSymbol = symbol },
                             onOpenJournal = { selectedTab = "دفترچه" },
                             onRescan = { scope.launch { performScan() } })
+                    }
+
+                    "جریان بازار" -> {
+                        WolfFlowNewsScreen(symbol = selectedSymbol.ifBlank { rows.firstOrNull()?.symbol ?: "BTCUSDT" })
                     }
 
                     "دفترچه" -> {
