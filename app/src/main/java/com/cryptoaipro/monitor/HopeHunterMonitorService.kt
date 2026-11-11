@@ -50,10 +50,14 @@ class HopeHunterMonitorService : Service() {
                     val signals = XtFuturesMonitor.scan { _, completed, universe, failed ->
                         updateNotification("پایش XT • " + completed + " از " + universe + " قرارداد • خطا: " + failed)
                     }
+                    WolfMarketDataStore.recordLiveScan(this@HopeHunterMonitorService, "XT", signals)
+                    // Background intelligence refresh is throttled internally to 15 minutes.
+                    runCatching { WolfFlowNewsRepository.refreshForEngine(this@HopeHunterMonitorService, signals, "XT") }
                     // Keep background scans behaviorally identical to foreground scans:
                     // score with the guarded neural ensemble, update outcome memory, and
                     // advance the virtual ledger. This engine has no exchange-order adapter.
-                    val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, signals)
+                    val enrichedSignals = WolfFlowNewsRepository.enrichSignals(this@HopeHunterMonitorService, signals)
+                    val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, enrichedSignals)
                     val paperSnapshot = HopePaperTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
                     HopeScenarioLab.recordAndEvaluate(this@HopeHunterMonitorService, scoredSignals)
                     val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, scoredSignals)
