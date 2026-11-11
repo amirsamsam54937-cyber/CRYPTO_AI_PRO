@@ -199,7 +199,7 @@ internal object WolfFlowNewsRepository {
                 if (directionalFlow > 0) 3 else -4
             } else 0
             val bookFresh = flow?.optBoolean("bookFresh", false) == true &&
-                now - (flow?.optLong("updatedAt", 0L) ?: 0L) in 0..(2L * 60L * 1000L)
+                now - (flow?.optLong("updatedAt", 0L) ?: 0L) in 0..(20L * 60L * 1000L)
             val directionalBook = (flow?.optDouble("bookImbalance", 0.0) ?: 0.0) * if (isLong) 1.0 else -1.0
             val bookAdjustment = if (bookFresh && abs(directionalBook) >= 0.22) {
                 if (directionalBook > 0) 2 else -3
