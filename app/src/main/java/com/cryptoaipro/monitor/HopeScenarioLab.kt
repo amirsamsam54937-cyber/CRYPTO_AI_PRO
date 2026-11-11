@@ -29,7 +29,7 @@ internal data class HopePriceScenario(
 )
 internal data class HopeScenarioForecast(
     val symbol: String, val basePrice: Double, val candleTimeMs: Long,
-    val horizonBars: Int, val scenarios: List<HopePriceScenario>, val method: String
+    val horizonBars: Int, val thresholdPct: Double, val scenarios: List<HopePriceScenario>, val method: String
 ) { val dominant: HopePriceScenario? get() = scenarios.maxByOrNull { it.probabilityPct } }
 internal data class HopeScenarioScorecard(
     val forecast: HopeScenarioForecast?, val evaluated: Int, val correct: Int,
@@ -98,7 +98,7 @@ internal object HopeScenarioLab {
                 base * (1.0 + medianMove/100.0), base * (1.0 + lowerMove/100.0),
                 base * (1.0 + upperMove/100.0), invalidation)
         }
-        return HopeScenarioForecast(signal.symbol, base, c.last()[5].toLong(), HORIZON,
+        return HopeScenarioForecast(signal.symbol, base, c.last()[5].toLong(), HORIZON, threshold,
             scenarios, "۱۶۰۰ مسیر مونت‌کارلو با بازنمونه‌گیری بلوکی بازده‌های تاریخی")
     }
 
@@ -121,7 +121,7 @@ internal object HopeScenarioLab {
             val base = item.optDouble("basePrice", 0.0)
             val actual = if (base > 0.0) (bar[3]/base-1.0)*100.0 else Double.NaN
             if (!actual.isFinite()) { item.put("invalid", true); return@forEach }
-            val threshold = item.optDouble("thresholdPct", 0.30)
+            val threshold = item.optDouble("thresholdPct", 0.30).coerceAtLeast(0.30)
             val realized = when { actual >= threshold -> "صعودی"; actual <= -threshold -> "نزولی"; else -> "خنثی" }
             val probabilities = item.optJSONArray("probabilities") ?: JSONArray()
             var brier = 0.0
@@ -139,7 +139,7 @@ internal object HopeScenarioLab {
             val f = forecast(s) ?: return@forEach
             if (items.any { it.optString("symbol") == f.symbol && it.optLong("candleTimeMs") == f.candleTimeMs }) return@forEach
             val dominant = f.dominant ?: return@forEach
-            val threshold = max(0.30, (s.technical.atrPercent.takeIf { it.isFinite() && it > 0.0 } ?: 0.8)*sqrt(HORIZON.toDouble())*0.38)
+            val threshold = f.thresholdPct
             val probabilities = JSONArray().apply {
                 f.scenarios.forEach { put(JSONObject().put("label",it.label).put("probability",it.probabilityPct)) }
             }
