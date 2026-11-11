@@ -1412,7 +1412,8 @@ internal object MarketAnalysisEngine {
     internal fun analyzeWithCandles(symbol: String, price: Double, change: Double, volume: Double,
                                     short: List<DoubleArray>, confirm: List<DoubleArray>,
                                     trend: List<DoubleArray>, micro: List<DoubleArray>? = null,
-                                    macro: List<DoubleArray>? = null): MarketSignal {
+                                    macro: List<DoubleArray>? = null,
+                                    marketContext: MacroMarketContext? = null): MarketSignal {
         val a = indicators(short)
         val b = indicators(confirm)
         val c = indicators(trend)
@@ -1423,7 +1424,14 @@ internal object MarketAnalysisEngine {
             add(a.technical); add(b.technical); add(c.technical)
             macroStats?.let { add(it.technical) }
         }
-        val score = (a.first + b.first + c.first + (microStats?.first ?: 0) * 0.35 + (macroStats?.first ?: 0) * 1.10).toInt()
+        val sessionLiquidityBoost = if (marketContext?.fresh == true && marketContext.sessionOverlap &&
+            (microStats?.technical?.relativeVolume ?: 0.0) >= 1.25) {
+            val microDirection = microStats?.first ?: 0
+            if (microDirection > 0) 2 else if (microDirection < 0) -2 else 0
+        } else 0
+        val macroBias = if (marketContext?.fresh == true) marketContext.biasScore else 0
+        val score = (a.first + b.first + c.first + (microStats?.first ?: 0) * 0.35 +
+            (macroStats?.first ?: 0) * 1.10 + macroBias * 0.65 + sessionLiquidityBoost).toInt()
         val wolf = WolfConsensusEngine.analyze(frames, price)
         val atrValue = atr(short).coerceAtLeast(price * 0.0001)
         val stretched = abs(price - a.technical.ema20) > atrValue * 2.2
@@ -1436,9 +1444,15 @@ internal object MarketAnalysisEngine {
             (wolf.direction == "SHORT_BIAS" && (macroStats.technical.ema20 > macroStats.technical.ema50 ||
                 macroStats.technical.marketStructure.contains("HH/HL")))
         )
-        val filtered = stretched || extremeVolatility || fourHourConflict || dailyConflict
+        val macroConflict = marketContext?.fresh == true && (
+            (wolf.direction == "LONG_BIAS" && marketContext.biasScore <= -8) ||
+            (wolf.direction == "SHORT_BIAS" && marketContext.biasScore >= 8)
+        )
+        val filtered = stretched || extremeVolatility || fourHourConflict || dailyConflict ||
+            (macroConflict && wolf.strengthIndex < 72)
         val direction = if (filtered) "NEUTRAL" else wolf.direction
-        val confidence = if (filtered) (wolf.strengthIndex * 0.65).toInt() else wolf.strengthIndex
+        val confidence = (if (filtered) wolf.strengthIndex * 0.65 else wolf.strengthIndex -
+            if (macroConflict) 9 else 0).toInt().coerceIn(0, 100)
         val isLong = direction == "LONG_BIAS"
         val isShort = direction == "SHORT_BIAS"
         val atrBase = maxOf(atrValue * 1.5, price * 0.002)
@@ -1471,6 +1485,7 @@ internal object MarketAnalysisEngine {
             extremeVolatility -> " | فیلتر: نوسان ۱۵دقیقه‌ای بسیار شدید"
             fourHourConflict -> " | فیلتر: ساختار ۴ساعته مخالف جهت است"
             dailyConflict -> " | فیلتر: روند روزانه با جهت سیگنال تعارض دارد"
+            macroConflict && wolf.strengthIndex < 72 -> " | فیلتر: جهت شاخص‌های کلان بازار با سیگنال همسو نیست"
             else -> ""
         }
         return MarketSignal(
@@ -1479,7 +1494,9 @@ internal object MarketAnalysisEngine {
                 "% | ۱۰ تحلیلگر: " + agentSummary + " | ۱۵د: " + a.second + " | ۱س: " + b.second +
                 " | ۴س: " + c.second +
                 (microStats?.let { " | ۵د: " + it.second } ?: "") +
-                (macroStats?.let { " | ۱روز: " + it.second } ?: "") + filterNote,
+                (macroStats?.let { " | ۱روز: " + it.second } ?: "") +
+                (marketContext?.let { " | " + it.conciseSummary() } ?: " | نمای کلان بازار فعلاً در دسترس نیست") +
+                filterNote,
             price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical, short.takeLast(80), wolf,
             timeframeCoverage = when {
                 microStats != null && macroStats != null -> "5m / 15m / 1h / 4h / 1D"
