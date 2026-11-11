@@ -198,6 +198,12 @@ internal object WolfFlowNewsRepository {
             val flowAdjustment = if (flow != null && abs(directionalFlow) >= 0.18) {
                 if (directionalFlow > 0) 3 else -4
             } else 0
+            val bookFresh = flow?.optBoolean("bookFresh", false) == true &&
+                now - (flow?.optLong("updatedAt", 0L) ?: 0L) in 0..(2L * 60L * 1000L)
+            val directionalBook = (flow?.optDouble("bookImbalance", 0.0) ?: 0.0) * if (isLong) 1.0 else -1.0
+            val bookAdjustment = if (bookFresh && abs(directionalBook) >= 0.22) {
+                if (directionalBook > 0) 2 else -3
+            } else 0
             val funding = flow?.optDouble("funding", 0.0) ?: 0.0
             val crowdedSidePenalty = if ((isLong && funding > 0.001) || (!isLong && funding < -0.001)) -2 else 0
             val newsDirectional = (assetNewsBias + broadBias) * if (isLong) 1 else -1
@@ -205,7 +211,8 @@ internal object WolfFlowNewsRepository {
             val newsAdjustment = if (signal.direction == "NEUTRAL") 0 else newsDirectional.coerceIn(-2, 2)
             val flowNote = flow?.let {
                 "جریان معاملات تهاجمی تازه: " + it.optString("summary") +
-                    "؛ عدم‌تعادل " + String.format(Locale.US, "%.1f%%", it.optDouble("imbalance") * 100)
+                    "؛ عدم‌تعادل معاملات " + String.format(Locale.US, "%.1f%%", it.optDouble("imbalance") * 100) +
+                    (if (bookFresh) "؛ عدم‌تعادل دفتر سفارش " + String.format(Locale.US, "%.1f%%", it.optDouble("bookImbalance") * 100) else "")
             } ?: "جریان معاملات درشت برای این نماد تازه/قابل‌دسترسی نیست"
             val newsNote = when {
                 related.isNotEmpty() -> "خبرهای مرتبط با " + base + ": " + related.take(2).joinToString(" | ") { it.optString("title").take(110) } +
@@ -214,7 +221,7 @@ internal object WolfFlowNewsRepository {
                 else -> "خبر معتبر و مرتبط تازه برای این دارایی در دسترس نیست"
             }
             val researchNote = prefs.getString("auto_research", "").orEmpty().take(500)
-            val adjustment = (flowAdjustment + crowdedSidePenalty + newsAdjustment).coerceIn(-6, 4)
+            val adjustment = (flowAdjustment + bookAdjustment + crowdedSidePenalty + newsAdjustment).coerceIn(-7, 5)
             signal.copy(
                 score = (signal.score + adjustment).coerceIn(-100, 100),
                 confidence = (signal.confidence + adjustment).coerceIn(0, 95),
@@ -245,6 +252,9 @@ internal object WolfFlowNewsRepository {
             put("symbol", r.symbol); put("imbalance", r.imbalance); put("largeBuys", r.largeBuys)
             put("largeSells", r.largeSells); put("openInterest", r.openInterest); put("funding", r.funding)
             put("summary", r.summary); put("updatedAt", refreshedAt)
+            put("bookImbalance", r.bookImbalance); put("bidDepthUsd", r.bidDepthUsd)
+            put("askDepthUsd", r.askDepthUsd); put("bidWallUsd", r.bidWallUsd)
+            put("askWallUsd", r.askWallUsd); put("bookFresh", r.bookFresh)
         }) } }
         val newsJson = JSONArray().apply { headlines.take(12).forEach { n -> put(org.json.JSONObject().apply {
             put("title", n.title); put("source", n.source); put("url", n.link); put("date", n.date)
