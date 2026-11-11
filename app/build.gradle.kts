@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 73
-  versionName = "2.53.1"
-  // Release 2.53.1: synchronize adaptive scan cadence with the foreground monitor.
+  versionCode = 74
+  versionName = "2.54.0"
+  // Release 2.54.0: scenario simulation, forecast scorecard, macro dashboard, and flow intelligence.
  }
  buildFeatures { compose = true }
  // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
