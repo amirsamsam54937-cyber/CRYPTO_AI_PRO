@@ -195,9 +195,12 @@ internal fun HopeScenarioLabCard(scorecard: HopeScenarioScorecard?) {
                     color=gold,fontSize=10.sp,fontWeight=FontWeight.Bold)
                 Text("روش: ${f.method}. این فراوانی شبیه‌سازی است، نه احتمال کالیبره‌شده بازار و نه تضمین قیمت.",color=muted,fontSize=8.sp)
             }
-            if (scorecard != null) Text("کارنامه پیش‌بینی‌ها: ${scorecard.correct}/${scorecard.evaluated} درست • " +
-                (if(scorecard.evaluated>0) String.format(Locale.US,"%.1f",scorecard.accuracyPct)+"٪ دقت جهت • Brier " +
-                    String.format(Locale.US,"%.3f",scorecard.brierScore) else "هنوز نمونه کافی نیست"),
+            if (scorecard != null) Text(
+                if (scorecard.evaluated >= 30)
+                    "کارنامه پیش‌بینی‌ها: ${scorecard.correct}/${scorecard.evaluated} درست • " +
+                        String.format(Locale.US,"%.1f",scorecard.accuracyPct)+"٪ دقت جهت • Brier " +
+                        String.format(Locale.US,"%.3f",scorecard.brierScore)
+                else "کارنامه اولیه: ${scorecard.evaluated} نتیجه ارزیابی‌شده؛ برای قضاوت آماری حداقل ۳۰ نمونه لازم است.",
                 color=gold,fontSize=9.sp)
         }
     }
