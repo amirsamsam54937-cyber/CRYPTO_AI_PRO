@@ -95,7 +95,10 @@ internal object WolfMarketDataStore {
                 "داده تاریخی باید حداقل یک میلیون کندل واقعی داشته باشد."
             }
             val existing = count(db, "market_candles", "source='seed'")
-            if (existing == expectedRows) return@withContext stats(db, true)
+            if (existing == expectedRows) {
+                db.execSQL("INSERT OR REPLACE INTO store_meta(key,value) VALUES('seed_expected_rows','$expectedRows')")
+                return@withContext stats(db, true)
+            }
             require(existing <= expectedRows) { "نسخه پایگاه داده از بذر جدید بزرگ‌تر است؛ واردسازی امن متوقف شد." }
 
             val input = BufferedReader(InputStreamReader(context.assets.open("market_seed.csv"), Charsets.UTF_8), 1024 * 1024)
