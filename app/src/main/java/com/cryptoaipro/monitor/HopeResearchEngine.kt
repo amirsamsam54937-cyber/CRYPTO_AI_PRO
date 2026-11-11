@@ -102,8 +102,8 @@ internal object HopeResearchEngine {
 
     private fun searchDuckDuckGo(query: String): List<HopeResearchSource> {
         val html = request("https://html.duckduckgo.com/html/?q=" + URLEncoder.encode(query, "UTF-8"))
-        val anchor = Regex("(?is)<a[^>]*class=[\"'][^\\"']*result__a[^\\"']*[\"'][^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>")
-        val snippetRegex = Regex("(?is)<a[^>]*class=[\"'][^\\"']*result__snippet[^\\"']*[\"'][^>]*>(.*?)</a>|<div[^>]*class=[\"'][^\\"']*result__snippet[^\\"']*[\"'][^>]*>(.*?)</div>")
+        val anchor = Regex("""(?is)<a[^>]*class=["'][^"']*result__a[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>""")
+        val snippetRegex = Regex("""(?is)<a[^>]*class=["'][^"']*result__snippet[^"']*["'][^>]*>(.*?)</a>|<div[^>]*class=["'][^"']*result__snippet[^"']*["'][^>]*>(.*?)</div>""")
         val snippets = snippetRegex.findAll(html).map { decodeHtml(it.groupValues[1].ifBlank { it.groupValues[2] }) }.toList()
         val found = mutableListOf<HopeResearchSource>()
         anchor.findAll(html).take(8).forEachIndexed { index, match ->
