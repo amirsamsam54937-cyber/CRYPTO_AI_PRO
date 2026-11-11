@@ -148,8 +148,8 @@ internal object HopePaperTradingEngine {
         val dailyLossPct = if (dailyStart > 0.0) max(0.0, -(dailyPnl + floatingPnl) / dailyStart * 100.0) else 100.0
         val openRiskUsdt = survivors.sumOf { it.riskUsdt }
         val openRiskPct = if (currentEquity > 0.0) openRiskUsdt / currentEquity * 100.0 else 100.0
-        val enabled = prefs.getBoolean("hope_risk_ack_v1", false) &&
-            prefs.getBoolean("hope_paper_mode_enabled", false)
+        val enabled = prefs.getBoolean("hope_risk_ack_v1", true) &&
+            prefs.getBoolean("hope_paper_mode_enabled", true)
 
         if (enabled && dailyLossPct < 2.0 && survivors.size < 3 && openRiskPct < 3.0) {
             val activeSymbols = survivors.map { it.symbol }.toSet()
