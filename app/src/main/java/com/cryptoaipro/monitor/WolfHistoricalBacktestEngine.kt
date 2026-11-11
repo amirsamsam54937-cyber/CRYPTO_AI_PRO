@@ -16,7 +16,7 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 
-/** Randomized chronological replay of the app's multi-timeframe technical engine and neural vote. */
+/** Evenly sampled chronological replay across a paginated ~90-day XT history window. */
 internal object WolfHistoricalBacktestEngine {
     private const val PREFS = "hope_hunter_historical_backtest"
     private const val KEY = "latest_v2"
@@ -104,8 +104,15 @@ internal object WolfHistoricalBacktestEngine {
                 val loadedFrames = coroutineScope {
                     frames.map { (interval, intervalMs, _) ->
                         async {
+                            val historyLimit = when (interval) {
+                                "5m" -> 27_000   // ~90 days plus warm-up
+                                "15m" -> 9_000
+                                "1h" -> 2_500
+                                "4h" -> 800
+                                else -> 1000
+                            }
                             interval to XtFuturesMonitor.historicalCandles(
-                                symbol, interval, anchor - WARMUP_BARS * intervalMs, 1000
+                                symbol, interval, anchor - WARMUP_BARS * intervalMs, historyLimit
                             )
                         }
                     }.awaitAll()
