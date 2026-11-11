@@ -3,6 +3,8 @@ package com.cryptoaipro.monitor
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -14,6 +16,8 @@ import kotlin.math.abs
 internal object XtFuturesMonitor {
     private const val BASE = "https://fapi.xt.com"
     private val gate = Semaphore(5)
+    // Serialize foreground and in-app scans to prevent duplicate full-universe requests.
+    private val fullScanMutex = Mutex()
 
     private fun get(path: String): String {
         val c = URL(BASE + path).openConnection() as HttpURLConnection
@@ -154,6 +158,7 @@ internal object XtFuturesMonitor {
     }
 
     suspend fun scan(onProgress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { _,_,_,_ -> }): List<MarketSignal> =
+        fullScanMutex.withLock {
         withContext(Dispatchers.IO) {
             val contracts = extractRows(get("/future/market/v1/public/cg/contracts"))
             val universe = (0 until contracts.length()).mapNotNull { contracts.optJSONObject(it) }
@@ -205,5 +210,6 @@ internal object XtFuturesMonitor {
             }
             if (results.isEmpty()) throw IllegalStateException("اسکن XT هیچ کندل معتبر دریافت نکرد؛ تعداد نمادهای ناموفق: $failed")
             results.sortedByDescending { abs(it.score) }.also { onProgress(it,completed,universe.size,failed) }
+        }
         }
 }
