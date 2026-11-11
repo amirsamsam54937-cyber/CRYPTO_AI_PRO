@@ -29,7 +29,10 @@ import javax.xml.parsers.DocumentBuilderFactory
 internal data class WhaleFlowReport(
     val symbol: String, val buyUsd: Double, val sellUsd: Double,
     val largeBuys: Int, val largeSells: Int, val imbalance: Double,
-    val openInterest: Double, val funding: Double, val summary: String
+    val openInterest: Double, val funding: Double, val summary: String,
+    val bookImbalance: Double = 0.0, val bidDepthUsd: Double = 0.0,
+    val askDepthUsd: Double = 0.0, val bidWallUsd: Double = 0.0,
+    val askWallUsd: Double = 0.0, val bookFresh: Boolean = false
 )
 internal data class MarketNewsItem(val title: String, val source: String, val link: String, val date: String, val description: String = "")
 
@@ -81,6 +84,43 @@ internal object WolfFlowNewsRepository {
                 "SELL", "ASK", "SELLER", "S" -> { sell += usd; if (usd >= threshold) bigSell++ }
             }
         }
+        // Public XT futures order-book snapshot: aggregate visible bid/ask notional
+        // and the largest visible wall. A snapshot is not proof that liquidity will remain.
+        val book = runCatching {
+            val root = org.json.JSONObject(get("https://fapi.xt.com/future/market/v1/public/cg/orderbook?symbol=$symbol&level=50"))
+            val data = root.optJSONObject("result") ?: root.optJSONObject("data") ?: root
+            fun levels(key: String): List<Pair<Double, Double>> {
+                val rows = data.optJSONArray(key) ?: JSONArray()
+                return (0 until rows.length()).mapNotNull { i ->
+                    val row = rows.optJSONArray(i) ?: return@mapNotNull null
+                    if (row.length() < 2) return@mapNotNull null
+                    val price = row.optString(0).toDoubleOrNull() ?: return@mapNotNull null
+                    val qty = row.optString(1).toDoubleOrNull() ?: return@mapNotNull null
+                    if (price <= 0.0 || qty <= 0.0 || !price.isFinite() || !qty.isFinite()) null else price to qty
+                }
+            }
+            val bids = levels("bids")
+            val asks = levels("asks")
+            val bidDepth = bids.sumOf { it.first * it.second }
+            val askDepth = asks.sumOf { it.first * it.second }
+            val totalDepth = (bidDepth + askDepth).coerceAtLeast(1.0)
+            val timestamp = data.optLong("timestamp", root.optLong("timestamp", 0L))
+            listOf(
+                (bidDepth - askDepth) / totalDepth,
+                bidDepth, askDepth,
+                bids.maxOfOrNull { it.first * it.second } ?: 0.0,
+                asks.maxOfOrNull { it.first * it.second } ?: 0.0,
+                if (timestamp > 0L && abs(System.currentTimeMillis() - timestamp) <= 120_000L &&
+                    bids.isNotEmpty() && asks.isNotEmpty()) 1.0 else 0.0
+            )
+        }.getOrNull()
+        val bookImbalance = book?.getOrNull(0) ?: 0.0
+        val bidDepthUsd = book?.getOrNull(1) ?: 0.0
+        val askDepthUsd = book?.getOrNull(2) ?: 0.0
+        val bidWallUsd = book?.getOrNull(3) ?: 0.0
+        val askWallUsd = book?.getOrNull(4) ?: 0.0
+        val bookFresh = (book?.getOrNull(5) ?: 0.0) > 0.5
+
         val contracts = runCatching {
             val root = get("https://fapi.xt.com/future/market/v1/public/cg/contracts")
             val rows = if (root.trim().startsWith("[")) JSONArray(root) else {
@@ -96,14 +136,19 @@ internal object WolfFlowNewsRepository {
         val funding = if (kotlin.math.abs(rawFunding) > 0.01) rawFunding / 100.0 else rawFunding
         val total = (buy + sell).coerceAtLeast(1.0)
         val imbalance = (buy - sell) / total
-        val summary = when {
+        val tradeSummary = when {
             notionals.isEmpty() -> "داده معاملات عمومی XT برای محاسبه جریان کافی نیست"
             imbalance > 0.18 && bigBuy > bigSell -> "غلبه خرید تهاجمی و معاملات بزرگ بر اساس معاملات عمومی XT"
             imbalance < -0.18 && bigSell > bigBuy -> "غلبه فروش تهاجمی و معاملات بزرگ بر اساس معاملات عمومی XT"
-            else -> "جریان سفارش عمومی XT متعادل یا بدون برتری روشن است"
+            else -> "جریان معاملات عمومی XT متعادل یا بدون برتری روشن است"
         }
+        val bookSummary = if (!bookFresh) "؛ دفتر سفارش تازه و معتبر در دسترس نیست"
+            else if (bookImbalance > 0.18) "؛ عمق قابل مشاهده سمت خرید سنگین‌تر است"
+            else if (bookImbalance < -0.18) "؛ عمق قابل مشاهده سمت فروش سنگین‌تر است"
+            else "؛ عمق خرید و فروش نزدیک به تعادل است"
         WhaleFlowReport(symbol, buy, sell, bigBuy, bigSell, imbalance, oi, funding,
-            summary + " • ارزش معاملات برآوردی است؛ هویت معامله‌گران مشخص نیست")
+            tradeSummary + bookSummary + " • ارزش معاملات برآوردی است؛ هویت معامله‌گران مشخص نیست",
+            bookImbalance, bidDepthUsd, askDepthUsd, bidWallUsd, askWallUsd, bookFresh)
     }
 
     private fun headlineSentiment(text: String): Int {
