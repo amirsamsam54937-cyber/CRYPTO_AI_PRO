@@ -16,6 +16,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Read-only foreground market monitor; it never places or manages exchange orders. */
 class HopeHunterMonitorService : Service() {
@@ -59,7 +60,9 @@ class HopeHunterMonitorService : Service() {
                     val enrichedSignals = WolfFlowNewsRepository.enrichSignals(this@HopeHunterMonitorService, signals)
                     val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, enrichedSignals)
                     val paperSnapshot = HopePaperTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
-                    HopeScenarioLab.recordAndEvaluate(this@HopeHunterMonitorService, scoredSignals)
+                    withContext(Dispatchers.Default) {
+                        HopeScenarioLab.recordAndEvaluate(this@HopeHunterMonitorService, scoredSignals)
+                    }
                     val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, scoredSignals)
                     val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records)
                     HopeLivingBrain.runCycle(this@HopeHunterMonitorService, scoredSignals, learningStats, outcomeSnapshot.records)
