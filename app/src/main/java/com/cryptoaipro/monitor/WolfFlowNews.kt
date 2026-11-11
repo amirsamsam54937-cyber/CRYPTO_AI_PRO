@@ -141,7 +141,7 @@ internal object WolfFlowNewsRepository {
             }.take(5)
             val broadBias = broadNews.sumOf { headlineSentiment(it.optString("title") + " " + it.optString("description")) }.coerceIn(-1, 1)
             val flow = (0 until flows.length()).mapNotNull { flows.optJSONObject(it) }.firstOrNull {
-                it.optString("symbol").uppercase(Locale.US) == normalized &&
+                it.optString("symbol").uppercase(Locale.US).replace(Regex("[^A-Z0-9]"), "") == normalized &&
                     now - it.optLong("updatedAt", 0L) in 0..(20L * 60L * 1000L) &&
                     prefs.getString("flow_exchange", "XT") == "XT"
             }
