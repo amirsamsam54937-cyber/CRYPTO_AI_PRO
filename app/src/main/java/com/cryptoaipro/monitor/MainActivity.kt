@@ -101,7 +101,8 @@ data class MarketSignal(
     // Dedicated 1h snapshot: the pretrained model was trained on 1h candles.
     val neuralTechnical: TechnicalSnapshot? = null,
     val neuralRsi: Double? = null,
-    val neuralCandles: List<DoubleArray> = emptyList()
+    val neuralCandles: List<DoubleArray> = emptyList(),
+    val neuralMemberVotes: List<String> = emptyList()
 )
 
 data class TechnicalSnapshot(
@@ -136,25 +137,35 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         if (candidate == null) signal.copy(neuralScore = 50, neuralDirection = "NEUTRAL",
             neuralModelSource = if (pretrainedStatus.validatedForScoring) "۱۰مدلی • معتبر" else "مدل در انتظار اعتبارسنجی")
         else {
-            // Never let unvalidated pretrained weights or randomly initialized online weights
-            // decide a public signal. Until the chronological holdout beats its baseline,
-            // the neural vote is explicitly neutral and the final gate returns NO TRADE.
+            // Always expose the ten raw specialist outputs for transparency, but never
+            // let an unvalidated ensemble affect the published direction or confidence.
+            val research = WolfPretrainedEnsemble.predictResearch(candidate)
+            val memberVotes = research?.memberProbabilities?.mapIndexed { index, p ->
+                val side = when {
+                    p >= 0.55 -> research.referenceDirection
+                    p <= 0.45 -> if (research.referenceDirection == "LONG_BIAS") "SHORT_BIAS" else "LONG_BIAS"
+                    else -> "NEUTRAL"
+                }
+                val label = when (side) { "LONG_BIAS" -> "LONG"; "SHORT_BIAS" -> "SHORT"; else -> "خنثی" }
+                "شبکه ${index + 1}: $label ${(maxOf(p,1.0-p)*100.0).toInt()}٪"
+            }.orEmpty()
             if (!pretrainedStatus.validatedForScoring) {
                 signal.copy(
                     neuralScore = 50,
                     neuralDirection = "NEUTRAL",
-                    neuralModelSource = "مدل آموزش دیده اما اعتبارسنجی نشده • رأی غیرفعال"
+                    neuralModelSource = "مدل آموزش‌دیده • اعتبارسنجی‌نشده • رأی غیرفعال",
+                    neuralMemberVotes = memberVotes
                 )
             } else {
-                val probability = WolfPretrainedEnsemble.predict(candidate)
+                val probability = research?.probability?.takeIf { research.referenceDirection == candidate.direction }
                 if (probability == null) {
                     signal.copy(
                         neuralScore = 50,
                         neuralDirection = "NEUTRAL",
-                        neuralModelSource = "مدل معتبر در دسترس نیست"
+                        neuralModelSource = "مدل معتبر در دسترس نیست",
+                        neuralMemberVotes = memberVotes
                     )
                 } else {
-                    // Candidate-relative correctness mapped onto a fixed LONG/SHORT axis.
                     val candidateConfidence = (probability * 100.0).toInt().coerceIn(1, 99)
                     val directionalScore = if (candidate.direction == "LONG_BIAS")
                         candidateConfidence else 100 - candidateConfidence
@@ -170,7 +181,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                         neuralScore = directionalScore,
                         neuralDirection = predictedSide,
                         neuralModelSource = "۱۰مدلی • اعتبارسنجی‌شده",
-                        confidence = adjustedConfidence
+                        confidence = adjustedConfidence,
+                        neuralMemberVotes = memberVotes
                     )
                 }
             }
@@ -1111,6 +1123,10 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                             (if (neuralValidated && item.neuralDirection != "NEUTRAL") " • امتیاز جهت‌دار: ${item.neuralScore}/100" else ""),
                         color = Muted, fontSize = 9.sp
                     )
+                    if (item.neuralMemberVotes.isNotEmpty()) {
+                        Text("خروجی خام ده شبکه عصبی (امتیاز داخلی، نه احتمال برد):", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(item.neuralMemberVotes.joinToString("  •  "), color = Muted, fontSize = 8.sp, lineHeight = 13.sp)
+                    }
                     Divider(color = Gold.copy(alpha = 0.22f))
                     Text(
                         "نظر تحلیل تکنیکال: " + (if (item.technicalDirection == "LONG_BIAS") "صعودی LONG" else if (item.technicalDirection == "SHORT_BIAS") "نزولی SHORT" else "خنثی"),
