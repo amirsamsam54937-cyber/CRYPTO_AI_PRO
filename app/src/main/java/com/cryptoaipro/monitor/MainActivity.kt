@@ -1001,34 +1001,77 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 SmallStat("امتیاز خام", item.score.toString())
                 SmallStat("امتیاز جهت‌دار", item.neuralScore.toString() + "/100")
             }
+            val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
             val neuralTint = when (item.neuralDirection) {
                 "LONG_BIAS" -> Green
                 "SHORT_BIAS" -> Red
-                else -> Muted
+                else -> Gold
             }
+            val neuralOpinion = when {
+                !neuralValidated -> "رأی مدل فعلاً غیرفعال"
+                item.neuralDirection == "LONG_BIAS" -> "تمایل صعودی • LONG"
+                item.neuralDirection == "SHORT_BIAS" -> "تمایل نزولی • SHORT"
+                else -> "نظر خنثی • بدون جهت"
+            }
+            val neuralStrength = maxOf(item.neuralScore, 100 - item.neuralScore)
             Surface(
                 color = Color(0xFF17130A),
-                shape = RoundedCornerShape(10.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.25f)),
+                shape = RoundedCornerShape(13.dp),
+                border = androidx.compose.foundation.BorderStroke(1.4.dp, Gold.copy(alpha = 0.62f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    Modifier.fillMaxWidth().padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("رأی جداگانه شبکه عصبی • آزمایشی", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text("مدل: " + item.neuralModelSource + " • خروجی خام: " + item.neuralScore + "/100", color = Muted, fontSize = 9.sp)
-                        Text("رأی تحلیل تکنیکال: " + (if (item.technicalDirection == "LONG_BIAS") "LONG" else if (item.technicalDirection == "SHORT_BIAS") "SHORT" else "خنثی") + " • وضعیت تطبیق: " + item.agreementStatus, color = if (item.agreementStatus.startsWith("توافق کامل")) Green else Gold, fontSize = 9.sp, lineHeight = 13.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("نظر مستقل شبکه عصبی", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
+                        Surface(
+                            color = if (neuralValidated) Color(0xFF12351F) else Color(0xFF382A0B),
+                            shape = RoundedCornerShape(20.dp)
+                        ) {
+                            Text(
+                                if (neuralValidated) "اعتبارسنجی‌شده" else "پژوهشی • غیرفعال",
+                                color = if (neuralValidated) Green else Gold,
+                                fontSize = 9.sp,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("پیش‌بینی مدل", color = Muted, fontSize = 9.sp)
+                            Text(neuralOpinion, color = neuralTint, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                        }
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(if (neuralValidated && item.neuralDirection != "NEUTRAL") "قدرت جهت مدل" else "قدرت جهت مدل", color = Muted, fontSize = 9.sp)
+                            Text(
+                                if (neuralValidated && item.neuralDirection != "NEUTRAL") "$neuralStrength٪" else "قابل اعلام نیست",
+                                color = neuralTint, fontSize = 15.sp, fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                     Text(
-                        when (item.neuralDirection) {
-                            "LONG_BIAS" -> "LONG"
-                            "SHORT_BIAS" -> "SHORT"
-                            else -> "بدون جهت"
-                        },
-                        color = neuralTint, fontSize = 16.sp, fontWeight = FontWeight.Black
+                        "منبع: " + item.neuralModelSource +
+                            (if (neuralValidated && item.neuralDirection != "NEUTRAL") " • امتیاز جهت‌دار: ${item.neuralScore}/100" else ""),
+                        color = Muted, fontSize = 9.sp
                     )
+                    Divider(color = Gold.copy(alpha = 0.22f))
+                    Text(
+                        "نظر تحلیل تکنیکال: " + (if (item.technicalDirection == "LONG_BIAS") "صعودی LONG" else if (item.technicalDirection == "SHORT_BIAS") "نزولی SHORT" else "خنثی"),
+                        color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "نتیجه مقایسه دو موتور: " + item.agreementStatus,
+                        color = if (item.agreementStatus.contains("توافق") || item.agreementStatus.contains("تأیید مستقل")) Green else Gold,
+                        fontSize = 9.sp, lineHeight = 14.sp
+                    )
+                    if (!neuralValidated) {
+                        Text(
+                            "این خروجی هنوز نظر معتبر مدل محسوب نمی‌شود و در صدور سیگنال زنده دخالت ندارد؛ تا عبور از آزمون زمانی، فقط وضعیت پژوهشی نمایش داده می‌شود.",
+                            color = Gold, fontSize = 9.sp, lineHeight = 14.sp
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
