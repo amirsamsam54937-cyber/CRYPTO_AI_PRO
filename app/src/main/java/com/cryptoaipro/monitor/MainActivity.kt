@@ -267,8 +267,10 @@ fun CryptoMonitorScreen() {
     var learningWins by remember { mutableIntStateOf(learningPrefs.getInt("wins", 0)) }
     var learningLosses by remember { mutableIntStateOf(learningPrefs.getInt("losses", 0)) }
     var researchStats by remember { mutableStateOf(WolfMarketDataStore.Stats()) }
+    var paperSnapshot by remember(context) { mutableStateOf(HopePaperTradingEngine.snapshot(context)) }
     LaunchedEffect(Unit) {
         researchStats = WolfMarketDataStore.importVerifiedSeed(context)
+        paperSnapshot = HopePaperTradingEngine.snapshot(context)
     }
     val voiceEngine = remember(context) { TextToSpeech(context) { } }
     DisposableEffect(voiceEngine) { onDispose { voiceEngine.stop(); voiceEngine.shutdown() } }
@@ -319,6 +321,7 @@ fun CryptoMonitorScreen() {
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
+            paperSnapshot = HopePaperTradingEngine.processScan(context, rows)
             val memoryStats = WolfLearningMemory.processScan(context, rows, outcomeSnapshot.records)
             learningSamples = memoryStats.samples
             learningWins = memoryStats.wins
@@ -493,6 +496,9 @@ fun CryptoMonitorScreen() {
                                 }
                             }
                             item {
+                                HopePaperTradingDashboard(snapshot = paperSnapshot)
+                            }
+                            item {
                                 ActiveCommandSignals(
                                     records = outcomeSnapshot.records.filter { !it.closed },
                                     onOpenJournal = { selectedTab = "دفترچه" }
@@ -651,7 +657,7 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.45.0 • XT Futures • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.49.0 • XT USDT-M • تحلیل + شبیه‌ساز معاملات", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
