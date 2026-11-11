@@ -364,9 +364,17 @@ internal fun WolfFlowNewsScreen(symbol: String) {
                             Text("خرید تهاجمی: $" + String.format(Locale.US, "%,.0f", r.buyUsd), color = Color(0xFF27D6A0), fontSize = 12.sp)
                             Text("فروش تهاجمی: $" + String.format(Locale.US, "%,.0f", r.sellUsd), color = Color(0xFFFF657A), fontSize = 12.sp)
                             Text("معاملات درشت شناسایی‌شده • خرید " + r.largeBuys + " / فروش " + r.largeSells, color = Color.White, fontSize = 11.sp)
-                            Text("عدم‌تعادل جریان: " + String.format(Locale.US, "%.1f%%", r.imbalance * 100), color = Color(0xFFFFD45A), fontWeight = FontWeight.Bold)
-                            Text("Open Interest: " + String.format(Locale.US, "%,.3f", r.openInterest), color = Color(0xFF9AAAC2), fontSize = 10.sp)
-                            Text("Funding Rate: " + String.format(Locale.US, "%.5f%%", r.funding * 100), color = Color(0xFF9AAAC2), fontSize = 10.sp)
+                            Text("عدم‌تعادل معاملات: " + String.format(Locale.US, "%.1f%%", r.imbalance * 100), color = Color(0xFFFFD45A), fontWeight = FontWeight.Bold)
+                            Text(if (r.bookFresh) "عدم‌تعادل دفتر سفارش: " + String.format(Locale.US, "%.1f%%", r.bookImbalance * 100) else "دفتر سفارش تازه در دسترس نیست",
+                                color = if (r.bookFresh && kotlin.math.abs(r.bookImbalance) >= 0.18) Color(0xFFFFD45A) else Color(0xFFB8B0A0), fontSize = 11.sp)
+                            if (r.bookFresh) {
+                                Text("عمق قابل مشاهده خرید/فروش: $" + String.format(Locale.US, "%,.0f", r.bidDepthUsd) +
+                                    " / $" + String.format(Locale.US, "%,.0f", r.askDepthUsd), color = Color(0xFFB8B0A0), fontSize = 10.sp)
+                                Text("بزرگ‌ترین دیوار خرید/فروش: $" + String.format(Locale.US, "%,.0f", r.bidWallUsd) +
+                                    " / $" + String.format(Locale.US, "%,.0f", r.askWallUsd), color = Color(0xFFB8B0A0), fontSize = 10.sp)
+                            }
+                            Text("Open Interest: " + String.format(Locale.US, "%,.3f", r.openInterest), color = Color(0xFFB8B0A0), fontSize = 10.sp)
+                            Text("Funding Rate: " + String.format(Locale.US, "%.5f%%", r.funding * 100), color = Color(0xFFB8B0A0), fontSize = 10.sp)
                             Text(r.summary, color = Color.White, fontSize = 11.sp)
                             Text("معاملات درشت به معنی شناسایی هویت نهنگ نیست؛ این تخمین از اندازه و جهت تیکرهاست و به‌تنهایی نقطه ورود قطعی نمی‌سازد.", color = Color(0xFF9AAAC2), fontSize = 9.sp)
                         }
@@ -378,12 +386,12 @@ internal fun WolfFlowNewsScreen(symbol: String) {
                 Text("منابع عمومی CoinDesk و Cointelegraph • آخرین دریافت: $refreshed", color = Color(0xFF9AAAC2), fontSize = 9.sp)
             }
             items(news) { n ->
-                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF151F33))) {
+                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF15130E))) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(n.title, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 12.sp)
                         Text(n.source + " • " + n.date, color = Color(0xFF9AAAC2), fontSize = 9.sp)
                         if (n.link.startsWith("https://")) Text(
-                            n.link, color = Color(0xFF55B8FF), fontSize = 9.sp,
+                            n.link, color = Color(0xFFFFD45A), fontSize = 9.sp,
                             modifier = Modifier.clickable { uriHandler.openUri(n.link) }
                         )
                     }
