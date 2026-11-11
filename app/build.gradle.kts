@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 70
-  versionName = "2.51.0"
-  // Release 2.51: private encrypted Brave retrieval engine and grounded research context.
+  versionCode = 71
+  versionName = "2.52.0"
+  // Release 2.52: hidden, keyless DuckDuckGo metasearch with Wikipedia fallback.
  }
  buildFeatures { compose = true }
  // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
