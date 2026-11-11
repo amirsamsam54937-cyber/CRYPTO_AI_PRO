@@ -571,7 +571,7 @@ fun CryptoMonitorScreen() {
                                         backtestStatus = "در حال انتخاب بازه تاریخی تازه و دریافت تاریخچه چندتایم‌فریمی..."
                                         try {
                                             backtestSnapshot = WolfHistoricalBacktestEngine.run(
-                                                context, rows.sortedByDescending { it.confidence }.take(4).map { it.symbol }
+                                                context, rows.sortedByDescending { it.confidence }.take(8).map { it.symbol }
                                             )
                                             backtestStatus = "پایان آزمایش • ${backtestSnapshot.samples} نقطه • ${backtestSnapshot.durationMs / 1000} ثانیه"
                                         } catch (e: kotlinx.coroutines.CancellationException) {
