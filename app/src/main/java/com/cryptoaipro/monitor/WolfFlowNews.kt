@@ -54,7 +54,10 @@ internal object WolfFlowNewsRepository {
         // XT-native public recent trades only. This is large-trade/order-flow estimation,
         // not proof of a whale's identity or wallet ownership.
         val normalizedSymbol = symbolInput.uppercase(Locale.US).replace(Regex("[^A-Z0-9]"), "")
-        val baseAsset = normalizedSymbol.removeSuffix("USDT")
+        // XT contract symbols can arrive as BTCUSDT or BTC/USDT:USDT.
+        // Strip one or two quote suffixes without turning BTCUSDTUSDT into BTCUSDT_usdt.
+        val baseAsset = normalizedSymbol.removeSuffix("USDTUSDT").removeSuffix("USDT")
+        require(baseAsset.isNotBlank()) { "نماد پایه برای تحلیل جریان سفارش خالی است" }
         val symbol = baseAsset.lowercase(Locale.US) + "_usdt"
         require(symbol.matches(Regex("[a-z0-9_]{4,24}"))) { "نماد برای تحلیل جریان سفارش معتبر نیست" }
         val tradesRoot = org.json.JSONObject(get("https://fapi.xt.com/future/market/v1/public/q/deal?symbol=$symbol&num=50"))
@@ -291,7 +294,7 @@ internal fun WolfFlowNewsScreen(symbol: String) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column(Modifier.weight(1f)) {
                 Text("ردیابی جریان نهنگ‌ها", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("معاملات درشت و فشار خرید/فروش • $symbol", color = Color(0xFF9AAAC2), fontSize = 10.sp)
+                Text("معاملات درشت و فشار خرید/فروش • $symbol", color = Color(0xFFB8B0A0), fontSize = 10.sp)
             }
             Button(onClick = { scope.launch { refresh() } }, enabled = !loading) { Text("بروزرسانی") }
         }
@@ -300,13 +303,13 @@ internal fun WolfFlowNewsScreen(symbol: String) {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
             report?.let { r ->
                 item {
-                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF151F33))) {
+                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF15130E))) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(r.symbol + " • معاملات تجمیعی اخیر", color = Color.White, fontWeight = FontWeight.Bold)
                             Text("خرید تهاجمی: $" + String.format(Locale.US, "%,.0f", r.buyUsd), color = Color(0xFF27D6A0), fontSize = 12.sp)
                             Text("فروش تهاجمی: $" + String.format(Locale.US, "%,.0f", r.sellUsd), color = Color(0xFFFF657A), fontSize = 12.sp)
                             Text("معاملات درشت شناسایی‌شده • خرید " + r.largeBuys + " / فروش " + r.largeSells, color = Color.White, fontSize = 11.sp)
-                            Text("عدم‌تعادل جریان: " + String.format(Locale.US, "%.1f%%", r.imbalance * 100), color = Color(0xFF55B8FF), fontWeight = FontWeight.Bold)
+                            Text("عدم‌تعادل جریان: " + String.format(Locale.US, "%.1f%%", r.imbalance * 100), color = Color(0xFFFFD45A), fontWeight = FontWeight.Bold)
                             Text("Open Interest: " + String.format(Locale.US, "%,.3f", r.openInterest), color = Color(0xFF9AAAC2), fontSize = 10.sp)
                             Text("Funding Rate: " + String.format(Locale.US, "%.5f%%", r.funding * 100), color = Color(0xFF9AAAC2), fontSize = 10.sp)
                             Text(r.summary, color = Color.White, fontSize = 11.sp)
