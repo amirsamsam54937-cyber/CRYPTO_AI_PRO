@@ -55,6 +55,7 @@ class HopeHunterMonitorService : Service() {
                     // advance the virtual ledger. This engine has no exchange-order adapter.
                     val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, signals)
                     val paperSnapshot = HopePaperTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
+                    HopeScenarioLab.recordAndEvaluate(this@HopeHunterMonitorService, scoredSignals)
                     val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, scoredSignals)
                     val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records)
                     HopeLivingBrain.runCycle(this@HopeHunterMonitorService, scoredSignals, learningStats, outcomeSnapshot.records)
