@@ -7,6 +7,15 @@
  <application android:allowBackup="false" android:label="اتاق شکار امیدها" android:icon="@drawable/ic_crypto_ai_logo" android:roundIcon="@drawable/ic_crypto_ai_logo"
   android:theme="@android:style/Theme.Material.Light.NoActionBar"
   android:usesCleartextTraffic="false">
+  <service
+   android:name=".HopeHunterMonitorService"
+   android:enabled="true"
+   android:exported="false"
+   android:foregroundServiceType="specialUse">
+   <property
+    android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+    android:value="Read-only public cryptocurrency futures market monitoring and status notifications" />
+  </service>
   <activity android:name=".MainActivity" android:exported="true">
    <intent-filter>
     <action android:name="android.intent.action.MAIN" />
