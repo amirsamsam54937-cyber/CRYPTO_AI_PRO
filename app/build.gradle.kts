@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 69
-  versionName = "2.50.0"
-  // Release 2.50: global TOTAL proxies, dominance context, and hidden adaptive session features.
+  versionCode = 70
+  versionName = "2.51.0"
+  // Release 2.51: private encrypted Brave retrieval engine and grounded research context.
  }
  buildFeatures { compose = true }
  // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
