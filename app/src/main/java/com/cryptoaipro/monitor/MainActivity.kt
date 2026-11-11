@@ -157,7 +157,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                 // the published live signal. This is a raw model vote, not a calibrated probability.
                 val rawProbability = research?.probability
                 val rawDirectionScore = if (rawProbability == null) 50 else
-                    if (research.referenceDirection == "LONG_BIAS")
+                    if (research?.referenceDirection == "LONG_BIAS")
                         (rawProbability * 100.0).toInt().coerceIn(1, 99)
                     else ((1.0 - rawProbability) * 100.0).toInt().coerceIn(1, 99)
                 val rawPredictedSide = when {
