@@ -130,8 +130,18 @@ internal object HopePaperTradingEngine {
             }
         }
 
-        var currentEquity = max(0.0, STARTING_EQUITY + realized)
-        val dailyLossPct = if (dailyStart > 0.0) max(0.0, -dailyPnl / dailyStart * 100.0) else 100.0
+        fun unrealizedNet(p: Position): Double {
+            val isLong = p.side == "LONG_BIAS"
+            val exitFill = p.mark * (if (isLong) 1.0 - SLIPPAGE_PER_SIDE else 1.0 + SLIPPAGE_PER_SIDE)
+            val gross = (exitFill - p.entry) * p.quantity * (if (isLong) 1.0 else -1.0)
+            val fees = (p.entry * p.quantity + exitFill * p.quantity) * FEE_PER_SIDE
+            val hours = ((now - p.openedAt).coerceAtLeast(0L)).toDouble() / 3_600_000.0
+            val funding = p.notionalUsdt * ESTIMATED_FUNDING_PER_8H * (hours / 8.0)
+            return gross - fees - funding
+        }
+        val floatingPnl = survivors.sumOf { unrealizedNet(it) }
+        val currentEquity = max(0.0, STARTING_EQUITY + realized + floatingPnl)
+        val dailyLossPct = if (dailyStart > 0.0) max(0.0, -(dailyPnl + floatingPnl) / dailyStart * 100.0) else 100.0
         val openRiskUsdt = survivors.sumOf { it.riskUsdt }
         val openRiskPct = if (currentEquity > 0.0) openRiskUsdt / currentEquity * 100.0 else 100.0
         val enabled = prefs.getBoolean("hope_risk_ack_v1", false) &&
@@ -170,8 +180,9 @@ internal object HopePaperTradingEngine {
                 }
         }
 
-        val updatedEquity = max(0.0, STARTING_EQUITY + realized)
-        val updatedDailyLossPct = if (dailyStart > 0.0) max(0.0, -dailyPnl / dailyStart * 100.0) else 100.0
+        val updatedFloatingPnl = survivors.sumOf { unrealizedNet(it) }
+        val updatedEquity = max(0.0, STARTING_EQUITY + realized + updatedFloatingPnl)
+        val updatedDailyLossPct = if (dailyStart > 0.0) max(0.0, -(dailyPnl + updatedFloatingPnl) / dailyStart * 100.0) else 100.0
         val updatedOpenRiskPct = if (updatedEquity > 0.0) survivors.sumOf { it.riskUsdt } / updatedEquity * 100.0 else 100.0
         val out = JSONObject().apply {
             put("equity", updatedEquity); put("dailyStartEquity", dailyStart); put("dailyDay", dailyDay)
