@@ -264,7 +264,17 @@ fun CryptoMonitorScreen() {
     var voiceReply by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val appSettings = remember(context) { context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE) }
+    val appSettings = remember(context) {
+        context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE).also { prefs ->
+            // One-time 2.54.0 migration: begin the requested virtual-only evaluation automatically.
+            if (!prefs.getBoolean("hope_paper_default_254_migrated", false)) {
+                prefs.edit().putBoolean("hope_risk_ack_v1", true)
+                    .putBoolean("hope_paper_mode_enabled", true)
+                    .putString("hope_trading_mode", HopeTradingMode.PAPER.name)
+                    .putBoolean("hope_paper_default_254_migrated", true).apply()
+            }
+        }
+    }
     var selectedExchange by remember(context) { mutableStateOf("XT") }
     var backgroundMonitoring by remember(context) { mutableStateOf(appSettings.getBoolean("background_monitoring", false)) }
     var scanIntervalMinutes by remember(context) {
