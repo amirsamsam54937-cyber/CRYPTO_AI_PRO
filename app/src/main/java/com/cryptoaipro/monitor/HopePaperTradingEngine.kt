@@ -65,6 +65,7 @@ internal object HopePaperTradingEngine {
         var wins = root.optInt("wins", 0)
         var losses = root.optInt("losses", 0)
         var lastAction = root.optString("lastAction", "هنوز معامله شبیه‌سازی‌شده‌ای ثبت نشده است.")
+        val cooldowns = root.optJSONObject("cooldowns") ?: JSONObject()
         val array = root.optJSONArray("positions") ?: JSONArray()
         val positions = (0 until array.length()).mapNotNull { i ->
             val p = array.optJSONObject(i) ?: return@mapNotNull null
@@ -124,6 +125,7 @@ internal object HopePaperTradingEngine {
                 val net = gross - fees - funding
                 realized += net
                 dailyPnl += net
+                cooldowns.put(p.symbol, now + 60L * 60L * 1000L)
                 closed += 1
                 if (net >= 0.0) wins++ else losses++
                 lastAction = "${p.symbol} • خروج: $exitReason • نتیجه خالص تخمینی: ${"%.3f".format(java.util.Locale.US, net)} USDT"
@@ -152,6 +154,7 @@ internal object HopePaperTradingEngine {
             signals.asSequence()
                 .filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
                 .filter { it.symbol !in activeSymbols }
+                .filter { cooldowns.optLong(it.symbol, 0L) <= now }
                 .filter { s ->
                     val validGeometry = if (s.direction == "LONG_BIAS")
                         s.stop < s.entry && s.tp1 > s.entry else s.stop > s.entry && s.tp1 < s.entry
@@ -188,6 +191,7 @@ internal object HopePaperTradingEngine {
             put("equity", updatedEquity); put("dailyStartEquity", dailyStart); put("dailyDay", dailyDay)
             put("dailyPnl", dailyPnl); put("realizedPnl", realized); put("closedTrades", closed)
             put("wins", wins); put("losses", losses); put("lastAction", lastAction)
+            put("cooldowns", cooldowns)
             put("positions", JSONArray().apply { survivors.forEach { p ->
                 put(JSONObject().apply {
                     put("symbol", p.symbol); put("side", p.side); put("quantity", p.quantity)
