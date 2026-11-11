@@ -7,6 +7,12 @@ concurrency:
   cancel-in-progress: true
 on:
   workflow_dispatch:
+    inputs:
+      retrain_models:
+        description: "Train the ten networks again from the verified historical corpus"
+        required: false
+        default: false
+        type: boolean
   push:
     paths:
       - "app/**"
@@ -51,11 +57,13 @@ jobs:
           print(f"Verified {rows:,} real exchange candle rows and {len(report['metrics'])} trained ensemble members")
           PY
       - name: Set up Python for fresh neural-network training
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.retrain_models }}
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
       - name: Train ten neural networks on verified real futures history
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.retrain_models }}
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip numpy scikit-learn
