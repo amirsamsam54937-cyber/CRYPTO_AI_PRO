@@ -207,8 +207,10 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
                         busy = true
                         scope.launch {
                             val response = if (apiKey.isNotBlank()) {
-                                runCatching { WolfLanguageModel.answer(q, apiKey, endpoint, model, marketSignal) }
-                                    .getOrElse { ("اتصال مدل زبانی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
+                                runCatching {
+                                    val research = HopeResearchEngine.contextFor(context, q)
+                                    WolfLanguageModel.answer(q, apiKey, endpoint, model, marketSignal, research)
+                                }.getOrElse { ("اتصال مدل زبانی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
                             } else {
                                 localPersianReply(q)?.let { it to "" }
                                     ?: WolfCryptoKnowledgeBase.answer(q)
@@ -236,8 +238,10 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
                     busy = true
                     scope.launch {
                         val response = if (apiKey.isNotBlank()) {
-                            runCatching { WolfLanguageModel.answer(q, apiKey, endpoint, model, marketSignal) }
-                                .getOrElse { ("اتصال مدل زبانی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
+                            runCatching {
+                                val research = HopeResearchEngine.contextFor(context, q)
+                                WolfLanguageModel.answer(q, apiKey, endpoint, model, marketSignal, research)
+                            }.getOrElse { ("اتصال مدل زبانی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
                         } else {
                             localPersianReply(q)?.let { it to "" }
                                 ?: WolfCryptoKnowledgeBase.answer(q)
