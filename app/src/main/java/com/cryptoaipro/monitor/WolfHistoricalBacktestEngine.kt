@@ -21,8 +21,8 @@ internal object WolfHistoricalBacktestEngine {
     private const val PREFS = "hope_hunter_historical_backtest"
     private const val KEY = "latest_v2"
     private const val COST_PCT_NOTIONAL_ROUND_TRIP = 0.10
-    private const val SYMBOL_LIMIT = 6
-    private const val SAMPLES_PER_SYMBOL = 48
+    private const val SYMBOL_LIMIT = 8
+    private const val SAMPLES_PER_SYMBOL = 72
     private const val WARMUP_BARS = 230
     private const val DAY_MS = 86_400_000L
 
