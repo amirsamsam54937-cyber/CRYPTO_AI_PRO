@@ -1,5 +1,7 @@
 package com.cryptoaipro.monitor
 
+import android.content.Context
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -70,9 +72,16 @@ internal object WolfKnowledgeSearch {
         } finally { connection.disconnect() }
     }
 
-    suspend fun answer(question: String): Pair<String, String> = withContext(Dispatchers.IO) {
+    suspend fun answer(context: Context, question: String): Pair<String, String> = withContext(Dispatchers.IO) {
         // Prefer the curated offline Persian knowledge pack; use web retrieval for uncovered topics.
         WolfMarketKnowledge.answer(question)?.let { return@withContext it }
+        val brave = runCatching { HopeResearchEngine.search(context, question) }.getOrDefault(emptyList())
+        if (brave.isNotEmpty()) {
+            val answer = "منابع بازیابی‌شده برای پرسش:\\n\\n" + brave.take(6).joinToString("\\n\\n") {
+                it.title + "\\n" + it.snippet + "\\nمنبع: " + it.url
+            } + "\\n\\nاین اطلاعات بازیابی وب است، نه آموزش وزن‌های مدل. برای تصمیم معاملاتی باید داده زنده XT و اعتبارسنجی مستقل بررسی شود."
+            return@withContext answer to brave.first().url
+        }
         val encoded = URLEncoder.encode(question.take(180), "UTF-8")
         val findings = mutableListOf<String>()
         var source = ""
@@ -214,7 +223,7 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
                             } else {
                                 localPersianReply(q)?.let { it to "" }
                                     ?: WolfCryptoKnowledgeBase.answer(q)
-                                    ?: runCatching { WolfKnowledgeSearch.answer(q) }
+                                    ?: runCatching { WolfKnowledgeSearch.answer(context, q) }
                                         .getOrElse { ("جست‌وجوی اینترنتی ناموفق بود: " + (it.message ?: "خطای ناشناخته")) to "" }
                             }
                             messages.add(WolfChatMessage(response.first, false, response.second))
