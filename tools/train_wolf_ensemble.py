@@ -10,7 +10,7 @@ try:
 except ModuleNotFoundError:  # direct execution as `python tools/train_wolf_ensemble.py`
     from time_series_validation import chronological_masks
 
-DATA_SOURCE = "verified XT USDT perpetual historical corpus"
+DATA_SOURCE = "verified XT USDT-M only historical corpus"
 INTERVAL, HORIZON = "1h", 6
 
 def ema(values, period):
@@ -121,11 +121,22 @@ def fetch_symbol_samples(symbol):
 
 def load_seed_samples():
     path="app/src/main/assets/market_seed.csv"
-    if not os.path.exists(path):
-        return None
+    manifest_path="app/src/main/assets/wolf_corpus_manifest.json"
+    if not os.path.exists(path) or not os.path.exists(manifest_path):
+        raise SystemExit("Verified XT-only corpus or manifest is missing.")
+    with open(manifest_path,encoding="utf-8") as handle:
+        manifest=json.load(handle)
+    if (manifest.get("status") != "verified_real_exchange_data"
+        or int(manifest.get("rows",0)) < 1_000_000
+        or sorted(x.upper() for x in manifest.get("source_exchanges",[])) != ["XT"]
+        or int(manifest.get("synthetic_rows",-1)) != 0
+        or manifest.get("data_source_policy") != "XT_USDT_M_ONLY"):
+        raise SystemExit("Training requires at least one million verified real XT USDT-M candles only.")
     grouped={}
     with open(path,newline="",encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
+            if row.get("exchange","").upper() != "XT":
+                raise SystemExit("Non-XT rows detected; refusing mixed-exchange training.")
             if row.get("timeframe") != "1h":
                 continue
             symbol=row["symbol"].upper()
