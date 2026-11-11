@@ -709,11 +709,11 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.53.1 • XT USDT-M • مغز تطبیقی + تحلیل + شبیه‌ساز", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.55.0 • XT USDT-M • ده شبکه عصبی + سناریوهای آینده + شبیه‌ساز", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
-                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← CRYPTO AI PRO ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← HOPE HUNTER ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                         }
                     }
                 }
