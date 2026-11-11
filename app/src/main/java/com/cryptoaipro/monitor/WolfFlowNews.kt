@@ -176,7 +176,7 @@ internal object WolfFlowNewsRepository {
         }
     }
 
-    suspend fun refreshForEngine(context: android.content.Context, signals: List<MarketSignal>, exchange: String = "BINANCE") {
+    suspend fun refreshForEngine(context: android.content.Context, signals: List<MarketSignal>, exchange: String = "XT") {
         val prefs = context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         val last = prefs.getLong("last_refresh", 0L)
