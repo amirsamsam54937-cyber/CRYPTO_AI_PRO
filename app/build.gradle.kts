@@ -10,8 +10,8 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 66
-  versionName = "2.47.0"
+  versionCode = 67
+  versionName = "2.48.0"
   // Release 2.47: independent technical/neural risk geometry and holding horizons in research replay.
  }
  buildFeatures { compose = true }
