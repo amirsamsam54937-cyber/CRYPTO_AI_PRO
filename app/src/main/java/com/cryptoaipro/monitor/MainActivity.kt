@@ -268,9 +268,11 @@ fun CryptoMonitorScreen() {
     var learningLosses by remember { mutableIntStateOf(learningPrefs.getInt("losses", 0)) }
     var researchStats by remember { mutableStateOf(WolfMarketDataStore.Stats()) }
     var paperSnapshot by remember(context) { mutableStateOf(HopePaperTradingEngine.snapshot(context)) }
+    var scenarioScorecard by remember(context) { mutableStateOf<HopeScenarioScorecard?>(null) }
     LaunchedEffect(Unit) {
         researchStats = WolfMarketDataStore.importVerifiedSeed(context)
         paperSnapshot = HopePaperTradingEngine.snapshot(context)
+        scenarioScorecard = HopeScenarioLab.recordAndEvaluate(context, rows)
     }
     val voiceEngine = remember(context) { TextToSpeech(context) { } }
     DisposableEffect(voiceEngine) { onDispose { voiceEngine.stop(); voiceEngine.shutdown() } }
@@ -322,6 +324,7 @@ fun CryptoMonitorScreen() {
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
             paperSnapshot = HopePaperTradingEngine.processScan(context, rows)
+            scenarioScorecard = HopeScenarioLab.recordAndEvaluate(context, rows)
             val memoryStats = WolfLearningMemory.processScan(context, rows, outcomeSnapshot.records)
             learningSamples = memoryStats.samples
             learningWins = memoryStats.wins
@@ -506,6 +509,9 @@ fun CryptoMonitorScreen() {
                             }
                             item {
                                 HopePaperTradingDashboard(snapshot = paperSnapshot)
+                            }
+                            item {
+                                HopeScenarioLabCard(scorecard = scenarioScorecard)
                             }
                             item {
                                 ActiveCommandSignals(
