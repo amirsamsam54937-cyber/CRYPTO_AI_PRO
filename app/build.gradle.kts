@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 72
-  versionName = "2.53.0"
-  // Release 2.53: autonomous supervisory brain, outcome learning and persistent adaptive research memory.
+  versionCode = 73
+  versionName = "2.53.1"
+  // Release 2.53.1: synchronize adaptive scan cadence with the foreground monitor.
  }
  buildFeatures { compose = true }
  // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
