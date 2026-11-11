@@ -152,10 +152,23 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                 }
             }.orEmpty()
             if (!pretrainedStatus.validatedForScoring) {
+                // Keep the neural network's independent research opinion visible and active
+                // for comparison, but never allow an unvalidated model to promote or alter
+                // the published live signal. This is a raw model vote, not a calibrated probability.
+                val rawProbability = research?.probability
+                val rawDirectionScore = if (rawProbability == null) 50 else
+                    if (research.referenceDirection == "LONG_BIAS")
+                        (rawProbability * 100.0).toInt().coerceIn(1, 99)
+                    else ((1.0 - rawProbability) * 100.0).toInt().coerceIn(1, 99)
+                val rawPredictedSide = when {
+                    rawDirectionScore > 50 -> "LONG_BIAS"
+                    rawDirectionScore < 50 -> "SHORT_BIAS"
+                    else -> "NEUTRAL"
+                }
                 signal.copy(
-                    neuralScore = 50,
-                    neuralDirection = "NEUTRAL",
-                    neuralModelSource = "مدل آموزش‌دیده • اعتبارسنجی‌نشده • رأی غیرفعال",
+                    neuralScore = rawDirectionScore,
+                    neuralDirection = research?.predictedDirection ?: rawPredictedSide,
+                    neuralModelSource = "۱۰ شبکه عصبی • رأی پژوهشی مستقل • خارج از تصمیم نهایی تا اعتبارسنجی",
                     neuralMemberVotes = memberVotes
                 )
             } else {
@@ -1091,10 +1104,9 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 else -> Gold
             }
             val neuralOpinion = when {
-                !neuralValidated -> "رأی مدل فعلاً غیرفعال"
-                item.neuralDirection == "LONG_BIAS" -> "تمایل صعودی • LONG"
-                item.neuralDirection == "SHORT_BIAS" -> "تمایل نزولی • SHORT"
-                else -> "نظر خنثی • بدون جهت"
+                item.neuralDirection == "LONG_BIAS" -> "نظر مستقل شبکه: صعودی • LONG"
+                item.neuralDirection == "SHORT_BIAS" -> "نظر مستقل شبکه: نزولی • SHORT"
+                else -> "نظر مستقل شبکه: خنثی • بدون جهت"
             }
             val neuralStrength = maxOf(item.neuralScore, 100 - item.neuralScore)
             Surface(
@@ -1114,7 +1126,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                             shape = RoundedCornerShape(20.dp)
                         ) {
                             Text(
-                                if (neuralValidated) "اعتبارسنجی‌شده" else "پژوهشی • غیرفعال",
+                                if (neuralValidated) "اعتبارسنجی‌شده" else "رأی فعال • پژوهشی",
                                 color = if (neuralValidated) Green else Gold,
                                 fontSize = 9.sp,
                                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
@@ -1129,7 +1141,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(if (neuralValidated && item.neuralDirection != "NEUTRAL") "قدرت جهت مدل" else "قدرت جهت مدل", color = Muted, fontSize = 9.sp)
                             Text(
-                                if (neuralValidated && item.neuralDirection != "NEUTRAL") "$neuralStrength٪" else "قابل اعلام نیست",
+                                if (item.neuralDirection != "NEUTRAL") "$neuralStrength٪ خام" else "خنثی",
                                 color = neuralTint, fontSize = 15.sp, fontWeight = FontWeight.Bold
                             )
                         }
@@ -1155,7 +1167,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                     )
                     if (!neuralValidated) {
                         Text(
-                            "این خروجی هنوز نظر معتبر مدل محسوب نمی‌شود و در صدور سیگنال زنده دخالت ندارد؛ تا عبور از آزمون زمانی، فقط وضعیت پژوهشی نمایش داده می‌شود.",
+                            "نظر شبکه عصبی فعالانه محاسبه و برای مقایسه نمایش داده می‌شود؛ اما چون هنوز اعتبارسنجی زمانی را نگذرانده، مغز هوشمند اجازه دخالت آن در تأیید یا رد سیگنال نهایی را نمی‌دهد. امتیاز خام، احتمال برد نیست.",
                             color = Gold, fontSize = 9.sp, lineHeight = 14.sp
                         )
                     }
