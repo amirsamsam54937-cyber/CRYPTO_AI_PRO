@@ -768,6 +768,50 @@ private fun SignalJournalScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
+            val modelStatus = WolfPretrainedEnsemble.status()
+            Surface(
+                color = Color(0xFF0E0C08),
+                shape = RoundedCornerShape(20.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.72f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("HOPE HUNTER  •  PERFORMANCE LAB", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
+                    Text("مرکز گزارش و ارزیابی عملکرد", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Black)
+                    Text("آمار زیر از سوابق ثبت‌شده روی همین دستگاه و آخرین اجرای بک‌تست خوانده می‌شود؛ هیچ داده نمایشی یا سود فرضی به‌عنوان نتیجه واقعی درج نمی‌شود.", color = Muted, fontSize = 10.sp, lineHeight = 16.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        SmallStat("کل سوابق", snapshot.total.toString(), Gold)
+                        SmallStat("نرخ برد", String.format(Locale.US, "%.1f%%", snapshot.winRate), Green)
+                        SmallStat("بازده ثبت‌شده", String.format(Locale.US, "%+.2f%%", snapshot.totalPnlPct), if (snapshot.totalPnlPct >= 0) Green else Red)
+                    }
+                    Divider(color = Gold.copy(alpha = 0.24f))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("وضعیت شبکه عصبی", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(
+                                if (modelStatus.validatedForScoring) "اعتبارسنجی زمانی تأیید شده؛ رأی مدل مجاز است."
+                                else "مدل بارگذاری‌شده تا عبور از اعتبارسنجی زمانی فقط پژوهشی است و در صدور سیگنال زنده دخالت ندارد.",
+                                color = if (modelStatus.validatedForScoring) Green else Gold,
+                                fontSize = 9.sp, lineHeight = 14.sp
+                            )
+                            Text("مدل‌های بارگذاری‌شده: ${modelStatus.members} از ۱۰  •  نمونه‌های آموزش گزارش‌شده: ${modelStatus.samples}", color = Muted, fontSize = 9.sp)
+                        }
+                        Surface(
+                            color = if (modelStatus.validatedForScoring) Color(0xFF12351F) else Color(0xFF382A0B),
+                            shape = RoundedCornerShape(30.dp)
+                        ) {
+                            Text(
+                                if (modelStatus.validatedForScoring) "معتبر" else "پژوهشی",
+                                color = if (modelStatus.validatedForScoring) Green else Gold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                fontSize = 10.sp, fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        item {
             Surface(
                 color = Color(0xFF15120B), shape = RoundedCornerShape(16.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.45f)),
