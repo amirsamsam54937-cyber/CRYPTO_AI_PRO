@@ -160,6 +160,8 @@ internal object XtFuturesMonitor {
     suspend fun scan(onProgress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { _,_,_,_ -> }): List<MarketSignal> =
         fullScanMutex.withLock {
         withContext(Dispatchers.IO) {
+            // Pull broad-market TOTAL/TOTAL2/TOTAL3 context once per scan; never expose session clocks.
+            val marketContext = HopeMacroMarketEngine.fetch()
             val contracts = extractRows(get("/future/market/v1/public/cg/contracts"))
             val universe = (0 until contracts.length()).mapNotNull { contracts.optJSONObject(it) }
                 .filter { c -> c.optString("product_type").equals("PERPETUAL", true) &&
@@ -199,7 +201,8 @@ internal object XtFuturesMonitor {
                             MarketAnalysisEngine.analyzeWithCandles(
                                 item.second, price, change, volume,
                                 f.first[1], f.first[2], f.first[3],
-                                micro = f.first[0], macro = f.second
+                                micro = f.first[0], macro = f.second,
+                                marketContext = marketContext
                             )
                         }
                     } }.awaitAll()
