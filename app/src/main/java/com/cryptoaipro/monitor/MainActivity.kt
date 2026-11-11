@@ -296,7 +296,9 @@ fun CryptoMonitorScreen() {
     LaunchedEffect(Unit) {
         researchStats = WolfMarketDataStore.importVerifiedSeed(context)
         paperSnapshot = HopePaperTradingEngine.snapshot(context)
-        scenarioScorecard = HopeScenarioLab.recordAndEvaluate(context, rows)
+        scenarioScorecard = withContext(Dispatchers.Default) {
+            HopeScenarioLab.recordAndEvaluate(context, rows)
+        }
     }
     val voiceEngine = remember(context) { TextToSpeech(context) { } }
     DisposableEffect(voiceEngine) { onDispose { voiceEngine.stop(); voiceEngine.shutdown() } }
