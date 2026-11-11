@@ -93,3 +93,32 @@ def test_backtest_terminal_liquidation_updates_equity_curve_and_drawdown(monkeyp
     assert result["equity_curve"][-1]["equity"] == pytest.approx(result["final_equity"])
     expected_drawdown = (1000.0 - result["final_equity"]) / 1000.0 * 100.0
     assert result["max_drawdown_percent"] == pytest.approx(expected_drawdown, abs=5e-5)
+
+def test_backtest_does_not_reenter_at_same_bar_open_after_intrabar_exit(monkeypatch):
+    frame = sample_frame(105)
+    frame.loc[100:101, ["open", "high", "low", "close"]] = [100.0, 100.5, 99.5, 100.0]
+    # The first LONG reaches its target during bar 102. A second position may
+    # only be entered at bar 103's open, never retroactively at bar 102's open.
+    frame.loc[102, ["open", "high", "low", "close"]] = [100.0, 103.5, 99.5, 103.0]
+    frame.loc[103:104, ["open", "high", "low", "close"]] = [100.0, 100.5, 99.5, 100.0]
+    monkeypatch.setattr(
+        "app.backtest.analyze_ohlcv",
+        lambda history: {"direction": "LONG_BIAS", "atr": 1.0},
+    )
+
+    result = run_backtest(
+        frame,
+        initial_equity=1000.0,
+        risk_per_trade=0.01,
+        max_leverage=1.0,
+        fee_rate=0.0,
+        slippage_rate=0.0,
+        funding_rate_8h=0.0,
+        warmup=100,
+    )
+
+    assert result["trade_count"] == 2
+    assert result["trades"][0]["exit_time"] == str(frame.loc[102, "timestamp"])
+    assert result["trades"][1]["entry_time"] == str(frame.loc[103, "timestamp"])
+    assert result["trades"][1]["exit_reason"] == "END_OF_DATA"
+
