@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 77
-  versionName = "2.57.0"
-  // Release 2.56.0: conditional scenario path tests and hidden XT public order-flow features.
+  versionCode = 78
+  versionName = "2.58.0"
+  // Release 2.58.0: native XT chart, complete signal levels and visual scenario corridors.
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
