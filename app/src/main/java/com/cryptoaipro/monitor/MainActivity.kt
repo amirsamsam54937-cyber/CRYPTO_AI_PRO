@@ -79,8 +79,8 @@ private val Panel = Color(0xFF111111)
 private val Muted = Color(0xFFB8B0A0)
 private val Green = Color(0xFF20D477)
 private val Red = Color(0xFFFF4655)
-private val Blue = Color(0xFFFFC52E)
-private val Purple = Color(0xFFD9A62E)
+private val Blue = Color(0xFFE8B85B)
+private val Purple = Color(0xFFB88635)
 private val Gold = Color(0xFFFFD45A)
 
 data class MarketSignal(
@@ -736,7 +736,7 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.56.0 • XT USDT-M • ده شبکه عصبی + شبیه‌سازی مسیرها + جریان سفارش داخلی", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.61.0 • XT USDT-M • ده متخصص عصبی مستقل + اعتبارسنجی زمانی + تحلیل چندلایه", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
