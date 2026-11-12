@@ -59,6 +59,7 @@ jobs:
           cp /tmp/wolf-trained/wolf_model_training_report.json app/src/main/assets/wolf_model_training_report.json
           cp /tmp/wolf-trained/wolf_pretrained_ensemble.json app/src/main/assets/wolf_pretrained_ensemble.json
       - name: Verify XT-only corpus provenance and row count
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.train_models }}
         run: |
           set -euo pipefail
           python - <<'PY'
