@@ -10,8 +10,8 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 76
-  versionName = "2.56.0"
+  versionCode = 77
+  versionName = "2.57.0"
   // Release 2.56.0: conditional scenario path tests and hidden XT public order-flow features.
  }
  buildFeatures { compose = true }
