@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from tools.time_series_validation import chronological_masks
-from tools.train_wolf_ensemble import HORIZON, SPECIALISTS, make_rows
+from tools.train_wolf_ensemble import FEATURE_NAMES, HORIZON, SPECIALISTS, make_rows
 
 
 def test_chronological_split_keeps_same_timestamp_rows_together_and_purges_horizon():
@@ -34,7 +34,7 @@ def test_neural_target_is_future_price_direction_not_technical_rule_output():
     volume = 1000.0 + (t % 17) * 13.0
     raw = np.column_stack([t * 3_600_000, open_, high, low, close, volume, np.zeros(n)])
     X, y, timestamps = make_rows(raw)
-    assert X.shape[1] == 7
+    assert X.shape[1] == len(FEATURE_NAMES) == 7
     assert len(X) == len(y) == len(timestamps)
     for label, timestamp in zip(y, timestamps):
         i = int(timestamp // 3_600_000)
