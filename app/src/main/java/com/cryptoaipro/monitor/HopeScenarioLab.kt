@@ -35,7 +35,10 @@ internal data class HopePathScenario(
 internal data class HopeScenarioForecast(
     val symbol: String, val basePrice: Double, val candleTimeMs: Long,
     val horizonBars: Int, val thresholdPct: Double, val scenarios: List<HopePriceScenario>,
-    val method: String, val pathScenarios: List<HopePathScenario> = emptyList()
+    val method: String, val pathScenarios: List<HopePathScenario> = emptyList(),
+    val tp1BeforeStopPct: Double = 0.0, val tp2BeforeStopPct: Double = 0.0,
+    val tp3BeforeStopPct: Double = 0.0, val stopBeforeTargetPct: Double = 0.0,
+    val barrierEvaluatedPaths: Int = 0
 ) { val dominant: HopePriceScenario? get() = scenarios.maxByOrNull { it.probabilityPct } }
 internal data class HopeScenarioScorecard(
     val forecast: HopeScenarioForecast?, val evaluated: Int, val correct: Int,
@@ -69,7 +72,12 @@ internal object HopeScenarioLab {
         val threshold = max(0.30, (signal.technical.atrPercent.takeIf { it.isFinite() && it > 0.0 } ?: sigma*150.0) * sqrt(HORIZON.toDouble()) * 0.38)
         val rng = Random((signal.symbol.hashCode().toLong() shl 32) xor c.last()[5].toLong())
         val moves = ArrayList<Double>(PATHS)
-        data class SimPath(val move: Double, val highExcursion: Double, val lowExcursion: Double, val firstBarrier: String?)
+        data class SimPath(val move: Double, val highExcursion: Double, val lowExcursion: Double, val firstBarrier: String?, val firstTradeBarrier: String?)
+        val isLong = signal.direction == "LONG_BIAS"
+        val isShort = signal.direction == "SHORT_BIAS"
+        val stopLevel = signal.stop.takeIf { it.isFinite() && it > 0.0 }
+        val targets = listOf(signal.tp1, signal.tp2, signal.tp3).filter { it.isFinite() && it > 0.0 }
+        val hasTradeLevels = (isLong || isShort) && stopLevel != null && targets.size == 3
         val paths = ArrayList<SimPath>(PATHS)
         val support = signal.technical.support.takeIf { it.isFinite() && it > 0.0 && it < base }
         val resistance = signal.technical.resistance.takeIf { it.isFinite() && it > base }
@@ -78,6 +86,7 @@ internal object HopeScenarioLab {
             var highExcursion = 0.0
             var lowExcursion = 0.0
             var firstBarrier: String? = null
+            var firstTradeBarrier: String? = null
             var step = 0
             while (step < HORIZON) {
                 val start = rng.nextInt(recent.size)
@@ -92,12 +101,31 @@ internal object HopeScenarioLab {
                         if (resistance != null && simulatedPrice >= resistance) firstBarrier = "شکست مقاومت"
                         else if (support != null && simulatedPrice <= support) firstBarrier = "شکست حمایت"
                     }
+                    if (hasTradeLevels && firstTradeBarrier == null) {
+                        firstTradeBarrier = if (isLong) {
+                            when {
+                                simulatedPrice <= stopLevel!! -> "SL"
+                                simulatedPrice >= targets[2] -> "TP3"
+                                simulatedPrice >= targets[1] -> "TP2"
+                                simulatedPrice >= targets[0] -> "TP1"
+                                else -> null
+                            }
+                        } else {
+                            when {
+                                simulatedPrice >= stopLevel!! -> "SL"
+                                simulatedPrice <= targets[2] -> "TP3"
+                                simulatedPrice <= targets[1] -> "TP2"
+                                simulatedPrice <= targets[0] -> "TP1"
+                                else -> null
+                            }
+                        }
+                    }
                     step++
                 }
             }
             val terminalMove = (exp(sum)-1.0)*100.0
             moves += terminalMove
-            paths += SimPath(terminalMove, highExcursion, lowExcursion, firstBarrier)
+            paths += SimPath(terminalMove, highExcursion, lowExcursion, firstBarrier, firstTradeBarrier)
         }
         fun q(v: List<Double>, p: Double): Double {
             if (v.isEmpty()) return 0.0
@@ -143,8 +171,15 @@ internal object HopeScenarioLab {
                 group.size
             )
         }
+        val tradePaths = paths.mapNotNull { it.firstTradeBarrier }
+        val tradeEvaluated = tradePaths.size
+        val tp1BeforeStop = if (tradeEvaluated == 0) 0.0 else tradePaths.count { it.startsWith("TP") }.toDouble() / tradeEvaluated * 100.0
+        val tp2BeforeStop = if (tradeEvaluated == 0) 0.0 else tradePaths.count { it == "TP2" || it == "TP3" }.toDouble() / tradeEvaluated * 100.0
+        val tp3BeforeStop = if (tradeEvaluated == 0) 0.0 else tradePaths.count { it == "TP3" }.toDouble() / tradeEvaluated * 100.0
+        val stopBeforeTarget = if (tradeEvaluated == 0) 0.0 else tradePaths.count { it == "SL" }.toDouble() / tradeEvaluated * 100.0
         return HopeScenarioForecast(signal.symbol, base, c.last()[5].toLong(), HORIZON, threshold,
-            scenarios, "۱۶۰۰ مسیر مونت‌کارلو با بازنمونه‌گیری بلوکی سه‌کندلی و برخورد تقریبی به سطوح ساختاری", pathScenarios)
+            scenarios, "۱۶۰۰ مسیر مونت‌کارلو با بازنمونه‌گیری بلوکی سه‌کندلی و برخورد تقریبی به سطوح ساختاری", pathScenarios,
+            tp1BeforeStop, tp2BeforeStop, tp3BeforeStop, stopBeforeTarget, tradeEvaluated)
     }
 
     @Synchronized
@@ -238,6 +273,10 @@ internal fun HopeScenarioLabCard(scorecard: HopeScenarioScorecard?) {
                 }
                 Text("سناریوی غالب شبیه‌سازی: ${f.dominant?.label ?: "نامشخص"} • فراوانی شرطی ${String.format(Locale.US,"%.1f",f.dominant?.probabilityPct ?: 0.0)}٪",
                     color=gold,fontSize=10.sp,fontWeight=FontWeight.Bold)
+                if (f.barrierEvaluatedPaths > 0) {
+                    Text("آزمون برخورد هدف قبل از حد ضرر • ${f.barrierEvaluatedPaths} مسیر دارای برخورد", color=gold, fontSize=10.sp, fontWeight=FontWeight.Bold)
+                    Text("TP1 قبل از SL: ${String.format(Locale.US,\"%.1f\",f.tp1BeforeStopPct)}٪ • TP2 قبل از SL: ${String.format(Locale.US,\"%.1f\",f.tp2BeforeStopPct)}٪ • TP3 قبل از SL: ${String.format(Locale.US,\"%.1f\",f.tp3BeforeStopPct)}٪ • SL قبل از هدف: ${String.format(Locale.US,\"%.1f\",f.stopBeforeTargetPct)}٪", color=Color.White, fontSize=9.sp)
+                } else Text("احتمال هدف قبل از حد ضرر برای این سیگنال قابل محاسبه نیست؛ سطوح معتبر یا جهت مشخص وجود ندارد.", color=muted, fontSize=8.sp)
                 Text("مسیرهای شرطی شبیه‌سازی‌شده", color=gold, fontSize=10.sp, fontWeight=FontWeight.Bold)
                 f.pathScenarios.forEach { p ->
                     val tint = when {
