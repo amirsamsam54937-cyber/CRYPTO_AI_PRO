@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 75
-  versionName = "2.55.0"
-  // Release 2.55.0: XT-only one-million-candle corpus, forecast hardening, and performance fixes.
+  versionCode = 76
+  versionName = "2.56.0"
+  // Release 2.56.0: conditional scenario path tests and hidden XT public order-flow features.
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
