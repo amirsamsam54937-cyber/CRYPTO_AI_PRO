@@ -8,8 +8,8 @@ concurrency:
 on:
   workflow_dispatch:
     inputs:
-      retrain_models:
-        description: "Train the ten networks again from the verified historical corpus"
+      train_models:
+        description: "Build and train the verified XT historical corpus (slow; optional)"
         required: false
         default: false
         type: boolean
@@ -31,30 +31,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Check for a previously verified XT-only training bundle
-        id: bundle
-        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.retrain_models }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          RUN_ID=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq '.artifacts[] | select(.name == "HOPE-HUNTER-1M-XT-TRAINING-DATA" and .expired == false) | .workflow_run.id' | head -n 1 || true)
-          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
       - name: Set up Python for XT-only historical data and model training
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.retrain_models) || steps.bundle.outputs.run_id == '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.train_models }}
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
       - name: Build one million real XT USDT-M candles
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.retrain_models) || steps.bundle.outputs.run_id == '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.train_models }}
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip ccxt numpy scikit-learn
           python tools/build_real_market_seed.py
           cp market_seed_manifest.json app/src/main/assets/wolf_corpus_manifest.json
       - name: Attach latest verified one-million XT-only training bundle
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.retrain_models) && steps.bundle.outputs.run_id != '' }}
+        if: false
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -88,7 +79,7 @@ jobs:
           print(f"Verified {rows:,} real XT USDT-M candles; no mixed-exchange or synthetic rows")
           PY
       - name: Train ten neural networks on verified real futures history
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.retrain_models) || steps.bundle.outputs.run_id == '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.train_models }}
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip numpy scikit-learn
@@ -120,7 +111,7 @@ jobs:
           print(json.dumps({"trained_models":len(d["members"]),"samples":d["samples"],"validation_status":report["validation_status"],"evaluation":e},indent=2))
           PY
       - name: Publish verified XT-only training bundle
-        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.retrain_models) || steps.bundle.outputs.run_id == '') }}
+        if: ${{ success() && github.event_name == 'workflow_dispatch' && inputs.train_models }}
         uses: actions/upload-artifact@v4
         with:
           name: HOPE-HUNTER-1M-XT-TRAINING-DATA
