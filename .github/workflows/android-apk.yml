@@ -9,6 +9,7 @@ on:
       - "app/**"
       - "tests/test_backtest.py"
       - ".github/workflows/android-apk.yml"
+      - ".github/workflows/python-tests.yml"
 jobs:
   build-apk:
     runs-on: ubuntu-latest
