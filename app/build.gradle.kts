@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 80
-  versionName = "2.60.0"
-  // Release 2.58.0: native XT chart, complete signal levels and visual scenario corridors.
+  versionCode = 81
+  versionName = "2.61.0"
+  // Release 2.61.0: role-diverse future-direction neural experts and premium obsidian/gold artwork.
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
