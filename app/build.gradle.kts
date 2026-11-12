@@ -10,8 +10,8 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 78
-  versionName = "2.58.0"
+  versionCode = 79
+  versionName = "2.59.0"
   // Release 2.58.0: native XT chart, complete signal levels and visual scenario corridors.
  }
  buildFeatures { compose = true }
