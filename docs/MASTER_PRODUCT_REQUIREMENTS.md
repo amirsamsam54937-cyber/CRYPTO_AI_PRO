@@ -1,6 +1,6 @@
 # HOPE HUNTER — Master Product Requirements
 
-Consolidated from the user's prior conversations on 2026-11-10. This is a requirements baseline, not a claim that every item is already implemented.
+Consolidated from the user's project conversations through 2026-11-12. See `USER_REQUIREMENTS_DECODED_FA.md` for the complete Persian requirement map and superseded-request decisions. This is a requirements baseline, not a claim that every item is already implemented.
 
 ## 1. Current scope and hard exclusions
 - Android app for crypto futures technical analysis and signals only.
@@ -43,10 +43,10 @@ Consolidated from the user's prior conversations on 2026-11-10. This is a requir
 - Explain evidence and contradictions. No single indicator may force a trade.
 
 ## 5. Signal format and risk
-Every signal: exchange, symbol, LONG/SHORT/NO TRADE, tier/type 1/2/3, dynamic timeframe, entry, structural SL, TP1 only, adaptive leverage, risk/reward, score, timestamp/freshness, separate technical and neural directions/scores/status, agreement status, supporting reasons and vetoes.
+Every signal: exchange, symbol, LONG/SHORT/NO TRADE, tier/type 1/2/3, dynamic timeframe, entry, structural SL, staged TP1/TP2/TP3, adaptive leverage, risk/reward, score, timestamp/freshness, separate technical and neural directions/scores/status, agreement status, supporting reasons and vetoes.
 - User specifically requested types 1/2/3, not arbitrary labels.
 - SL, TP1, leverage and risk sizing must adapt to ATR, volatility, structure, liquidity and timeframe; no universal fixed settings.
-- TP1 only in user-facing output. No TP2/TP3 ladder.
+- The user's later explicit request for multiple targets supersedes the older TP1-only wording: show distinct TP1/TP2/TP3 where supported by structure and risk. Never fabricate or collapse targets into duplicate prices.
 - Reject invalid/unrealistic setups; never invent levels when data is missing.
 - Conservative leverage based on stop distance/volatility; leverage does not make a weak setup better.
 - Missing/invalid stop, non-positive R:R, stale candles, poor liquidity, extreme volatility, structural break or major higher-timeframe conflict => veto/downgrade.
@@ -99,13 +99,19 @@ Every signal: exchange, symbol, LONG/SHORT/NO TRADE, tier/type 1/2/3, dynamic ti
 Observed in source:
 - Compose Android app; XT/XT read-only scanners; multi-timeframe technical snapshots; ten rule-based consensus specialists; separate ten-member pretrained MLP; quality, regime, adversarial, forecast, math and time-series review engines; outcome journal, learning-memory components and historical backtest engine.
 - Strict live neural validation gate exists; unvalidated models abstain.
-- Signal construction calculates TP1 dynamically but retains legacy tp2/tp3 fields set equal to TP1; migrate all references before deleting fields.
+- Current signal construction computes staged TP1/TP2/TP3 (nominally 1R/2R/3R with limited structural adjustment); validate levels against real structure and outcome data.
 - XT discovers broad perpetual universe. XT universe completeness still needs audit.
 - Incomplete/unproven: 2-minute backtest refresh cadence; fully fair independent three-way backtest; walk-forward retraining at each historical decision; complete fees/funding/slippage/intrabar simulation; safe automatic retraining/promotion; full news/whale/funding/OI integrations; physical-device stability.
 - User-reported issue: XT WAF/HTTP 403 and intermittent XT/XT failures. Do not claim fixed until verified with real responses.
 - 2.44.0 introduced reproducible evenly spaced historical samples, expanded research sampling, independent neural research vote and minimum-trade comparison guard. 2.45.0 is the XT-only migration; build and behavior still need verification.
 
-## 11. Release acceptance criteria
+## 11. Latest user corrections
+- Multi-stage TP1/TP2/TP3 is the current requirement; it supersedes the older TP1-only requirement.
+- User asks for a chart automatically analyzed and annotated by the system; no manual drawing tools are required.
+- Raw news and whale/order-flow panels must remain hidden; only verified influence may affect analysis.
+- The latest product is analysis/signals only; historical auto-trading and account-connection requests are superseded.
+
+## 12. Release acceptance criteria
 1. Automated tests pass.
 2. APK integrity/package/version verified.
 3. Startup, navigation, Market, Journal and Settings regression checked.
