@@ -82,7 +82,7 @@ fun HopeCommanderBrain(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun HopeCommanderScreen(
+internal fun HopeCommanderScreen(
     signals: List<MarketSignal>,
     onOpenMarket: () -> Unit = {},
     onOpenChart: () -> Unit = {},
