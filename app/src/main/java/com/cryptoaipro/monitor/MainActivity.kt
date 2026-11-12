@@ -18,6 +18,14 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -697,8 +705,13 @@ fun CryptoMonitorScreen() {
                     }
 
                                         else -> {
-                        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("تنظیمات و پایش پس‌زمینه", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Column(
+                            Modifier.fillMaxSize().padding(horizontal = 14.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text("تنظیمات و پایش پس‌زمینه", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                            HopeAnimatedBrainBanner()
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -766,6 +779,56 @@ fun CryptoMonitorScreen() {
         }
 
 
+    }
+}
+
+@Composable
+private fun HopeAnimatedBrainBanner() {
+    val transition = rememberInfiniteTransition(label = "hope-brain-pulse")
+    val pulse by transition.animateFloat(
+        initialValue = 0.35f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ), label = "brain-glow"
+    )
+    Surface(
+        color = Color(0xFF090A09), shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.55f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text("HOPE HUNTER • NEURAL CORE", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp)
+            Canvas(Modifier.fillMaxWidth().height(142.dp)) {
+                val points = listOf(
+                    0.18f to 0.48f, 0.27f to 0.25f, 0.38f to 0.18f, 0.48f to 0.30f,
+                    0.52f to 0.30f, 0.62f to 0.18f, 0.73f to 0.25f, 0.82f to 0.48f,
+                    0.70f to 0.68f, 0.61f to 0.82f, 0.50f to 0.72f, 0.39f to 0.82f,
+                    0.30f to 0.68f, 0.43f to 0.48f, 0.57f to 0.48f, 0.50f to 0.56f
+                )
+                val links = listOf(
+                    0 to 1, 1 to 2, 2 to 3, 3 to 4, 4 to 5, 5 to 6, 6 to 7,
+                    7 to 8, 8 to 9, 9 to 10, 10 to 11, 11 to 12, 12 to 0,
+                    1 to 13, 3 to 13, 4 to 14, 6 to 14, 13 to 15, 14 to 15,
+                    0 to 13, 7 to 14, 2 to 13, 5 to 14, 10 to 13, 10 to 14
+                )
+                fun point(index: Int) = Offset(points[index].first * size.width, points[index].second * size.height)
+                links.forEachIndexed { index, pair ->
+                    val alpha = (0.18f + pulse * (0.42f + (index % 4) * 0.08f)).coerceIn(0f, 0.95f)
+                    drawLine(Gold.copy(alpha = alpha), point(pair.first), point(pair.second), 1.4f)
+                }
+                points.forEachIndexed { index, p ->
+                    val radius = if (index == 15) 5.5f else 2.8f + pulse * (index % 3) * 0.55f
+                    drawCircle(if (index % 3 == 0) Color(0xFF70DCC8) else Gold,
+                        radius, Offset(p.first * size.width, p.second * size.height),
+                        alpha = (0.45f + pulse * 0.5f).coerceIn(0f, 1f))
+                }
+                drawCircle(Gold.copy(alpha = 0.10f + pulse * 0.10f), size.minDimension * 0.34f,
+                    Offset(size.width * 0.5f, size.height * 0.5f),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2f))
+            }
+            Text("مغز هوشمند در حال پایش • تحلیل، پیش‌بینی و ارزیابی", color = Muted, fontSize = 10.sp)
+        }
     }
 }
 
