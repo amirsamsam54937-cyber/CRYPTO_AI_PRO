@@ -269,7 +269,7 @@ fun HopeCommanderScreen(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 HPanelCard(Modifier.weight(1f), "پایش پس‌زمینه") {
-                    Text(if (backgroundOn) "● فعال" else "● متوقف", color = if (backgroundMonitoring) HMint else HGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(if (backgroundMonitoring) "● فعال" else "● متوقف", color = if (backgroundMonitoring) HMint else HGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Text("اسکن بازار، خبر و جریان سفارش در سرویس پس‌زمینه", color = HMuted, fontSize = 8.sp)
                     TextButton(onClick = onToggleBackground, contentPadding = PaddingValues(0.dp)) {
                         Text(if (backgroundMonitoring) "توقف پایش" else "شروع پایش", color = HGold, fontSize = 9.sp)
