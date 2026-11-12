@@ -514,6 +514,7 @@ fun CryptoMonitorScreen() {
                             onOpenChart = { selectedTab = "قدرت سیگنال" },
                             onOpenJournal = { selectedTab = "دفترچه" },
                             onOpenSettings = { selectedTab = "تنظیمات" },
+                            backgroundMonitoring = backgroundMonitoring,
                             onToggleBackground = {
                                 val enabled = !backgroundMonitoring
                                 val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
@@ -541,6 +542,7 @@ fun CryptoMonitorScreen() {
                             onOpenChart = { selectedTab = "قدرت سیگنال" },
                             onOpenJournal = { selectedTab = "دفترچه" },
                             onOpenSettings = { selectedTab = "تنظیمات" },
+                            backgroundMonitoring = backgroundMonitoring,
                             onToggleBackground = {
                                 val enabled = !backgroundMonitoring
                                 val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
