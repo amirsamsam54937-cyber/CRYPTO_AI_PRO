@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from itertools import product
-from math import ceil
+import random
 from typing import Any
 
 import pandas as pd
@@ -23,6 +23,7 @@ class StrategyGenome:
     min_abs_score: int
     atr_multiple: float
     reward_risk: float
+    allowed_regime: str
 
 
 def _metric(result: dict[str, Any], key: str) -> float:
@@ -39,7 +40,7 @@ def _fitness(result: dict[str, Any], min_trades: int) -> float:
     pf = min(_metric(result, "profit_factor"), 5.0)
     ret = _metric(result, "return_percent")
     dd = _metric(result, "max_drawdown_percent")
-    if trades < min_trades or ret <= 0 or pf <= 1.0:
+    if trades < min_trades or ret <= 0 or pf <= 1.0 or dd > 20.0:
         return -1_000.0 + min(ret, 0.0) - dd
     # Reward net growth and profit factor; penalize drawdown and tiny samples.
     return ret + 4.0 * (pf - 1.0) - 1.5 * dd + min(trades, 100) * 0.02
@@ -50,6 +51,7 @@ def _evaluate(frame: pd.DataFrame, genome: StrategyGenome, warmup: int) -> dict:
         frame,
         atr_multiple=genome.atr_multiple,
         reward_risk=genome.reward_risk,
+        allowed_regime=genome.allowed_regime,
         min_adx=genome.min_adx,
         min_volume_ratio=genome.min_volume_ratio,
         min_confidence=genome.min_confidence,
@@ -93,10 +95,13 @@ def discover_strategy(
         (2, 3, 4),
         (1.25, 1.5, 1.8),
         (1.8, 2.0, 2.4, 3.0),
+        ("ANY", "TRENDING", "RANGING"),
     )
     all_values = list(space)
-    stride = max(1, ceil(len(all_values) / max(1, max_candidates)))
-    genomes = [StrategyGenome(*all_values[i]) for i in range(0, len(all_values), stride)][:max_candidates]
+    # Deterministic coverage across the complete parameter space, not a biased prefix.
+    rng = random.Random(20261113)
+    chosen = rng.sample(all_values, min(len(all_values), max(1, max_candidates)))
+    genomes = [StrategyGenome(*values) for values in chosen]
     if not genomes:
         raise ValueError("No strategy candidates generated")
 
