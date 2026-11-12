@@ -513,7 +513,25 @@ fun CryptoMonitorScreen() {
                             onOpenMarket = { selectedTab = "بازار" },
                             onOpenChart = { selectedTab = "قدرت سیگنال" },
                             onOpenJournal = { selectedTab = "دفترچه" },
-                            onOpenSettings = { selectedTab = "تنظیمات" }
+                            onOpenSettings = { selectedTab = "تنظیمات" },
+                            onToggleBackground = {
+                                val enabled = !backgroundMonitoring
+                                val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
+                                if (enabled) {
+                                    if (Build.VERSION.SDK_INT >= 33 &&
+                                        context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                        (context as? ComponentActivity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 501)
+                                    }
+                                    serviceIntent.action = HopeHunterMonitorService.ACTION_START
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent)
+                                    else context.startService(serviceIntent)
+                                } else {
+                                    serviceIntent.action = HopeHunterMonitorService.ACTION_STOP
+                                    context.startService(serviceIntent)
+                                }
+                                backgroundMonitoring = enabled
+                                appSettings.edit().putBoolean("background_monitoring", enabled).apply()
+                            }
                         )
                     }
                     "خانه" -> {
@@ -522,7 +540,25 @@ fun CryptoMonitorScreen() {
                             onOpenMarket = { selectedTab = "بازار" },
                             onOpenChart = { selectedTab = "قدرت سیگنال" },
                             onOpenJournal = { selectedTab = "دفترچه" },
-                            onOpenSettings = { selectedTab = "تنظیمات" }
+                            onOpenSettings = { selectedTab = "تنظیمات" },
+                            onToggleBackground = {
+                                val enabled = !backgroundMonitoring
+                                val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
+                                if (enabled) {
+                                    if (Build.VERSION.SDK_INT >= 33 &&
+                                        context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                        (context as? ComponentActivity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 501)
+                                    }
+                                    serviceIntent.action = HopeHunterMonitorService.ACTION_START
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent)
+                                    else context.startService(serviceIntent)
+                                } else {
+                                    serviceIntent.action = HopeHunterMonitorService.ACTION_STOP
+                                    context.startService(serviceIntent)
+                                }
+                                backgroundMonitoring = enabled
+                                appSettings.edit().putBoolean("background_monitoring", enabled).apply()
+                            }
                         )
                     }
 
