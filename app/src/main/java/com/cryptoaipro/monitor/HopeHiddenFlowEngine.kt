@@ -136,8 +136,6 @@ internal object HopeHiddenFlowEngine {
             val walls = combined.filter { it.first * it.second >= max(typical * 4.0, 1.0) }
                 .associate { (price, qty) -> (price / mid * 10000.0).toLong() to price * qty }
             val previous = previousWalls.put(symbol, walls)
-            val persistentBid = walls.filterKeys { it < 10000L }.values.sum()
-            val persistentAsk = walls.filterKeys { it >= 10000L }.values.sum()
             // Compare actual bid/ask levels relative to midpoint, not price-key buckets.
             val bidWall = bidLevels.filter { it.first * it.second >= max(typical * 4.0, 1.0) }.sumOf { it.first * it.second }
             val askWall = askLevels.filter { it.first * it.second >= max(typical * 4.0, 1.0) }.sumOf { it.first * it.second }
