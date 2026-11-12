@@ -146,8 +146,12 @@ internal object HopeHiddenFlowEngine {
             val wallBias = ((bidWall - askWall) / max(1e-9, bidWall + askWall)) * (0.5 + 0.5 * priorPersistence)
             val score = (depthImbalance * 4.0 + takerImbalance * 3.0 +
                 largeTradeImbalance * 2.0 + wallBias * 1.0).let { (it * 2.5).toInt() }.coerceIn(-25, 25)
-            val timestamp = depth.optLong("t", System.currentTimeMillis())
-            val fresh = abs(System.currentTimeMillis() - timestamp) <= 120_000L && trades.isNotEmpty()
+            val now = System.currentTimeMillis()
+            val timestamp = depth.optLong("t", now).let { if (it in 1L..9_999_999_999L) it * 1000L else it }
+            val lastTradeTime = trades.maxOfOrNull { it.third } ?: 0L
+            val normalizedTradeTime = if (lastTradeTime in 1L..9_999_999_999L) lastTradeTime * 1000L else lastTradeTime
+            val fresh = abs(now - timestamp) <= 120_000L &&
+                normalizedTradeTime > 0L && abs(now - normalizedTradeTime) <= 300_000L && trades.isNotEmpty()
             if (!fresh) return@runCatching HiddenFlowFeatures(0, false, 0.0, 0.0, 0.0, 0.0)
             // Keep the feature internal: caller stores only a signed bounded score.
             HiddenFlowFeatures(score, true, depthImbalance, takerImbalance, largeTradeImbalance, wallBias)
