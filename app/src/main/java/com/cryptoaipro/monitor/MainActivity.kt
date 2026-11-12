@@ -602,6 +602,13 @@ fun CryptoMonitorScreen() {
                             }
                             if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Blue)
                             Text(scanProgress, color = Muted, fontSize = 10.sp)
+                            // The market screen must expose the actual analyzed candle chart, not only signal cards.
+                            selectedSignal?.let { liveSignal ->
+                                LiveMarketChartPanel(liveSignal) {
+                                    selectedSymbol = liveSignal.symbol
+                                    selectedTab = "قدرت سیگنال"
+                                }
+                            }
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                                 listOf("همه", "صعودی", "نزولی").forEach { option ->
                                     FilterChip(selected = filter == option, onClick = { filter = option }, label = { Text(option) })
@@ -613,8 +620,7 @@ fun CryptoMonitorScreen() {
                             if (loading && rows.isEmpty()) {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Blue) }
                             } else {
-                                // Candles remain available to the internal technical engines.
-                                // The user requested no visible chart; only analyzed signal outputs are shown.
+                                // LiveMarketChartPanel above renders the selected symbol's real closed candles and analysis levels.
                                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
                                     items(shown, key = { it.symbol }) { signal ->
                                         SignalCard(signal, onSelect = { selectedSymbol = signal.symbol })
@@ -1997,8 +2003,7 @@ internal object MarketAnalysisEngine {
         if (b[3] > b[0] && c[3] < c[0] && c[0] > b[0] && c[3] < (b[0] + b[3]) / 2.0) return "ابر سیاه نزولی"
         if (b[3] < b[0] && c[3] > c[0] && c[0] < b[0] && c[3] > (b[0] + b[3]) / 2.0) return "خط نفوذی صعودی"
         if (b[3] > b[0] && c[3] < c[0] && c[0] < b[3] && c[3] > b[0]) return "هارامی نزولی"
-        if (b[3] < b[0] && c[3] > c[0] && c[0] > b[3] && c[3] < b[0]) return "هارامی صعودی"
-        if (abs(b[1] - c[1]) / b[1].coerceAtLeast(1e-12) < 0.0015) return "سقف دوقلو کندلی احتمالی"
+        if (b[3] < b[0] && c[3] > c[0] && c[0] > b[3] && c[3] < b[0]) return "هارامی صعودی"        if (abs(b[1] - c[1]) / b[1].coerceAtLeast(1e-12) < 0.0015) return "سقف دوقلو کندلی احتمالی"
         if (abs(b[2] - c[2]) / b[2].coerceAtLeast(1e-12) < 0.0015) return "کف دوقلو کندلی احتمالی"
         return "الگوی پرقدرتی تأیید نشد"
     }
