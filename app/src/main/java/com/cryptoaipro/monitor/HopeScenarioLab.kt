@@ -2,6 +2,8 @@ package com.cryptoaipro.monitor
 
 import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
@@ -269,6 +271,30 @@ internal fun HopeScenarioLabCard(scorecard: HopeScenarioScorecard?) {
             if (f == null) Text("برای شبیه‌سازی حداقل ۸۰ کندل معتبر لازم است.", color=muted, fontSize=10.sp)
             else {
                 Text("${f.symbol} • قیمت مبنا ${String.format(Locale.US,"%.6f",f.basePrice)} • افق ${f.horizonBars} کندل ۱۵دقیقه‌ای", color=muted, fontSize=9.sp)
+                // Visual price corridor: each horizontal segment is the 10th–90th
+                // percentile range; the dot is its median and the vertical line is spot.
+                val scenarioMin = (f.scenarios.minOfOrNull { it.lowerPrice } ?: f.basePrice).coerceAtMost(f.basePrice)
+                val scenarioMax = (f.scenarios.maxOfOrNull { it.upperPrice } ?: f.basePrice).coerceAtLeast(f.basePrice)
+                val scenarioSpan = (scenarioMax - scenarioMin).coerceAtLeast(f.basePrice * 0.0001)
+                Canvas(Modifier.fillMaxWidth().height(74.dp)) {
+                    val left = 12f
+                    val right = size.width - 12f
+                    val x = { price: Double -> left + (((price - scenarioMin) / scenarioSpan).toFloat().coerceIn(0f, 1f)) * (right - left) }
+                    val baseX = x(f.basePrice)
+                    drawLine(Color(0xFFEEE6D5).copy(alpha = 0.65f), Offset(baseX, 3f), Offset(baseX, size.height - 3f), 1.5f)
+                    f.scenarios.forEachIndexed { index, scenario ->
+                        val y = 15f + index * 23f
+                        val tint = when(scenario.label) { "صعودی" -> Color(0xFF38C987); "نزولی" -> Color(0xFFFF6670); else -> Color(0xFFFFC65A) }
+                        drawLine(tint.copy(alpha = 0.25f), Offset(left, y), Offset(right, y), 1f)
+                        drawLine(tint, Offset(x(scenario.lowerPrice), y), Offset(x(scenario.upperPrice), y), 5f)
+                        drawCircle(tint, 4f, Offset(x(scenario.medianPrice), y))
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween) {
+                    Text("کف بازه", color=muted, fontSize=8.sp)
+                    Text("│ قیمت مبنا", color=Color(0xFFECE5D6), fontSize=8.sp)
+                    Text("سقف بازه", color=muted, fontSize=8.sp)
+                }
                 f.scenarios.forEach { s ->
                     val tint = when(s.label) { "صعودی" -> Color(0xFF38C987); "نزولی" -> Color(0xFFFF6670); else -> Color(0xFFFFC65A) }
                     Row(verticalAlignment=Alignment.CenterVertically) {
