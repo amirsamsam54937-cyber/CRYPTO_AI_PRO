@@ -188,7 +188,7 @@ internal object WolfHistoricalBacktestEngine {
                         if (side != "LONG_BIAS" && side != "SHORT_BIAS") return null
                         if (!riskDistance.isFinite() || !rewardDistance.isFinite() ||
                             riskDistance <= 0.0 || rewardDistance <= 0.0 ||
-                            rewardDistance / riskDistance < 1.0) return null
+                            rewardDistance / riskDistance < 1.8) return null
                         val long = side == "LONG_BIAS"
                         val rawEntry = entryBar[0]
                         if (!rawEntry.isFinite() || rawEntry <= 0.0) return null
