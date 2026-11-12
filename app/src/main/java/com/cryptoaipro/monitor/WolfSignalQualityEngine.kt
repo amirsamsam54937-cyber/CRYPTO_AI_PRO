@@ -75,6 +75,26 @@ internal object WolfSignalQualityEngine {
             if (signal.rsi <= 16.0) veto = true
         }
 
+        // Hard execution-quality gate: reject invalid or sub-1.8R first targets.
+        // This reduces marginal setups; it cannot guarantee a winning trade.
+        val riskDistance = abs(signal.entry - signal.stop)
+        val rewardDistance = abs(signal.tp1 - signal.entry)
+        val validGeometry = signal.entry.isFinite() && signal.stop.isFinite() &&
+            signal.tp1.isFinite() && signal.entry > 0.0 && signal.stop > 0.0 &&
+            signal.tp1 > 0.0 && riskDistance > 0.0 && rewardDistance > 0.0 &&
+            (if (isLong) signal.stop < signal.entry && signal.tp1 > signal.entry
+             else signal.stop > signal.entry && signal.tp1 < signal.entry)
+        val rewardRisk = if (validGeometry) rewardDistance / riskDistance else 0.0
+        if (!validGeometry) {
+            penalty += 20
+            veto = true
+            notes += "هندسه ورود، حدضرر یا هدف اول نامعتبر است"
+        } else if (rewardRisk < 1.8) {
+            penalty += 16
+            veto = true
+            notes += "نسبت سود به زیان هدف اول کمتر از ۱٫۸ است"
+        }
+
         val atr = signal.atr
         if (atr.isFinite() && atr > 0.0) {
             val extension = abs(signal.price - t.ema20) / atr
