@@ -89,7 +89,12 @@ fun HopeCommanderScreen(
     onOpenJournal: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onToggleBackground: () -> Unit = {},
-    backgroundMonitoring: Boolean = false
+    backgroundMonitoring: Boolean = false,
+    paperSnapshot: HopePaperTradingEngine.Snapshot? = null,
+    scenarioScorecard: HopeScenarioScorecard? = null,
+    activeOutcomeRecords: List<WolfSignalOutcomeJournal.Record> = emptyList(),
+    isLoading: Boolean = false,
+    onRescan: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var macro by remember { mutableStateOf<MacroMarketContext?>(null) }
@@ -291,6 +296,23 @@ fun HopeCommanderScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF342607))) { Text("بازارها", color = HGoldBright) }
                 OutlinedButton(onClick = onOpenJournal, modifier = Modifier.weight(1f)) { Text("دفترچه و نتایج", color = HGold) }
                 OutlinedButton(onClick = onOpenSettings, modifier = Modifier.weight(1f)) { Text("تنظیمات", color = HGold) }
+            }
+        }
+        item {
+            paperSnapshot?.let { HopePaperTradingDashboard(it) }
+        }
+        item {
+            HopeScenarioLabCard(scenarioScorecard)
+        }
+        item {
+            ActiveCommandSignals(records = activeOutcomeRecords, onOpenJournal = onOpenJournal)
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onRescan, enabled = !isLoading, modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF342607))) {
+                    Text(if (isLoading) "در حال اسکن…" else "اسکن مجدد بازار", color = HGoldBright)
+                }
             }
         }
         item {
