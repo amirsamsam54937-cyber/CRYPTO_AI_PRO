@@ -110,7 +110,11 @@ data class TechnicalSnapshot(
     val fairValueGap: String = "مشاهده نشد",
     val rsiDivergence: String = "مشاهده نشد",
     val macdLine: Double = 0.0,
-    val macdSignalLine: Double = 0.0
+    val macdSignalLine: Double = 0.0,
+    val orderBlockDirection: String = "NONE",
+    val orderBlockLow: Double = 0.0,
+    val orderBlockHigh: Double = 0.0,
+    val orderBlockDistanceAtr: Double = Double.POSITIVE_INFINITY
 )
 
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
@@ -828,6 +832,18 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                             SmallStat("مقاومت ساختاری", formatPrice(item.technical.resistance), Red)
                         }
                         Text("ساختار بازار: " + item.technical.marketStructure + " • رژیم: " + item.technical.regime, color = Muted, fontSize = 9.sp)
+                        val ob = item.technical
+                        if (ob.orderBlockDirection != "NONE") {
+                            Text(
+                                ob.orderBlockDirection.let { if (it == "BULLISH") "بلاک سفارش صعودی" else "بلاک سفارش نزولی" } +
+                                    " • محدوده " + formatPrice(ob.orderBlockLow) + " تا " + formatPrice(ob.orderBlockHigh) +
+                                    " • فاصله " + String.format(Locale.US, "%.2f ATR", ob.orderBlockDistanceAtr),
+                                color = if (ob.orderBlockDirection == "BULLISH") Green else Red,
+                                fontSize = 10.sp, fontWeight = FontWeight.SemiBold
+                            )
+                        } else {
+                            Text("بلاک سفارش معتبر: شناسایی نشد", color = Muted, fontSize = 9.sp)
+                        }
                         if (item.candles.isNotEmpty()) {
                             Text("نمودار کندل ژاپنی • ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             CandleChart(item.candles)
@@ -1416,6 +1432,15 @@ internal object BinanceMonitor {
                 "عدم‌تعادل نزولی سه‌کندلی"
             else -> "گپ ارزش منصفانه تازه مشاهده نشد"
         }
+        val orderBlock = WolfOrderBlockEngine.detect(data, atr(data))
+        if (orderBlock.direction == "BULLISH" && orderBlock.distanceAtr <= 0.80) {
+            score++
+            reasons.add("بلاک سفارش صعودی معتبر در نزدیکی قیمت")
+        } else if (orderBlock.direction == "BEARISH" && orderBlock.distanceAtr <= 0.80) {
+            score--
+            reasons.add("بلاک سفارش نزولی معتبر در نزدیکی قیمت")
+        }
+
         val rsiTrail = rsiSeries(closes, 14)
         val rsiDivergence = if (rsiTrail.size >= 28) {
             val recentPrice = closes.takeLast(14).average()
@@ -1471,7 +1496,8 @@ internal object BinanceMonitor {
             e9, e20, e50, e100, e200, adx, bbWidth, bbPosition, relativeVolume, vwap,
             stochRsi, atrPct, regime, pattern, structure, support, resistance,
             cci, roc, mfi, obvTrend, supertrendDirection, liquiditySweep, fairValueGap, rsiDivergence,
-            macdValues.first, macdValues.second
+            macdValues.first, macdValues.second,
+            orderBlock.direction, orderBlock.low, orderBlock.high, orderBlock.distanceAtr
         )
         return Quad(score, reasons.joinToString("، "), rsiValue, technical)
     }
