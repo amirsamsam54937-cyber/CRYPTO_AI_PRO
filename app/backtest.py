@@ -51,6 +51,7 @@ def run_backtest(
     min_volume_ratio: float = 0.0,
     min_confidence: float = 0.0,
     min_abs_score: int = 0,
+    allowed_regime: str = "ANY",
 ) -> dict:
     """Backtest one position at a time with fixed fractional risk sizing."""
     required = {"open", "high", "low", "close", "volume"}
@@ -67,6 +68,8 @@ def run_backtest(
         raise ValueError("Invalid execution cost or leverage settings")
     if atr_multiple <= 0 or reward_risk < 1:
         raise ValueError("Invalid stop or reward/risk parameters")
+    if allowed_regime not in {"ANY", "TRENDING", "RANGING"}:
+        raise ValueError("allowed_regime must be ANY, TRENDING or RANGING")
 
     equity = float(initial_equity)
     peak = equity
@@ -131,6 +134,7 @@ def run_backtest(
                 and float(analysis.get("volume_ratio", 0.0)) >= min_volume_ratio
                 and float(analysis.get("confidence", 0.0)) >= min_confidence
                 and abs(int(analysis.get("score", 0))) >= min_abs_score
+                and (allowed_regime == "ANY" or analysis.get("regime") == allowed_regime)
             )
             side = ("LONG" if analysis["direction"] == "LONG_BIAS" else
                     "SHORT" if analysis["direction"] == "SHORT_BIAS" else None) if qualified else None
@@ -219,7 +223,8 @@ def run_backtest(
                         "intrabar_rule": "stop-first if stop and target both touched",
                         "max_leverage": max_leverage, "risk_per_trade": risk_per_trade,
                         "min_adx": min_adx, "min_volume_ratio": min_volume_ratio,
-                        "min_confidence": min_confidence, "min_abs_score": min_abs_score},
+                        "min_confidence": min_confidence, "min_abs_score": min_abs_score,
+                        "allowed_regime": allowed_regime},
         "trades": [asdict(t) for t in trades],
         "equity_curve": equity_curve,
     }
