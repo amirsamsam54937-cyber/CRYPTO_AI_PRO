@@ -102,7 +102,10 @@ data class MarketSignal(
     val neuralTechnical: TechnicalSnapshot? = null,
     val neuralRsi: Double? = null,
     val neuralCandles: List<DoubleArray> = emptyList(),
-    val neuralMemberVotes: List<String> = emptyList()
+    val neuralMemberVotes: List<String> = emptyList(),
+    // Internal XT microstructure features; deliberately not rendered in any UI or notification.
+    val hiddenFlowScore: Int = 0,
+    val hiddenFlowFresh: Boolean = false
 )
 
 data class TechnicalSnapshot(
@@ -205,7 +208,20 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
     }.map { signal ->
         // Independent scenario analysis followed by a skeptical adversarial review.
         WolfSignalQualityEngine.apply(WolfForecastEngine.apply(WolfRegimeRiskEngine.apply(WolfTimeSeriesEngine.apply(WolfMathematicsEngine.apply(WolfAdversarialReviewEngine.apply(WolfQuantumScenarioEngine.apply(signal)))))))
-    }.map { reviewed ->
+    }.map { rawReviewed ->
+        // Apply only a small, fresh, signed XT order-flow adjustment. Raw order-book/trade
+        // observations remain private to the model and never appear in UI or notifications.
+        val directionSign = when (rawReviewed.technicalDirection) {
+            "LONG_BIAS" -> 1
+            "SHORT_BIAS" -> -1
+            else -> 0
+        }
+        val alignedFlow = if (rawReviewed.hiddenFlowFresh) rawReviewed.hiddenFlowScore * directionSign else 0
+        val flowConfidenceAdjustment = (alignedFlow / 5).coerceIn(-5, 5)
+        val reviewed = if (directionSign == 0 || !rawReviewed.hiddenFlowFresh) rawReviewed else rawReviewed.copy(
+            confidence = (rawReviewed.confidence + flowConfidenceAdjustment).coerceIn(0, 100),
+            score = (rawReviewed.score + alignedFlow / 4).coerceIn(-100, 100)
+        )
         // A not-yet-validated neural model must never become a hard lock on all live signals.
         // Until it beats the chronological baseline, publish only independently strong
         // technical setups; keep the neural vote visibly disabled and advisory-only.
