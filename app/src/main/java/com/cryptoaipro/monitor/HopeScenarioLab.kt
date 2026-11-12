@@ -38,7 +38,7 @@ internal data class HopeScenarioForecast(
     val method: String, val pathScenarios: List<HopePathScenario> = emptyList(),
     val tp1BeforeStopPct: Double = 0.0, val tp2BeforeStopPct: Double = 0.0,
     val tp3BeforeStopPct: Double = 0.0, val stopBeforeTargetPct: Double = 0.0,
-    val barrierEvaluatedPaths: Int = 0
+    val barrierEvaluatedPaths: Int = 0, val noBarrierPct: Double = 0.0
 ) { val dominant: HopePriceScenario? get() = scenarios.maxByOrNull { it.probabilityPct } }
 internal data class HopeScenarioScorecard(
     val forecast: HopeScenarioForecast?, val evaluated: Int, val correct: Int,
@@ -172,14 +172,15 @@ internal object HopeScenarioLab {
             )
         }
         val tradePaths = paths.mapNotNull { it.firstTradeBarrier }
-        val tradeEvaluated = tradePaths.size
-        val tp1BeforeStop = if (tradeEvaluated == 0) 0.0 else tradePaths.count { it.startsWith("TP") }.toDouble() / tradeEvaluated * 100.0
-        val tp2BeforeStop = if (tradeEvaluated == 0) 0.0 else tradePaths.count { it == "TP2" || it == "TP3" }.toDouble() / tradeEvaluated * 100.0
-        val tp3BeforeStop = if (tradeEvaluated == 0) 0.0 else tradePaths.count { it == "TP3" }.toDouble() / tradeEvaluated * 100.0
-        val stopBeforeTarget = if (tradeEvaluated == 0) 0.0 else tradePaths.count { it == "SL" }.toDouble() / tradeEvaluated * 100.0
+        val tradeEvaluated = if (hasTradeLevels) PATHS else 0
+        val tp1BeforeStop = if (tradeEvaluated == 0) 0.0 else paths.count { it.firstTradeBarrier?.startsWith("TP") == true }.toDouble() / PATHS * 100.0
+        val tp2BeforeStop = if (tradeEvaluated == 0) 0.0 else paths.count { it.firstTradeBarrier == "TP2" || it.firstTradeBarrier == "TP3" }.toDouble() / PATHS * 100.0
+        val tp3BeforeStop = if (tradeEvaluated == 0) 0.0 else paths.count { it.firstTradeBarrier == "TP3" }.toDouble() / PATHS * 100.0
+        val stopBeforeTarget = if (tradeEvaluated == 0) 0.0 else paths.count { it.firstTradeBarrier == "SL" }.toDouble() / PATHS * 100.0
+        val noBarrier = if (tradeEvaluated == 0) 0.0 else paths.count { it.firstTradeBarrier == null }.toDouble() / PATHS * 100.0
         return HopeScenarioForecast(signal.symbol, base, c.last()[5].toLong(), HORIZON, threshold,
             scenarios, "۱۶۰۰ مسیر مونت‌کارلو با بازنمونه‌گیری بلوکی سه‌کندلی و برخورد تقریبی به سطوح ساختاری", pathScenarios,
-            tp1BeforeStop, tp2BeforeStop, tp3BeforeStop, stopBeforeTarget, tradeEvaluated)
+            tp1BeforeStop, tp2BeforeStop, tp3BeforeStop, stopBeforeTarget, tradeEvaluated, noBarrier)
     }
 
     @Synchronized
@@ -274,8 +275,8 @@ internal fun HopeScenarioLabCard(scorecard: HopeScenarioScorecard?) {
                 Text("سناریوی غالب شبیه‌سازی: ${f.dominant?.label ?: "نامشخص"} • فراوانی شرطی ${String.format(Locale.US,"%.1f",f.dominant?.probabilityPct ?: 0.0)}٪",
                     color=gold,fontSize=10.sp,fontWeight=FontWeight.Bold)
                 if (f.barrierEvaluatedPaths > 0) {
-                    Text("آزمون برخورد هدف قبل از حد ضرر • ${f.barrierEvaluatedPaths} مسیر دارای برخورد", color=gold, fontSize=10.sp, fontWeight=FontWeight.Bold)
-                    Text("TP1 قبل از SL: ${String.format(Locale.US,\"%.1f\",f.tp1BeforeStopPct)}٪ • TP2 قبل از SL: ${String.format(Locale.US,\"%.1f\",f.tp2BeforeStopPct)}٪ • TP3 قبل از SL: ${String.format(Locale.US,\"%.1f\",f.tp3BeforeStopPct)}٪ • SL قبل از هدف: ${String.format(Locale.US,\"%.1f\",f.stopBeforeTargetPct)}٪", color=Color.White, fontSize=9.sp)
+                    Text("آزمون برخورد هدف قبل از حد ضرر • ${f.barrierEvaluatedPaths} مسیر کل شبیه‌سازی", color=gold, fontSize=10.sp, fontWeight=FontWeight.Bold)
+                    Text("TP1 قبل از SL: ${String.format(Locale.US,"%.1f",f.tp1BeforeStopPct)}٪ • TP2 قبل از SL: ${String.format(Locale.US,"%.1f",f.tp2BeforeStopPct)}٪ • TP3 قبل از SL: ${String.format(Locale.US,"%.1f",f.tp3BeforeStopPct)}٪ • SL قبل از هدف: ${String.format(Locale.US,"%.1f",f.stopBeforeTargetPct)}٪ • بدون برخورد: ${String.format(Locale.US,"%.1f",f.noBarrierPct)}٪", color=Color.White, fontSize=9.sp)
                 } else Text("احتمال هدف قبل از حد ضرر برای این سیگنال قابل محاسبه نیست؛ سطوح معتبر یا جهت مشخص وجود ندارد.", color=muted, fontSize=8.sp)
                 Text("مسیرهای شرطی شبیه‌سازی‌شده", color=gold, fontSize=10.sp, fontWeight=FontWeight.Bold)
                 f.pathScenarios.forEach { p ->
