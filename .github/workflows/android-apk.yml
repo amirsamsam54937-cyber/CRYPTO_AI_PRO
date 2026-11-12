@@ -44,20 +44,6 @@ jobs:
           python -m pip install --upgrade pip ccxt numpy scikit-learn
           python tools/build_real_market_seed.py
           cp market_seed_manifest.json app/src/main/assets/wolf_corpus_manifest.json
-      - name: Attach latest verified one-million XT-only training bundle
-        if: false
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          ARTIFACT_RUN_ID="${{ steps.bundle.outputs.run_id }}"
-          test -n "$ARTIFACT_RUN_ID"
-          gh run download "$ARTIFACT_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "HOPE-HUNTER-1M-XT-TRAINING-DATA" --dir /tmp/wolf-trained
-          mkdir -p app/src/main/assets
-          cp /tmp/wolf-trained/market_seed.csv app/src/main/assets/market_seed.csv
-          cp /tmp/wolf-trained/wolf_corpus_manifest.json app/src/main/assets/wolf_corpus_manifest.json
-          cp /tmp/wolf-trained/wolf_model_training_report.json app/src/main/assets/wolf_model_training_report.json
-          cp /tmp/wolf-trained/wolf_pretrained_ensemble.json app/src/main/assets/wolf_pretrained_ensemble.json
       - name: Verify XT-only corpus provenance and row count
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.train_models }}
         run: |
