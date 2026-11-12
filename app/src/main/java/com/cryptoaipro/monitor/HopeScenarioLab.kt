@@ -27,9 +27,15 @@ internal data class HopePriceScenario(
     val medianPrice: Double, val lowerPrice: Double, val upperPrice: Double,
     val invalidationPrice: Double?
 )
+internal data class HopePathScenario(
+    val label: String, val probabilityPct: Double, val medianMovePct: Double,
+    val medianFavorableExcursionPct: Double, val medianAdverseExcursionPct: Double,
+    val medianPrice: Double, val samples: Int
+)
 internal data class HopeScenarioForecast(
     val symbol: String, val basePrice: Double, val candleTimeMs: Long,
-    val horizonBars: Int, val thresholdPct: Double, val scenarios: List<HopePriceScenario>, val method: String
+    val horizonBars: Int, val thresholdPct: Double, val scenarios: List<HopePriceScenario>,
+    val method: String, val pathScenarios: List<HopePathScenario> = emptyList()
 ) { val dominant: HopePriceScenario? get() = scenarios.maxByOrNull { it.probabilityPct } }
 internal data class HopeScenarioScorecard(
     val forecast: HopeScenarioForecast?, val evaluated: Int, val correct: Int,
@@ -63,18 +69,35 @@ internal object HopeScenarioLab {
         val threshold = max(0.30, (signal.technical.atrPercent.takeIf { it.isFinite() && it > 0.0 } ?: sigma*150.0) * sqrt(HORIZON.toDouble()) * 0.38)
         val rng = Random((signal.symbol.hashCode().toLong() shl 32) xor c.last()[5].toLong())
         val moves = ArrayList<Double>(PATHS)
+        data class SimPath(val move: Double, val highExcursion: Double, val lowExcursion: Double, val firstBarrier: String?)
+        val paths = ArrayList<SimPath>(PATHS)
+        val support = signal.technical.support.takeIf { it.isFinite() && it > 0.0 && it < base }
+        val resistance = signal.technical.resistance.takeIf { it.isFinite() && it > base }
         repeat(PATHS) {
             var sum = 0.0
+            var highExcursion = 0.0
+            var lowExcursion = 0.0
+            var firstBarrier: String? = null
             var step = 0
             while (step < HORIZON) {
                 val start = rng.nextInt(recent.size)
                 for (j in 0 until BLOCK) {
                     if (step >= HORIZON) break
                     sum += drift + (recent[(start+j)%recent.size]-mean)*0.90
+                    val move = (exp(sum)-1.0)*100.0
+                    highExcursion = max(highExcursion, move)
+                    lowExcursion = min(lowExcursion, move)
+                    val simulatedPrice = base * exp(sum)
+                    if (firstBarrier == null) {
+                        if (resistance != null && simulatedPrice >= resistance) firstBarrier = "شکست مقاومت"
+                        else if (support != null && simulatedPrice <= support) firstBarrier = "شکست حمایت"
+                    }
                     step++
                 }
             }
-            moves += (exp(sum)-1.0)*100.0
+            val terminalMove = (exp(sum)-1.0)*100.0
+            moves += terminalMove
+            paths += SimPath(terminalMove, highExcursion, lowExcursion, firstBarrier)
         }
         fun q(v: List<Double>, p: Double): Double {
             if (v.isEmpty()) return 0.0
@@ -98,8 +121,30 @@ internal object HopeScenarioLab {
                 base * (1.0 + medianMove/100.0), base * (1.0 + lowerMove/100.0),
                 base * (1.0 + upperMove/100.0), invalidation)
         }
+        val pathLabels = listOf("شکست مقاومت", "شکست حمایت", "ادامه صعود", "ادامه نزول", "بازگشت صعودی", "بازگشت نزولی", "رنج")
+        val classified = paths.groupBy { p ->
+            when {
+                p.firstBarrier != null -> p.firstBarrier
+                p.move >= threshold -> "ادامه صعود"
+                p.move <= -threshold -> "ادامه نزول"
+                p.highExcursion >= threshold && p.move < 0.0 -> "بازگشت نزولی"
+                p.lowExcursion <= -threshold && p.move > 0.0 -> "بازگشت صعودی"
+                else -> "رنج"
+            }
+        }
+        val pathScenarios = pathLabels.mapNotNull { label ->
+            val group = classified[label].orEmpty()
+            if (group.isEmpty()) null else HopePathScenario(
+                label, group.size.toDouble() / PATHS * 100.0,
+                group.map { it.move }.sorted().let { it[(it.size - 1) / 2] },
+                group.map { it.highExcursion }.sorted().let { it[(it.size - 1) / 2] },
+                group.map { it.lowExcursion }.sorted().let { it[(it.size - 1) / 2] },
+                base * exp(group.map { it.move }.sorted().let { it[(it.size - 1) / 2] } / 100.0),
+                group.size
+            )
+        }
         return HopeScenarioForecast(signal.symbol, base, c.last()[5].toLong(), HORIZON, threshold,
-            scenarios, "۱۶۰۰ مسیر مونت‌کارلو با بازنمونه‌گیری بلوکی بازده‌های تاریخی")
+            scenarios, "۱۶۰۰ مسیر مونت‌کارلو با بازنمونه‌گیری بلوکی سه‌کندلی و برخورد تقریبی به سطوح ساختاری", pathScenarios)
     }
 
     @Synchronized
@@ -193,7 +238,20 @@ internal fun HopeScenarioLabCard(scorecard: HopeScenarioScorecard?) {
                 }
                 Text("سناریوی غالب شبیه‌سازی: ${f.dominant?.label ?: "نامشخص"} • فراوانی شرطی ${String.format(Locale.US,"%.1f",f.dominant?.probabilityPct ?: 0.0)}٪",
                     color=gold,fontSize=10.sp,fontWeight=FontWeight.Bold)
-                Text("روش: ${f.method}. این فراوانی شبیه‌سازی است، نه احتمال کالیبره‌شده بازار و نه تضمین قیمت.",color=muted,fontSize=8.sp)
+                Text("مسیرهای شرطی شبیه‌سازی‌شده", color=gold, fontSize=10.sp, fontWeight=FontWeight.Bold)
+                f.pathScenarios.forEach { p ->
+                    val tint = when {
+                        p.label.contains("صعود") || p.label == "شکست مقاومت" -> Color(0xFF38C987)
+                        p.label.contains("نزول") || p.label == "شکست حمایت" -> Color(0xFFFF6670)
+                        else -> Color(0xFFFFC65A)
+                    }
+                    Row(verticalAlignment=Alignment.CenterVertically) {
+                        Text(p.label, color=tint, fontSize=9.sp, modifier=Modifier.weight(1f))
+                        Text(String.format(Locale.US,"%.1f%%",p.probabilityPct), color=Color.White, fontSize=9.sp, fontWeight=FontWeight.Bold)
+                    }
+                    Text("قیمت میانه ${String.format(Locale.US,"%.6f",p.medianPrice)} • حرکت ${String.format(Locale.US,"%+.2f",p.medianMovePct)}٪ • بیشینه مسیر ${String.format(Locale.US,"%+.2f",p.medianFavorableExcursionPct)}٪ • کمینه مسیر ${String.format(Locale.US,"%+.2f",p.medianAdverseExcursionPct)}٪ • نمونه ${p.samples}", color=muted, fontSize=8.sp)
+                }
+                Text("روش: ${f.method}. این فراوانی شبیه‌سازی است، نه احتمال کالیبره‌شده بازار و نه تضمین قیمت. برخورد به حمایت/مقاومت با مسیر close و دامنه تقریبی شبیه‌سازی می‌شود.",color=muted,fontSize=8.sp)
             }
             if (scorecard != null) Text(
                 if (scorecard.evaluated >= 30)
