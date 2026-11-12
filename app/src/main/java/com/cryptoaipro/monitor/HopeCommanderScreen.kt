@@ -258,11 +258,11 @@ fun HopeCommanderScreen(
                 }
                 best?.let {
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        PriceTag("ENTRY", it.entry, HGold)
-                        PriceTag("SL", it.stop, HRed)
-                        PriceTag("TP1", it.tp1, HMint)
-                        PriceTag("TP2", it.tp2, HMint)
-                        PriceTag("TP3", it.tp3, HMint)
+                        PriceTag("ENTRY", it.entry, HGold, Modifier.weight(1f))
+                        PriceTag("SL", it.stop, HRed, Modifier.weight(1f))
+                        PriceTag("TP1", it.tp1, HMint, Modifier.weight(1f))
+                        PriceTag("TP2", it.tp2, HMint, Modifier.weight(1f))
+                        PriceTag("TP3", it.tp3, HMint, Modifier.weight(1f))
                     }
                 }
             }
@@ -351,8 +351,8 @@ private fun ScoreRing(score: Int, label: String) {
 }
 
 @Composable
-private fun PriceTag(label: String, value: Double, color: Color) {
-    Column(Modifier.weight(1f).background(Color(0xFF080A09), RoundedCornerShape(7.dp)).padding(5.dp)) {
+private fun PriceTag(label: String, value: Double, color: Color, modifier: Modifier) {
+    Column(modifier.background(Color(0xFF080A09), RoundedCornerShape(7.dp)).padding(5.dp)) {
         Text(label, color = color, fontSize = 7.sp, fontWeight = FontWeight.Bold)
         Text(if (value.isFinite() && value > 0) formatPrice(value) else "—", color = Color.White, fontSize = 7.sp, maxLines = 1)
     }
