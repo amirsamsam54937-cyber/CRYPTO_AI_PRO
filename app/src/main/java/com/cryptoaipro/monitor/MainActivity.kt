@@ -608,6 +608,17 @@ fun CryptoMonitorScreen() {
                                     selectedSymbol = liveSignal.symbol
                                     selectedTab = "قدرت سیگنال"
                                 }
+                                Text("تایم‌فریم نمودار آنلاین", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    listOf("5" to "۵د", "15" to "۱۵د", "60" to "۱س", "240" to "۴س", "D" to "۱روز").forEach { (interval, label) ->
+                                        FilterChip(
+                                            selected = chartInterval == interval,
+                                            onClick = { chartInterval = interval },
+                                            label = { Text(label, fontSize = 9.sp) }
+                                        )
+                                    }
+                                }
+                                TradingViewPairChart(liveSignal.symbol, chartInterval)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                                 listOf("همه", "صعودی", "نزولی").forEach { option ->
@@ -1997,8 +2008,7 @@ internal object MarketAnalysisEngine {
         if (c[3] > c[0] && lower > body(c) * 2.2 && upper < body(c) * 0.8) return "چکش صعودی"
         if (c[3] < c[0] && upper > body(c) * 2.2 && lower < body(c) * 0.8) return "ستاره ثاقب نزولی"
         if (b[3] < b[0] && c[3] > c[0] && c[0] <= b[3] && c[3] >= b[0]) return "پوشای صعودی"
-        if (b[3] > b[0] && c[3] < c[0] && c[0] >= b[3] && c[3] <= b[0]) return "پوشای نزولی"
-        if (a[3] < a[0] && body(b) < body(a) * 0.55 && c[3] > c[0] && c[3] > (a[0] + a[3]) / 2.0) return "ستاره صبحگاهی صعودی"
+        if (b[3] > b[0] && c[3] < c[0] && c[0] >= b[3] && c[3] <= b[0]) return "پوشای نزولی"        if (a[3] < a[0] && body(b) < body(a) * 0.55 && c[3] > c[0] && c[3] > (a[0] + a[3]) / 2.0) return "ستاره صبحگاهی صعودی"
         if (a[3] > a[0] && body(b) < body(a) * 0.55 && c[3] < c[0] && c[3] < (a[0] + a[3]) / 2.0) return "ستاره شامگاهی نزولی"
         if (b[3] > b[0] && c[3] < c[0] && c[0] > b[0] && c[3] < (b[0] + b[3]) / 2.0) return "ابر سیاه نزولی"
         if (b[3] < b[0] && c[3] > c[0] && c[0] < b[0] && c[3] > (b[0] + b[3]) / 2.0) return "خط نفوذی صعودی"
