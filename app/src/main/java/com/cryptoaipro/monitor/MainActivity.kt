@@ -515,6 +515,11 @@ fun CryptoMonitorScreen() {
                             onOpenJournal = { selectedTab = "دفترچه" },
                             onOpenSettings = { selectedTab = "تنظیمات" },
                             backgroundMonitoring = backgroundMonitoring,
+                            paperSnapshot = paperSnapshot,
+                            scenarioScorecard = scenarioScorecard,
+                            activeOutcomeRecords = outcomeSnapshot.records.filter { !it.closed },
+                            isLoading = loading,
+                            onRescan = { scope.launch { performScan() } },
                             onToggleBackground = {
                                 val enabled = !backgroundMonitoring
                                 val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
@@ -543,6 +548,11 @@ fun CryptoMonitorScreen() {
                             onOpenJournal = { selectedTab = "دفترچه" },
                             onOpenSettings = { selectedTab = "تنظیمات" },
                             backgroundMonitoring = backgroundMonitoring,
+                            paperSnapshot = paperSnapshot,
+                            scenarioScorecard = scenarioScorecard,
+                            activeOutcomeRecords = outcomeSnapshot.records.filter { !it.closed },
+                            isLoading = loading,
+                            onRescan = { scope.launch { performScan() } },
                             onToggleBackground = {
                                 val enabled = !backgroundMonitoring
                                 val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
@@ -801,7 +811,7 @@ private fun iranDateTime(timestamp: Long): String {
 }
 
 @Composable
-private fun ActiveCommandSignals(
+internal fun ActiveCommandSignals(
     records: List<WolfSignalOutcomeJournal.Record>,
     onOpenJournal: () -> Unit
 ) {
