@@ -38,17 +38,30 @@ jobs:
           unzip -p /tmp/wolf-trained/app-debug.apk assets/wolf_model_training_report.json > app/src/main/assets/wolf_model_training_report.json
           unzip -p /tmp/wolf-trained/app-debug.apk assets/wolf_pretrained_ensemble.json > app/src/main/assets/wolf_pretrained_ensemble.json
           python - <<'PY'
-          import csv, json, pathlib
+          import csv, json, pathlib, hashlib
           assets = pathlib.Path("app/src/main/assets")
           manifest = json.loads((assets / "wolf_corpus_manifest.json").read_text())
           report = json.loads((assets / "wolf_model_training_report.json").read_text())
+          csv_path = assets / "market_seed.csv"
           assert manifest["status"] == "verified_real_exchange_data"
+          assert manifest["source_exchanges"] == ["XT"]
+          assert manifest["timeframe"] == "1h"
           assert manifest["rows"] == 500000 and manifest["synthetic_rows"] == 0
           assert len(report["metrics"]) == 10
-          with (assets / "market_seed.csv").open(newline="") as f:
-              rows = sum(1 for _ in csv.reader(f)) - 1
+          digest = hashlib.sha256(csv_path.read_bytes()).hexdigest()
+          assert digest == manifest["sha256"], "Corpus SHA256 does not match its manifest"
+          symbols, timeframes = set(), set()
+          with csv_path.open(newline="", encoding="utf-8") as f:
+              reader = csv.DictReader(f)
+              rows = 0
+              for row in reader:
+                  rows += 1
+                  symbols.add(row["symbol"])
+                  timeframes.add(row["timeframe"])
           assert rows == 500000, rows
-          print(f"Verified {rows:,} real exchange candle rows and {len(report['metrics'])} trained ensemble members")
+          assert len(symbols) == manifest["symbols"], (len(symbols), manifest["symbols"])
+          assert timeframes == {"1h"}, timeframes
+          print(f"Verified {rows:,} XT 1h perpetual candles, {len(symbols)} symbols, SHA256 {digest}, zero synthetic rows")
           PY
       - name: Set up Python for fresh neural-network training
         uses: actions/setup-python@v5
@@ -75,22 +88,94 @@ jobs:
               and e["ensemble_log_loss"] < e["prevalence_baseline_log_loss"]
               and e["ensemble_accuracy"] >= e["majority_class_baseline_accuracy"]
           )
+          manifest=json.loads(pathlib.Path("app/src/main/assets/wolf_corpus_manifest.json").read_text())
           report={k:v for k,v in d.items() if k != "members"}
+          report["data_source"] = "XT 1h USDT-settled perpetual contract candles; mixed underlying universe, not crypto-only"
+          report["source_exchanges"] = manifest["source_exchanges"]
+          report["corpus_rows"] = manifest["rows"]
+          report["corpus_symbols"] = manifest["symbols"]
+          report["corpus_timeframe"] = manifest["timeframe"]
+          report["synthetic_rows"] = manifest["synthetic_rows"]
+          report["corpus_sha256"] = manifest["sha256"]
           report["validation_status"] = "validated_for_scoring" if validated else "trained_but_not_validated"
           report["validated_for_scoring"] = bool(validated)
           report_text = json.dumps(report,indent=2)
           pathlib.Path("wolf_model_training_report.json").write_text(report_text)
           pathlib.Path("app/src/main/assets/wolf_model_training_report.json").write_text(report_text)
-          print(json.dumps({"trained_models":len(d["members"]),"samples":d["samples"],"validation_status":report["validation_status"],"evaluation":e},indent=2))
+          print(json.dumps({"trained_models":len(d["members"]),"samples":d["samples"],"train_samples":d["train_samples"],"test_samples":d["test_samples"],"data_source":report["data_source"],"validation_status":report["validation_status"],"evaluation":e},indent=2))
           PY
-      - name: Build installable APK (no extra test stage)
+      - name: Verify and checksum the training report
+        run: |
+          python -m json.tool wolf_model_training_report.json > /dev/null
+          sha256sum wolf_model_training_report.json > wolf_model_training_report.sha256
+      - name: Build installable APK
         run: gradle --no-daemon :app:assembleDebug
-      - name: Verify APK file exists
-        run: test -s app/build/outputs/apk/debug/app-debug.apk
+      - name: Verify APK, embedded model, corpus and training report
+        run: |
+          python - <<'PY'
+          import hashlib, io, json, pathlib, zipfile
+          apk = pathlib.Path("app/build/outputs/apk/debug/app-debug.apk")
+          assert apk.is_file() and apk.stat().st_size > 0
+          with zipfile.ZipFile(apk) as z:
+              assert z.testzip() is None, "APK ZIP integrity check failed"
+              names = set(z.namelist())
+              required = {
+                  "AndroidManifest.xml",
+                  "assets/market_seed.csv",
+                  "assets/wolf_corpus_manifest.json",
+                  "assets/wolf_pretrained_ensemble.json",
+                  "assets/wolf_model_training_report.json",
+              }
+              assert required.issubset(names), sorted(required - names)
+              manifest = json.loads(z.read("assets/wolf_corpus_manifest.json"))
+              market = z.read("assets/market_seed.csv")
+              assert hashlib.sha256(market).hexdigest() == manifest["sha256"]
+              assert manifest["rows"] == 500000 and manifest["synthetic_rows"] == 0
+              assert manifest["source_exchanges"] == ["XT"] and manifest["timeframe"] == "1h"
+              rows = sum(1 for _ in io.TextIOWrapper(io.BytesIO(market), encoding="utf-8")) - 1
+              assert rows == 500000, rows
+              model = json.loads(z.read("assets/wolf_pretrained_ensemble.json"))
+              report = json.loads(z.read("assets/wolf_model_training_report.json"))
+              assert len(model["members"]) == 10
+              assert report["samples"] == model["samples"]
+              assert report["train_samples"] == model["train_samples"]
+              assert report["test_samples"] == model["test_samples"] >= 300
+              assert report["evaluation"]["split"] == "chronological_purged"
+              assert report["evaluation"] == model["evaluation"]
+              assert report["synthetic_rows"] == 0
+              assert report["validation_status"] in {"validated_for_scoring", "trained_but_not_validated"}
+              print(json.dumps({
+                  "apk_bytes": apk.stat().st_size,
+                  "models": len(model["members"]),
+                  "corpus_rows": rows,
+                  "corpus_symbols": manifest["symbols"],
+                  "train_samples": report["train_samples"],
+                  "test_samples": report["test_samples"],
+                  "validation_status": report["validation_status"],
+                  "evaluation": report["evaluation"]
+              }, indent=2))
+          digest = hashlib.sha256(apk.read_bytes()).hexdigest()
+          pathlib.Path("app-debug.apk.sha256").write_text(f"{digest}  app-debug.apk\\n")
+          print("APK_SHA256=" + digest)
+          PY
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: HOPE-HUNTER-2.51.0-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: HOPE-HUNTER-2.53.1-APK
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app-debug.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload training report and provenance
+        if: always() && hashFiles('wolf_model_training_report.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: HOPE-HUNTER-2.53.1-TRAINING-REPORT
+          path: |
+            wolf_model_training_report.json
+            wolf_model_training_report.sha256
+            wolf-training.log
+            app/src/main/assets/wolf_corpus_manifest.json
           if-no-files-found: error
           retention-days: 30
