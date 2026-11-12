@@ -433,7 +433,7 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Color(0xFF080808), contentColor = Color.White) {
-                    listOf("خانه", "بازار", "قدرت سیگنال", "جریان بازار", "دفترچه", "تنظیمات").forEach { entry ->
+                    listOf("خانه", "بازار", "قدرت سیگنال", "دفترچه", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
                             onClick = { selectedTab = entry },
@@ -613,13 +613,8 @@ fun CryptoMonitorScreen() {
                             if (loading && rows.isEmpty()) {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Blue) }
                             } else {
-                                val chartSignal = rows.firstOrNull { it.symbol == selectedSymbol } ?: shown.firstOrNull()
-                                if (chartSignal != null) {
-                                    LiveMarketChartPanel(
-                                        signal = chartSignal,
-                                        onOpenAnalysis = { selectedSymbol = chartSignal.symbol; selectedTab = "قدرت سیگنال" }
-                                    )
-                                }
+                                // Candles remain available to the internal technical engines.
+                                // The user requested no visible chart; only analyzed signal outputs are shown.
                                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
                                     items(shown, key = { it.symbol }) { signal ->
                                         SignalCard(signal, onSelect = { selectedSymbol = signal.symbol })
@@ -635,10 +630,6 @@ fun CryptoMonitorScreen() {
                             onSelect = { symbol -> selectedSymbol = symbol },
                             onOpenJournal = { selectedTab = "دفترچه" },
                             onRescan = { scope.launch { performScan() } })
-                    }
-
-                    "جریان بازار" -> {
-                        WolfFlowNewsScreen(symbol = selectedSymbol.ifBlank { rows.firstOrNull()?.symbol ?: "BTCUSDT" })
                     }
 
                     "دفترچه" -> {
@@ -1258,10 +1249,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                             SmallStat("مقاومت ساختاری", formatPrice(item.technical.resistance), Red)
                         }
                         Text("ساختار بازار: " + item.technical.marketStructure + " • رژیم: " + item.technical.regime, color = Muted, fontSize = 9.sp)
-                        if (item.candles.isNotEmpty()) {
-                            Text("نمودار کندل ژاپنی • ۱۵ دقیقه", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                            CandleChart(item.candles)
-                        }
+                        Text("تحلیل خودکار چارت و ساختار قیمت توسط موتور داخلی انجام شده است؛ نمایش نمودار خام غیرفعال است.", color = Gold, fontSize = 9.sp, lineHeight = 14.sp)
                         Text("الگوها احتمالی‌اند؛ هیچ الگویی جهت قیمت را تضمین نمی‌کند.", color = Muted, fontSize = 9.sp)
                     }
                 }
