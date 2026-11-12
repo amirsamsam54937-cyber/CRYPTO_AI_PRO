@@ -1416,55 +1416,81 @@ private fun SignalOutcomePanel(snapshot: WolfSignalOutcomeJournal.Snapshot) {
 
 @Composable
 private fun SignalLevelsChart(signal: MarketSignal) {
-    val candles = signal.candles.takeLast(64)
-    val allPrices = candles.flatMap { listOf(it[1], it[2]) } + listOf(signal.entry, signal.stop, signal.tp1)
-    val rawLow = allPrices.filter { it > 0.0 && it.isFinite() }.minOrNull() ?: signal.price * 0.98
-    val rawHigh = allPrices.filter { it > 0.0 && it.isFinite() }.maxOrNull() ?: signal.price * 1.02
-    val padding = (rawHigh - rawLow).coerceAtLeast(signal.price * 0.001) * 0.06
+    val candles = signal.candles.filter { it.size >= 4 && it.take(4).all(Double::isFinite) }.takeLast(64)
+    val levels = listOf(
+        signal.technical.support, signal.technical.resistance, signal.entry,
+        signal.stop, signal.tp1, signal.tp2, signal.tp3, signal.price
+    ).filter { it.isFinite() && it > 0.0 }
+    val allPrices = candles.flatMap { listOf(it[1], it[2]) } + levels
+    val rawLow = allPrices.minOrNull() ?: signal.price * 0.98
+    val rawHigh = allPrices.maxOrNull() ?: signal.price * 1.02
+    val padding = (rawHigh - rawLow).coerceAtLeast(signal.price * 0.001) * 0.07
     val low = rawLow - padding
     val high = rawHigh + padding
     val range = (high - low).coerceAtLeast(signal.price * 0.001)
     Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("نقشه ورود و خروج سیگنال روی نمودار", color = Color.White, fontWeight = FontWeight.Bold)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("● ورود", color = Blue, fontSize = 10.sp)
-                Text("━ حد سود", color = Green, fontSize = 10.sp)
-                Text("━ حد ضرر", color = Red, fontSize = 10.sp)
+            Text("نقشه کامل سطوح تحلیل روی چارت", color = Color.White, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("● ورود", color = Blue, fontSize = 9.sp)
+                Text("━ اهداف", color = Green, fontSize = 9.sp)
+                Text("┄ حد ضرر", color = Red, fontSize = 9.sp)
+                Text("┄ حمایت/مقاومت", color = Gold, fontSize = 9.sp)
             }
-            Canvas(Modifier.fillMaxWidth().height(220.dp)) {
+            if (candles.isEmpty()) {
+                Text("کندل کافی برای رسم نمودار وجود ندارد.", color = Muted, fontSize = 10.sp)
+            } else Canvas(Modifier.fillMaxWidth().height(230.dp)) {
                 val left = 8f
                 val right = size.width - 8f
                 val top = 8f
                 val bottom = size.height - 8f
                 fun y(price: Double) = bottom - (((price - low) / range).toFloat() * (bottom - top))
+                repeat(5) { n ->
+                    val yy = top + (bottom - top) * n / 4f
+                    drawLine(Color(0xFF302A1D), Offset(left, yy), Offset(right, yy), 1f)
+                }
                 val step = (right - left) / candles.size.coerceAtLeast(1)
                 candles.forEachIndexed { index, candle ->
-                    if (candle.size >= 4) {
-                        val x = left + step * (index + 0.5f)
-                        val color = if (candle[3] >= candle[0]) Green else Red
-                        drawLine(color.copy(alpha = 0.8f), Offset(x, y(candle[1])), Offset(x, y(candle[2])), 1.5f)
-                        val bodyTop = y(maxOf(candle[0], candle[3]))
-                        val bodyBottom = y(minOf(candle[0], candle[3]))
-                        drawLine(color, Offset(x, bodyTop), Offset(x, maxOf(bodyTop + 2f, bodyBottom)), (step * 0.58f).coerceAtLeast(2f))
-                    }
+                    val x = left + step * (index + 0.5f)
+                    val tint = if (candle[3] >= candle[0]) Green else Red
+                    drawLine(tint.copy(alpha = 0.9f), Offset(x, y(candle[1])), Offset(x, y(candle[2])), 1.4f)
+                    val bodyTop = y(maxOf(candle[0], candle[3]))
+                    val bodyBottom = y(minOf(candle[0], candle[3]))
+                    drawRect(tint, Offset(x - (step * 0.58f).coerceAtLeast(2f) / 2f, bodyTop),
+                        androidx.compose.ui.geometry.Size((step * 0.58f).coerceAtLeast(2f), (bodyBottom - bodyTop).coerceAtLeast(2f)))
                 }
-                fun level(price: Double, color: Color, width: Float = 1.5f) {
-                    if (price > low && price < high && price.isFinite()) {
+                fun level(price: Double, color: Color, width: Float = 1.5f, dashed: Boolean = false) {
+                    if (price.isFinite() && price > low && price < high) {
                         val yy = y(price)
-                        drawLine(color, Offset(left, yy), Offset(right, yy), width)
+                        if (dashed) {
+                            var x = left
+                            while (x < right) {
+                                drawLine(color, Offset(x, yy), Offset(minOf(x + 8f, right), yy), width)
+                                x += 13f
+                            }
+                        } else drawLine(color, Offset(left, yy), Offset(right, yy), width)
                     }
                 }
-                level(signal.entry, Blue, 2.5f)
-                level(signal.stop, Red, 2.5f)
-                level(signal.tp1, Green, 2.5f)
+                level(signal.technical.support, Green.copy(alpha = 0.75f), 1.4f, true)
+                level(signal.technical.resistance, Red.copy(alpha = 0.75f), 1.4f, true)
+                level(signal.entry, Blue, 2.4f)
+                level(signal.stop, Red, 2.2f, true)
+                level(signal.tp1, Green, 2.3f)
+                level(signal.tp2, Green.copy(alpha = 0.75f), 1.8f, true)
+                level(signal.tp3, Green.copy(alpha = 0.5f), 1.5f, true)
+                level(signal.price, Color.White, 1.2f)
             }
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                PriceLevelRow("قیمت فعلی", signal.price, Color.White)
                 PriceLevelRow("ورود مرجع", signal.entry, Blue)
-                PriceLevelRow("هدف نهایی TP1", signal.tp1, Green)
                 PriceLevelRow("حد ضرر", signal.stop, Red)
+                PriceLevelRow("هدف اول TP1", signal.tp1, Green)
+                PriceLevelRow("هدف دوم TP2", signal.tp2, Green.copy(alpha = 0.82f))
+                PriceLevelRow("هدف سوم TP3", signal.tp3, Green.copy(alpha = 0.65f))
+                PriceLevelRow("مقاومت / سقف", signal.technical.resistance, Red)
+                PriceLevelRow("حمایت / کف", signal.technical.support, Green)
             }
-            Text("سطوح از تحلیل فعلی محاسبه شده‌اند؛ رسیدن قیمت به سطح در بازار واقعی تضمین نمی‌شود.", color = Muted, fontSize = 9.sp)
+            Text("سطوح از داده‌ها و تحلیل فعلی محاسبه می‌شوند؛ خطوط و اهداف تضمین رسیدن قیمت نیستند.", color = Muted, fontSize = 9.sp)
         }
     }
 }
