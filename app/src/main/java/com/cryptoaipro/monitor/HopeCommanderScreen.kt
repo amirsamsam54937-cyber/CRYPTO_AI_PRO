@@ -87,7 +87,8 @@ fun HopeCommanderScreen(
     onOpenMarket: () -> Unit = {},
     onOpenChart: () -> Unit = {},
     onOpenJournal: () -> Unit = {},
-    onOpenSettings: () -> Unit = {}
+    onOpenSettings: () -> Unit = {},
+    onToggleBackground: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var macro by remember { mutableStateOf<MacroMarketContext?>(null) }
@@ -272,6 +273,9 @@ fun HopeCommanderScreen(
                 HPanelCard(Modifier.weight(1f), "پایش پس‌زمینه") {
                     Text(if (backgroundOn) "● فعال" else "● متوقف", color = if (backgroundOn) HMint else HGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Text("اسکن بازار، خبر و جریان سفارش در سرویس پس‌زمینه", color = HMuted, fontSize = 8.sp)
+                    TextButton(onClick = onToggleBackground, contentPadding = PaddingValues(0.dp)) {
+                        Text(if (backgroundOn) "توقف پایش" else "شروع پایش", color = HGold, fontSize = 9.sp)
+                    }
                 }
                 HPanelCard(Modifier.weight(1f), "آخرین تحلیل") {
                     Text(best?.reason ?: "هنوز تحلیلی ثبت نشده", color = Color.White, fontSize = 9.sp, maxLines = 4)
@@ -354,7 +358,7 @@ private fun ScoreRing(score: Int, label: String) {
 private fun PriceTag(label: String, value: Double, color: Color, modifier: Modifier) {
     Column(modifier.background(Color(0xFF080A09), RoundedCornerShape(7.dp)).padding(5.dp)) {
         Text(label, color = color, fontSize = 7.sp, fontWeight = FontWeight.Bold)
-        Text(if (value.isFinite() && value > 0) formatPrice(value) else "—", color = Color.White, fontSize = 7.sp, maxLines = 1)
+        Text(if (value.isFinite() && value > 0) String.format(java.util.Locale.US, "%.5f", value) else "—", color = Color.White, fontSize = 7.sp, maxLines = 1)
     }
 }
 
