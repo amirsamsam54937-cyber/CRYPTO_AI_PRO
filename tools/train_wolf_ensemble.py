@@ -7,9 +7,6 @@ feature mask so the ensemble contains genuine specialist diversity.
 """
 import csv, json, os, time
 import numpy as np
-from sklearn.neural_network import MLPClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, balanced_accuracy_score, brier_score_loss, log_loss, roc_auc_score
 try:
     from tools.time_series_validation import chronological_masks
 except ModuleNotFoundError:
@@ -149,6 +146,10 @@ def load_seed_samples():
     return grouped
 
 def main():
+    # Keep feature extraction importable in lightweight test/API environments.
+    from sklearn.neural_network import MLPClassifier
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.metrics import accuracy_score, balanced_accuracy_score, brier_score_loss, log_loss, roc_auc_score
     chunks=[]; used_symbols=[]
     for symbol,raw in load_seed_samples().items():
         raw=sorted(raw,key=lambda row:row[0]); x,y,t=make_rows(raw)
