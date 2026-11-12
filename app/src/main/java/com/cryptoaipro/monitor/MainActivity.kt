@@ -1492,7 +1492,7 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                     val tint = if (gap.bullish) Green else Red
                     val l = x(gap.from)
                     val r = x(gap.to).coerceAtLeast(l + 3f)
-                    drawRect(tint.copy(alpha = 0.13f), Offset(l, y(gap.high)), Offset(r, y(gap.low)))
+                    drawRect(tint.copy(alpha = 0.13f), topLeft = Offset(l, y(gap.high)), size = androidx.compose.ui.geometry.Size((r - l).coerceAtLeast(1f), (y(gap.low) - y(gap.high)).absoluteValue.coerceAtLeast(1f)))
                     drawLine(tint.copy(alpha = 0.7f), Offset(l, y(gap.high)), Offset(r, y(gap.high)), 1f)
                     drawLine(tint.copy(alpha = 0.7f), Offset(l, y(gap.low)), Offset(r, y(gap.low)), 1f)
                 }
