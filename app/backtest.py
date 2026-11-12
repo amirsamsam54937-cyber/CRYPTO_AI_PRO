@@ -47,6 +47,10 @@ def run_backtest(
     atr_multiple: float = 1.5,
     reward_risk: float = 2.0,
     warmup: int = 100,
+    min_adx: float = 0.0,
+    min_volume_ratio: float = 0.0,
+    min_confidence: float = 0.0,
+    min_abs_score: int = 0,
 ) -> dict:
     """Backtest one position at a time with fixed fractional risk sizing."""
     required = {"open", "high", "low", "close", "volume"}
@@ -122,8 +126,14 @@ def run_backtest(
                 analysis = analyze_ohlcv(history.tail(300))
             except ValueError:
                 analysis = {"direction": "NEUTRAL"}
-            side = "LONG" if analysis["direction"] == "LONG_BIAS" else (
-                "SHORT" if analysis["direction"] == "SHORT_BIAS" else None)
+            qualified = (
+                float(analysis.get("adx", 0.0)) >= min_adx
+                and float(analysis.get("volume_ratio", 0.0)) >= min_volume_ratio
+                and float(analysis.get("confidence", 0.0)) >= min_confidence
+                and abs(int(analysis.get("score", 0))) >= min_abs_score
+            )
+            side = ("LONG" if analysis["direction"] == "LONG_BIAS" else
+                    "SHORT" if analysis["direction"] == "SHORT_BIAS" else None) if qualified else None
             atr_value = float(analysis.get("atr", 0) or 0)
             entry_raw = float(row["open"])
             if side and atr_value > 0 and entry_raw > 0:
@@ -207,7 +217,9 @@ def run_backtest(
                         "funding_rate_per_8h_estimate": funding_rate_8h,
                         "signal_uses_only_prior_closed_candles": True,
                         "intrabar_rule": "stop-first if stop and target both touched",
-                        "max_leverage": max_leverage, "risk_per_trade": risk_per_trade},
+                        "max_leverage": max_leverage, "risk_per_trade": risk_per_trade,
+                        "min_adx": min_adx, "min_volume_ratio": min_volume_ratio,
+                        "min_confidence": min_confidence, "min_abs_score": min_abs_score},
         "trades": [asdict(t) for t in trades],
         "equity_curve": equity_curve,
     }
