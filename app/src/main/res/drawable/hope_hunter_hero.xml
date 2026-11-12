@@ -1,14 +1,20 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="600dp" android:height="260dp"
     android:viewportWidth="600" android:viewportHeight="260">
-    <path android:fillColor="#0B0D0E" android:pathData="M0,0h600v260h-600z"/>
-    <path android:fillColor="#101719" android:pathData="M0,180L100,154L175,177L250,116L330,155L420,82L505,128L600,75V260H0z"/>
-    <path android:fillColor="#172124" android:pathData="M0,215L115,184L200,203L285,153L365,183L470,125L600,157V260H0z"/>
-    <path android:strokeColor="#66512D" android:strokeWidth="1" android:fillColor="#00000000" android:pathData="M25,214L130,183L210,196L292,145L374,174L470,112L575,143"/>
-    <path android:fillColor="#D8B56A" android:pathData="M460,37A34,34 0,1 0,460 105A34,34 0,1 0,460 37"/>
-    <path android:fillColor="#0B0D0E" android:pathData="M476,27A34,34 0,1 0,476 95A34,34 0,1 0,476 27"/>
-    <path android:strokeColor="#D8B56A" android:strokeWidth="2" android:fillColor="#00000000" android:pathData="M30,226L570,226"/>
-    <path android:strokeColor="#D8B56A" android:strokeWidth="1" android:fillColor="#00000000" android:pathData="M30,234L180,234M420,234L570,234"/>
-    <path android:fillColor="#D8B56A" android:pathData="M72,202L92,202L92,210L72,210zM108,190L128,190L128,210L108,210zM144,176L164,176L164,210L144,210zM180,164L200,164L200,210L180,210z"/>
-    <path android:fillColor="#F2D99F" android:pathData="M195,160L205,160L205,210L195,210zM235,145L245,145L245,210L235,210z"/>
+    <path android:fillColor="#070707" android:pathData="M0,0h600v260h-600z"/>
+    <path android:fillColor="#10100E" android:pathData="M0,174L72,151L126,166L202,115L260,148L338,94L406,137L486,82L600,119V260H0z"/>
+    <path android:fillColor="#17130B" android:pathData="M0,212L88,185L166,204L248,164L326,187L412,142L500,168L600,135V260H0z"/>
+    <path android:strokeColor="#8A642C" android:strokeWidth="1.5" android:fillColor="#00000000" android:pathData="M22,202L88,181L166,197L248,154L326,178L412,132L500,157L578,127"/>
+    <path android:strokeColor="#4B3920" android:strokeWidth="1" android:fillColor="#00000000" android:pathData="M22,217L88,196L166,212L248,169L326,193L412,147L500,172L578,142"/>
+    <path android:fillColor="#D7AE62" android:pathData="M300,31L315,61L347,65L323,86L329,118L300,102L271,118L277,86L253,65L285,61z"/>
+    <path android:fillColor="#F4D99A" android:pathData="M300,42L309,64L333,67L315,83L320,106L300,94L280,106L285,83L267,67L291,64z"/>
+    <path android:fillColor="#080808" android:pathData="M300,54L305,70L322,72L309,83L313,99L300,90L287,99L291,83L278,72L295,70z"/>
+    <path android:strokeColor="#D7AE62" android:strokeWidth="1.4" android:fillColor="#00000000" android:pathData="M300,15C250,15 211,52 198,98M300,15C350,15 389,52 402,98M300,15C270,40 255,71 250,106M300,15C330,40 345,71 350,106"/>
+    <path android:strokeColor="#8A642C" android:strokeWidth="1" android:fillColor="#00000000" android:pathData="M176,111C214,89 250,88 280,108M424,111C386,89 350,88 320,108"/>
+    <path android:strokeColor="#D7AE62" android:strokeWidth="1.6" android:fillColor="#00000000" android:pathData="M28,230L572,230"/>
+    <path android:strokeColor="#6E5128" android:strokeWidth="1" android:fillColor="#00000000" android:pathData="M28,238L188,238M412,238L572,238"/>
+    <path android:fillColor="#9A7134" android:pathData="M62,205L76,205L76,222L62,222zM87,196L101,196L101,222L87,222zM112,184L126,184L126,222L112,222zM137,174L151,174L151,222L137,222zM162,162L176,162L176,222L162,222z"/>
+    <path android:fillColor="#E3BC70" android:pathData="M187,151L201,151L201,222L187,222zM212,139L226,139L226,222L212,222z"/>
+    <path android:fillColor="#D7AE62" android:pathData="M420,202L434,202L434,222L420,222zM445,190L459,190L459,222L445,222zM470,177L484,177L484,222L470,222zM495,164L509,164L509,222L495,222zM520,150L534,150L534,222L520,222z"/>
+    <path android:strokeColor="#F0D18D" android:strokeWidth="1.3" android:fillColor="#00000000" android:pathData="M40,28L45,38L56,40L48,48L50,59L40,53L30,59L32,48L24,40L35,38zM555,32L559,40L568,42L561,48L563,57L555,52L547,57L549,48L542,42L551,40zM96,66L99,72L106,73L101,78L102,85L96,82L90,85L91,78L86,73L93,72zM505,80L509,87L517,88L511,94L512,102L505,98L498,102L499,94L493,88L501,87z"/>
 </vector>
