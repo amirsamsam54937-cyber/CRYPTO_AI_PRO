@@ -33,7 +33,7 @@ jobs:
           gradle-version: "8.9"
       - name: Check for a previously verified XT-only training bundle
         id: bundle
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.retrain_models) }}
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.retrain_models) && !contains(github.event.head_commit.modified, 'tools/train_wolf_ensemble.py') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -150,7 +150,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: HOPE-HUNTER-2.60.0-build-diagnostics
+          name: HOPE-HUNTER-2.61.0-build-diagnostics
           path: |
             build.log
             apk-metadata.txt
@@ -159,7 +159,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: HOPE-HUNTER-2.60.0-APK
+          name: HOPE-HUNTER-2.61.0-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
