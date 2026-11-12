@@ -88,6 +88,7 @@ def run_backtest(
 
     for i in range(warmup, len(data)):
         row = data.iloc[i]
+        exited_this_bar = False
         ts = str(data.iloc[i]["timestamp"]) if "timestamp" in data.columns else str(i)
 
         # Manage existing trade using this candle's OHLC. Stop wins if both levels hit.
@@ -118,11 +119,12 @@ def run_backtest(
                     exit_reason=exit_reason, equity_after=equity,
                 ))
                 position = None
+                exited_this_bar = True
 
         if equity <= 0:
             equity = 0.0
             halted = True
-        if not halted and position is None and i > warmup:
+        if not halted and position is None and not exited_this_bar and i > warmup:
             # Rolling signal sees data only through i-1. Entry occurs at current bar open.
             history = data.iloc[:i]
             try:
