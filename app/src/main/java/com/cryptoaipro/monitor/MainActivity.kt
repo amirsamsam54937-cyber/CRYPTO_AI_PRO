@@ -1222,6 +1222,8 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
             if (expanded) {
                 Surface(color = Color(0xFF19150B), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.22f)), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Text("چارت حرفه‌ای و نقشه تحلیل HOPE", color = Gold, fontWeight = FontWeight.Black, fontSize = 13.sp)
+                        SignalLevelsChart(item)
                         Text("جزئیات تحلیل تکنیکال • تایم‌فریم منتخب " + item.tradeTimeframe, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             SmallStat("EMA 9", formatPrice(item.technical.ema9))
@@ -1404,50 +1406,73 @@ private fun SignalOutcomePanel(snapshot: WolfSignalOutcomeJournal.Snapshot) {
 
 @Composable
 private fun SignalLevelsChart(signal: MarketSignal) {
-    val candles = signal.candles.filter { it.size >= 4 && it.take(4).all(Double::isFinite) }.takeLast(64)
-    val levels = listOf(
+    var showStructure by remember { mutableStateOf(true) }
+    var showTradePlan by remember { mutableStateOf(true) }
+    var showAverages by remember { mutableStateOf(true) }
+    val candles = signal.candles.filter { it.size >= 4 && it.take(4).all(Double::isFinite) }.takeLast(96)
+    val pivotHighs = candles.mapIndexedNotNull { i, c ->
+        if (i in 2 until candles.size - 2 && (i - 2..i + 2).all { candles[it][1] <= c[1] }) i to c[1] else null
+    }
+    val pivotLows = candles.mapIndexedNotNull { i, c ->
+        if (i in 2 until candles.size - 2 && (i - 2..i + 2).all { candles[it][2] >= c[2] }) i to c[2] else null
+    }
+    val swingHigh = pivotHighs.lastOrNull()?.second ?: signal.technical.resistance
+    val swingLow = pivotLows.lastOrNull()?.second ?: signal.technical.support
+    val levels = candles.flatMap { listOf(it[1], it[2]) } + listOf(
         signal.technical.support, signal.technical.resistance, signal.entry,
-        signal.stop, signal.tp1, signal.tp2, signal.tp3, signal.price
+        signal.stop, signal.tp1, signal.tp2, signal.tp3, signal.price, signal.technical.ema20
     ).filter { it.isFinite() && it > 0.0 }
-    val allPrices = candles.flatMap { listOf(it[1], it[2]) } + levels
-    val rawLow = allPrices.minOrNull() ?: signal.price * 0.98
-    val rawHigh = allPrices.maxOrNull() ?: signal.price * 1.02
-    val padding = (rawHigh - rawLow).coerceAtLeast(signal.price * 0.001) * 0.07
+    val rawLow = levels.minOrNull() ?: signal.price * 0.98
+    val rawHigh = levels.maxOrNull() ?: signal.price * 1.02
+    val padding = (rawHigh - rawLow).coerceAtLeast(signal.price * 0.001) * 0.08
     val low = rawLow - padding
     val high = rawHigh + padding
     val range = (high - low).coerceAtLeast(signal.price * 0.001)
-    Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("نقشه کامل سطوح تحلیل روی چارت", color = Color.White, fontWeight = FontWeight.Bold)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("● ورود", color = Blue, fontSize = 9.sp)
-                Text("━ اهداف", color = Green, fontSize = 9.sp)
-                Text("┄ حد ضرر", color = Red, fontSize = 9.sp)
-                Text("┄ حمایت/مقاومت", color = Gold, fontSize = 9.sp)
+    Surface(
+        color = Color(0xFF0B0A08),
+        shape = RoundedCornerShape(17.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.38f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(signal.symbol, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                    Text("XT USDT-M • کندل ۱۵ دقیقه • تحلیل خودکار HOPE", color = Gold, fontSize = 9.sp)
+                }
+                Surface(color = Color(0xFF17251C), shape = RoundedCornerShape(18.dp)) {
+                    Text("● داده بازار", color = Green, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+                }
             }
-            if (candles.isEmpty()) {
-                Text("کندل کافی برای رسم نمودار وجود ندارد.", color = Muted, fontSize = 10.sp)
-            } else Canvas(Modifier.fillMaxWidth().height(230.dp)) {
-                val left = 8f
-                val right = size.width - 8f
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                FilterChip(selected = showStructure, onClick = { showStructure = !showStructure }, label = { Text("ساختار", fontSize = 9.sp) })
+                FilterChip(selected = showTradePlan, onClick = { showTradePlan = !showTradePlan }, label = { Text("ورود و اهداف", fontSize = 9.sp) })
+                FilterChip(selected = showAverages, onClick = { showAverages = !showAverages }, label = { Text("میانگین‌ها", fontSize = 9.sp) })
+            }
+            if (candles.size < 10) {
+                Text("برای ترسیم چارت تحلیلی، کندل کافی از XT دریافت نشده است.", color = Muted, fontSize = 10.sp)
+            } else Canvas(Modifier.fillMaxWidth().height(252.dp)) {
+                val left = 7f
+                val right = size.width - 7f
                 val top = 8f
                 val bottom = size.height - 8f
                 fun y(price: Double) = bottom - (((price - low) / range).toFloat() * (bottom - top))
-                repeat(5) { n ->
-                    val yy = top + (bottom - top) * n / 4f
-                    drawLine(Color(0xFF302A1D), Offset(left, yy), Offset(right, yy), 1f)
+                repeat(6) { n ->
+                    val yy = top + (bottom - top) * n / 5f
+                    drawLine(Color(0xFF28241B), Offset(left, yy), Offset(right, yy), 1f)
                 }
-                val step = (right - left) / candles.size.coerceAtLeast(1)
+                val step = (right - left) / candles.size
+                val bodyWidth = (step * 0.62f).coerceIn(2f, 9f)
                 candles.forEachIndexed { index, candle ->
                     val x = left + step * (index + 0.5f)
                     val tint = if (candle[3] >= candle[0]) Green else Red
-                    drawLine(tint.copy(alpha = 0.9f), Offset(x, y(candle[1])), Offset(x, y(candle[2])), 1.4f)
-                    val bodyTop = y(maxOf(candle[0], candle[3]))
-                    val bodyBottom = y(minOf(candle[0], candle[3]))
-                    drawRect(tint, Offset(x - (step * 0.58f).coerceAtLeast(2f) / 2f, bodyTop),
-                        androidx.compose.ui.geometry.Size((step * 0.58f).coerceAtLeast(2f), (bodyBottom - bodyTop).coerceAtLeast(2f)))
+                    drawLine(tint.copy(alpha = 0.92f), Offset(x, y(candle[1])), Offset(x, y(candle[2])), 1.2f)
+                    val bodyTop = minOf(y(candle[0]), y(candle[3]))
+                    val bodyBottom = maxOf(y(candle[0]), y(candle[3]))
+                    drawRect(tint, Offset(x - bodyWidth / 2f, bodyTop),
+                        androidx.compose.ui.geometry.Size(bodyWidth, (bodyBottom - bodyTop).coerceAtLeast(2f)))
                 }
-                fun level(price: Double, color: Color, width: Float = 1.5f, dashed: Boolean = false) {
+                fun line(price: Double, color: Color, width: Float = 1.5f, dashed: Boolean = false) {
                     if (price.isFinite() && price > low && price < high) {
                         val yy = y(price)
                         if (dashed) {
@@ -1459,26 +1484,53 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                         } else drawLine(color, Offset(left, yy), Offset(right, yy), width)
                     }
                 }
-                level(signal.technical.support, Green.copy(alpha = 0.75f), 1.4f, true)
-                level(signal.technical.resistance, Red.copy(alpha = 0.75f), 1.4f, true)
-                level(signal.entry, Blue, 2.4f)
-                level(signal.stop, Red, 2.2f, true)
-                level(signal.tp1, Green, 2.3f)
-                level(signal.tp2, Green.copy(alpha = 0.75f), 1.8f, true)
-                level(signal.tp3, Green.copy(alpha = 0.5f), 1.5f, true)
-                level(signal.price, Color.White, 1.2f)
+                if (showStructure) {
+                    line(signal.technical.support, Green.copy(alpha = 0.9f), 1.6f, true)
+                    line(signal.technical.resistance, Red.copy(alpha = 0.9f), 1.6f, true)
+                    line(swingHigh, Red.copy(alpha = 0.55f), 1.1f, true)
+                    line(swingLow, Green.copy(alpha = 0.55f), 1.1f, true)
+                }
+                if (showAverages) {
+                    // These are current indicator reference levels, not fabricated historical EMA curves.
+                    line(signal.technical.ema20, Gold, 1.6f)
+                    line(signal.technical.vwap, Color(0xFF69B8E8), 1.3f, true)
+                }
+                if (showTradePlan && signal.direction != "NEUTRAL") {
+                    line(signal.entry, Blue, 2.1f)
+                    line(signal.stop, Red, 2.0f, true)
+                    line(signal.tp1, Green, 2.1f)
+                    line(signal.tp2, Green.copy(alpha = 0.75f), 1.7f, true)
+                    line(signal.tp3, Green.copy(alpha = 0.55f), 1.4f, true)
+                }
+                line(signal.price, Color.White, 1.8f)
             }
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                PriceLevelRow("قیمت فعلی", signal.price, Color.White)
-                PriceLevelRow("ورود مرجع", signal.entry, Blue)
-                PriceLevelRow("حد ضرر", signal.stop, Red)
-                PriceLevelRow("هدف اول TP1", signal.tp1, Green)
-                PriceLevelRow("هدف دوم TP2", signal.tp2, Green.copy(alpha = 0.82f))
-                PriceLevelRow("هدف سوم TP3", signal.tp3, Green.copy(alpha = 0.65f))
-                PriceLevelRow("مقاومت / سقف", signal.technical.resistance, Red)
-                PriceLevelRow("حمایت / کف", signal.technical.support, Green)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                SmallStat("سقف محلی", formatPrice(swingHigh), Red)
+                SmallStat("قیمت", formatPrice(signal.price), Color.White)
+                SmallStat("کف محلی", formatPrice(swingLow), Green)
             }
-            Text("سطوح از داده‌ها و تحلیل فعلی محاسبه می‌شوند؛ خطوط و اهداف تضمین رسیدن قیمت نیستند.", color = Muted, fontSize = 9.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                SmallStat("حمایت", formatPrice(signal.technical.support), Green)
+                SmallStat("EMA20", formatPrice(signal.technical.ema20), Gold)
+                SmallStat("مقاومت", formatPrice(signal.technical.resistance), Red)
+            }
+            if (showTradePlan && signal.direction != "NEUTRAL") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    SmallStat("ورود", formatPrice(signal.entry), Blue)
+                    SmallStat("حدضرر", formatPrice(signal.stop), Red)
+                    SmallStat("TP1", formatPrice(signal.tp1), Green)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    SmallStat("TP2", formatPrice(signal.tp2), Green)
+                    SmallStat("TP3", formatPrice(signal.tp3), Gold)
+                    SmallStat("جهت", if (signal.direction == "LONG_BIAS") "LONG" else "SHORT", if (signal.direction == "LONG_BIAS") Green else Red)
+                }
+            }
+            Text("ساختار: " + signal.technical.marketStructure + " • رژیم: " + signal.technical.regime, color = Color.White, fontSize = 9.sp)
+            Text("الگوی کندلی: " + signal.technical.candlePattern + " • جاروب نقدینگی: " + signal.technical.liquiditySweep, color = Muted, fontSize = 9.sp)
+            Text("FVG: " + signal.technical.fairValueGap + " • واگرایی RSI: " + signal.technical.rsiDivergence, color = Muted, fontSize = 9.sp)
+            Text("ابزارهای نمایشی: روشن/خاموش کردن لایه‌های ساختار، پلن معامله و سطوح EMA20/VWAP. خطوط اندیکاتور، مقدار مرجع فعلی هستند؛ منحنی تاریخی ساختگی رسم نمی‌شود.", color = Gold, fontSize = 8.sp, lineHeight = 12.sp)
+            Text("این نمودار تحلیل و سناریوهای مدل را نمایش می‌دهد و توصیه یا تضمین نتیجه معامله نیست.", color = Muted, fontSize = 8.sp)
         }
     }
 }
