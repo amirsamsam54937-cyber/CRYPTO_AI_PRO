@@ -191,7 +191,7 @@ internal object WolfFlowNewsRepository {
         val headlines = runCatching { news() }.getOrDefault(emptyList())
         val focus = signals.maxByOrNull { it.volume }
         val researchQuery = focus?.let { "crypto futures ${it.technical.regime} ${it.technical.candlePattern} market structure order flow risk management research" } ?: "crypto futures market structure volatility risk management research"
-        val research = runCatching { WolfKnowledgeSearch.answer(researchQuery) }.getOrNull()
+        val research = runCatching { WolfKnowledgeSearch.answer(context, researchQuery) }.getOrNull()
         val refreshedAt = System.currentTimeMillis()
         val json = JSONArray().apply { reports.forEach { r -> put(org.json.JSONObject().apply {
             put("symbol", r.symbol); put("imbalance", r.imbalance); put("largeBuys", r.largeBuys)
