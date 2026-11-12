@@ -442,11 +442,11 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Color(0xFF080808), contentColor = Color.White) {
-                    listOf("خانه", "بازار", "قدرت سیگنال", "دفترچه", "تنظیمات").forEach { entry ->
+                    listOf("خانه", "فرمانده", "بازار", "قدرت سیگنال", "دفترچه", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
                             onClick = { selectedTab = entry },
-                            icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "قدرت سیگنال" -> Icons.Outlined.Insights; "جریان بازار" -> Icons.Outlined.Timeline; "دفترچه" -> Icons.Outlined.MenuBook; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
+                            icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "قدرت سیگنال" -> Icons.Outlined.Insights; "فرمانده" -> Icons.Outlined.Psychology; "جریان بازار" -> Icons.Outlined.Timeline; "دفترچه" -> Icons.Outlined.MenuBook; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
                             label = { Text(entry, fontSize = 9.sp, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Blue,
@@ -505,6 +505,9 @@ fun CryptoMonitorScreen() {
                 }
 
                 when (selectedTab) {
+                    "فرمانده" -> {
+                        HopeCommanderScreen(signals = rows)
+                    }
                     "خانه" -> {
                         LazyColumn(
                             Modifier.fillMaxSize(),
@@ -569,6 +572,26 @@ fun CryptoMonitorScreen() {
                                                     Text(if (loading) "در حال اسکن..." else "اسکن مجدد")
                                                 }
                                             }
+                                        }
+                                    }
+                                }
+                            }
+                            item {
+                                Row(
+                                    Modifier.fillMaxWidth().background(
+                                        Brush.horizontalGradient(listOf(Color(0xFF15231D), Color(0xFF101412))),
+                                        RoundedCornerShape(20.dp)
+                                    ).padding(13.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    HopeCommanderBrain(Modifier.size(82.dp))
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("HOPE COMMANDER", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                                        Text("مغز مرکزی تحلیل و تصمیم‌گیری", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Text("تکنیکال • شبکه عصبی • ریسک • استراتژی", color = Muted, fontSize = 9.sp)
+                                        TextButton(onClick = { selectedTab = "فرمانده" }, contentPadding = PaddingValues(0.dp)) {
+                                            Text("ورود به مرکز فرماندهی  ←", color = Green, fontSize = 10.sp)
                                         }
                                     }
                                 }
