@@ -33,7 +33,7 @@ jobs:
           gradle-version: "8.9"
       - name: Check for a previously verified XT-only training bundle
         id: bundle
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.retrain_models) && !contains(github.event.head_commit.modified, 'tools/train_wolf_ensemble.py') }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.retrain_models }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
