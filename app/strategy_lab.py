@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from itertools import product
+from math import ceil
 from typing import Any
 
 import pandas as pd
@@ -93,11 +94,9 @@ def discover_strategy(
         (1.25, 1.5, 1.8),
         (1.8, 2.0, 2.4, 3.0),
     )
-    genomes = [
-        StrategyGenome(*values)
-        for i, values in enumerate(space)
-        if i < max_candidates
-    ]
+    all_values = list(space)
+    stride = max(1, ceil(len(all_values) / max(1, max_candidates)))
+    genomes = [StrategyGenome(*all_values[i]) for i in range(0, len(all_values), stride)][:max_candidates]
     if not genomes:
         raise ValueError("No strategy candidates generated")
 
