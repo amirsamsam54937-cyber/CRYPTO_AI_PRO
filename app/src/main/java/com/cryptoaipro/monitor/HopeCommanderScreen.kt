@@ -88,15 +88,13 @@ fun HopeCommanderScreen(
     onOpenChart: () -> Unit = {},
     onOpenJournal: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
-    onToggleBackground: () -> Unit = {}
+    onToggleBackground: () -> Unit = {},
+    backgroundMonitoring: Boolean = false
 ) {
     val context = LocalContext.current
     var macro by remember { mutableStateOf<MacroMarketContext?>(null) }
     var macroLoading by remember { mutableStateOf(true) }
-    var backgroundOn by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        backgroundOn = context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE)
-            .getBoolean("background_monitoring", false)
         macro = HopeMacroMarketEngine.fetch()
         macroLoading = false
     }
@@ -153,7 +151,7 @@ fun HopeCommanderScreen(
                     StatusLine("فرمانده مرکزی", "فعال", true)
                     StatusLine("متخصصان عصبی", if (neuralActive) "۱۰/۱۰ معتبر" else "۱۰ نظر / اعتبارسنجی نشده", neuralActive)
                     StatusLine("تحلیل تکنیکال", if (signals.isNotEmpty()) "فعال" else "در انتظار داده", signals.isNotEmpty())
-                    StatusLine("پایش پس‌زمینه", if (backgroundOn) "روشن" else "خاموش", backgroundOn)
+                    StatusLine("پایش پس‌زمینه", if (backgroundMonitoring) "روشن" else "خاموش", backgroundMonitoring)
                     StatusLine("دادهٔ کلان", if (macro?.fresh == true) "تازه" else "ناموجود/قدیمی", macro?.fresh == true)
                     StatusLine("سیگنال معتبر", if (best?.direction == "LONG_BIAS" || best?.direction == "SHORT_BIAS") "موجود" else "ندارد",
                         best?.direction == "LONG_BIAS" || best?.direction == "SHORT_BIAS")
@@ -271,10 +269,10 @@ fun HopeCommanderScreen(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 HPanelCard(Modifier.weight(1f), "پایش پس‌زمینه") {
-                    Text(if (backgroundOn) "● فعال" else "● متوقف", color = if (backgroundOn) HMint else HGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(if (backgroundOn) "● فعال" else "● متوقف", color = if (backgroundMonitoring) HMint else HGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Text("اسکن بازار، خبر و جریان سفارش در سرویس پس‌زمینه", color = HMuted, fontSize = 8.sp)
                     TextButton(onClick = onToggleBackground, contentPadding = PaddingValues(0.dp)) {
-                        Text(if (backgroundOn) "توقف پایش" else "شروع پایش", color = HGold, fontSize = 9.sp)
+                        Text(if (backgroundMonitoring) "توقف پایش" else "شروع پایش", color = HGold, fontSize = 9.sp)
                     }
                 }
                 HPanelCard(Modifier.weight(1f), "آخرین تحلیل") {
