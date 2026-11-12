@@ -471,159 +471,59 @@ fun CryptoMonitorScreen() {
                     Brush.verticalGradient(listOf(Color(0xE6080808), Color(0xF2050505), Color(0xEA171006)))
                 ))
                 Column(Modifier.fillMaxSize()) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (selectedTab != "خانه") TextButton(onClick = { selectedTab = "خانه" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("‹ بازگشت", color = Blue, fontSize = 11.sp) }
-                    Surface(
-                        color = Color(0xFF17130A),
-                        shape = RoundedCornerShape(13.dp),
-                        modifier = Modifier.size(52.dp),
-                        shadowElevation = 8.dp
+                if (selectedTab !in setOf("خانه", "فرمانده")) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
-                            contentDescription = "نشان اتاق شکار امیدها",
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("اتاق شکار امیدها", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
-                        Text("HOPE HUNTER  •  INTELLIGENT MARKET ANALYSIS", color = Muted, fontSize = 8.sp, letterSpacing = 0.5.sp)
-                    }
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("XT FUTURES", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Surface(color = if (loading) Color(0xFF3A2B0B) else Color(0xFF2B2108),
-                            shape = RoundedCornerShape(20.dp)) {
-                            Text(if (loading) "در حال اسکن" else "● $selectedExchange",
-                                color = if (loading) Gold else Green,
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp), fontSize = 9.sp)
+                        if (selectedTab != "خانه") TextButton(onClick = { selectedTab = "خانه" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("‹ بازگشت", color = Blue, fontSize = 11.sp) }
+                        Surface(
+                            color = Color(0xFF17130A),
+                            shape = RoundedCornerShape(13.dp),
+                            modifier = Modifier.size(52.dp),
+                            shadowElevation = 8.dp
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
+                                contentDescription = "نشان اتاق شکار امیدها",
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("اتاق شکار امیدها", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
+                            Text("HOPE HUNTER  •  INTELLIGENT MARKET ANALYSIS", color = Muted, fontSize = 8.sp, letterSpacing = 0.5.sp)
+                        }
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("XT FUTURES", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Surface(color = if (loading) Color(0xFF3A2B0B) else Color(0xFF2B2108),
+                                shape = RoundedCornerShape(20.dp)) {
+                                Text(if (loading) "در حال اسکن" else "● $selectedExchange",
+                                    color = if (loading) Gold else Green,
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp), fontSize = 9.sp)
+                            }
                         }
                     }
                 }
 
                 when (selectedTab) {
                     "فرمانده" -> {
-                        HopeCommanderScreen(signals = rows)
+                        HopeCommanderScreen(
+                            signals = rows,
+                            onOpenMarket = { selectedTab = "بازار" },
+                            onOpenChart = { selectedTab = "قدرت سیگنال" },
+                            onOpenJournal = { selectedTab = "دفترچه" },
+                            onOpenSettings = { selectedTab = "تنظیمات" }
+                        )
                     }
                     "خانه" -> {
-                        LazyColumn(
-                            Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(11.dp)
-                        ) {
-                            item {
-                                Surface(
-                                    color = Color(0xFF090909),
-                                    shape = RoundedCornerShape(22.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.72f)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                                        Box(Modifier.fillMaxWidth().height(196.dp)) {
-                                            HopeHunterHeroArt(Modifier.fillMaxSize())
-                                            Box(Modifier.fillMaxSize().background(
-                                                Brush.horizontalGradient(listOf(Color(0xEE050505), Color(0x66050505), Color(0x22050505)))
-                                            ))
-                                            Column(
-                                                Modifier.align(Alignment.CenterStart).padding(start = 18.dp, end = 14.dp),
-                                                verticalArrangement = Arrangement.spacedBy(7.dp)
-                                            ) {
-                                                Text("HOPE HUNTER", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
-                                                Text("اتاق شکار امیدها", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-                                                Text("هوشمندی در شکار فرصت‌ها", color = Gold, fontSize = 9.sp, letterSpacing = 2.sp)
-                                                Text("تحلیل چندلایه • کشف فرصت • مدیریت ریسک", color = Color.White, fontSize = 10.sp)
-                                            }
-                                            Surface(
-                                                color = Color(0xCC090909), shape = RoundedCornerShape(30.dp),
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.7f)),
-                                                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
-                                            ) {
-                                                Text("FUTURES  •  AI", color = Gold, fontSize = 8.sp, fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
-                                            }
-                                        }
-                                        Column(Modifier.padding(horizontal = 14.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                    Text("اتاق شکار امیدها", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
-                                                    Text("تحلیل تکنیکال زنده  •  XT Futures", color = Gold, fontSize = 10.sp)
-                                                    Text("سازنده: amir arsalan samsami", color = Muted, fontSize = 9.sp)
-                                                }
-                                                Surface(color = Color(0xFF211805), shape = RoundedCornerShape(12.dp),
-                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.55f))) {
-                                                    Text("هوش شکار", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp))
-                                                }
-                                            }
-                                            // Market-session timing remains internal to the analysis engine.
-                                            if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Gold)
-                                            Text(scanProgress, color = Muted, fontSize = 10.sp)
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                MetricCard("بازارهای بررسی‌شده", rows.size.toString(), Modifier.weight(1f))
-                                                MetricCard("تمایل صعودی", rows.count { it.direction == "LONG_BIAS" }.toString(), Modifier.weight(1f), Green)
-                                                MetricCard("تمایل نزولی", rows.count { it.direction == "SHORT_BIAS" }.toString(), Modifier.weight(1f), Red)
-                                            }
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                Button(onClick = { selectedTab = "بازار" }, modifier = Modifier.weight(1f)) { Text("مشاهده بازار") }
-                                                OutlinedButton(onClick = { scope.launch { performScan() } }, enabled = !loading, modifier = Modifier.weight(1f)) {
-                                                    Text(if (loading) "در حال اسکن..." else "اسکن مجدد")
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            item {
-                                Row(
-                                    Modifier.fillMaxWidth().background(
-                                        Brush.horizontalGradient(listOf(Color(0xFF15231D), Color(0xFF101412))),
-                                        RoundedCornerShape(20.dp)
-                                    ).padding(13.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    HopeCommanderBrain(Modifier.size(82.dp))
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text("HOPE COMMANDER", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Black)
-                                        Text("مغز مرکزی تحلیل و تصمیم‌گیری", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                        Text("تکنیکال • شبکه عصبی • ریسک • استراتژی", color = Muted, fontSize = 9.sp)
-                                        TextButton(onClick = { selectedTab = "فرمانده" }, contentPadding = PaddingValues(0.dp)) {
-                                            Text("ورود به مرکز فرماندهی  ←", color = Green, fontSize = 10.sp)
-                                        }
-                                    }
-                                }
-                            }
-                            item {
-                                HopePaperTradingDashboard(snapshot = paperSnapshot)
-                            }
-                            item {
-                                HopeScenarioLabCard(scorecard = scenarioScorecard)
-                            }
-                            item {
-                                HopeMacroMarketDashboard()
-                            }
-                            item {
-                                ActiveCommandSignals(
-                                    records = outcomeSnapshot.records.filter { !it.closed },
-                                    onOpenJournal = { selectedTab = "دفترچه" }
-                                )
-                            }
-                            item {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("فرصت‌های برتر بازار", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                                    Text("آخرین بروزرسانی " + updated, color = Muted, fontSize = 9.sp)
-                                }
-                            }
-                            if (loading && rows.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Blue) } }
-                            error?.let { msg -> item { Text(msg, color = Red, fontSize = 11.sp) } }
-                            items(rows.take(5), key = { it.symbol }) { signal ->
-                                SignalCard(signal, onSelect = { selectedSymbol = signal.symbol; selectedTab = "قدرت سیگنال" })
-                            }
-                            item { Text("سیگنال‌ها ابزار غربالگری‌اند، نه تضمین سود یا توصیه قطعی معامله.", color = Muted, fontSize = 9.sp) }
-                        }
+                        HopeCommanderScreen(
+                            signals = rows,
+                            onOpenMarket = { selectedTab = "بازار" },
+                            onOpenChart = { selectedTab = "قدرت سیگنال" },
+                            onOpenJournal = { selectedTab = "دفترچه" },
+                            onOpenSettings = { selectedTab = "تنظیمات" }
+                        )
                     }
 
                     "بازار" -> {
