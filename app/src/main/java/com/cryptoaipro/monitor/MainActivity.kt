@@ -613,9 +613,16 @@ fun CryptoMonitorScreen() {
                             if (loading && rows.isEmpty()) {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Blue) }
                             } else {
+                                val chartSignal = rows.firstOrNull { it.symbol == selectedSymbol } ?: shown.firstOrNull()
+                                if (chartSignal != null) {
+                                    LiveMarketChartPanel(
+                                        signal = chartSignal,
+                                        onOpenAnalysis = { selectedSymbol = chartSignal.symbol; selectedTab = "قدرت سیگنال" }
+                                    )
+                                }
                                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
                                     items(shown, key = { it.symbol }) { signal ->
-                                        SignalCard(signal, onSelect = { selectedSymbol = signal.symbol; selectedTab = "قدرت سیگنال" })
+                                        SignalCard(signal, onSelect = { selectedSymbol = signal.symbol })
                                     }
                                 }
                             }
@@ -1258,6 +1265,105 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                         Text("الگوها احتمالی‌اند؛ هیچ الگویی جهت قیمت را تضمین نمی‌کند.", color = Muted, fontSize = 9.sp)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveMarketChartPanel(
+    signal: MarketSignal,
+    onOpenAnalysis: () -> Unit
+) {
+    val candles = signal.candles.filter { it.size >= 5 && it.take(5).all(Double::isFinite) }.takeLast(64)
+    val swingHigh = candles.mapIndexedNotNull { i, c ->
+        if (i in 2 until candles.size - 2 && (i - 2..i + 2).all { candles[it][1] <= c[1] }) c[1] else null
+    }.maxOrNull() ?: signal.technical.resistance
+    val swingLow = candles.mapIndexedNotNull { i, c ->
+        if (i in 2 until candles.size - 2 && (i - 2..i + 2).all { candles[it][2] >= c[2] }) c[2] else null
+    }.minOrNull() ?: signal.technical.support
+    val lastTime = candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L
+    Surface(
+        color = Color(0xFF0C0B09),
+        shape = RoundedCornerShape(18.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.48f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("چارت زنده تحلیل HOPE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(signal.symbol + " • کندل‌های واقعی XT • تایم‌فریم ۱۵ دقیقه", color = Gold, fontSize = 9.sp)
+                }
+                Surface(color = Color(0xFF17251C), shape = RoundedCornerShape(20.dp)) {
+                    Text("● داده بازار", color = Green, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp))
+                }
+            }
+            if (candles.size < 10) {
+                Text("برای رسم نمودار داخلی هنوز کندل کافی دریافت نشده است.", color = Muted, fontSize = 10.sp)
+            } else {
+                val prices = candles.flatMap { listOf(it[1], it[2]) } +
+                    listOf(signal.technical.support, signal.technical.resistance, signal.price)
+                val low = prices.filter { it > 0.0 && it.isFinite() }.minOrNull() ?: candles.minOf { it[2] }
+                val high = prices.filter { it > 0.0 && it.isFinite() }.maxOrNull() ?: candles.maxOf { it[1] }
+                val pad = (high - low).coerceAtLeast(signal.price * 0.001) * 0.08
+                val floor = low - pad
+                val ceiling = high + pad
+                val span = (ceiling - floor).coerceAtLeast(1e-12)
+                Canvas(Modifier.fillMaxWidth().height(218.dp)) {
+                    val left = 5f
+                    val right = size.width - 5f
+                    val top = 7f
+                    val bottom = size.height - 7f
+                    fun y(v: Double) = bottom - (((v - floor) / span).toFloat() * (bottom - top))
+                    repeat(5) { i ->
+                        val yy = top + (bottom - top) * i / 4f
+                        drawLine(Color(0xFF29251C), Offset(left, yy), Offset(right, yy), 1f)
+                    }
+                    val step = (right - left) / candles.size
+                    val bodyWidth = (step * 0.62f).coerceIn(2f, 9f)
+                    candles.forEachIndexed { i, c ->
+                        val x = left + step * (i + 0.5f)
+                        val tint = if (c[3] >= c[0]) Green else Red
+                        drawLine(tint.copy(alpha = 0.9f), Offset(x, y(c[1])), Offset(x, y(c[2])), 1.2f)
+                        val topBody = minOf(y(c[0]), y(c[3]))
+                        val bottomBody = maxOf(y(c[0]), y(c[3]))
+                        drawRect(tint, Offset(x - bodyWidth / 2f, topBody),
+                            androidx.compose.ui.geometry.Size(bodyWidth, (bottomBody - topBody).coerceAtLeast(2f)))
+                    }
+                    fun level(v: Double, tint: Color, stroke: Float, dashed: Boolean = false) {
+                        if (v.isFinite() && v > floor && v < ceiling) {
+                            val yy = y(v)
+                            if (dashed) {
+                                val dash = 9f
+                                var x = left
+                                while (x < right) {
+                                    drawLine(tint, Offset(x, yy), Offset(minOf(x + dash, right), yy), stroke)
+                                    x += dash * 1.7f
+                                }
+                            } else drawLine(tint, Offset(left, yy), Offset(right, yy), stroke)
+                        }
+                    }
+                    level(signal.technical.resistance, Red.copy(alpha = 0.9f), 1.4f, true)
+                    level(signal.technical.support, Green.copy(alpha = 0.9f), 1.4f, true)
+                    level(signal.technical.ema20, Gold.copy(alpha = 0.9f), 1.2f)
+                    level(signal.price, Color.White, 1.8f)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    SmallStat("سقف محلی", formatPrice(swingHigh), Red)
+                    SmallStat("قیمت فعلی", formatPrice(signal.price), Color.White)
+                    SmallStat("کف محلی", formatPrice(swingLow), Green)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    SmallStat("مقاومت", formatPrice(signal.technical.resistance), Red)
+                    SmallStat("EMA20", formatPrice(signal.technical.ema20), Gold)
+                    SmallStat("حمایت", formatPrice(signal.technical.support), Green)
+                }
+                if (lastTime > 0L) Text("آخرین کندل بسته‌شده: " + iranDateTime(lastTime), color = Muted, fontSize = 8.sp)
+            }
+            Text("نمودار با داده کندلی XT رسم می‌شود و با هر دور اسکن تازه می‌شود؛ سطوح سقف/کف و حمایت/مقاومت خروجی تحلیل داخلی برنامه‌اند.", color = Muted, fontSize = 9.sp, lineHeight = 13.sp)
+            TextButton(onClick = onOpenAnalysis, modifier = Modifier.align(Alignment.End)) {
+                Text("جزئیات تحلیل این نماد ←", color = Gold, fontSize = 10.sp)
             }
         }
     }
