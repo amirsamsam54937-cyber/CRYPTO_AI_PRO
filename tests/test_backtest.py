@@ -122,3 +122,36 @@ def test_backtest_does_not_reenter_at_same_bar_open_after_intrabar_exit(monkeypa
     assert result["trades"][1]["entry_time"] == str(frame.loc[103, "timestamp"])
     assert result["trades"][1]["exit_reason"] == "END_OF_DATA"
 
+def test_drawdown_marks_open_position_to_market(monkeypatch):
+    frame = sample_frame(104)
+    # Entry occurs at bar 101. The trade remains open through the final close,
+    # but its unrealized loss must already be visible in the equity curve/DD.
+    frame.loc[100:103, ["open", "high", "low", "close"]] = [
+        100.0, 100.5, 99.0, 99.0
+    ]
+    monkeypatch.setattr(
+        "app.backtest.analyze_ohlcv",
+        lambda history: {"direction": "LONG_BIAS", "atr": 1.0},
+    )
+
+    result = run_backtest(
+        frame,
+        initial_equity=1000.0,
+        risk_per_trade=0.01,
+        max_leverage=1.0,
+        fee_rate=0.0,
+        slippage_rate=0.0,
+        funding_rate_8h=0.0,
+        warmup=100,
+    )
+
+    assert result["trade_count"] == 1
+    expected_dd = (1000.0 - result["final_equity"]) / 1000.0 * 100.0
+    assert expected_dd > 0.5
+    assert result["max_drawdown_percent"] == pytest.approx(expected_dd)
+    bar_101_equity = next(
+        point["equity"] for point in result["equity_curve"]
+        if point["bar"] == 101
+    )
+    assert bar_101_equity < result["initial_equity"]
+    assert result["assumptions"]["drawdown_marking"].startswith("close-to-market")
