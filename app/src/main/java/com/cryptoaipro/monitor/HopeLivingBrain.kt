@@ -49,6 +49,7 @@ internal object HopeLivingBrain {
         val scanIntervalMinutes: Int,
         val autoInterval: Boolean,
         val neuralReady: Boolean,
+        val neuralManagement: String,
         val mode: String,
         val lastCycle: Long
     )
@@ -67,10 +68,11 @@ internal object HopeLivingBrain {
         val auto = p.getBoolean(AUTO_INTERVAL, false)
         val ready = model.validatedForScoring
         val mode = p.getString("mode", if (ready) "ناظر تطبیقی" else "یادگیری و اعتبارسنجی") ?: "یادگیری و اعتبارسنجی"
+        val neuralManagement = p.getString("neural_management", if (ready) "رأی شبکه عصبی تحت نظارت و قابل مقایسه با نظر سیستم" else "رأی شبکه عصبی فقط مشورتی؛ تا اعتبارسنجی از تصمیم نهایی جداست") ?: "در انتظار ارزیابی شبکه عصبی"
         return Status(
             p.getInt("cycles", 0), learning.samples, learning.pending,
             HopeResearchEngine.memoryCount(context), winRate, online, interval, auto,
-            ready, mode, p.getLong("last_cycle_at", 0L)
+            ready, neuralManagement, mode, p.getLong("last_cycle_at", 0L)
         )
     }
 
@@ -169,6 +171,7 @@ internal object HopeLivingBrain {
             .putInt("recent_win_rate", winRate)
             .putInt("recommended_interval", recommendedInterval)
             .putString("mode", mode)
+            .putString("neural_management", if (model.validatedForScoring) "مدل از دروازه اعتبارسنجی عبور کرده؛ مغز هوشمند توافق و اختلاف آن با سیستم را پایش می‌کند" else "مدل هنوز اعتبارسنجی نشده؛ مغز هوشمند رأی آن را ثبت و نمایش می‌دهد اما اثرش بر سیگنال نهایی را مسدود می‌کند")
             .putLong("last_cycle_at", now)
             .apply()
 
@@ -203,6 +206,7 @@ internal fun HopeLivingBrainPanel(context: Context, onIntervalChanged: (Int) -> 
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("مغز زنده HOPE HUNTER", color = Color.White, fontSize = 14.sp)
             Text("وضعیت: ${status.mode}", color = gold, fontSize = 11.sp)
+            Text("مدیریت شبکه عصبی: ${status.neuralManagement}", color = if (status.neuralReady) Color(0xFF73D6A0) else gold, fontSize = 10.sp, lineHeight = 14.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("چرخه‌های نظارت: ${status.cycles}", color = muted, fontSize = 10.sp)
                 Text("نمونه‌های یادگرفته‌شده: ${status.learnedSamples}", color = muted, fontSize = 10.sp)

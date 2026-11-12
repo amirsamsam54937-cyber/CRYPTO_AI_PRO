@@ -101,7 +101,11 @@ data class MarketSignal(
     // Dedicated 1h snapshot: the pretrained model was trained on 1h candles.
     val neuralTechnical: TechnicalSnapshot? = null,
     val neuralRsi: Double? = null,
-    val neuralCandles: List<DoubleArray> = emptyList()
+    val neuralCandles: List<DoubleArray> = emptyList(),
+    val neuralMemberVotes: List<String> = emptyList(),
+    // Internal XT microstructure features; deliberately not rendered in any UI or notification.
+    val hiddenFlowScore: Int = 0,
+    val hiddenFlowFresh: Boolean = false
 )
 
 data class TechnicalSnapshot(
@@ -136,25 +140,50 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         if (candidate == null) signal.copy(neuralScore = 50, neuralDirection = "NEUTRAL",
             neuralModelSource = if (pretrainedStatus.validatedForScoring) "۱۰مدلی • معتبر" else "مدل در انتظار اعتبارسنجی")
         else {
-            // Never let unvalidated pretrained weights or randomly initialized online weights
-            // decide a public signal. Until the chronological holdout beats its baseline,
-            // the neural vote is explicitly neutral and the final gate returns NO TRADE.
+            // Always expose the ten raw specialist outputs for transparency, but never
+            // let an unvalidated ensemble affect the published direction or confidence.
+            val research = WolfPretrainedEnsemble.predictResearch(candidate)
+            val memberVotes = research?.let { prediction ->
+                prediction.memberProbabilities.mapIndexed { index, p ->
+                    val side = when {
+                        p >= 0.55 -> prediction.referenceDirection
+                        p <= 0.45 -> if (prediction.referenceDirection == "LONG_BIAS") "SHORT_BIAS" else "LONG_BIAS"
+                        else -> "NEUTRAL"
+                    }
+                    val label = when (side) { "LONG_BIAS" -> "LONG"; "SHORT_BIAS" -> "SHORT"; else -> "خنثی" }
+                    "شبکه ${index + 1}: $label ${(maxOf(p,1.0-p)*100.0).toInt()}٪"
+                }
+            }.orEmpty()
             if (!pretrainedStatus.validatedForScoring) {
+                // Keep the neural network's independent research opinion visible and active
+                // for comparison, but never allow an unvalidated model to promote or alter
+                // the published live signal. This is a raw model vote, not a calibrated probability.
+                val rawProbability = research?.probability
+                val rawDirectionScore = if (rawProbability == null) 50 else
+                    if (research?.referenceDirection == "LONG_BIAS")
+                        (rawProbability * 100.0).toInt().coerceIn(1, 99)
+                    else ((1.0 - rawProbability) * 100.0).toInt().coerceIn(1, 99)
+                val rawPredictedSide = when {
+                    rawDirectionScore > 50 -> "LONG_BIAS"
+                    rawDirectionScore < 50 -> "SHORT_BIAS"
+                    else -> "NEUTRAL"
+                }
                 signal.copy(
-                    neuralScore = 50,
-                    neuralDirection = "NEUTRAL",
-                    neuralModelSource = "مدل آموزش دیده اما اعتبارسنجی نشده • رأی غیرفعال"
+                    neuralScore = rawDirectionScore,
+                    neuralDirection = research?.predictedDirection ?: rawPredictedSide,
+                    neuralModelSource = "۱۰ شبکه عصبی • رأی پژوهشی مستقل • خارج از تصمیم نهایی تا اعتبارسنجی",
+                    neuralMemberVotes = memberVotes
                 )
             } else {
-                val probability = WolfPretrainedEnsemble.predict(candidate)
+                val probability = research?.takeIf { it.referenceDirection == candidate.direction }?.probability
                 if (probability == null) {
                     signal.copy(
                         neuralScore = 50,
                         neuralDirection = "NEUTRAL",
-                        neuralModelSource = "مدل معتبر در دسترس نیست"
+                        neuralModelSource = "مدل معتبر در دسترس نیست",
+                        neuralMemberVotes = memberVotes
                     )
                 } else {
-                    // Candidate-relative correctness mapped onto a fixed LONG/SHORT axis.
                     val candidateConfidence = (probability * 100.0).toInt().coerceIn(1, 99)
                     val directionalScore = if (candidate.direction == "LONG_BIAS")
                         candidateConfidence else 100 - candidateConfidence
@@ -170,7 +199,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                         neuralScore = directionalScore,
                         neuralDirection = predictedSide,
                         neuralModelSource = "۱۰مدلی • اعتبارسنجی‌شده",
-                        confidence = adjustedConfidence
+                        confidence = adjustedConfidence,
+                        neuralMemberVotes = memberVotes
                     )
                 }
             }
@@ -178,7 +208,20 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
     }.map { signal ->
         // Independent scenario analysis followed by a skeptical adversarial review.
         WolfSignalQualityEngine.apply(WolfForecastEngine.apply(WolfRegimeRiskEngine.apply(WolfTimeSeriesEngine.apply(WolfMathematicsEngine.apply(WolfAdversarialReviewEngine.apply(WolfQuantumScenarioEngine.apply(signal)))))))
-    }.map { reviewed ->
+    }.map { rawReviewed ->
+        // Apply only a small, fresh, signed XT order-flow adjustment. Raw order-book/trade
+        // observations remain private to the model and never appear in UI or notifications.
+        val directionSign = when (rawReviewed.technicalDirection) {
+            "LONG_BIAS" -> 1
+            "SHORT_BIAS" -> -1
+            else -> 0
+        }
+        val alignedFlow = if (rawReviewed.hiddenFlowFresh) rawReviewed.hiddenFlowScore * directionSign else 0
+        val flowConfidenceAdjustment = (alignedFlow / 5).coerceIn(-5, 5)
+        val reviewed = if (directionSign == 0 || !rawReviewed.hiddenFlowFresh) rawReviewed else rawReviewed.copy(
+            confidence = (rawReviewed.confidence + flowConfidenceAdjustment).coerceIn(0, 100),
+            score = (rawReviewed.score + alignedFlow / 4).coerceIn(-100, 100)
+        )
         // A not-yet-validated neural model must never become a hard lock on all live signals.
         // Until it beats the chronological baseline, publish only independently strong
         // technical setups; keep the neural vote visibly disabled and advisory-only.
@@ -250,7 +293,17 @@ fun CryptoMonitorScreen() {
     var voiceReply by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val appSettings = remember(context) { context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE) }
+    val appSettings = remember(context) {
+        context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE).also { prefs ->
+            // One-time 2.54.0 migration: begin the requested virtual-only evaluation automatically.
+            if (!prefs.getBoolean("hope_paper_default_254_migrated", false)) {
+                prefs.edit().putBoolean("hope_risk_ack_v1", true)
+                    .putBoolean("hope_paper_mode_enabled", true)
+                    .putString("hope_trading_mode", HopeTradingMode.PAPER.name)
+                    .putBoolean("hope_paper_default_254_migrated", true).apply()
+            }
+        }
+    }
     var selectedExchange by remember(context) { mutableStateOf("XT") }
     var backgroundMonitoring by remember(context) { mutableStateOf(appSettings.getBoolean("background_monitoring", false)) }
     var scanIntervalMinutes by remember(context) {
@@ -268,9 +321,13 @@ fun CryptoMonitorScreen() {
     var learningLosses by remember { mutableIntStateOf(learningPrefs.getInt("losses", 0)) }
     var researchStats by remember { mutableStateOf(WolfMarketDataStore.Stats()) }
     var paperSnapshot by remember(context) { mutableStateOf(HopePaperTradingEngine.snapshot(context)) }
+    var scenarioScorecard by remember(context) { mutableStateOf<HopeScenarioScorecard?>(null) }
     LaunchedEffect(Unit) {
         researchStats = WolfMarketDataStore.importVerifiedSeed(context)
         paperSnapshot = HopePaperTradingEngine.snapshot(context)
+        scenarioScorecard = withContext(Dispatchers.Default) {
+            HopeScenarioLab.recordAndEvaluate(context, rows)
+        }
     }
     val voiceEngine = remember(context) { TextToSpeech(context) { } }
     DisposableEffect(voiceEngine) { onDispose { voiceEngine.stop(); voiceEngine.shutdown() } }
@@ -322,6 +379,9 @@ fun CryptoMonitorScreen() {
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
             paperSnapshot = HopePaperTradingEngine.processScan(context, rows)
+            scenarioScorecard = withContext(Dispatchers.Default) {
+                HopeScenarioLab.recordAndEvaluate(context, rows)
+            }
             val memoryStats = WolfLearningMemory.processScan(context, rows, outcomeSnapshot.records)
             learningSamples = memoryStats.samples
             learningWins = memoryStats.wins
@@ -373,11 +433,11 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Color(0xFF080808), contentColor = Color.White) {
-                    listOf("خانه", "بازار", "قدرت سیگنال", "دفترچه", "تنظیمات").forEach { entry ->
+                    listOf("خانه", "بازار", "قدرت سیگنال", "جریان بازار", "دفترچه", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
                             onClick = { selectedTab = entry },
-                            icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "قدرت سیگنال" -> Icons.Outlined.Insights; "دفترچه" -> Icons.Outlined.MenuBook; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
+                            icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "قدرت سیگنال" -> Icons.Outlined.Insights; "جریان بازار" -> Icons.Outlined.Timeline; "دفترچه" -> Icons.Outlined.MenuBook; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
                             label = { Text(entry, fontSize = 9.sp, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Blue,
@@ -508,6 +568,12 @@ fun CryptoMonitorScreen() {
                                 HopePaperTradingDashboard(snapshot = paperSnapshot)
                             }
                             item {
+                                HopeScenarioLabCard(scorecard = scenarioScorecard)
+                            }
+                            item {
+                                HopeMacroMarketDashboard()
+                            }
+                            item {
                                 ActiveCommandSignals(
                                     records = outcomeSnapshot.records.filter { !it.closed },
                                     onOpenJournal = { selectedTab = "دفترچه" }
@@ -562,6 +628,10 @@ fun CryptoMonitorScreen() {
                             onSelect = { symbol -> selectedSymbol = symbol },
                             onOpenJournal = { selectedTab = "دفترچه" },
                             onRescan = { scope.launch { performScan() } })
+                    }
+
+                    "جریان بازار" -> {
+                        WolfFlowNewsScreen(symbol = selectedSymbol.ifBlank { rows.firstOrNull()?.symbol ?: "BTCUSDT" })
                     }
 
                     "دفترچه" -> {
@@ -668,11 +738,11 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.53.1 • XT USDT-M • مغز تطبیقی + تحلیل + شبیه‌ساز", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.56.0 • XT USDT-M • ده شبکه عصبی + شبیه‌سازی مسیرها + جریان سفارش داخلی", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
-                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← CRYPTO AI PRO ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← HOPE HUNTER ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                         }
                     }
                 }
@@ -1050,10 +1120,9 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 else -> Gold
             }
             val neuralOpinion = when {
-                !neuralValidated -> "رأی مدل فعلاً غیرفعال"
-                item.neuralDirection == "LONG_BIAS" -> "تمایل صعودی • LONG"
-                item.neuralDirection == "SHORT_BIAS" -> "تمایل نزولی • SHORT"
-                else -> "نظر خنثی • بدون جهت"
+                item.neuralDirection == "LONG_BIAS" -> "نظر مستقل شبکه: صعودی • LONG"
+                item.neuralDirection == "SHORT_BIAS" -> "نظر مستقل شبکه: نزولی • SHORT"
+                else -> "نظر مستقل شبکه: خنثی • بدون جهت"
             }
             val neuralStrength = maxOf(item.neuralScore, 100 - item.neuralScore)
             Surface(
@@ -1073,7 +1142,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                             shape = RoundedCornerShape(20.dp)
                         ) {
                             Text(
-                                if (neuralValidated) "اعتبارسنجی‌شده" else "پژوهشی • غیرفعال",
+                                if (neuralValidated) "اعتبارسنجی‌شده" else "رأی فعال • پژوهشی",
                                 color = if (neuralValidated) Green else Gold,
                                 fontSize = 9.sp,
                                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
@@ -1088,7 +1157,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(if (neuralValidated && item.neuralDirection != "NEUTRAL") "قدرت جهت مدل" else "قدرت جهت مدل", color = Muted, fontSize = 9.sp)
                             Text(
-                                if (neuralValidated && item.neuralDirection != "NEUTRAL") "$neuralStrength٪" else "قابل اعلام نیست",
+                                if (item.neuralDirection != "NEUTRAL") "$neuralStrength٪ خام" else "خنثی",
                                 color = neuralTint, fontSize = 15.sp, fontWeight = FontWeight.Bold
                             )
                         }
@@ -1098,9 +1167,13 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                             (if (neuralValidated && item.neuralDirection != "NEUTRAL") " • امتیاز جهت‌دار: ${item.neuralScore}/100" else ""),
                         color = Muted, fontSize = 9.sp
                     )
+                    if (item.neuralMemberVotes.isNotEmpty()) {
+                        Text("خروجی خام ده شبکه عصبی (امتیاز داخلی، نه احتمال برد):", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(item.neuralMemberVotes.joinToString("  •  "), color = Muted, fontSize = 8.sp, lineHeight = 13.sp)
+                    }
                     Divider(color = Gold.copy(alpha = 0.22f))
                     Text(
-                        "نظر تحلیل تکنیکال: " + (if (item.technicalDirection == "LONG_BIAS") "صعودی LONG" else if (item.technicalDirection == "SHORT_BIAS") "نزولی SHORT" else "خنثی"),
+                        "نظر سیستم HOPE HUNTER (تحلیل تکنیکال و ساختار بازار): " + (if (item.technicalDirection == "LONG_BIAS") "صعودی LONG" else if (item.technicalDirection == "SHORT_BIAS") "نزولی SHORT" else "خنثی"),
                         color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold
                     )
                     Text(
@@ -1110,7 +1183,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                     )
                     if (!neuralValidated) {
                         Text(
-                            "این خروجی هنوز نظر معتبر مدل محسوب نمی‌شود و در صدور سیگنال زنده دخالت ندارد؛ تا عبور از آزمون زمانی، فقط وضعیت پژوهشی نمایش داده می‌شود.",
+                            "نظر شبکه عصبی فعالانه محاسبه و برای مقایسه نمایش داده می‌شود؛ اما چون هنوز اعتبارسنجی زمانی را نگذرانده، مغز هوشمند اجازه دخالت آن در تأیید یا رد سیگنال نهایی را نمی‌دهد. امتیاز خام، احتمال برد نیست.",
                             color = Gold, fontSize = 9.sp, lineHeight = 14.sp
                         )
                     }

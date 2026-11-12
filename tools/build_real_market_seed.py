@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """Collect a verifiable real-candle training corpus from public USDT perpetual markets.
 
-Primary source: canonical Binance USD-M public API.
-Independent fallback: XT USDT-M public API (not a Binance mirror).
+Sole source: XT USDT-M public API. No cross-exchange fallback is permitted.
 Only exchange-returned, closed candles are stored. No synthetic rows are generated.
 """
 import csv, json, math, os, sys, time, hashlib
 from datetime import datetime, timezone
 
-TARGET = 500_000
-MINIMUM = 150_000
+TARGET = 1_000_000
+MINIMUM = 1_000_000
 TIMEFRAME = "1h"
 OUT = "app/src/main/assets/market_seed.csv"
 META = "market_seed_manifest.json"
@@ -21,11 +20,10 @@ def normalized_symbol(market):
 
 def collect(exchange_id):
     import ccxt
-    if exchange_id == "binance":
-        ex = ccxt.binanceusdm({"enableRateLimit": True, "timeout": 30000})
-    else:
-        ex = ccxt.xt({"enableRateLimit": True, "timeout": 30000,
-                      "options": {"defaultType": "swap"}})
+    if exchange_id != "xt":
+        raise ValueError("Only XT USDT-M futures history is permitted.")
+    ex = ccxt.xt({"enableRateLimit": True, "timeout": 30000,
+                  "options": {"defaultType": "swap"}})
     try:
         ex.load_markets()
         markets = [m for m in ex.markets.values()
@@ -111,16 +109,13 @@ def collect(exchange_id):
 
 def main():
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    rows, failures = None, []
-    for exchange in ("binance", "xt"):
-        try:
-            rows = collect(exchange)
-            break
-        except Exception as exc:
-            failures.append(f"{exchange}: {type(exc).__name__}: {exc}")
-            print(f"Source unavailable; trying the other named exchange only: {failures[-1]}", file=sys.stderr, flush=True)
-    if rows is None:
-        raise SystemExit("Insufficient real exchange data; no synthetic rows were written. " + " | ".join(failures))
+    try:
+        rows = collect("xt")
+    except Exception as exc:
+        raise SystemExit(
+            "XT-only historical collection failed; no other exchange or synthetic data will be used. "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
     with open(OUT, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(FIELDS)
@@ -133,6 +128,7 @@ def main():
         "minimum_required_rows": MINIMUM,
         "timeframe": TIMEFRAME,
         "source_exchanges": sorted({r[0] for r in rows}),
+        "data_source_policy": "XT_USDT_M_ONLY",
         "symbols": len({r[1] for r in rows}),
         "first_timestamp_ms": min(r[3] for r in rows),
         "last_timestamp_ms": max(r[3] for r in rows),

@@ -10,7 +10,10 @@ import kotlin.math.tanh
  * Weights are trained from verified historical exchange futures candles by tools/train_wolf_ensemble.py.
  */
 internal object WolfPretrainedEnsemble {
-    data class ResearchPrediction(val referenceDirection:String,val probability:Double) {
+    data class ResearchPrediction(
+        val referenceDirection:String, val probability:Double,
+        val memberProbabilities:List<Double>
+    ) {
         val predictedDirection:String get() = when {
             strength < 55 -> "NEUTRAL"
             probability >= 0.5 -> referenceDirection
@@ -19,7 +22,7 @@ internal object WolfPretrainedEnsemble {
         }
         val strength:Int get() = (maxOf(probability, 1.0-probability) * 100.0).toInt().coerceIn(1,99)
     }
-    data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double,val baselineAccuracy:Double=0.0,val balancedAccuracy:Double=0.0,val logLoss:Double=0.0,val validatedForScoring:Boolean=false,val corpusRows:Int=0)
+    data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double,val baselineAccuracy:Double=0.0,val balancedAccuracy:Double=0.0,val logLoss:Double=0.0,val validatedForScoring:Boolean=false,val corpusRows:Int=0,val brierScore:Double=0.0,val rocAuc:Double=0.0,val calibrationError:Double=1.0)
     private data class Member(
         val w1:Array<DoubleArray>,val b1:DoubleArray,
         val w2:Array<DoubleArray>,val b2:DoubleArray,
@@ -38,7 +41,11 @@ internal object WolfPretrainedEnsemble {
             require(root.optString("format")=="amir-wolf-ensemble-v1")
             val corpus=JSONObject(context.assets.open("wolf_corpus_manifest.json").bufferedReader().use{it.readText()})
             val corpusRows=corpus.optInt("rows",0)
-            require(corpus.optString("status")=="verified_real_exchange_data" && corpusRows==500000 && corpus.optInt("synthetic_rows",-1)==0)
+            val sources=corpus.optJSONArray("source_exchanges")
+            require(corpus.optString("status")=="verified_real_exchange_data" &&
+                corpusRows>=1_000_000 && corpus.optInt("synthetic_rows",-1)==0 &&
+                corpus.optString("data_source_policy")=="XT_USDT_M_ONLY" &&
+                sources!=null && sources.length()==1 && sources.optString(0).equals("XT",ignoreCase=true))
             fun vector(a:org.json.JSONArray)=DoubleArray(a.length()){a.getDouble(it)}
             fun matrix(a:org.json.JSONArray)=Array(a.length()){r->vector(a.getJSONArray(r))}
             val data=root.getJSONArray("members")
@@ -60,12 +67,18 @@ internal object WolfPretrainedEnsemble {
             val balanced=evaluation?.optDouble("ensemble_balanced_accuracy",0.0) ?: 0.0
             val loss=evaluation?.optDouble("ensemble_log_loss",Double.POSITIVE_INFINITY) ?: Double.POSITIVE_INFINITY
             val baselineLoss=evaluation?.optDouble("prevalence_baseline_log_loss",Double.POSITIVE_INFINITY) ?: Double.POSITIVE_INFINITY
+            val brier=evaluation?.optDouble("ensemble_brier_score",Double.POSITIVE_INFINITY) ?: Double.POSITIVE_INFINITY
+            val baselineBrier=evaluation?.optDouble("prevalence_baseline_brier_score",Double.POSITIVE_INFINITY) ?: Double.POSITIVE_INFINITY
+            val auc=evaluation?.optDouble("ensemble_roc_auc",0.0) ?: 0.0
+            val ece=evaluation?.optDouble("ensemble_expected_calibration_error",Double.POSITIVE_INFINITY) ?: Double.POSITIVE_INFINITY
             val testSamples=root.optInt("test_samples",0)
             val chronological=evaluation?.optString("split","")=="chronological_purged"
             val validated=evaluation!=null && chronological && testSamples>=300 &&
                 balanced.isFinite() && balanced>=0.52 && loss.isFinite() &&
-                baselineLoss.isFinite() && loss<baselineLoss && accuracy.isFinite() && accuracy>=baseline
-            status=Status(true,members.size,root.optInt("samples"),root.optString("trained_at_utc"),accuracy,baseline,balanced,loss,validated,corpusRows)
+                baselineLoss.isFinite() && loss<baselineLoss && accuracy.isFinite() && accuracy>=baseline &&
+                brier.isFinite() && baselineBrier.isFinite() && brier<baselineBrier &&
+                auc.isFinite() && auc>=0.55 && ece.isFinite() && ece<=0.10
+            status=Status(true,members.size,root.optInt("samples"),root.optString("trained_at_utc"),accuracy,baseline,balanced,loss,validated,corpusRows,brier,auc,ece)
         }.onFailure {
             members=emptyList()
             status=Status(false,0,0,"",0.0)
@@ -117,6 +130,6 @@ internal object WolfPretrainedEnsemble {
             val logit=member.b4+h3.indices.sumOf{j->member.w4[j]*h3[j]}
             1.0/(1.0+exp(-logit.coerceIn(-30.0,30.0)))
         }
-        return ResearchPrediction(modelSide, predictions.average().coerceIn(.01,.99))
+        return ResearchPrediction(modelSide, predictions.average().coerceIn(.01,.99), predictions)
     }
 }

@@ -16,12 +16,14 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Read-only foreground market monitor; it never places or manages exchange orders. */
 class HopeHunterMonitorService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val channelId = "hope_hunter_market_monitor"
     private val notificationId = 2401
+    private val signalChannelId = "hope_hunter_new_signals"
     private var monitorJob: kotlinx.coroutines.Job? = null
 
     override fun onCreate() {
@@ -50,10 +52,27 @@ class HopeHunterMonitorService : Service() {
                     val signals = XtFuturesMonitor.scan { _, completed, universe, failed ->
                         updateNotification("پایش XT • " + completed + " از " + universe + " قرارداد • خطا: " + failed)
                     }
-                    val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, signals)
-                    val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, signals, outcomeSnapshot.records)
-                    HopeLivingBrain.runCycle(this@HopeHunterMonitorService, signals, learningStats, outcomeSnapshot.records)
-                    updateNotification("پایش کامل شد • " + signals.size + " تحلیل • مغز در حال یادگیری")
+                    WolfMarketDataStore.recordLiveScan(this@HopeHunterMonitorService, "XT", signals)
+                    // Background intelligence refresh is throttled internally to 15 minutes.
+                    WolfFlowNewsRepository.refreshForEngine(this@HopeHunterMonitorService, signals, "XT")
+                    // Keep background scans behaviorally identical to foreground scans:
+                    // score with the guarded neural ensemble, update outcome memory, and
+                    // advance the virtual ledger. This engine has no exchange-order adapter.
+                    val enrichedSignals = WolfFlowNewsRepository.enrichSignals(this@HopeHunterMonitorService, signals)
+                    val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, enrichedSignals)
+                    notifyNewPublishedSignals(scoredSignals)
+                    val paperSnapshot = HopePaperTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
+                    withContext(Dispatchers.Default) {
+                        HopeScenarioLab.recordAndEvaluate(this@HopeHunterMonitorService, scoredSignals)
+                    }
+                    val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, scoredSignals)
+                    val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records)
+                    HopeLivingBrain.runCycle(this@HopeHunterMonitorService, scoredSignals, learningStats, outcomeSnapshot.records)
+                    updateNotification(
+                        "پایش کامل • " + scoredSignals.size + " تحلیل • مجازی: " +
+                            String.format(java.util.Locale.US, "%.2f", paperSnapshot.equity) +
+                            " USDT • موقعیت باز: " + paperSnapshot.positions.size
+                    )
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
@@ -66,12 +85,53 @@ class HopeHunterMonitorService : Service() {
         }
     }
 
+    private fun notifyNewPublishedSignals(signals: List<MarketSignal>) {
+        val active = signals.asSequence()
+            .filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
+            .filter { it.signalTier != "بدون رتبه" }
+            .map { signal ->
+                listOf(signal.symbol, signal.direction, signal.tradeTimeframe, signal.entry.toString()).joinToString("|")
+            }
+            .toSet()
+        val prefs = getSharedPreferences("hope_signal_notifications", Context.MODE_PRIVATE)
+        val previous = prefs.getStringSet("active_signal_keys", emptySet())?.toSet() ?: emptySet()
+        val fresh = active - previous
+        fresh.forEach { key ->
+            val signal = signals.firstOrNull {
+                listOf(it.symbol, it.direction, it.tradeTimeframe, it.entry.toString()).joinToString("|") == key
+            } ?: return@forEach
+            val side = if (signal.direction == "LONG_BIAS") "LONG صعودی" else "SHORT نزولی"
+            val details = "ورود: " + String.format(java.util.Locale.US, "%.8f", signal.entry) +
+                " • حدضرر: " + String.format(java.util.Locale.US, "%.8f", signal.stop) +
+                " • TP1: " + String.format(java.util.Locale.US, "%.8f", signal.tp1)
+            val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                Notification.Builder(this, signalChannelId) else Notification.Builder(this)
+            val notification = builder
+                .setSmallIcon(android.R.drawable.ic_menu_compass)
+                .setContentTitle("HOPE HUNTER • سیگنال جدید " + signal.symbol + " • " + side)
+                .setContentText(details)
+                .setStyle(Notification.BigTextStyle().bigText(details + " • قدرت: " + signal.confidence + "٪ • تایم‌فریم: " + signal.tradeTimeframe))
+                .setAutoCancel(true)
+                .build()
+            val id = 3000 + (signal.symbol.hashCode() and 0x00FFFFFF)
+            getSystemService(NotificationManager::class.java).notify(id, notification)
+        }
+        prefs.edit().putStringSet("active_signal_keys", active).apply()
+    }
+
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            getSystemService(NotificationManager::class.java).createNotificationChannel(
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(
                 NotificationChannel(channelId, "پایش بازار HOPE HUNTER", NotificationManager.IMPORTANCE_LOW).apply {
                     description = "وضعیت اسکن عمومی بازار قراردادهای XT"
                     setShowBadge(false)
+                }
+            )
+            manager.createNotificationChannel(
+                NotificationChannel(signalChannelId, "سیگنال‌های جدید HOPE HUNTER", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    description = "اعلان فرصت‌های تازه و تأییدشده تحلیل بازار XT"
+                    setShowBadge(true)
                 }
             )
         }

@@ -212,7 +212,26 @@ internal object XtFuturesMonitor {
                 onProgress(results.sortedByDescending { abs(it.score) },completed,universe.size,failed)
             }
             if (results.isEmpty()) throw IllegalStateException("اسکن XT هیچ کندل معتبر دریافت نکرد؛ تعداد نمادهای ناموفق: $failed")
-            results.sortedByDescending { abs(it.score) }.also { onProgress(it,completed,universe.size,failed) }
+
+            // Expensive microstructure sampling is restricted to the 20 most liquid valid
+            // contracts, while the main XT candle scan still covers the full USDT-M universe.
+            // All raw observations remain hidden; only a bounded signed score reaches the brain.
+            val flowCandidates = results.sortedByDescending { it.volume }.take(20)
+            val flowSnapshots = coroutineScope {
+                flowCandidates.map { signal -> async {
+                    signal.symbol to HopeHiddenFlowEngine.fetch(
+                        signal.symbol.lowercase().replace("-", "_").replace("/", "_").removeSuffix(":usdt")
+                    )
+                } }.awaitAll().toMap()
+            }
+            val enriched = results.map { signal ->
+                val flow = flowSnapshots[signal.symbol]
+                if (flow?.fresh == true) signal.copy(
+                    hiddenFlowScore = flow.directionalScore.coerceIn(-25, 25),
+                    hiddenFlowFresh = true
+                ) else signal
+            }
+            enriched.sortedByDescending { abs(it.score) }.also { onProgress(it,completed,universe.size,failed) }
         }
         }
 }

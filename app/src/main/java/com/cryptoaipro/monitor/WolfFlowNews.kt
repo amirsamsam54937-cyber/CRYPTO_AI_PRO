@@ -29,7 +29,10 @@ import javax.xml.parsers.DocumentBuilderFactory
 internal data class WhaleFlowReport(
     val symbol: String, val buyUsd: Double, val sellUsd: Double,
     val largeBuys: Int, val largeSells: Int, val imbalance: Double,
-    val openInterest: Double, val funding: Double, val summary: String
+    val openInterest: Double, val funding: Double, val summary: String,
+    val bookImbalance: Double = 0.0, val bidDepthUsd: Double = 0.0,
+    val askDepthUsd: Double = 0.0, val bidWallUsd: Double = 0.0,
+    val askWallUsd: Double = 0.0, val bookFresh: Boolean = false
 )
 internal data class MarketNewsItem(val title: String, val source: String, val link: String, val date: String, val description: String = "")
 
@@ -54,7 +57,10 @@ internal object WolfFlowNewsRepository {
         // XT-native public recent trades only. This is large-trade/order-flow estimation,
         // not proof of a whale's identity or wallet ownership.
         val normalizedSymbol = symbolInput.uppercase(Locale.US).replace(Regex("[^A-Z0-9]"), "")
-        val baseAsset = normalizedSymbol.removeSuffix("USDT")
+        // XT contract symbols can arrive as BTCUSDT or BTC/USDT:USDT.
+        // Strip one or two quote suffixes without turning BTCUSDTUSDT into BTCUSDT_usdt.
+        val baseAsset = normalizedSymbol.removeSuffix("USDTUSDT").removeSuffix("USDT")
+        require(baseAsset.isNotBlank()) { "نماد پایه برای تحلیل جریان سفارش خالی است" }
         val symbol = baseAsset.lowercase(Locale.US) + "_usdt"
         require(symbol.matches(Regex("[a-z0-9_]{4,24}"))) { "نماد برای تحلیل جریان سفارش معتبر نیست" }
         val tradesRoot = org.json.JSONObject(get("https://fapi.xt.com/future/market/v1/public/q/deal?symbol=$symbol&num=50"))
@@ -78,6 +84,43 @@ internal object WolfFlowNewsRepository {
                 "SELL", "ASK", "SELLER", "S" -> { sell += usd; if (usd >= threshold) bigSell++ }
             }
         }
+        // Public XT futures order-book snapshot: aggregate visible bid/ask notional
+        // and the largest visible wall. A snapshot is not proof that liquidity will remain.
+        val book = runCatching {
+            val root = org.json.JSONObject(get("https://fapi.xt.com/future/market/v1/public/cg/orderbook?symbol=$symbol&level=50"))
+            val data = root.optJSONObject("result") ?: root.optJSONObject("data") ?: root
+            fun levels(key: String): List<Pair<Double, Double>> {
+                val rows = data.optJSONArray(key) ?: JSONArray()
+                return (0 until rows.length()).mapNotNull { i ->
+                    val row = rows.optJSONArray(i) ?: return@mapNotNull null
+                    if (row.length() < 2) return@mapNotNull null
+                    val price = row.optString(0).toDoubleOrNull() ?: return@mapNotNull null
+                    val qty = row.optString(1).toDoubleOrNull() ?: return@mapNotNull null
+                    if (price <= 0.0 || qty <= 0.0 || !price.isFinite() || !qty.isFinite()) null else price to qty
+                }
+            }
+            val bids = levels("bids")
+            val asks = levels("asks")
+            val bidDepth = bids.sumOf { it.first * it.second }
+            val askDepth = asks.sumOf { it.first * it.second }
+            val totalDepth = (bidDepth + askDepth).coerceAtLeast(1.0)
+            val timestamp = data.optLong("timestamp", root.optLong("timestamp", 0L))
+            listOf(
+                (bidDepth - askDepth) / totalDepth,
+                bidDepth, askDepth,
+                bids.maxOfOrNull { it.first * it.second } ?: 0.0,
+                asks.maxOfOrNull { it.first * it.second } ?: 0.0,
+                if (timestamp > 0L && abs(System.currentTimeMillis() - timestamp) <= 120_000L &&
+                    bids.isNotEmpty() && asks.isNotEmpty()) 1.0 else 0.0
+            )
+        }.getOrNull()
+        val bookImbalance = book?.getOrNull(0) ?: 0.0
+        val bidDepthUsd = book?.getOrNull(1) ?: 0.0
+        val askDepthUsd = book?.getOrNull(2) ?: 0.0
+        val bidWallUsd = book?.getOrNull(3) ?: 0.0
+        val askWallUsd = book?.getOrNull(4) ?: 0.0
+        val bookFresh = (book?.getOrNull(5) ?: 0.0) > 0.5
+
         val contracts = runCatching {
             val root = get("https://fapi.xt.com/future/market/v1/public/cg/contracts")
             val rows = if (root.trim().startsWith("[")) JSONArray(root) else {
@@ -93,14 +136,19 @@ internal object WolfFlowNewsRepository {
         val funding = if (kotlin.math.abs(rawFunding) > 0.01) rawFunding / 100.0 else rawFunding
         val total = (buy + sell).coerceAtLeast(1.0)
         val imbalance = (buy - sell) / total
-        val summary = when {
+        val tradeSummary = when {
             notionals.isEmpty() -> "داده معاملات عمومی XT برای محاسبه جریان کافی نیست"
             imbalance > 0.18 && bigBuy > bigSell -> "غلبه خرید تهاجمی و معاملات بزرگ بر اساس معاملات عمومی XT"
             imbalance < -0.18 && bigSell > bigBuy -> "غلبه فروش تهاجمی و معاملات بزرگ بر اساس معاملات عمومی XT"
-            else -> "جریان سفارش عمومی XT متعادل یا بدون برتری روشن است"
+            else -> "جریان معاملات عمومی XT متعادل یا بدون برتری روشن است"
         }
+        val bookSummary = if (!bookFresh) "؛ دفتر سفارش تازه و معتبر در دسترس نیست"
+            else if (bookImbalance > 0.18) "؛ عمق قابل مشاهده سمت خرید سنگین‌تر است"
+            else if (bookImbalance < -0.18) "؛ عمق قابل مشاهده سمت فروش سنگین‌تر است"
+            else "؛ عمق خرید و فروش نزدیک به تعادل است"
         WhaleFlowReport(symbol, buy, sell, bigBuy, bigSell, imbalance, oi, funding,
-            summary + " • ارزش معاملات برآوردی است؛ هویت معامله‌گران مشخص نیست")
+            tradeSummary + bookSummary + " • ارزش معاملات برآوردی است؛ هویت معامله‌گران مشخص نیست",
+            bookImbalance, bidDepthUsd, askDepthUsd, bidWallUsd, askWallUsd, bookFresh)
     }
 
     private fun headlineSentiment(text: String): Int {
@@ -150,6 +198,12 @@ internal object WolfFlowNewsRepository {
             val flowAdjustment = if (flow != null && abs(directionalFlow) >= 0.18) {
                 if (directionalFlow > 0) 3 else -4
             } else 0
+            val bookFresh = flow?.optBoolean("bookFresh", false) == true &&
+                now - (flow?.optLong("updatedAt", 0L) ?: 0L) in 0..(20L * 60L * 1000L)
+            val directionalBook = (flow?.optDouble("bookImbalance", 0.0) ?: 0.0) * if (isLong) 1.0 else -1.0
+            val bookAdjustment = if (bookFresh && abs(directionalBook) >= 0.22) {
+                if (directionalBook > 0) 2 else -3
+            } else 0
             val funding = flow?.optDouble("funding", 0.0) ?: 0.0
             val crowdedSidePenalty = if ((isLong && funding > 0.001) || (!isLong && funding < -0.001)) -2 else 0
             val newsDirectional = (assetNewsBias + broadBias) * if (isLong) 1 else -1
@@ -157,7 +211,8 @@ internal object WolfFlowNewsRepository {
             val newsAdjustment = if (signal.direction == "NEUTRAL") 0 else newsDirectional.coerceIn(-2, 2)
             val flowNote = flow?.let {
                 "جریان معاملات تهاجمی تازه: " + it.optString("summary") +
-                    "؛ عدم‌تعادل " + String.format(Locale.US, "%.1f%%", it.optDouble("imbalance") * 100)
+                    "؛ عدم‌تعادل معاملات " + String.format(Locale.US, "%.1f%%", it.optDouble("imbalance") * 100) +
+                    (if (bookFresh) "؛ عدم‌تعادل دفتر سفارش " + String.format(Locale.US, "%.1f%%", it.optDouble("bookImbalance") * 100) else "")
             } ?: "جریان معاملات درشت برای این نماد تازه/قابل‌دسترسی نیست"
             val newsNote = when {
                 related.isNotEmpty() -> "خبرهای مرتبط با " + base + ": " + related.take(2).joinToString(" | ") { it.optString("title").take(110) } +
@@ -166,7 +221,7 @@ internal object WolfFlowNewsRepository {
                 else -> "خبر معتبر و مرتبط تازه برای این دارایی در دسترس نیست"
             }
             val researchNote = prefs.getString("auto_research", "").orEmpty().take(500)
-            val adjustment = (flowAdjustment + crowdedSidePenalty + newsAdjustment).coerceIn(-6, 4)
+            val adjustment = (flowAdjustment + bookAdjustment + crowdedSidePenalty + newsAdjustment).coerceIn(-7, 5)
             signal.copy(
                 score = (signal.score + adjustment).coerceIn(-100, 100),
                 confidence = (signal.confidence + adjustment).coerceIn(0, 95),
@@ -191,12 +246,15 @@ internal object WolfFlowNewsRepository {
         val headlines = runCatching { news() }.getOrDefault(emptyList())
         val focus = signals.maxByOrNull { it.volume }
         val researchQuery = focus?.let { "crypto futures ${it.technical.regime} ${it.technical.candlePattern} market structure order flow risk management research" } ?: "crypto futures market structure volatility risk management research"
-        val research = runCatching { WolfKnowledgeSearch.answer(researchQuery) }.getOrNull()
+        val research = runCatching { WolfKnowledgeSearch.answer(context, researchQuery) }.getOrNull()
         val refreshedAt = System.currentTimeMillis()
         val json = JSONArray().apply { reports.forEach { r -> put(org.json.JSONObject().apply {
             put("symbol", r.symbol); put("imbalance", r.imbalance); put("largeBuys", r.largeBuys)
             put("largeSells", r.largeSells); put("openInterest", r.openInterest); put("funding", r.funding)
             put("summary", r.summary); put("updatedAt", refreshedAt)
+            put("bookImbalance", r.bookImbalance); put("bidDepthUsd", r.bidDepthUsd)
+            put("askDepthUsd", r.askDepthUsd); put("bidWallUsd", r.bidWallUsd)
+            put("askWallUsd", r.askWallUsd); put("bookFresh", r.bookFresh)
         }) } }
         val newsJson = JSONArray().apply { headlines.take(12).forEach { n -> put(org.json.JSONObject().apply {
             put("title", n.title); put("source", n.source); put("url", n.link); put("date", n.date)
@@ -291,7 +349,7 @@ internal fun WolfFlowNewsScreen(symbol: String) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column(Modifier.weight(1f)) {
                 Text("ردیابی جریان نهنگ‌ها", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("معاملات درشت و فشار خرید/فروش • $symbol", color = Color(0xFF9AAAC2), fontSize = 10.sp)
+                Text("معاملات درشت و فشار خرید/فروش • $symbol", color = Color(0xFFB8B0A0), fontSize = 10.sp)
             }
             Button(onClick = { scope.launch { refresh() } }, enabled = !loading) { Text("بروزرسانی") }
         }
@@ -300,15 +358,23 @@ internal fun WolfFlowNewsScreen(symbol: String) {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
             report?.let { r ->
                 item {
-                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF151F33))) {
+                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF15130E))) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(r.symbol + " • معاملات تجمیعی اخیر", color = Color.White, fontWeight = FontWeight.Bold)
                             Text("خرید تهاجمی: $" + String.format(Locale.US, "%,.0f", r.buyUsd), color = Color(0xFF27D6A0), fontSize = 12.sp)
                             Text("فروش تهاجمی: $" + String.format(Locale.US, "%,.0f", r.sellUsd), color = Color(0xFFFF657A), fontSize = 12.sp)
                             Text("معاملات درشت شناسایی‌شده • خرید " + r.largeBuys + " / فروش " + r.largeSells, color = Color.White, fontSize = 11.sp)
-                            Text("عدم‌تعادل جریان: " + String.format(Locale.US, "%.1f%%", r.imbalance * 100), color = Color(0xFF55B8FF), fontWeight = FontWeight.Bold)
-                            Text("Open Interest: " + String.format(Locale.US, "%,.3f", r.openInterest), color = Color(0xFF9AAAC2), fontSize = 10.sp)
-                            Text("Funding Rate: " + String.format(Locale.US, "%.5f%%", r.funding * 100), color = Color(0xFF9AAAC2), fontSize = 10.sp)
+                            Text("عدم‌تعادل معاملات: " + String.format(Locale.US, "%.1f%%", r.imbalance * 100), color = Color(0xFFFFD45A), fontWeight = FontWeight.Bold)
+                            Text(if (r.bookFresh) "عدم‌تعادل دفتر سفارش: " + String.format(Locale.US, "%.1f%%", r.bookImbalance * 100) else "دفتر سفارش تازه در دسترس نیست",
+                                color = if (r.bookFresh && kotlin.math.abs(r.bookImbalance) >= 0.18) Color(0xFFFFD45A) else Color(0xFFB8B0A0), fontSize = 11.sp)
+                            if (r.bookFresh) {
+                                Text("عمق قابل مشاهده خرید/فروش: $" + String.format(Locale.US, "%,.0f", r.bidDepthUsd) +
+                                    " / $" + String.format(Locale.US, "%,.0f", r.askDepthUsd), color = Color(0xFFB8B0A0), fontSize = 10.sp)
+                                Text("بزرگ‌ترین دیوار خرید/فروش: $" + String.format(Locale.US, "%,.0f", r.bidWallUsd) +
+                                    " / $" + String.format(Locale.US, "%,.0f", r.askWallUsd), color = Color(0xFFB8B0A0), fontSize = 10.sp)
+                            }
+                            Text("Open Interest: " + String.format(Locale.US, "%,.3f", r.openInterest), color = Color(0xFFB8B0A0), fontSize = 10.sp)
+                            Text("Funding Rate: " + String.format(Locale.US, "%.5f%%", r.funding * 100), color = Color(0xFFB8B0A0), fontSize = 10.sp)
                             Text(r.summary, color = Color.White, fontSize = 11.sp)
                             Text("معاملات درشت به معنی شناسایی هویت نهنگ نیست؛ این تخمین از اندازه و جهت تیکرهاست و به‌تنهایی نقطه ورود قطعی نمی‌سازد.", color = Color(0xFF9AAAC2), fontSize = 9.sp)
                         }
@@ -320,12 +386,12 @@ internal fun WolfFlowNewsScreen(symbol: String) {
                 Text("منابع عمومی CoinDesk و Cointelegraph • آخرین دریافت: $refreshed", color = Color(0xFF9AAAC2), fontSize = 9.sp)
             }
             items(news) { n ->
-                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF151F33))) {
+                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF15130E))) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(n.title, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 12.sp)
                         Text(n.source + " • " + n.date, color = Color(0xFF9AAAC2), fontSize = 9.sp)
                         if (n.link.startsWith("https://")) Text(
-                            n.link, color = Color(0xFF55B8FF), fontSize = 9.sp,
+                            n.link, color = Color(0xFFFFD45A), fontSize = 9.sp,
                             modifier = Modifier.clickable { uriHandler.openUri(n.link) }
                         )
                     }

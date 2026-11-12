@@ -10,13 +10,12 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 73
-  versionName = "2.53.1"
-  // Release 2.53.1: synchronize adaptive scan cadence with the foreground monitor.
+  versionCode = 76
+  versionName = "2.56.0"
+  // Release 2.56.0: conditional scenario path tests and hidden XT public order-flow features.
  }
  buildFeatures { compose = true }
- // Keep the real candle database directly readable by the Android app and avoid ZIP inflation at runtime.
- androidResources { noCompress += listOf("csv") }
+ // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
  compileOptions {
   sourceCompatibility = JavaVersion.VERSION_17
   targetCompatibility = JavaVersion.VERSION_17

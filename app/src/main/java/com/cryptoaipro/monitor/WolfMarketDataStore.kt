@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import org.json.JSONObject
 
 /**
  * On-device durable market research store.
@@ -26,7 +27,12 @@ internal object WolfMarketDataStore {
 
     private const val DB_NAME = "hope_hunter_market_research.db"
     private const val DB_VERSION = 1
-    private const val EXPECTED_SEED_ROWS = 500_000
+    private const val MINIMUM_SEED_ROWS = 1_000_000
+
+    private fun canonicalSymbol(raw: String): String {
+        val compact = raw.uppercase(java.util.Locale.US).replace(Regex("[^A-Z0-9]"), "")
+        return if (compact.endsWith("USDTUSDT")) compact.dropLast(4) else compact
+    }
 
     private class Helper(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
         override fun onCreate(db: SQLiteDatabase) {
@@ -78,19 +84,34 @@ internal object WolfMarketDataStore {
         val helper = Helper(context.applicationContext)
         try {
             val db = helper.writableDatabase
-            val existing = count(db, "market_candles", "source='seed'")
-            if (existing == EXPECTED_SEED_ROWS) return@withContext stats(db, true)
-            require(existing == 0) { "پایگاه داده بذر ناقص است؛ برای جلوگیری از داده تکراری واردسازی متوقف شد." }
-
-            val manifest = context.assets.open("wolf_corpus_manifest.json").bufferedReader().use { it.readText() }
-            require(manifest.contains("\"status\":\"verified_real_exchange_data\"") ||
-                manifest.contains("\"status\": \"verified_real_exchange_data\"")) {
+            val manifestText = context.assets.open("wolf_corpus_manifest.json").bufferedReader().use { it.readText() }
+            val manifest = JSONObject(manifestText)
+            require(manifest.optString("status") == "verified_real_exchange_data") {
                 "اعتبارسنجی منشأ داده تاریخی ناموفق بود."
             }
+            val sources = manifest.optJSONArray("source_exchanges") ?: error("فهرست منابع داده موجود نیست.")
+            require(sources.length() == 1 && sources.optString(0).equals("XT", ignoreCase = true) &&
+                manifest.optString("data_source_policy") == "XT_USDT_M_ONLY" &&
+                manifest.optInt("synthetic_rows", -1) == 0) {
+                "فقط داده واقعی قراردادهای XT USDT-M مجاز است."
+            }
+            val expectedRows = manifest.optInt("rows", 0)
+            require(expectedRows >= MINIMUM_SEED_ROWS) {
+                "داده تاریخی باید حداقل یک میلیون کندل واقعی داشته باشد."
+            }
+            val existing = count(db, "market_candles", "source='seed'")
+            if (existing == expectedRows) {
+                db.execSQL("INSERT OR REPLACE INTO store_meta(key,value) VALUES('seed_expected_rows','$expectedRows')")
+                return@withContext stats(db, true)
+            }
+            require(existing <= expectedRows) { "نسخه پایگاه داده از بذر جدید بزرگ‌تر است؛ واردسازی امن متوقف شد." }
+
             val input = BufferedReader(InputStreamReader(context.assets.open("market_seed.csv"), Charsets.UTF_8), 1024 * 1024)
             db.beginTransaction()
             var imported = 0
             try {
+                // Atomic seed refresh: preserve live observations and roll back old seed if parsing fails.
+                if (existing > 0) db.delete("market_candles", "source='seed'", null)
                 val header = input.readLine() ?: error("فایل داده تاریخی خالی است.")
                 require(header.trim() == "exchange,symbol,timeframe,timestamp,open,high,low,close,volume") {
                     "ساختار فایل داده تاریخی ناشناخته است."
@@ -100,6 +121,7 @@ internal object WolfMarketDataStore {
                     line = input.readLine() ?: break
                     val p = line!!.split(',')
                     if (p.size != 9) continue
+                    require(p[0].equals("XT", ignoreCase = true)) { "ردیف غیر XT در فایل داده تاریخی شناسایی شد." }
                     val ts = p[3].toLongOrNull() ?: continue
                     val o = p[4].toDoubleOrNull() ?: continue
                     val h = p[5].toDoubleOrNull() ?: continue
@@ -116,10 +138,11 @@ internal object WolfMarketDataStore {
                     db.insertOrThrow("market_candles", null, values)
                     imported++
                 }
-                require(imported == EXPECTED_SEED_ROWS) {
-                    "تعداد داده معتبر $imported است؛ انتظار $EXPECTED_SEED_ROWS ردیف داشتیم."
+                require(imported == expectedRows) {
+                    "تعداد داده معتبر $imported است؛ انتظار $expectedRows ردیف داشتیم."
                 }
-                db.execSQL("INSERT OR REPLACE INTO store_meta(key,value) VALUES('seed_import_version','1')")
+                db.execSQL("INSERT OR REPLACE INTO store_meta(key,value) VALUES('seed_import_version','2')")
+                db.execSQL("INSERT OR REPLACE INTO store_meta(key,value) VALUES('seed_expected_rows','$expectedRows')")
                 db.setTransactionSuccessful()
             } finally {
                 db.endTransaction()
@@ -147,7 +170,7 @@ internal object WolfMarketDataStore {
                                 candle[5] > 0.0 && candle[0] > 0.0 && candle[1] >= maxOf(candle[0], candle[3]) &&
                                 candle[2] <= minOf(candle[0], candle[3]) && candle[1] >= candle[2] && candle[4] >= 0.0) {
                                 val values = ContentValues().apply {
-                                    put("exchange", exchange); put("symbol", s.symbol); put("timeframe", "15m")
+                                    put("exchange", exchange); put("symbol", canonicalSymbol(s.symbol)); put("timeframe", "15m")
                                     put("timestamp", candle[5].toLong()); put("open", candle[0]); put("high", candle[1])
                                     put("low", candle[2]); put("close", candle[3]); put("volume", candle[4])
                                     put("source", "live")
@@ -157,7 +180,7 @@ internal object WolfMarketDataStore {
                         }
                         val t = s.technical
                         val row = ContentValues().apply {
-                            put("created_at", now); put("exchange", exchange); put("symbol", s.symbol)
+                            put("created_at", now); put("exchange", exchange); put("symbol", canonicalSymbol(s.symbol))
                             put("side", s.direction); put("price", s.price); put("confidence", s.confidence)
                             put("neural_score", s.neuralScore); put("score", s.score); put("regime", t.regime)
                             put("rsi", s.rsi); put("adx", t.adx); put("atr_pct", t.atrPercent)
@@ -167,7 +190,7 @@ internal object WolfMarketDataStore {
                     }
                     db.setTransactionSuccessful()
                 } finally { db.endTransaction() }
-                stats(db, count(db, "market_candles", "source='seed'") == EXPECTED_SEED_ROWS)
+                stats(db, expectedSeedRows(db) > 0 && count(db, "market_candles", "source='seed'") == expectedSeedRows(db))
             } catch (e: Exception) {
                 Stats(error = e.message ?: "خطای ذخیره داده زنده")
             } finally { helper.close() }
@@ -177,9 +200,14 @@ internal object WolfMarketDataStore {
         val helper = Helper(context.applicationContext)
         try {
             val db = helper.readableDatabase
-            stats(db, count(db, "market_candles", "source='seed'") == EXPECTED_SEED_ROWS)
+            stats(db, expectedSeedRows(db) > 0 && count(db, "market_candles", "source='seed'") == expectedSeedRows(db))
         } finally { helper.close() }
     }
+
+    private fun expectedSeedRows(db: SQLiteDatabase): Int =
+        db.rawQuery("SELECT value FROM store_meta WHERE key='seed_expected_rows'", null).use {
+            if (it.moveToFirst()) it.getString(0).toIntOrNull() ?: 0 else 0
+        }
 
     private fun stats(db: SQLiteDatabase, imported: Boolean): Stats = Stats(
         corpusRows = count(db, "market_candles", "source='seed'"),
