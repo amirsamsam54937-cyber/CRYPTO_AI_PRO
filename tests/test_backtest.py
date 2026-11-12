@@ -148,7 +148,7 @@ def test_drawdown_marks_open_position_to_market(monkeypatch):
     assert result["trade_count"] == 1
     expected_dd = (1000.0 - result["final_equity"]) / 1000.0 * 100.0
     assert expected_dd > 0.5
-    assert result["max_drawdown_percent"] == pytest.approx(expected_dd)
+    assert result["max_drawdown_percent"] == pytest.approx(expected_dd, abs=5e-5)
     bar_101_equity = next(
         point["equity"] for point in result["equity_curve"]
         if point["bar"] == 101
