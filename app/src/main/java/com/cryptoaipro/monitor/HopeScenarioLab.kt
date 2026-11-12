@@ -67,8 +67,20 @@ internal object HopeScenarioLab {
         val mean = recent.average()
         val variance = recent.sumOf { (it-mean)*(it-mean) } / max(1, recent.size-1)
         val sigma = sqrt(variance).coerceIn(1e-6, 0.08)
-        val drift = (mean * 0.25).coerceIn(-sigma*0.18, sigma*0.18)
         val base = c.last()[3]
+        // Conditional tilt is deliberately bounded and only uses already-scored evidence.
+        // Unvalidated neural votes never influence the path distribution.
+        val directionSign = when (signal.direction) {
+            "LONG_BIAS" -> 1.0
+            "SHORT_BIAS" -> -1.0
+            else -> 0.0
+        }
+        val confidenceTilt = directionSign * ((signal.confidence - 50.0) / 50.0).coerceIn(-1.0, 1.0) * sigma * 0.06
+        val flowTilt = if (signal.hiddenFlowFresh) (signal.hiddenFlowScore / 25.0).coerceIn(-1.0, 1.0) * sigma * 0.04 else 0.0
+        val neuralValidated = signal.neuralModelSource.contains("اعتبارسنجی‌شده")
+        val neuralTilt = if (neuralValidated && signal.neuralDirection == signal.direction && directionSign != 0.0)
+            directionSign * sigma * 0.025 else 0.0
+        val drift = (mean * 0.25 + confidenceTilt + flowTilt + neuralTilt).coerceIn(-sigma*0.18, sigma*0.18)
         val threshold = max(0.30, (signal.technical.atrPercent.takeIf { it.isFinite() && it > 0.0 } ?: sigma*150.0) * sqrt(HORIZON.toDouble()) * 0.38)
         val rng = Random((signal.symbol.hashCode().toLong() shl 32) xor c.last()[5].toLong())
         val moves = ArrayList<Double>(PATHS)
@@ -179,7 +191,7 @@ internal object HopeScenarioLab {
         val stopBeforeTarget = if (tradeEvaluated == 0) 0.0 else paths.count { it.firstTradeBarrier == "SL" }.toDouble() / PATHS * 100.0
         val noBarrier = if (tradeEvaluated == 0) 0.0 else paths.count { it.firstTradeBarrier == null }.toDouble() / PATHS * 100.0
         return HopeScenarioForecast(signal.symbol, base, c.last()[5].toLong(), HORIZON, threshold,
-            scenarios, "۱۶۰۰ مسیر مونت‌کارلو با بازنمونه‌گیری بلوکی سه‌کندلی و برخورد تقریبی به سطوح ساختاری", pathScenarios,
+            scenarios, "۱۶۰۰ مسیر بوت‌استرپ شرطی با داده تاریخی، قدرت سیگنال و شواهد معتبر؛ برخورد تقریبی به سطوح ساختاری", pathScenarios,
             tp1BeforeStop, tp2BeforeStop, tp3BeforeStop, stopBeforeTarget, tradeEvaluated, noBarrier)
     }
 
