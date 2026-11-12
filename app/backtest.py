@@ -178,9 +178,34 @@ def run_backtest(
                 # Entry fee is reserved immediately so equity curve reflects actual costs.
                 equity -= entry_fee
 
-        peak = max(peak, equity)
-        max_dd = max(max_dd, (peak-equity)/peak if peak > 0 else 1.0)
-        equity_curve.append({"bar": i, "equity": equity})
+        # Mark open exposure to market at each candle close. Cash equity alone
+        # hides unrealized losses and materially understates drawdown.
+        marked_equity = equity
+        if position is not None:
+            mark_raw = float(row["close"])
+            mark_exit = adverse(mark_raw, position["side"], entering=False)
+            mark_direction = 1 if position["side"] == "LONG" else -1
+            unrealized_gross = (
+                (mark_exit - position["entry"])
+                * position["quantity"]
+                * mark_direction
+            )
+            mark_exit_fee = abs(mark_exit * position["quantity"]) * fee_rate
+            elapsed_hours = max(
+                0.0, (i - position["entry_index"]) * position["bar_hours"]
+            )
+            accrued_funding = (
+                position["notional"] * funding_rate_8h * (elapsed_hours / 8.0)
+            )
+            # Entry fee is already reflected in cash equity; include the
+            # estimated cost of liquidating the open position at this close.
+            marked_equity = equity + unrealized_gross - mark_exit_fee - accrued_funding
+
+        peak = max(peak, marked_equity)
+        max_dd = max(
+            max_dd, (peak - marked_equity) / peak if peak > 0 else 1.0
+        )
+        equity_curve.append({"bar": i, "equity": marked_equity})
 
     # Mark any still-open trade at final close; never leave an unreported position.
     if position is not None:
@@ -236,6 +261,7 @@ def run_backtest(
                         "funding_rate_per_8h_estimate": funding_rate_8h,
                         "signal_uses_only_prior_closed_candles": True,
                         "intrabar_rule": "stop-first if stop and target both touched",
+                        "drawdown_marking": "close-to-market including estimated exit fee and accrued funding",
                         "max_leverage": max_leverage, "risk_per_trade": risk_per_trade},
         "trades": [asdict(t) for t in trades],
         "equity_curve": equity_curve,
