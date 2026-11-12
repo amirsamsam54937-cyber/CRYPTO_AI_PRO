@@ -6,12 +6,14 @@ on:
       - "tests/**"
       - "requirements.txt"
       - ".github/workflows/python-tests.yml"
+      - ".github/workflows/android-apk.yml"
   pull_request:
     paths:
       - "app/**"
       - "tests/**"
       - "requirements.txt"
       - ".github/workflows/python-tests.yml"
+      - ".github/workflows/android-apk.yml"
   workflow_dispatch:
 jobs:
   test:
