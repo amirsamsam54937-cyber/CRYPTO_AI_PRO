@@ -68,7 +68,7 @@ internal object WolfPretrainedEnsemble {
             require(members.map{it.featureMask.joinToString(""){v->if(v)"1" else "0"}}.distinct().size==10)
             mean=vector(root.getJSONArray("feature_mean"))
             scale=vector(root.getJSONArray("feature_scale")).map{if(it==0.0)1.0 else it}.toDoubleArray()
-            trainingPriorLogOdds=root.getDouble("training_prior_log_odds")
+            trainingPriorLogOdds=root.optDouble("training_prior_log_odds",0.0)
             require(mean.size==7 && scale.size==7 && trainingPriorLogOdds.isFinite())
             val metrics=root.getJSONArray("metrics")
             val memberAccuracy=(0 until metrics.length()).map{metrics.getJSONObject(it).optDouble("accuracy",0.0)}.average()
