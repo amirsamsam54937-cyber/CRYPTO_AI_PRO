@@ -155,3 +155,33 @@ def test_drawdown_marks_open_position_to_market(monkeypatch):
     )
     assert bar_101_equity < result["initial_equity"]
     assert result["assumptions"]["drawdown_marking"].startswith("close-to-market")
+
+def test_funding_uses_actual_elapsed_time_for_irregular_candle_intervals(monkeypatch):
+    frame = sample_frame(104)
+    frame.loc[100:103, ["open", "high", "low", "close"]] = [
+        100.0, 100.5, 99.5, 100.0
+    ]
+    # Entry is at bar 101. The final bar is seven hours after bar 102,
+    # so elapsed time from entry to liquidation is eight hours, not two bars.
+    frame.loc[103, "timestamp"] = frame.loc[102, "timestamp"] + pd.Timedelta(hours=7)
+    monkeypatch.setattr(
+        "app.backtest.analyze_ohlcv",
+        lambda history: {"direction": "LONG_BIAS", "atr": 1.0},
+    )
+
+    result = run_backtest(
+        frame,
+        initial_equity=1000.0,
+        risk_per_trade=0.01,
+        max_leverage=1.0,
+        fee_rate=0.0,
+        slippage_rate=0.0,
+        funding_rate_8h=0.001,
+        warmup=100,
+    )
+
+    assert result["trade_count"] == 1
+    trade = result["trades"][0]
+    expected_eight_hour_funding = trade["quantity"] * trade["entry"] * 0.001
+    assert trade["exit_reason"] == "END_OF_DATA"
+    assert trade["funding_estimate"] == pytest.approx(expected_eight_hour_funding)
