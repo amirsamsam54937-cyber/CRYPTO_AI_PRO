@@ -17,6 +17,7 @@ internal object WolfDeepNeuralNetwork {
     private const val H2 = 8
     private const val KEY = "wolf_dnn_v1"
     private const val LEGACY_KEY = "wolf_model_weights"
+    private const val SAMPLE_COUNT_KEY = "wolf_dnn_reviewed_samples"
 
     private data class Model(
         val w1: Array<DoubleArray>, val b1: DoubleArray,
@@ -107,13 +108,17 @@ internal object WolfDeepNeuralNetwork {
         return Forward(h1, h2, out)
     }
 
+    fun featureVector(signal: MarketSignal): DoubleArray = features(signal)
     fun predict(prefs: SharedPreferences, signal: MarketSignal): Double =
         forward(load(prefs), features(signal)).output.coerceIn(0.01, 0.99)
-
     @Synchronized
-    fun learn(prefs: SharedPreferences, signal: MarketSignal, outcome: Double) {
+    fun learn(prefs: SharedPreferences, signal: MarketSignal, outcome: Double) =
+        learn(prefs, features(signal), outcome)
+    @Synchronized
+    fun learn(prefs: SharedPreferences, xInput: DoubleArray, outcome: Double) {
+        require(xInput.size == INPUTS && xInput.all { it.isFinite() })
         val m = load(prefs)
-        val x = features(signal)
+        val x = xInput.map { it.coerceIn(-1.0, 1.0) }.toDoubleArray()
         val target = outcome.coerceIn(0.0, 1.0)
         // A few conservative passes over the newly reviewed example.
         repeat(4) {
@@ -137,6 +142,7 @@ internal object WolfDeepNeuralNetwork {
                 m.b1[j] = (m.b1[j] - rate * delta1[j]).coerceIn(-5.0, 5.0)
             }
         }
-        prefs.edit().putString(KEY, encode(m)).apply()
+        prefs.edit().putString(KEY, encode(m))
+            .putInt(SAMPLE_COUNT_KEY, prefs.getInt(SAMPLE_COUNT_KEY, 0) + 1).apply()
     }
 }
