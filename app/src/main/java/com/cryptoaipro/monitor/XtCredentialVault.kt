@@ -105,7 +105,12 @@ internal object XtCredentialVault {
 internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> Unit = {}) {
     var appKey by remember { mutableStateOf("") }
     var secret by remember { mutableStateOf("") }
-    var permissionConfirmed by remember { mutableStateOf(false) }
+    val permissionPrefs = remember(context) {
+        context.getSharedPreferences("zoro_xt_permissions", Context.MODE_PRIVATE)
+    }
+    var permissionConfirmed by remember(context) {
+        mutableStateOf(permissionPrefs.getBoolean("trade_without_withdrawal_confirmed", false))
+    }
     var liveEnabled by remember { mutableStateOf(XtLiveTradingEngine.isEnabled(context)) }
     var status by remember {
         mutableStateOf(if (XtCredentialVault.hasCredentials(context)) "کلیدها به‌صورت رمزنگاری‌شده روی دستگاه ذخیره شده‌اند." else "هنوز کلیدی ذخیره نشده است.")
@@ -137,7 +142,10 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 label = { Text("XT API Secret") }
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = permissionConfirmed, onCheckedChange = { permissionConfirmed = it })
+                Checkbox(checked = permissionConfirmed, onCheckedChange = {
+                    permissionConfirmed = it
+                    permissionPrefs.edit().putBoolean("trade_without_withdrawal_confirmed", it).apply()
+                })
                 Text(
                     "تأیید می‌کنم مجوز برداشت (Withdrawal) خاموش است؛ فقط Read و Trade فعال‌اند.",
                     color = ivory, fontSize = 10.sp, lineHeight = 15.sp
@@ -160,6 +168,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 onClick = {
                     XtLiveTradingEngine.setEnabled(context, false)
                     XtCredentialVault.clear(context)
+                    permissionPrefs.edit().putBoolean("trade_without_withdrawal_confirmed", false).apply()
                     liveEnabled = false
                     appKey = ""
                     secret = ""
@@ -187,7 +196,11 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                             }
                             runCatching { context.startForegroundService(serviceIntent) }
                                 .onSuccess { status = "اجرای واقعی فعال شد؛ سرویس پایش و بازیابی پوزیشن XT شروع شد."; onBackgroundStarted() }
-                                .onFailure { status = "سرویس شروع نشد؛ اجرای واقعی تا فعال‌شدن سرویس متوقف می‌ماند: ${it.message}" }
+                                .onFailure {
+                                    XtLiveTradingEngine.setEnabled(context, false)
+                                    liveEnabled = false
+                                    status = "سرویس شروع نشد؛ اجرای واقعی خاموش شد تا سفارش بدون پایش ارسال نشود: " + (it.message ?: "خطای شروع سرویس")
+                                }
                         } else {
                             status = "ورودهای جدید متوقف شد؛ پایش و حفاظت پوزیشن‌های باز تا زمان توقف سرویس ادامه دارد."
                         }
