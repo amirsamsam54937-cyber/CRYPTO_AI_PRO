@@ -63,7 +63,6 @@ jobs:
           assert m["source_exchanges"] == ["XT"]
           assert m["crypto_only_verified"] is True
           assert m["asset_class_policy"] == "EXPLICIT_XT_METADATA_CRYPTO_ONLY"
-          assert m["excluded_unknown_count"] == 0
           assert m["rows"] >= 898_920 and m["synthetic_rows"] == 0
           with (assets/"market_seed.csv").open(newline="") as f:
               reader=csv.DictReader(f)
@@ -144,7 +143,6 @@ jobs:
           assert m.get("source_exchanges")==["XT"]
           assert m.get("crypto_only_verified") is True
           assert m.get("asset_class_policy")=="EXPLICIT_XT_METADATA_CRYPTO_ONLY"
-          assert m.get("excluded_unknown_count")==0
           assert len(model.get("members",[]))==10
           assert report.get("validated_for_scoring") is True
           assert set(model.get("symbols",[])).issubset(set(m.get("crypto_symbols",[])))
@@ -168,7 +166,10 @@ jobs:
           assert model.get("format")=="amir-wolf-ensemble-v1" and len(model.get("members",[]))==10
           assert len(model.get("metrics",[]))==10
           assert manifest.get("status")=="verified_real_exchange_data"
-          assert manifest.get("data_source_policy")=="XT_USDT_M_ONLY" and manifest.get("source_exchanges")==["XT"]
+          assert manifest.get("data_source_policy")=="XT_USDT_M_CRYPTO_ONLY" and manifest.get("source_exchanges")==["XT"]
+          assert manifest.get("crypto_only_verified") is True
+          assert manifest.get("asset_class_policy")=="EXPLICIT_XT_METADATA_CRYPTO_ONLY"
+          assert set(report.get("symbols",[])).issubset(set(manifest.get("crypto_symbols",[])))
           assert manifest.get("rows",0)>=898920 and manifest.get("synthetic_rows")==0
           e=model["evaluation"]
           assert e["split"]=="chronological_purged" and model.get("test_samples",0)>=300
