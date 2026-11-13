@@ -16,6 +16,7 @@ except ModuleNotFoundError:
 
 DATA_SOURCE = "verified XT USDT-M crypto-only historical corpus"
 MIN_LABELED_SAMPLES = 250_000
+MAX_TRAIN_SAMPLES_PER_CLASS = 60_000  # Match the bounded walk-forward evaluator.
 INTERVAL, HORIZON = "1h", 6
 FEATURE_NAMES = ["ema_trend", "rsi_momentum", "adx_strength", "relative_volume",
                  "candle_body_pressure", "atr_percent", "past_6_bar_momentum"]
@@ -99,6 +100,28 @@ def expected_calibration_error(y_true, probabilities, bins=10):
         mask=(probabilities>=edges[index]) & (probabilities<edges[index+1] if index<bins-1 else probabilities<=edges[index+1])
         if np.any(mask): error += float(mask.mean())*abs(float(y_true[mask].mean())-float(probabilities[mask].mean()))
     return float(error)
+
+def balanced_bootstrap_indices(labels, seed, max_per_class=MAX_TRAIN_SAMPLES_PER_CLASS):
+    """Return a deterministic, balanced and bounded training sample.
+
+    Large classes are downsampled without replacement; smaller classes are
+    oversampled only when needed. The holdout is never sampled or modified.
+    """
+    labels = np.asarray(labels, dtype=int)
+    classes = [np.flatnonzero(labels == cls) for cls in (0, 1)]
+    if min(map(len, classes)) < 2:
+        raise ValueError("both classes need at least two training samples")
+    per_class = min(max(map(len, classes)), int(max_per_class))
+    if per_class < 2:
+        raise ValueError("max_per_class must be at least two")
+    rng = np.random.default_rng(seed)
+    sampled = np.concatenate([
+        rng.choice(indices, size=per_class, replace=len(indices) < per_class)
+        for indices in classes
+    ])
+    rng.shuffle(sampled)
+    return sampled
+
 
 def repeat_symbol_labels(symbol, count):
     """Repeat a complete instrument identifier without NumPy's one-character <U1 truncation."""
@@ -208,16 +231,13 @@ def main():
         # Train each specialist on a deterministic class-balanced bootstrap.
         # Correct the posterior back to the real chronological training prevalence
         # before evaluating on the untouched holdout, preserving calibration semantics.
-        rng=np.random.default_rng(20261112+index)
-        class0=np.flatnonzero(y_train==0); class1=np.flatnonzero(y_train==1)
-        if len(class0)<2 or len(class1)<2:
-            raise SystemExit("Each specialist requires both classes in the training partition.")
-        per_class=max(len(class0),len(class1))
-        balanced_idx=np.concatenate([
-            rng.choice(class0,size=per_class,replace=len(class0)<per_class),
-            rng.choice(class1,size=per_class,replace=len(class1)<per_class)
-        ])
-        rng.shuffle(balanced_idx)
+        try:
+            balanced_idx=balanced_bootstrap_indices(
+                y_train, seed=20261112+index,
+                max_per_class=MAX_TRAIN_SAMPLES_PER_CLASS
+            )
+        except ValueError as error:
+            raise SystemExit(str(error)) from error
         model.fit(a[balanced_idx],y_train[balanced_idx])
         raw_probabilities=np.clip(model.predict_proba(b)[:,1],1e-6,1-1e-6)
         train_prevalence=float(np.clip(y_train.mean(),1e-4,1-1e-4))
@@ -259,7 +279,7 @@ def main():
         "training_prior_log_odds":float(np.log(np.clip(y_train.mean(),1e-4,1-1e-4)/(1.0-np.clip(y_train.mean(),1e-4,1-1e-4)))),
         "evaluation":evaluation,"walk_forward":generalization["walk_forward"],
         "cross_symbol_holdout":generalization["cross_symbol_holdout"],
-        "metrics":metrics,"members":members}
+        "training_sampling":{"method":"deterministic_balanced_bootstrap","max_samples_per_class":MAX_TRAIN_SAMPLES_PER_CLASS,"actual_samples_per_class":int(len(balanced_idx)//2)},"metrics":metrics,"members":members}
     os.makedirs("app/src/main/assets",exist_ok=True)
     with open("app/src/main/assets/wolf_pretrained_ensemble.json","w") as f: json.dump(output,f,separators=(",",":"))
     with open("wolf_model_training_report.json","w") as f: json.dump({k:v for k,v in output.items() if k!="members"},f,indent=2)
