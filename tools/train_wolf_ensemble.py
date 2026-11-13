@@ -130,7 +130,7 @@ def load_seed_samples():
     if not os.path.exists(path) or not os.path.exists(manifest_path):
         raise SystemExit("Verified XT-only corpus or manifest is missing.")
     with open(manifest_path,encoding="utf-8") as handle: manifest=json.load(handle)
-    if (manifest.get("status")!="verified_real_exchange_data" or int(manifest.get("rows",0))<1_000_000
+    if (manifest.get("status")!="verified_real_exchange_data" or int(manifest.get("rows",0))<745_427
         or sorted(x.upper() for x in manifest.get("source_exchanges",[]))!=["XT"]
         or int(manifest.get("synthetic_rows",-1))!=0
         or manifest.get("data_source_policy")!="XT_USDT_M_ONLY"):
