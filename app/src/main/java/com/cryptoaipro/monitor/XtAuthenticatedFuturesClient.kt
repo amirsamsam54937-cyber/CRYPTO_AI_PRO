@@ -202,7 +202,7 @@ internal class XtAuthenticatedFuturesClient(
         fun value(key: String) = usdt.optString(key).toDoubleOrNull()
             ?: usdt.optDouble(key).takeIf { it.isFinite() } ?: 0.0
         val wallet = value("walletBalance")
-        val available = (wallet - value("openOrderMarginFrozen") - value("isolatedMargin"))
+        val available = (wallet - value("openOrderMarginFrozen") - value("isolatedMargin") - value("crossedMargin"))
             .coerceAtLeast(0.0)
         return AccountSnapshot(
             account.optBoolean("allowTrade", false),
