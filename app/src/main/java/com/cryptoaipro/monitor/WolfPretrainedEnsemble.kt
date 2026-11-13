@@ -24,7 +24,7 @@ internal object WolfPretrainedEnsemble {
     data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double,
         val baselineAccuracy:Double=0.0,val balancedAccuracy:Double=0.0,val logLoss:Double=0.0,
         val validatedForScoring:Boolean=false,val corpusRows:Int=0,val brierScore:Double=0.0,
-        val rocAuc:Double=0.0,val calibrationError:Double=1.0)
+        val rocAuc:Double=0.0,val calibrationError:Double=1.0,val loadError:String="")
     private data class Member(
         val role:String,val featureMask:BooleanArray,
         val w1:Array<DoubleArray>,val b1:DoubleArray,
@@ -89,9 +89,9 @@ internal object WolfPretrainedEnsemble {
                 brier<baselineBrier && auc.isFinite() && auc>=0.55 && ece.isFinite() && ece<=0.10
             status=Status(true,members.size,root.optInt("samples"),root.optString("trained_at_utc"),
                 accuracy,baseline,balanced,loss,validated,corpusRows,brier,auc,ece)
-        }.onFailure {
+        }.onFailure { error ->
             members=emptyList()
-            status=Status(false,0,0,"",0.0)
+            status=Status(false,0,0,"",0.0,loadError=(error.message ?: error.javaClass.simpleName).take(240))
         }
         return status
     }
