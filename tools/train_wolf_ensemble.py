@@ -18,6 +18,7 @@ DATA_SOURCE = "verified XT USDT-M crypto-only historical corpus"
 MIN_LABELED_SAMPLES = 250_000
 MAX_TRAIN_SAMPLES_PER_CLASS = 60_000  # Match the bounded walk-forward evaluator.
 INTERVAL, HORIZON = "1h", 6
+INTERVAL_MS = 60 * 60 * 1000
 FEATURE_NAMES = ["ema_trend", "rsi_momentum", "adx_strength", "relative_volume",
                  "candle_body_pressure", "atr_percent", "past_6_bar_momentum"]
 SPECIALISTS = [
@@ -130,6 +131,30 @@ def repeat_symbol_labels(symbol, count):
     return np.full(count, str(symbol), dtype=object)
 
 
+
+def contiguous_candle_segments(raw, interval_ms=INTERVAL_MS):
+    """Split OHLCV into strictly valid, gap-free intervals; never bridge missing hours."""
+    a = np.asarray(raw, dtype=float)
+    if a.ndim != 2 or a.shape[1] < 6:
+        raise ValueError("raw candles must be a 2D array with timestamp and OHLCV columns")
+    core = a[:, :6]
+    finite = np.isfinite(core).all(axis=1)
+    timestamps = core[:, 0]
+    integral_time = timestamps == np.floor(timestamps)
+    op, high, low, close, volume = core[:, 1], core[:, 2], core[:, 3], core[:, 4], core[:, 5]
+    valid = (finite & integral_time & (op > 0) & (high > 0) & (low > 0) &
+             (close > 0) & (volume >= 0) & (high >= np.maximum(op, close)) &
+             (low <= np.minimum(op, close)) & (high >= low))
+    indices = np.flatnonzero(valid)
+    if indices.size == 0:
+        return []
+    valid_times = timestamps[indices].astype(np.int64)
+    breaks = np.flatnonzero(
+        (np.diff(indices) != 1) | (np.diff(valid_times) != int(interval_ms))
+    ) + 1
+    groups = np.split(indices, breaks)
+    return [a[group] for group in groups if group.size >= 1]
+
 def make_rows(raw):
     a=np.asarray(raw,dtype=float)
     o,h,l,c,v=a[:,1],a[:,2],a[:,3],a[:,4],a[:,5]
@@ -197,17 +222,24 @@ def main():
     from sklearn.neural_network import MLPClassifier
     from sklearn.preprocessing import StandardScaler
     from sklearn.metrics import accuracy_score, balanced_accuracy_score, brier_score_loss, log_loss, roc_auc_score
+    from sklearn.exceptions import ConvergenceWarning
+    import warnings
     grouped, corpus_manifest = load_seed_samples()
     chunks=[]; used_symbols=[]; symbol_chunks=[]
     for symbol,raw in grouped.items():
-        raw=sorted(raw,key=lambda row:row[0]); x,y,t=make_rows(raw)
-        if len(x)>100:
-            chunks.append((x,y,t))
-            # dtype=str on np.full defaults to <U1 and silently truncates every symbol to its first character.
-            # Object dtype preserves the complete instrument key for true unseen-symbol validation.
-            symbol_chunks.append(repeat_symbol_labels(symbol,len(x)))
+        raw=sorted(raw,key=lambda row:row[0])
+        symbol_samples=0
+        segments=contiguous_candle_segments(raw)
+        for segment in segments:
+            # Six-bar labels and rolling indicators must stay inside gap-free 1h data.
+            x,y,t=make_rows(segment)
+            if len(x)>100:
+                chunks.append((x,y,t))
+                symbol_chunks.append(repeat_symbol_labels(symbol,len(x)))
+                symbol_samples += len(x)
+        if symbol_samples:
             used_symbols.append(symbol)
-        print(f"REAL SEED {symbol}: {len(x)} directional samples",flush=True)
+        print(f"REAL SEED {symbol}: {symbol_samples} directional samples across {len(segments)} gap-free segments",flush=True)
     if not chunks: raise SystemExit("No valid XT history; refusing to create fake pretrained weights.")
     X=np.vstack([z[0] for z in chunks]); y=np.concatenate([z[1] for z in chunks]); ts=np.concatenate([z[2] for z in chunks])
     symbols=np.concatenate(symbol_chunks)
@@ -238,15 +270,27 @@ def main():
             )
         except ValueError as error:
             raise SystemExit(str(error)) from error
-        model.fit(a[balanced_idx],y_train[balanced_idx])
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always", ConvergenceWarning)
+            model.fit(a[balanced_idx],y_train[balanced_idx])
+        convergence_warning=any(issubclass(item.category,ConvergenceWarning) for item in caught_warnings)
         raw_probabilities=np.clip(model.predict_proba(b)[:,1],1e-6,1-1e-6)
         train_prevalence=float(np.clip(y_train.mean(),1e-4,1-1e-4))
         raw_logits=np.log(raw_probabilities/(1.0-raw_probabilities))
         prior_log_odds=np.log(train_prevalence/(1.0-train_prevalence))
         probabilities=1.0/(1.0+np.exp(-np.clip(raw_logits+prior_log_odds,-30.0,30.0)))
         all_probabilities.append(probabilities)
-        metrics.append({"member":index+1,"role":role,"accuracy":round(float(accuracy_score(y_test,probabilities>=.5)),4),
-            "log_loss":round(float(log_loss(y_test,np.clip(probabilities,1e-6,1-1e-6))),4),"iterations":int(model.n_iter_)})
+        metrics.append({"member":index+1,"role":role,
+            "accuracy":round(float(accuracy_score(y_test,probabilities>=.5)),4),
+            "balanced_accuracy":round(float(balanced_accuracy_score(y_test,probabilities>=.5)),4),
+            "log_loss":round(float(log_loss(y_test,np.clip(probabilities,1e-6,1-1e-6))),4),
+            "brier_score":round(float(brier_score_loss(y_test,probabilities)),4),
+            "roc_auc":round(float(roc_auc_score(y_test,probabilities)),4),
+            "expected_calibration_error":round(expected_calibration_error(y_test,probabilities),4),
+            "iterations":int(model.n_iter_),"max_iter":int(model.max_iter),
+            "converged":bool(int(model.n_iter_) < int(model.max_iter)),
+            "convergence_warning":bool(convergence_warning),
+            "final_loss":round(float(model.loss_),8)})
         members.append({"role":role,"feature_mask":mask.astype(int).tolist(),
             "w1":model.coefs_[0].T.tolist(),"b1":model.intercepts_[0].tolist(),
             "w2":model.coefs_[1].T.tolist(),"b2":model.intercepts_[1].tolist(),
