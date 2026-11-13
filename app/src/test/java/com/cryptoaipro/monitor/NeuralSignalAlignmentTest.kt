@@ -9,7 +9,7 @@ class NeuralSignalAlignmentTest {
     }
 
     @Test fun bearishModelVoteWeakensLongSignal() {
-        assertEquals(65, NeuralSignalAlignment.adjustedConfidence(70, "LONG_BIAS", 0.80.let { 1.0 - it }))
+        assertEquals(65, NeuralSignalAlignment.adjustedConfidence(70, "LONG_BIAS", 0.20))
     }
 
     @Test fun bearishModelVoteStrengthensShortSignal() {
