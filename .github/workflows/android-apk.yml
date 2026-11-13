@@ -62,7 +62,9 @@ jobs:
           assert m["data_source_policy"] == "XT_USDT_M_CRYPTO_ONLY"
           assert m["source_exchanges"] == ["XT"]
           assert m["crypto_only_verified"] is True
-          assert m["asset_class_policy"] == "EXPLICIT_XT_METADATA_CRYPTO_ONLY"
+          assert m["currency_universe_source"] == "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES"
+          assert m["spot_crypto_currency_count"] >= 1
+          assert m["asset_class_policy"] == "XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY"
           assert m["rows"] >= 898_920 and m["synthetic_rows"] == 0
           with (assets/"market_seed.csv").open(newline="") as f:
               reader=csv.DictReader(f)
@@ -142,7 +144,9 @@ jobs:
           assert m.get("data_source_policy")=="XT_USDT_M_CRYPTO_ONLY"
           assert m.get("source_exchanges")==["XT"]
           assert m.get("crypto_only_verified") is True
-          assert m.get("asset_class_policy")=="EXPLICIT_XT_METADATA_CRYPTO_ONLY"
+          assert m.get("currency_universe_source") == "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES"
+          assert m.get("spot_crypto_currency_count",0) >= 1
+          assert m.get("asset_class_policy")=="XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY"
           assert len(model.get("members",[]))==10
           assert report.get("validated_for_scoring") is True
           assert set(model.get("symbols",[])).issubset(set(m.get("crypto_symbols",[])))
@@ -168,7 +172,9 @@ jobs:
           assert manifest.get("status")=="verified_real_exchange_data"
           assert manifest.get("data_source_policy")=="XT_USDT_M_CRYPTO_ONLY" and manifest.get("source_exchanges")==["XT"]
           assert manifest.get("crypto_only_verified") is True
-          assert manifest.get("asset_class_policy")=="EXPLICIT_XT_METADATA_CRYPTO_ONLY"
+          assert manifest.get("currency_universe_source") == "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES"
+          assert manifest.get("spot_crypto_currency_count",0) >= 1
+          assert manifest.get("asset_class_policy")=="XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY"
           assert set(report.get("symbols",[])).issubset(set(manifest.get("crypto_symbols",[])))
           assert manifest.get("rows",0)>=898920 and manifest.get("synthetic_rows")==0
           e=model["evaluation"]
