@@ -485,14 +485,14 @@ fun CryptoMonitorScreen() {
                         ) {
                             Image(
                                 painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
-                                contentDescription = "نشان اتاق شکار امیدها",
+                                contentDescription = "نشان VENOM",
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("اتاق شکار امیدها", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
-                            Text("HOPE HUNTER  •  INTELLIGENT MARKET ANALYSIS", color = Muted, fontSize = 8.sp, letterSpacing = 0.5.sp)
+                            Text("VENOM", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
+                            Text("VENOM  •  INTELLIGENT MARKET ANALYSIS", color = Muted, fontSize = 8.sp, letterSpacing = 0.5.sp)
                         }
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("XT FUTURES", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -742,7 +742,7 @@ fun CryptoMonitorScreen() {
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
-                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← HOPE HUNTER ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← VENOM ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                         }
                     }
                 }
@@ -770,7 +770,7 @@ private fun HopeAnimatedBrainBanner() {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text("HOPE HUNTER • NEURAL CORE", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp)
+            Text("VENOM • NEURAL CORE", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp)
             Canvas(Modifier.fillMaxWidth().height(142.dp)) {
                 val points = listOf(
                     0.18f to 0.48f, 0.27f to 0.25f, 0.38f to 0.18f, 0.48f to 0.30f,
@@ -938,7 +938,7 @@ private fun SignalJournalScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("HOPE HUNTER  •  PERFORMANCE LAB", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
+                    Text("VENOM  •  PERFORMANCE LAB", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
                     Text("مرکز گزارش و ارزیابی عملکرد", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Black)
                     Text("آمار زیر از سوابق ثبت‌شده روی همین دستگاه و آخرین اجرای بک‌تست خوانده می‌شود؛ هیچ داده نمایشی یا سود فرضی به‌عنوان نتیجه واقعی درج نمی‌شود.", color = Muted, fontSize = 10.sp, lineHeight = 16.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1223,7 +1223,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                     }
                     Divider(color = Gold.copy(alpha = 0.22f))
                     Text(
-                        "نظر سیستم HOPE HUNTER (تحلیل تکنیکال و ساختار بازار): " + (if (item.technicalDirection == "LONG_BIAS") "صعودی LONG" else if (item.technicalDirection == "SHORT_BIAS") "نزولی SHORT" else "خنثی"),
+                        "نظر سیستم VENOM (تحلیل تکنیکال و ساختار بازار): " + (if (item.technicalDirection == "LONG_BIAS") "صعودی LONG" else if (item.technicalDirection == "SHORT_BIAS") "نزولی SHORT" else "خنثی"),
                         color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold
                     )
                     Text(
