@@ -127,6 +127,57 @@ internal class XtAuthenticatedFuturesClient(
         }
     }
 
+    data class ContractSpec(
+        val symbol: String,
+        val contractSize: Double,
+        val makerFeeRate: Double,
+        val takerFeeRate: Double,
+        val minQty: Double,
+        val minNotional: Double,
+        val pricePrecision: Int,
+        val quantityPrecision: Int,
+        val openApiEnabled: Boolean,
+        val tradingEnabled: Boolean
+    )
+
+    suspend fun contractSpec(symbol: String): ContractSpec = withContext(Dispatchers.IO) {
+        val normalized = symbol.trim().lowercase()
+        require(normalized.matches(Regex("[a-z0-9]+_usdt"))) { "نماد قرارداد USDT نامعتبر است." }
+        val url = URL("$baseUrl/future/market/v1/public/symbol/detail?symbol=" +
+            java.net.URLEncoder.encode(normalized, "UTF-8"))
+        val connection = (url.openConnection() as HttpURLConnection)
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 6000
+            connection.readTimeout = 8000
+            connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            val code = connection.responseCode
+            val raw = (if (code in 200..299) connection.inputStream else connection.errorStream)
+                ?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() }.orEmpty()
+            require(code in 200..299) { "دریافت مشخصات قرارداد XT ناموفق بود: HTTP $code" }
+            val response = JSONObject(raw)
+            require(response.optInt("returnCode", 0) == 0) { "XT مشخصات این قرارداد را تأیید نکرد." }
+            val result = response.optJSONObject("result")
+                ?: throw IllegalStateException("مشخصات قرارداد XT ناقص است.")
+            fun number(key: String) = result.optString(key).toDoubleOrNull()
+                ?: result.optDouble(key).takeIf { it.isFinite() } ?: 0.0
+            ContractSpec(
+                normalized, number("contractSize"), number("makerFee"), number("takerFee"),
+                number("minQty"), number("minNotional"),
+                result.optInt("pricePrecision"), result.optInt("quantityPrecision"),
+                result.optBoolean("isOpenApi"), result.optBoolean("tradeSwitch")
+            ).also {
+                require(it.contractSize > 0.0 && it.takerFeeRate in 0.0..0.02 &&
+                    it.minQty > 0.0 && it.minNotional >= 0.0 && it.openApiEnabled && it.tradingEnabled) {
+                    "قرارداد در XT برای API یا معامله فعال نیست؛ ورود مسدود شد."
+                }
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     data class AccountSnapshot(
         val canTrade: Boolean,
         val canOpenPosition: Boolean,
@@ -190,9 +241,9 @@ internal class XtAuthenticatedFuturesClient(
     ): ContractSizing {
         require(listOf(equityUsdt, availableUsdt, entry, stop, contractSize).all { it.isFinite() && it > 0.0 })
         require(entry != stop && leverage in 1..5)
-        require(riskFraction in 0.001..0.01 && marginFraction in 0.02..0.15)
+        require(riskFraction in 0.001..0.01 && marginFraction in 0.02..0.15 &&\n            takerFeeRate in 0.0..0.02 && slippageRate in 0.0..0.02)
         val riskBudget = equityUsdt * riskFraction
-        val lossPerContract = kotlin.math.abs(entry - stop) * contractSize
+        val lossPerContract = kotlin.math.abs(entry - stop) * contractSize +\n            (entry + stop) * contractSize * takerFeeRate +\n            (entry + stop) * contractSize * slippageRate
         val contractsByRisk = riskBudget / lossPerContract
         val maxNotional = minOf(availableUsdt * leverage * marginFraction, equityUsdt * leverage * marginFraction)
         val contractsByMargin = maxNotional / (entry * contractSize)
