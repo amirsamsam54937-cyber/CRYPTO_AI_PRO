@@ -1,0 +1,1 @@
+Trigger CI for the neural model loading fix and mandatory APK bundle validation.
