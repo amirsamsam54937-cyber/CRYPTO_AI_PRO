@@ -375,8 +375,11 @@ fun CryptoMonitorScreen() {
         error = null
         try {
             val progress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { partial, completed, total, failed ->
+                val reviewedPartial = withContext(Dispatchers.Default) {
+                    applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial))
+                }
                 withContext(Dispatchers.Main) {
-                    rows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial))
+                    rows = reviewedPartial
                     scannedCount = completed
                     totalContracts = total
                     scanProgress = "بررسی $completed از $total قرارداد • خطاهای داده: $failed"

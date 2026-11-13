@@ -44,7 +44,7 @@ private fun localPersianReply(question: String): String? {
         return "سلام رفیق! خوش اومدی 🐺 من ونوم، همراه وفادار برنامه‌ات هستم. می‌تونم درباره بازار و تحلیل تکنیکال کمکت کنم. چه چیزی می‌خوای بدونی؟"
     }
     if (words.any { it in setOf("ممنون", "مرسی", "سپاس", "متشکرم") }) return "خواهش می‌کنم! هر وقت خواستی من اینجام. 🐺"
-    if (normalized.contains("اسم") && (normalized.contains("تو") || normalized.contains("شما"))) return "من VENOM هستم؛ همراه هوشمند تحلیل بازار تو."
+    if (normalized.contains("اسم") && (normalized.contains("تو") || normalized.contains("شما"))) return "من ZORO هستم؛ همراه هوشمند تحلیل بازار تو."
     if (normalized in setOf("خوبی", "حالت چطوره", "چطوری")) return "ممنون، آماده‌ام کمکت کنم! تو چه کمکی ازم می‌خوای؟"
     return null
 }
@@ -60,7 +60,7 @@ internal object WolfKnowledgeSearch {
             requestMethod = "GET"
             connectTimeout = 9000
             readTimeout = 12000
-            setRequestProperty("User-Agent", "VENOM-AI/2.66 (Android)")
+            setRequestProperty("User-Agent", "ZORO-AI/2.66 (Android)")
             setRequestProperty("Accept", "application/json")
         }
         return try {
@@ -132,7 +132,7 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
     val messages = remember {
         mutableStateListOf(
             WolfChatMessage(
-                "سلام! من VENOM هستم؛ همراه دانشی و تحلیلی تو. می‌توانی درباره تحلیل تکنیکال، مفاهیم برنامه‌نویسی، علم، تاریخ و موضوعات عمومی سؤال کنی. برای پرسش‌های دانشی، وب را جست‌وجو می‌کنم و منبع را نشان می‌دهم. فعلاً موتور من بازیابی و جمع‌بندی نتایج است، نه یک مدل زبانی عمومیِ ازپیش‌آموزش‌دیده.",
+                "سلام! من ZORO هستم؛ همراه دانشی و تحلیلی تو. می‌توانی درباره تحلیل تکنیکال، مفاهیم برنامه‌نویسی، علم، تاریخ و موضوعات عمومی سؤال کنی. برای پرسش‌های دانشی، وب را جست‌وجو می‌کنم و منبع را نشان می‌دهم. فعلاً موتور من بازیابی و جمع‌بندی نتایج است، نه یک مدل زبانی عمومیِ ازپیش‌آموزش‌دیده.",
                 false
             )
         )
@@ -140,7 +140,7 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
     var input by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     val llmPrefs = remember { context.getSharedPreferences("wolf_llm_settings", android.content.Context.MODE_PRIVATE) }
-    var apiKey by remember { mutableStateOf(llmPrefs.getString("api_key", "").orEmpty()) }
+    var apiKey by remember { mutableStateOf(WolfSecretStore.get(context, "api_key")) }
     var model by remember { mutableStateOf(llmPrefs.getString("model", "openai/gpt-4o-mini") ?: "openai/gpt-4o-mini") }
     var endpoint by remember { mutableStateOf(llmPrefs.getString("endpoint", "https://openrouter.ai/api/v1/chat/completions") ?: "https://openrouter.ai/api/v1/chat/completions") }
     var configStatus by remember { mutableStateOf(if (apiKey.isBlank()) "برای پاسخ مولد، کلید API خودت را وارد کن." else "مدل زبانی پیکربندی شده است.") }
@@ -153,7 +153,7 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
     Column(Modifier.fillMaxSize().background(navy).padding(12.dp)) {
         Surface(color = Color(0xFF14243C), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {
-                Text("VENOM AI • همراه زبانی و تحلیلی", color = Color.White, fontSize = 18.sp)
+                Text("ZORO AI • همراه زبانی و تحلیلی", color = Color.White, fontSize = 18.sp)
                 Text("دانشنامه تخصصی آفلاین + جست‌وجوی وب + مدل زبانی قابل اتصال", color = muted, fontSize = 10.sp)
                 Text("بدون اتصال به حساب صرافی یا امکان ثبت سفارش", color = Color(0xFF27D6A0), fontSize = 10.sp)
             }
@@ -168,7 +168,16 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
                 OutlinedTextField(value = apiKey, onValueChange = { apiKey = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("کلید API") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(configStatus, color = muted, fontSize = 9.sp, modifier = Modifier.weight(1f))
-                    Button(onClick = { llmPrefs.edit().putString("endpoint", endpoint.trim()).putString("model", model.trim()).putString("api_key", apiKey.trim()).apply(); configStatus = if (apiKey.isBlank()) "کلید API وارد نشده؛ دانشنامه فعال است." else "تنظیمات مدل ذخیره شد." }) { Text("ذخیره مدل", fontSize = 10.sp) }
+                    Button(onClick = {
+                        runCatching {
+                            llmPrefs.edit().putString("endpoint", endpoint.trim()).putString("model", model.trim()).apply()
+                            WolfSecretStore.put(context, "api_key", apiKey.trim())
+                        }.onSuccess {
+                            configStatus = if (apiKey.isBlank()) "کلید API حذف شد؛ دانشنامه فعال است." else "تنظیمات ذخیره شد؛ کلید با Android Keystore رمزگذاری شد."
+                        }.onFailure {
+                            configStatus = "ذخیره امن کلید ناموفق بود: " + (it.message ?: "خطای رمزنگاری")
+                        }
+                    }) { Text("ذخیره امن", fontSize = 10.sp) }
                 }
                 marketSignal?.let { s -> Text("زمینه بازار: " + s.symbol + " • " + s.direction + " • اطمینان " + s.confidence + "% • RSI " + String.format(java.util.Locale.US, "%.1f", s.rsi), color = blue, fontSize = 9.sp) }
             }
@@ -184,7 +193,7 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
                         modifier = Modifier.fillMaxWidth(0.92f)
                     ) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(if (message.fromUser) "تو" else "VENOM", color = blue, fontSize = 10.sp)
+                            Text(if (message.fromUser) "تو" else "ZORO", color = blue, fontSize = 10.sp)
                             Text(message.text, color = Color.White, fontSize = 12.sp, lineHeight = 18.sp)
                             if (message.source.isNotBlank()) Text("منبع: " + message.source, color = muted, fontSize = 9.sp)
                         }
