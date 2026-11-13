@@ -1779,12 +1779,13 @@ internal object MarketAnalysisEngine {
             maxOf(atrBase, structuralDistance).coerceAtMost(atrValue * 2.5)
         else atrBase
         val stop = when { isLong -> price - stopDistance; isShort -> price + stopDistance; else -> price }
-        // Three staged targets: 1R / 2R / 3R. TP3 respects a nearby confirmed
-        // structural barrier only when that barrier is beyond TP2; targets never collapse
-        // into a duplicate single level. These are analytical levels, not guaranteed fills.
-        val tp1 = when { isLong -> price + stopDistance; isShort -> price - stopDistance; else -> price }
-        val tp2 = when { isLong -> price + stopDistance * 2.0; isShort -> price - stopDistance * 2.0; else -> price }
-        val rawTp3 = when { isLong -> price + stopDistance * 3.0; isShort -> price - stopDistance * 3.0; else -> price }
+        // Targets are deliberately 2R / 3R / 4R: the first published target must
+        // satisfy the independent 1.8R execution-quality and Commander gates.
+        // TP3 may respect a nearby confirmed structural barrier beyond TP2.
+        // These are analytical levels, not guaranteed fills.
+        val tp1 = when { isLong -> price + stopDistance * 2.0; isShort -> price - stopDistance * 2.0; else -> price }
+        val tp2 = when { isLong -> price + stopDistance * 3.0; isShort -> price - stopDistance * 3.0; else -> price }
+        val rawTp3 = when { isLong -> price + stopDistance * 4.0; isShort -> price - stopDistance * 4.0; else -> price }
         val structuralTp3 = when {
             isLong && a.technical.resistance > tp2 && a.technical.resistance < rawTp3 -> a.technical.resistance
             isShort && a.technical.support < tp2 && a.technical.support > rawTp3 -> a.technical.support
