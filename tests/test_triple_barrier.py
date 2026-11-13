@@ -22,7 +22,7 @@ class TripleBarrierTests(unittest.TestCase):
 
     def test_vertical_barrier_uses_net_cost_adjusted_return(self):
         labels = triple_barrier_labels(
-            [100, 100, 100], [100, 100, 100],
+            [100, 100, 100], [100, 100.5, 100.5],
             [100, 100, 100], [100, 100.5, 100.5],
             profit_target=0.05, stop_loss=0.05, horizon=1,
             round_trip_cost=0.01,
