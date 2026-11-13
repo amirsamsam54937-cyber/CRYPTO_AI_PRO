@@ -30,6 +30,12 @@ def collect(exchange_id):
                   "options": {"defaultType": "swap"}})
     try:
         ex.load_markets()
+        # XT's public spot currency catalogue exposes an explicit currency type;
+        # CCXT maps XT type='FT' to type='crypto'. Use it to verify each futures
+        # underlying instead of guessing from USDT settlement or ticker spelling.
+        spot_currencies = ex.fetch_currencies()
+        if not spot_currencies:
+            raise RuntimeError("XT public spot currency metadata is empty; refusing unclassified futures.")
         perpetuals = [m for m in ex.markets.values()
                       if m.get("active") is not False and m.get("swap")
                       and m.get("linear") and m.get("quote") == "USDT"
@@ -37,7 +43,7 @@ def collect(exchange_id):
         markets, excluded_non_crypto, excluded_unknown = [], [], []
         classification_by_symbol = {}
         for market in perpetuals:
-            classification, reason = classify_xt_market(market)
+            classification, reason = classify_xt_market(market, spot_currencies)
             symbol = market.get("symbol", "UNKNOWN")
             if classification == "crypto":
                 markets.append(market)
@@ -152,7 +158,10 @@ def main():
         "timeframe": TIMEFRAME,
         "source_exchanges": sorted({r[0] for r in rows}),
         "data_source_policy": "XT_USDT_M_CRYPTO_ONLY",
-        "asset_class_policy": "EXPLICIT_XT_METADATA_CRYPTO_ONLY",
+        "asset_class_policy": "XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY",
+        "currency_universe_source": "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES",
+        "spot_currency_universe_count": len(spot_currencies),
+        "spot_crypto_currency_count": sum(1 for c in spot_currencies.values() if c.get("type") == "crypto"),
         "crypto_only_verified": True,
         "eligible_perpetuals": len(markets),
         "excluded_non_crypto_count": len(excluded_non_crypto),
