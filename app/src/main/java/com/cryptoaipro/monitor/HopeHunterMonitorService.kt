@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Foreground market scanner for ZORO.
- * Analysis, signal publication and outcome learning only; no account or order execution.
+ * Analysis, signal publication, validated paper autopilot and outcome learning. Live order execution remains locked.
  */
 class HopeHunterMonitorService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -74,6 +74,7 @@ class HopeHunterMonitorService : Service() {
                     WolfFlowNewsRepository.refreshForEngine(this@HopeHunterMonitorService, signals, "XT")
                     val enrichedSignals = WolfFlowNewsRepository.enrichSignals(this@HopeHunterMonitorService, signals)
                     val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, enrichedSignals)
+                    val paperSnapshot = HopePaperTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
                     notifyNewPublishedSignals(scoredSignals)
                     withContext(Dispatchers.Default) {
                         HopeScenarioLab.recordAndEvaluate(this@HopeHunterMonitorService, scoredSignals)
@@ -81,7 +82,7 @@ class HopeHunterMonitorService : Service() {
                     val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, scoredSignals)
                     val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records)
                     HopeLivingBrain.runCycle(this@HopeHunterMonitorService, scoredSignals, learningStats, outcomeSnapshot.records)
-                    updateNotification("پایش و تحلیل کامل • " + scoredSignals.size + " تحلیل • بدون اجرای سفارش")
+                    updateNotification("پایش کامل • " + scoredSignals.size + " تحلیل • معاملات آزمایشی: " + paperSnapshot.positions.size + " موقعیت • اجرای واقعی قفل است")
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
