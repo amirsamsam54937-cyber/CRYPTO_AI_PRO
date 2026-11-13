@@ -106,30 +106,36 @@ internal object HopeScenarioLab {
                 val start = rng.nextInt(recent.size)
                 for (j in 0 until BLOCK) {
                     if (step >= HORIZON) break
-                    sum += drift + (recent[(start+j)%recent.size]-mean)*0.90
-                    val move = (exp(sum)-1.0)*100.0
+                    val sourceIndex = (start + j) % recent.size
+                    val sourceCandle = c[sourceIndex + 1]
+                    sum += drift + (recent[sourceIndex] - mean) * 0.90
+                    val move = (exp(sum) - 1.0) * 100.0
                     highExcursion = max(highExcursion, move)
                     lowExcursion = min(lowExcursion, move)
                     val simulatedPrice = base * exp(sum)
+                    // Reuse sampled OHLC range around simulated close. If both barriers
+                    // are touched in one candle, choose the stop first (conservative ordering).
+                    val simulatedHigh = simulatedPrice * (sourceCandle[1] / sourceCandle[3])
+                    val simulatedLow = simulatedPrice * (sourceCandle[2] / sourceCandle[3])
                     if (firstBarrier == null) {
-                        if (resistance != null && simulatedPrice >= resistance) firstBarrier = "شکست مقاومت"
-                        else if (support != null && simulatedPrice <= support) firstBarrier = "شکست حمایت"
+                        if (resistance != null && simulatedHigh >= resistance) firstBarrier = "شکست مقاومت"
+                        else if (support != null && simulatedLow <= support) firstBarrier = "شکست حمایت"
                     }
                     if (hasTradeLevels && firstTradeBarrier == null) {
                         firstTradeBarrier = if (isLong) {
                             when {
-                                simulatedPrice <= stopLevel!! -> "SL"
-                                simulatedPrice >= targets[2] -> "TP3"
-                                simulatedPrice >= targets[1] -> "TP2"
-                                simulatedPrice >= targets[0] -> "TP1"
+                                simulatedLow <= stopLevel!! -> "SL"
+                                simulatedHigh >= targets[2] -> "TP3"
+                                simulatedHigh >= targets[1] -> "TP2"
+                                simulatedHigh >= targets[0] -> "TP1"
                                 else -> null
                             }
                         } else {
                             when {
-                                simulatedPrice >= stopLevel!! -> "SL"
-                                simulatedPrice <= targets[2] -> "TP3"
-                                simulatedPrice <= targets[1] -> "TP2"
-                                simulatedPrice <= targets[0] -> "TP1"
+                                simulatedHigh >= stopLevel!! -> "SL"
+                                simulatedLow <= targets[2] -> "TP3"
+                                simulatedLow <= targets[1] -> "TP2"
+                                simulatedLow <= targets[0] -> "TP1"
                                 else -> null
                             }
                         }
