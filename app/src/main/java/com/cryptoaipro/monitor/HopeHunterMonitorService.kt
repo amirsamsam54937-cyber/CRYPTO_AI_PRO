@@ -80,7 +80,7 @@ class HopeHunterMonitorService : Service() {
                     // When enabled, only Commander-approved 5m scalps with fresh liquidity
                     // flow and exchange-native TP/SL are eligible for an XT order.
                     XtLiveTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
-                    notifyNewPublishedSignals(scoredSignals)
+                    // Trading-only interface: never publish signal notifications.
                     withContext(Dispatchers.Default) {
                         HopeScenarioLab.recordAndEvaluate(this@HopeHunterMonitorService, scoredSignals)
                     }
