@@ -122,7 +122,7 @@ internal fun XtApiCredentialPanel(context: Context) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("اتصال امن API صرافی XT", color = ivory, fontSize = 14.sp, fontWeight = FontWeight.Black)
             Text(
-                "کلید فقط در حافظه امن Android Keystore رمزنگاری و روی همین گوشی نگهداری می‌شود. این نسخه هنوز از این کلیدها برای ثبت سفارش یا اتصال حساب استفاده نمی‌کند.",
+                "کلید فقط در Android Keystore رمزنگاری می‌شود. با فعال‌کردن اجرای واقعی، ZORO از آن برای خواندن حساب، بازیابی پوزیشن‌ها و ثبت سفارش فیوچرز استفاده می‌کند.",
                 color = muted, fontSize = 10.sp, lineHeight = 15.sp
             )
             OutlinedTextField(
@@ -158,7 +158,9 @@ internal fun XtApiCredentialPanel(context: Context) {
             ) { Text("ذخیره امن روی گوشی") }
             TextButton(
                 onClick = {
+                    XtLiveTradingEngine.setEnabled(context, false)
                     XtCredentialVault.clear(context)
+                    liveEnabled = false
                     appKey = ""
                     secret = ""
                     permissionConfirmed = false
@@ -194,7 +196,7 @@ internal fun XtApiCredentialPanel(context: Context) {
             }
             Text(status, color = gold, fontSize = 9.sp, lineHeight = 14.sp)
             Text(
-                "کلید را در چت ارسال نکن. برای حساب شخصی، IP whitelist را در پنل XT فعال کن. این ذخیره‌سازی به‌تنهایی اتصال یا مجوز معامله واقعی را فعال نمی‌کند.",
+                "کلید را در چت ارسال نکن. مجوز برداشت را خاموش نگه دار و IP whitelist را در پنل XT فعال کن. اجرای واقعی فقط با کلید معتبر، مجوز Trade و روشن‌بودن کلید اجرای خودکار کار می‌کند.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
             )
         }
