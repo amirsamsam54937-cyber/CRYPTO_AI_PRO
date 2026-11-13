@@ -10,8 +10,8 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 83
-  versionName = "2.63.0"
+  versionCode = 84
+  versionName = "2.63.1"
   // Release 2.63.0: role-diverse future-direction neural experts and premium obsidian/gold artwork.
  }
  buildFeatures { compose = true }
