@@ -325,6 +325,7 @@ fun CryptoMonitorScreen() {
     var paperSnapshot by remember { mutableStateOf<HopePaperTradingEngine.Snapshot?>(null) }
     var scenarioScorecard by remember(context) { mutableStateOf<HopeScenarioScorecard?>(null) }
     LaunchedEffect(Unit) {
+        paperSnapshot = HopePaperTradingEngine.snapshot(context)
         researchStats = WolfMarketDataStore.importVerifiedSeed(context)
         scenarioScorecard = withContext(Dispatchers.Default) {
             HopeScenarioLab.recordAndEvaluate(context, rows)
@@ -393,6 +394,9 @@ fun CryptoMonitorScreen() {
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
+            paperSnapshot = withContext(Dispatchers.Default) {
+                HopePaperTradingEngine.processScan(context, rows)
+            }
             scenarioScorecard = withContext(Dispatchers.Default) {
                 HopeScenarioLab.recordAndEvaluate(context, rows)
             }
