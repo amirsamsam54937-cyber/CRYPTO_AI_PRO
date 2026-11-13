@@ -14,7 +14,7 @@
    android:foregroundServiceType="specialUse">
    <property
     android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-    android:value="Read-only public cryptocurrency futures market monitoring and status notifications" />
+    android:value="User-enabled USDT-M futures market monitoring, live order execution, and open-position protection" />
   </service>
   <activity android:name=".MainActivity" android:exported="true">
    <intent-filter>
