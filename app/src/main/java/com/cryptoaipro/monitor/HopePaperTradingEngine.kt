@@ -217,7 +217,8 @@ internal object HopePaperTradingEngine {
                     // Entry slippage is already reflected in fill-to-stop distance; cost reserve
                     // below therefore includes round-trip fees plus the exit-side slippage only.
                     val fill = s.entry * (if (isLong) 1.0 + SLIPPAGE_PER_SIDE else 1.0 - SLIPPAGE_PER_SIDE)
-                    val riskReward = abs(s.tp1 - fill) / abs(fill - s.stop).coerceAtLeast(1e-12)
+                    val roundTripCostPercent = (FEE_PER_SIDE * 2.0 + SLIPPAGE_PER_SIDE) * 100.0
+                    val riskReward = DynamicTradingPolicy.netRiskReward(fill, s.stop, s.tp1, roundTripCostPercent)
                     val plan = DynamicTradingPolicy.evaluate(
                         DynamicTradingPolicy.Input(
                             direction = s.direction,
@@ -243,7 +244,7 @@ internal object HopePaperTradingEngine {
                         availableUsdt = currentEquity,
                         entry = fill,
                         stop = s.stop,
-                        estimatedRoundTripCostPercent = (FEE_PER_SIDE * 2.0 + SLIPPAGE_PER_SIDE) * 100.0
+                        estimatedRoundTripCostPercent = roundTripCostPercent
                     ) ?: return@forEach
                     if ((openRisk + plan.estimatedLossAtStopUsdt) / currentEquity * 100.0 > 2.5) return@forEach
                     val position = Position(s.symbol, s.direction, plan.quantity, fill, s.stop, s.tp1,
