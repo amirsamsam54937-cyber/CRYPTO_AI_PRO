@@ -5,7 +5,7 @@ import org.junit.Test
 import kotlin.math.exp
 
 class PaperCorrelationGuardTest {
-    private fun candles(inverse: Boolean = false): List<DoubleArray> = (0 until 48).map { i ->
+    private fun candles(inverse: Boolean = false): List<DoubleArray> = (0 until 80).map { i ->
         val logReturn = 0.01 * i + 0.002 * kotlin.math.sin(i.toDouble())
         val close = if (inverse) 200.0 * exp(-logReturn) else 100.0 * exp(logReturn)
         doubleArrayOf(close, close * 1.01, close * 0.99, close, 1000.0, i * 900_000.0)
