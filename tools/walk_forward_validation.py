@@ -5,6 +5,7 @@ window is strictly later than its training window, and the label horizon is
 purged before each test window. This module deliberately does not fit models.
 """
 from __future__ import annotations
+import hashlib
 import numpy as np
 
 HOUR_MS = 60 * 60 * 1000
