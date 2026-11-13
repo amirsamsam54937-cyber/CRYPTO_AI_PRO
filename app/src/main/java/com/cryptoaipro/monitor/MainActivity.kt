@@ -291,6 +291,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun CryptoMonitorScreen() {
+    val context = LocalContext.current
     var rows by remember { mutableStateOf<List<MarketSignal>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -306,7 +307,6 @@ fun CryptoMonitorScreen() {
     var voiceTranscript by remember { mutableStateOf("") }
     var voiceReply by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     val appSettings = remember(context) {
         context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE)
     }
