@@ -97,10 +97,23 @@ internal object WolfPretrainedEnsemble {
             val testSamples=root.optInt("test_samples",0)
             val chronological=evaluation?.optString("split","")=="chronological_purged"
             val correctTarget=evaluation?.optString("target","")=="future_price_direction_up_vs_down"
+            val walk=root.optJSONObject("walk_forward")
+            val cross=root.optJSONObject("cross_symbol_holdout")
+            val walkForwardValid=walk!=null && walk.optString("status")=="evaluated" &&
+                walk.optInt("fold_count",0)>=3 &&
+                walk.optDouble("mean_balanced_accuracy",0.0)>=0.50 &&
+                walk.optDouble("mean_log_loss",Double.POSITIVE_INFINITY) <
+                    walk.optDouble("mean_baseline_log_loss",Double.NEGATIVE_INFINITY)
+            val unseenSymbolValid=cross!=null && cross.optString("status")=="evaluated" &&
+                cross.optDouble("balanced_accuracy",0.0)>=0.50 &&
+                cross.optDouble("log_loss",Double.POSITIVE_INFINITY) <
+                    cross.optDouble("baseline_log_loss",Double.NEGATIVE_INFINITY) &&
+                cross.optDouble("roc_auc",0.0)>=0.52
             val validated=evaluation!=null && chronological && correctTarget && testSamples>=300 &&
                 balanced.isFinite() && balanced>=0.52 && loss.isFinite() && baselineLoss.isFinite() && loss<baselineLoss &&
                 accuracy.isFinite() && accuracy>=baseline && brier.isFinite() && baselineBrier.isFinite() &&
-                brier<baselineBrier && auc.isFinite() && auc>=0.55 && ece.isFinite() && ece<=0.10
+                brier<baselineBrier && auc.isFinite() && auc>=0.55 && ece.isFinite() && ece<=0.10 &&
+                walkForwardValid && unseenSymbolValid
             status=Status(true,members.size,root.optInt("samples"),root.optString("trained_at_utc"),
                 accuracy,baseline,balanced,loss,validated,corpusRows,brier,auc,ece)
         }.onFailure { error ->
