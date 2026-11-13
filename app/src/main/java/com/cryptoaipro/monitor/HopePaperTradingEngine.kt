@@ -204,6 +204,13 @@ internal object HopePaperTradingEngine {
                     if (survivors.any { it.symbol == s.symbol }) return@forEach
                     val openRisk = survivors.sumOf { it.riskUsdt }
                     val openRiskPctNow = openRisk / currentEquity * 100.0
+                    val memberProbabilities = s.neuralMemberProbabilities
+                    if (memberProbabilities.size != 10 ||
+                        memberProbabilities.any { !it.isFinite() || it !in 0.0..1.0 }) return@forEach
+                    val memberMean = memberProbabilities.average()
+                    val neuralDisagreement = kotlin.math.sqrt(
+                        memberProbabilities.sumOf { (it - memberMean) * (it - memberMean) } / memberProbabilities.size
+                    )
                     val regime = WolfRegimeRiskEngine.analyze(s.candles) ?: return@forEach
                     val isLong = s.direction == "LONG_BIAS"
                     // Size against the adverse simulated entry fill, not the ideal signal price.
@@ -229,7 +236,8 @@ internal object HopePaperTradingEngine {
                             maxPositions = 3,
                             dailyEntries = dailyEntries,
                             consecutiveLosses = consecutiveDailyLosses,
-                            peakDrawdownPercent = peakDrawdownPct
+                            peakDrawdownPercent = peakDrawdownPct,
+                            neuralDisagreement = neuralDisagreement
                         ),
                         equityUsdt = currentEquity,
                         availableUsdt = currentEquity,
