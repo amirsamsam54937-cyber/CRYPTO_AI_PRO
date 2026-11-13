@@ -190,8 +190,8 @@ jobs:
           assert manifest.get("data_source_policy")=="XT_USDT_M_CRYPTO_ONLY" and manifest.get("source_exchanges")==["XT"]
           assert manifest.get("asset_class_policy")=="XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH"
           assert len(manifest.get("currency_metadata_sha256",""))==64
-           assert manifest.get("crypto_asset_registry_source")=="COINGECKO_PUBLIC_COINS_LIST"
-           assert len(manifest.get("crypto_asset_registry_sha256",""))==64
+          assert manifest.get("crypto_asset_registry_source")=="COINGECKO_PUBLIC_COINS_LIST"
+          assert len(manifest.get("crypto_asset_registry_sha256",""))==64
           assert manifest.get("crypto_only_verified") is True
           assert manifest.get("currency_universe_source") == "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES+COINGECKO_PUBLIC_COINS_LIST"
           assert manifest.get("xt_crypto_type_currency_count",0) >= 1
@@ -222,8 +222,8 @@ jobs:
           assert set(model.get("symbols",[])).issubset(set(manifest.get("crypto_symbols",[])))
           assert model.get("corpus_sha256")==manifest.get("sha256")
           assert model.get("currency_metadata_sha256")==manifest.get("currency_metadata_sha256")
-           assert model.get("crypto_asset_registry_source")==manifest.get("crypto_asset_registry_source")
-           assert model.get("crypto_asset_registry_sha256")==manifest.get("crypto_asset_registry_sha256")
+          assert model.get("crypto_asset_registry_source")==manifest.get("crypto_asset_registry_source")
+          assert model.get("crypto_asset_registry_sha256")==manifest.get("crypto_asset_registry_sha256")
           print("Verified: 10 XT-trained neural specialists and chronological holdout gates.")
           PY
       - name: Verify analysis-only product has no live execution entry points
