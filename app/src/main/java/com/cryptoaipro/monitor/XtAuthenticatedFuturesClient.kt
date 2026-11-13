@@ -38,7 +38,7 @@ import javax.crypto.spec.SecretKeySpec
 internal data class XtLivePosition(
     val symbol: String,
     val side: String,
-    /** XT positionSize is base-asset quantity; convert by contractSize for order lots. */
+    /** XT positionSize and availableCloseSize are already integer-contract quantities. */
     val quantity: Double,
     val availableCloseQuantity: Double,
     val entryPrice: Double,
@@ -304,7 +304,8 @@ internal class XtAuthenticatedFuturesClient(
             .put("symbol", normalizeSymbol(position.symbol))
             .put("orderSide", closeSide)
             .put("entrustType", entrustType)
-            .put("origQty", floorContracts(position.quantity / position.contractSize))
+            // XT active-position response reports positionSize in contracts already.
+            .put("origQty", floorContracts(position.quantity))
             .put("stopPrice", BigDecimal.valueOf(triggerPrice).stripTrailingZeros().toPlainString())
             .put("timeInForce", "IOC")
             .put("triggerPriceType", "MARK_PRICE")
@@ -317,7 +318,8 @@ internal class XtAuthenticatedFuturesClient(
      * close quantity and explicit positionSide; never uses close-all.
      */
     suspend fun emergencyClose(position: XtLivePosition): JSONObject {
-        val qty = floorContracts(position.availableCloseQuantity / position.contractSize)
+        // XT active-position response reports availableCloseSize in contracts already.
+        val qty = floorContracts(position.availableCloseQuantity)
         require(qty > 0L) { "هیچ حجم آزادی برای بستن اضطراری پوزیشن وجود ندارد." }
         val body = JSONObject()
             .put("clientOrderId", "ZORO-EXIT-" + UUID.randomUUID().toString().replace("-", "").take(20))
