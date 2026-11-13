@@ -66,9 +66,7 @@ class HopeHunterMonitorService : Service() {
                     WolfMarketDataStore.recordLiveScan(this@HopeHunterMonitorService, "XT", signals)
                     // Background intelligence refresh is throttled internally to 15 minutes.
                     WolfFlowNewsRepository.refreshForEngine(this@HopeHunterMonitorService, signals, "XT")
-                    // Keep background scans behaviorally identical to foreground scans:
-                    // score with the guarded neural ensemble, update outcome memory, and
-                    // advance the virtual ledger. This engine has no exchange-order adapter.
+                    // Keep background scans behaviorally identical to foreground scans.
                     val enrichedSignals = WolfFlowNewsRepository.enrichSignals(this@HopeHunterMonitorService, signals)
                     val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, enrichedSignals)
                     // Live execution remains disabled until explicitly enabled in settings.
@@ -76,7 +74,6 @@ class HopeHunterMonitorService : Service() {
                     // flow and exchange-native TP/SL are eligible for an XT order.
                     XtLiveTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
                     notifyNewPublishedSignals(scoredSignals)
-                    val paperSnapshot = HopePaperTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
                     withContext(Dispatchers.Default) {
                         HopeScenarioLab.recordAndEvaluate(this@HopeHunterMonitorService, scoredSignals)
                     }
@@ -84,9 +81,8 @@ class HopeHunterMonitorService : Service() {
                     val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records)
                     HopeLivingBrain.runCycle(this@HopeHunterMonitorService, scoredSignals, learningStats, outcomeSnapshot.records)
                     updateNotification(
-                        "پایش کامل • " + scoredSignals.size + " تحلیل • مجازی: " +
-                            String.format(java.util.Locale.US, "%.2f", paperSnapshot.equity) +
-                            " USDT • موقعیت باز: " + paperSnapshot.positions.size
+                        "پایش کامل • " + scoredSignals.size + " تحلیل • پوزیشن واقعی XT: " +
+                            XtLiveTradingEngine.positionCount(this@HopeHunterMonitorService)
                     )
                 } catch (cancelled: CancellationException) {
                     throw cancelled
