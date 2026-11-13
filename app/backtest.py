@@ -69,6 +69,7 @@ def run_backtest(
     )
     if invalid_bounds.any():
         raise ValueError("OHLC candle high/low bounds are inconsistent")
+    timestamps = None
     if "timestamp" in data.columns:
         timestamps = pd.to_datetime(data["timestamp"], utc=True, errors="coerce")
         if timestamps.isna().any() or timestamps.duplicated().any() or not timestamps.is_monotonic_increasing:
@@ -79,6 +80,14 @@ def run_backtest(
         raise ValueError("Invalid execution cost or leverage settings")
     if atr_multiple <= 0 or reward_risk < 1:
         raise ValueError("Invalid stop or reward/risk parameters")
+
+    def holding_hours(position: dict, current_index: int) -> float:
+        """Use real elapsed UTC time when timestamps exist; otherwise use bar cadence."""
+        entry_index = position["entry_index"]
+        if timestamps is not None:
+            elapsed = (timestamps.iloc[current_index] - timestamps.iloc[entry_index]).total_seconds() / 3600.0
+            return max(0.0, elapsed)
+        return max(0.0, (current_index - entry_index) * position["bar_hours"])
 
     equity = float(initial_equity)
     peak = equity
@@ -114,7 +123,7 @@ def run_backtest(
                 direction = 1 if side == "LONG" else -1
                 gross = (exit_price - position["entry"]) * position["quantity"] * direction
                 exit_fee = abs(exit_price * position["quantity"]) * fee_rate
-                elapsed_hours = max(0.0, (i - position["entry_index"]) * position["bar_hours"])
+                elapsed_hours = holding_hours(position, i)
                 funding = position["notional"] * funding_rate_8h * (elapsed_hours / 8.0)
                 fees = position["entry_fee"] + exit_fee
                 slip_cost = position["entry_slip_cost"] + abs(raw_exit-exit_price)*position["quantity"]
@@ -191,9 +200,7 @@ def run_backtest(
                 * mark_direction
             )
             mark_exit_fee = abs(mark_exit * position["quantity"]) * fee_rate
-            elapsed_hours = max(
-                0.0, (i - position["entry_index"]) * position["bar_hours"]
-            )
+            elapsed_hours = holding_hours(position, i)
             accrued_funding = (
                 position["notional"] * funding_rate_8h * (elapsed_hours / 8.0)
             )
@@ -216,7 +223,7 @@ def run_backtest(
         direction = 1 if side == "LONG" else -1
         gross = (exit_price-position["entry"])*position["quantity"]*direction
         exit_fee = abs(exit_price*position["quantity"])*fee_rate
-        elapsed_hours = max(0.0, (len(data)-1-position["entry_index"])*position["bar_hours"])
+        elapsed_hours = holding_hours(position, len(data)-1)
         funding = position["notional"]*funding_rate_8h*(elapsed_hours/8.0)
         fees = position["entry_fee"]+exit_fee
         slip_cost = position["entry_slip_cost"]+abs(raw_exit-exit_price)*position["quantity"]
