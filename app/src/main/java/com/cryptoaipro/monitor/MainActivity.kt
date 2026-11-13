@@ -368,6 +368,7 @@ fun CryptoMonitorScreen() {
     suspend fun performScan() {
         loading = true
         error = null
+        ZoroDiagnostics.record(context, "اسکن", "INFO", "شروع اسکن زنده؛ صرافی=" + selectedExchange)
         try {
             val progress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { partial, completed, total, failed ->
                 val reviewedPartial = withContext(Dispatchers.Default) {
@@ -385,6 +386,15 @@ fun CryptoMonitorScreen() {
             val scanned = XtFuturesMonitor.scan(progress)
             researchStats = WolfMarketDataStore.recordLiveScan(context, selectedExchange, scanned)
             val scoredRows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned))
+            val publishedCount = scoredRows.count { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
+            val blockedCount = scoredRows.size - publishedCount
+            val blockReasons = scoredRows.filter { it.direction == "NEUTRAL" }
+                .groupingBy { it.agreementStatus }.eachCount().entries.sortedByDescending { it.value }
+                .take(5).joinToString(" || ") { it.key + " (" + it.value + ")" }
+            val neuralStatus = WolfPretrainedEnsemble.status()
+            ZoroDiagnostics.record(context, "اسکن", "INFO", "داده تحلیل‌شده=${scanned.size}؛ منتشرشده=${publishedCount}؛ متوقف‌شده=${blockedCount}")
+            ZoroDiagnostics.record(context, "شبکه عصبی", if (neuralStatus.validatedForScoring) "INFO" else "WARN", "معتبر=${neuralStatus.validatedForScoring}؛ اعضا=${neuralStatus.members}/10؛ corpus=${neuralStatus.corpusRows}")
+            if (blockReasons.isNotBlank()) ZoroDiagnostics.record(context, "فیلتر سیگنال", "WARN", blockReasons)
             rows = withContext(Dispatchers.Default) { HopeScenarioLab.applySignalImpact(scoredRows) }
             scannedCount = totalContracts
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
@@ -406,6 +416,7 @@ fun CryptoMonitorScreen() {
                 selectedSymbol = rows.firstOrNull()?.symbol.orEmpty()
             }
         } catch (e: Exception) {
+            ZoroDiagnostics.record(context, "اسکن", "ERROR", e.javaClass.simpleName + ": " + (e.message ?: "خطای نامشخص"))
             val rawMessage = e.message ?: "خطا در دریافت اطلاعات بازار"
             error = if (rawMessage.contains("<html", ignoreCase = true) ||
                 rawMessage.contains("<!doctype", ignoreCase = true) ||
@@ -445,11 +456,11 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Color(0xFF080808), contentColor = Color.White) {
-                    listOf("خانه", "فرمانده", "بازار", "قدرت سیگنال", "دفترچه", "تنظیمات").forEach { entry ->
+                    listOf("خانه", "فرمانده", "بازار", "قدرت سیگنال", "دفترچه", "عیب‌یابی", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
                             onClick = { selectedTab = entry },
-                            icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "قدرت سیگنال" -> Icons.Outlined.Insights; "فرمانده" -> Icons.Outlined.Psychology; "جریان بازار" -> Icons.Outlined.Timeline; "دفترچه" -> Icons.Outlined.MenuBook; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
+                            icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "قدرت سیگنال" -> Icons.Outlined.Insights; "فرمانده" -> Icons.Outlined.Psychology; "جریان بازار" -> Icons.Outlined.Timeline; "دفترچه" -> Icons.Outlined.MenuBook; "عیب‌یابی" -> Icons.Outlined.Insights; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
                             label = { Text(entry, fontSize = 9.sp, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Blue,
@@ -631,6 +642,10 @@ fun CryptoMonitorScreen() {
                             onRescan = { scope.launch { performScan() } })
                     }
 
+                    "عیب‌یابی" -> {
+                        ZoroDiagnosticsScreen(context)
+                    }
+
                     "دفترچه" -> {
                         SignalJournalScreen(
                             outcomeSnapshot, backtestSnapshot, backtestEnabled, backtestLoading, backtestStatus,
@@ -685,6 +700,7 @@ fun CryptoMonitorScreen() {
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Text("تنظیمات و پایش پس‌زمینه", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                            OutlinedButton(onClick = { selectedTab = "عیب‌یابی" }, modifier = Modifier.fillMaxWidth()) { Text("مرکز عیب‌یابی و گزارش خطاهای ZORO", color = Blue) }
                             HopeAnimatedBrainBanner()
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
