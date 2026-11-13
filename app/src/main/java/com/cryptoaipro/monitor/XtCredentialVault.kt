@@ -102,7 +102,7 @@ internal object XtCredentialVault {
 }
 
 @Composable
-internal fun XtApiCredentialPanel(context: Context) {
+internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> Unit = {}) {
     var appKey by remember { mutableStateOf("") }
     var secret by remember { mutableStateOf("") }
     var permissionConfirmed by remember { mutableStateOf(false) }
@@ -186,7 +186,7 @@ internal fun XtApiCredentialPanel(context: Context) {
                                 action = HopeHunterMonitorService.ACTION_START
                             }
                             runCatching { context.startForegroundService(serviceIntent) }
-                                .onSuccess { status = "اجرای واقعی فعال شد؛ سرویس پایش و بازیابی پوزیشن XT شروع شد." }
+                                .onSuccess { status = "اجرای واقعی فعال شد؛ سرویس پایش و بازیابی پوزیشن XT شروع شد."; onBackgroundStarted() }
                                 .onFailure { status = "سرویس شروع نشد؛ اجرای واقعی تا فعال‌شدن سرویس متوقف می‌ماند: ${it.message}" }
                         } else {
                             status = "ورودهای جدید متوقف شد؛ پایش و حفاظت پوزیشن‌های باز تا زمان توقف سرویس ادامه دارد."
