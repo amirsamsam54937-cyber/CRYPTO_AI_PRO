@@ -42,14 +42,18 @@ internal object WolfPretrainedEnsemble {
         if(status.loaded) return status
         runCatching {
             val root=JSONObject(context.assets.open("wolf_pretrained_ensemble.json").bufferedReader().use{it.readText()})
-            require(root.optString("format")=="amir-wolf-ensemble-v1")
-            require(root.optString("target_definition")=="future_return_over_6_hours_positive_vs_nonpositive")
+            require(root.optString("format")=="amir-wolf-ensemble-v2")
+            require(root.optString("target_definition")=="future_return_6h_up_vs_down_neutral_band_excluded")
             val corpus=JSONObject(context.assets.open("wolf_corpus_manifest.json").bufferedReader().use{it.readText()})
             val corpusRows=corpus.optInt("rows",0)
             val sources=corpus.optJSONArray("source_exchanges")
             require(corpus.optString("status")=="verified_real_exchange_data" &&
                 corpusRows>=898_920 && corpus.optInt("synthetic_rows",-1)==0 &&
-                corpus.optString("data_source_policy")=="XT_USDT_M_ONLY" &&
+                corpus.optString("data_source_policy")=="XT_USDT_M_CRYPTO_ONLY" &&
+                corpus.optString("asset_class_policy")=="XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY" &&
+                corpus.optBoolean("crypto_only_verified",false) &&
+                corpus.optString("currency_universe_source")=="XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES" &&
+                corpus.optString("currency_metadata_sha256").length==64 &&
                 sources!=null && sources.length()==1 && sources.optString(0).equals("XT",ignoreCase=true))
             fun vector(a:org.json.JSONArray)=DoubleArray(a.length()){a.getDouble(it)}
             fun matrix(a:org.json.JSONArray)=Array(a.length()){r->vector(a.getJSONArray(r))}
@@ -70,6 +74,14 @@ internal object WolfPretrainedEnsemble {
             scale=vector(root.getJSONArray("feature_scale")).map{if(it==0.0)1.0 else it}.toDoubleArray()
             trainingPriorLogOdds=root.optDouble("training_prior_log_odds",0.0)
             require(mean.size==7 && scale.size==7 && trainingPriorLogOdds.isFinite())
+            require(root.optString("data_source_policy")==corpus.optString("data_source_policy"))
+            require(root.optString("asset_class_policy")==corpus.optString("asset_class_policy"))
+            require(root.optString("corpus_sha256")==corpus.optString("sha256"))
+            require(root.optString("currency_metadata_sha256")==corpus.optString("currency_metadata_sha256"))
+            val cryptoSymbols=corpus.optJSONArray("crypto_symbols")
+            val verifiedSymbols=(0 until (cryptoSymbols?.length() ?: 0)).map { cryptoSymbols!!.optString(it) }.toSet()
+            val modelSymbols=root.optJSONArray("symbols")
+            require(modelSymbols!=null && (0 until modelSymbols.length()).all { verifiedSymbols.contains(modelSymbols.optString(it)) })
             val metrics=root.getJSONArray("metrics")
             val memberAccuracy=(0 until metrics.length()).map{metrics.getJSONObject(it).optDouble("accuracy",0.0)}.average()
             val evaluation=root.optJSONObject("evaluation")
