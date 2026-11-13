@@ -172,15 +172,15 @@ internal object XtLiveTradingEngine {
                 val notional = sizing.contracts * entry * spec.contractSize
                 if (sizing.contracts < spec.minQty || notional < spec.minNotional) continue
 
-                val result = runCatching {
+                val result = try {
                     client.openMarketWithProtection(
                         symbol = symbol, side = side, contracts = sizing.contracts,
                         leverage = leverage, entryPrice = entry,
                         takeProfit = target, stopLoss = stop
                     )
-                }.getOrElse {
+                } catch (error: Exception) {
                     ZoroDiagnostics.record(context, "XT_LIVE", "ERROR",
-                        "سفارش $symbol به‌دلیل رد درخواست یا خطای حفاظتی ارسال/تأیید نشد: ${it.message}")
+                        "سفارش $symbol به‌دلیل رد درخواست یا خطای حفاظتی ارسال/تأیید نشد: ${error.message}")
                     continue
                 }
                 storeProtection(context, symbol, side, stop, target)
