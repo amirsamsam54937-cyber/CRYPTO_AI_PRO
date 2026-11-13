@@ -324,6 +324,12 @@ fun CryptoMonitorScreen() {
     var researchStats by remember { mutableStateOf(WolfMarketDataStore.Stats()) }
     var paperSnapshot by remember { mutableStateOf<HopePaperTradingEngine.Snapshot?>(null) }
     var scenarioScorecard by remember(context) { mutableStateOf<HopeScenarioScorecard?>(null) }
+    LaunchedEffect(backgroundMonitoring) {
+        while (true) {
+            paperSnapshot = withContext(Dispatchers.Default) { HopePaperTradingEngine.snapshot(context) }
+            delay(5_000L)
+        }
+    }
     LaunchedEffect(Unit) {
         paperSnapshot = HopePaperTradingEngine.snapshot(context)
         researchStats = WolfMarketDataStore.importVerifiedSeed(context)
