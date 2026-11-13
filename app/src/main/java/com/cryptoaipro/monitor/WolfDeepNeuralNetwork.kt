@@ -109,6 +109,7 @@ internal object WolfDeepNeuralNetwork {
     }
 
     fun featureVector(signal: MarketSignal): DoubleArray = features(signal)
+    fun reviewedSamples(prefs: SharedPreferences): Int = prefs.getInt(SAMPLE_COUNT_KEY, 0)
     fun predict(prefs: SharedPreferences, signal: MarketSignal): Double =
         forward(load(prefs), features(signal)).output.coerceIn(0.01, 0.99)
     @Synchronized
