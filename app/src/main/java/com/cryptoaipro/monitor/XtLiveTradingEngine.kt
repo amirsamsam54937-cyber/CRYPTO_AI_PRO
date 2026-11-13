@@ -209,13 +209,21 @@ internal object XtLiveTradingEngine {
             for (position in positions) {
                 val local = protectionFor(context, position)
                 if (local == null) {
-                    ZoroDiagnostics.record(context, "XT_POSITION", "INFO",
-                        "پوزیشن موجود در XT شناسایی شد: ${position.symbol} ${position.side}؛ چون حدضرر/حدسود آن در دفتر ZORO ثبت نشده، بدون تغییر باقی ماند")
+                    val key = "unmanaged_" + position.symbol.filter(Char::isLetterOrDigit).lowercase() + "_" + position.side
+                    val lastNotice = prefs(context).getLong(key, 0L)
+                    if (System.currentTimeMillis() - lastNotice > 5 * 60_000L) {
+                        ZoroDiagnostics.record(context, "XT_POSITION", "WARNING",
+                            "پوزیشن موجود در XT شناسایی شد: ${position.symbol} ${position.side}؛ چون حدضرر/حدسود آن در دفتر ZORO ثبت نشده، بدون تغییر باقی ماند")
+                        prefs(context).edit().putLong(key, System.currentTimeMillis()).apply()
+                    }
                     continue
                 }
                 val stop = local.optDouble("stop")
                 val target = local.optDouble("takeProfit")
                 if (stop <= 0.0 || target <= 0.0) continue
+                // Give XT a short window to publish attached TP/SL entrusts from
+                // the opening request before attempting reconciliation.
+                if (System.currentTimeMillis() - local.optLong("createdAt") < 12_000L) continue
                 val plans = try {
                     client.activeTriggerPlans(position.symbol)
                 } catch (error: Exception) {
