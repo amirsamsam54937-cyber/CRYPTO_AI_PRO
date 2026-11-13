@@ -1,10 +1,11 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="112" android:viewportHeight="108">
     
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2" android:fillColor="#00000000" android:pathData="M54,5A49,49 0,1 0,54 103A49,49 0,1 0,54 5"/>
-    <path android:fillColor="#FFFFFFFF" android:pathData="M25,29L83,29L83,38L42,70L83,70L83,80L25,80L25,70L66,38L25,38Z"/>
-    <path android:fillColor="#FFFFFFFF" android:pathData="M31,32L77,32L39,66L39,68L31,74L31,70L69,39L31,39Z"/>
+    
+    <!-- Wordmark only: ZORO -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M7,35H28V41L15,64H28V72H6V66L19,43H7Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M31,35H49L54,40V67L49,72H31L26,67V40ZM35,43L34,44V63L35,64H45L46,63V44L45,43Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M58,35H78L83,40V53L78,58L84,72H74L69,59H67V72H58ZM67,43V51H74L75,50V44L74,43Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M87,35H105L110,40V67L105,72H87L82,67V40ZM91,43L90,44V63L91,64H101L102,63V44L101,43Z"/>
 </vector>
