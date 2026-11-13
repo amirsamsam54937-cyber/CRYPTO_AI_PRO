@@ -47,7 +47,7 @@ internal object WolfPretrainedEnsemble {
             val corpusRows=corpus.optInt("rows",0)
             val sources=corpus.optJSONArray("source_exchanges")
             require(corpus.optString("status")=="verified_real_exchange_data" &&
-                corpusRows>=745_427 && corpus.optInt("synthetic_rows",-1)==0 &&
+                corpusRows>=898_920 && corpus.optInt("synthetic_rows",-1)==0 &&
                 corpus.optString("data_source_policy")=="XT_USDT_M_ONLY" &&
                 sources!=null && sources.length()==1 && sources.optString(0).equals("XT",ignoreCase=true))
             fun vector(a:org.json.JSONArray)=DoubleArray(a.length()){a.getDouble(it)}
