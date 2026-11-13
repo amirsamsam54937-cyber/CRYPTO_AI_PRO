@@ -141,8 +141,7 @@ internal class XtAuthenticatedFuturesClient(
     )
 
     suspend fun contractSpec(symbol: String): ContractSpec = withContext(Dispatchers.IO) {
-        val normalized = symbol.trim().lowercase()
-        require(normalized.matches(Regex("[a-z0-9]+_usdt"))) { "نماد قرارداد USDT نامعتبر است." }
+        val normalized = normalizeSymbol(symbol)
         val url = URL("$baseUrl/future/market/v1/public/symbol/detail?symbol=" +
             java.net.URLEncoder.encode(normalized, "UTF-8"))
         val connection = (url.openConnection() as HttpURLConnection)
