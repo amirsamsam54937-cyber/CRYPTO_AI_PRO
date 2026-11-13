@@ -24,7 +24,7 @@ class HopeHunterMonitorService : Service() {
     private val channelId = "hope_hunter_market_monitor"
     private val notificationId = 2401
     private val signalChannelId = "hope_hunter_new_signals"
-    private var monitorJob: kotlinx.coroutines.Job? = null
+    private var monitorJob: kotlinx.coroutines.Job? = null\n    private var livePositionJob: kotlinx.coroutines.Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -46,6 +46,16 @@ class HopeHunterMonitorService : Service() {
 
     private fun startMonitoring() {
         if (monitorJob?.isActive == true) return
+        if (livePositionJob?.isActive != true) {
+            livePositionJob = serviceScope.launch {
+                while (isActive) {
+                    if (XtCredentialVault.hasCredentials(this@HopeHunterMonitorService)) {
+                        XtLiveTradingEngine.monitorOpenPositions(this@HopeHunterMonitorService)
+                    }
+                    delay(2_000L)
+                }
+            }
+        }
         monitorJob = serviceScope.launch {
             while (isActive) {
                 try {
@@ -60,6 +70,10 @@ class HopeHunterMonitorService : Service() {
                     // advance the virtual ledger. This engine has no exchange-order adapter.
                     val enrichedSignals = WolfFlowNewsRepository.enrichSignals(this@HopeHunterMonitorService, signals)
                     val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, enrichedSignals)
+                    // Live execution remains disabled until explicitly enabled in settings.
+                    // When enabled, only Commander-approved 5m scalps with fresh liquidity
+                    // flow and exchange-native TP/SL are eligible for an XT order.
+                    XtLiveTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
                     notifyNewPublishedSignals(scoredSignals)
                     val paperSnapshot = HopePaperTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
                     withContext(Dispatchers.Default) {
