@@ -192,6 +192,84 @@ internal class XtAuthenticatedFuturesClient(
         }
     }
 
+    data class AccountSnapshot(
+        val canTrade: Boolean,
+        val canOpenPosition: Boolean,
+        val walletBalanceUsdt: Double,
+        val availableBalanceUsdt: Double
+    )
+
+    suspend fun accountSnapshot(): AccountSnapshot {
+        val account = request("GET", "/future/user/v1/account/info").optJSONObject("result")
+            ?: throw IllegalStateException("پاسخ اطلاعات حساب XT ناقص است.")
+        val balances = request("GET", "/future/user/v1/compat/balance/list").optJSONArray("result")
+            ?: throw IllegalStateException("پاسخ موجودی فیوچرز XT ناقص است.")
+        val usdt = (0 until balances.length()).mapNotNull { balances.optJSONObject(it) }
+            .firstOrNull { it.optString("coin").equals("usdt", true) }
+            ?: throw IllegalStateException("موجودی USDT در حساب فیوچرز XT پیدا نشد.")
+        fun value(key: String) = usdt.optString(key).toDoubleOrNull()
+            ?: usdt.optDouble(key).takeIf { it.isFinite() } ?: 0.0
+        val wallet = value("walletBalance")
+        val available = (wallet - value("openOrderMarginFrozen") - value("isolatedMargin"))
+            .coerceAtLeast(0.0)
+        return AccountSnapshot(
+            account.optBoolean("allowTrade", false),
+            account.optBoolean("allowOpenPosition", false),
+            wallet,
+            available
+        )
+    }
+
+    suspend fun setLeverage(symbol: String, side: String, leverage: Int) {
+        val normalizedSymbol = symbol.trim().lowercase()
+        require(normalizedSymbol.matches(Regex("[a-z0-9]+_usdt"))) { "نماد قرارداد USDT نامعتبر است." }
+        require(side == "LONG" || side == "SHORT") { "جهت پوزیشن نامعتبر است." }
+        require(leverage in 1..5) { "اهرم خارج از محدوده محافظه‌کارانه ZORO است." }
+        val body = JSONObject()
+            .put("symbol", normalizedSymbol)
+            .put("positionSide", side)
+            .put("leverage", leverage)
+        request("POST", "/future/user/v1/position/adjust-leverage", body = body)
+    }
+
+    data class ContractSizing(
+        val contracts: Long,
+        val riskBudgetUsdt: Double,
+        val estimatedStopLossUsdt: Double,
+        val marginRequiredUsdt: Double
+    )
+
+    /**
+     * Risk-first quantity sizing. A leverage cap limits notional; it never increases
+     * the stop-risk budget. Uses XT's integer contract quantity convention.
+     */
+    fun sizeForRisk(
+        equityUsdt: Double,
+        availableUsdt: Double,
+        entry: Double,
+        stop: Double,
+        contractSize: Double,
+        leverage: Int,
+        riskFraction: Double = 0.005,
+        marginFraction: Double = 0.10
+    ): ContractSizing {
+        require(listOf(equityUsdt, availableUsdt, entry, stop, contractSize).all { it.isFinite() && it > 0.0 })
+        require(entry != stop && leverage in 1..5)
+        require(riskFraction in 0.001..0.01 && marginFraction in 0.02..0.15)
+        val riskBudget = equityUsdt * riskFraction
+        val lossPerContract = kotlin.math.abs(entry - stop) * contractSize
+        val contractsByRisk = riskBudget / lossPerContract
+        val maxNotional = minOf(availableUsdt * leverage * marginFraction, equityUsdt * leverage * marginFraction)
+        val contractsByMargin = maxNotional / (entry * contractSize)
+        val contracts = floorContracts(minOf(contractsByRisk, contractsByMargin))
+        require(contracts >= 1) { "با ریسک مجاز و حدضرر فعلی، حجم به حداقل یک قرارداد XT نمی‌رسد." }
+        val estimatedLoss = contracts * lossPerContract
+        val margin = contracts * entry * contractSize / leverage
+        require(estimatedLoss <= riskBudget * 1.001) { "حجم محاسبه‌شده از سقف ریسک عبور می‌کند." }
+        require(margin <= availableUsdt * marginFraction * 1.001) { "مارجین موردنیاز از سقف تخصیص عبور می‌کند." }
+        return ContractSizing(contracts, riskBudget, estimatedLoss, margin)
+    }
+
     /**
      * Submit a market entry with exchange-native TP/SL trigger prices attached to
      * the opening order request. Quantity is contract count and must be integral.
