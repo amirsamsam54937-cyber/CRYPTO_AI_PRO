@@ -25,7 +25,9 @@ internal object DynamicTradingPolicy {
         val dailyLossPercent: Double,
         val portfolioOpenRiskPercent: Double,
         val openPositions: Int,
-        val maxPositions: Int = 3
+        val maxPositions: Int = 3,
+        val dailyEntries: Int = 0,
+        val consecutiveLosses: Int = 0
     )
 
     data class Plan(
@@ -60,6 +62,7 @@ internal object DynamicTradingPolicy {
         if (!input.dailyLossPercent.isFinite() || input.dailyLossPercent >= 2.0) return null
         if (!input.portfolioOpenRiskPercent.isFinite() || input.portfolioOpenRiskPercent >= 2.5) return null
         if (input.openPositions < 0 || input.openPositions >= input.maxPositions) return null
+        if (input.dailyEntries !in 0 until 8 || input.consecutiveLosses !in 0 until 3) return null
         if (!equityUsdt.isFinite() || equityUsdt <= 0.0 ||
             !availableUsdt.isFinite() || availableUsdt <= 0.0 ||
             !entry.isFinite() || entry <= 0.0 || !stop.isFinite() || stop <= 0.0 || entry == stop) return null
