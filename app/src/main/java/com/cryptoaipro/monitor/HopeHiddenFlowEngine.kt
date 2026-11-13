@@ -108,13 +108,19 @@ internal object HopeHiddenFlowEngine {
             val depthRaw = get("/future/market/v1/public/q/depth?symbol=$encoded&level=20")
             val dealRaw = get("/future/market/v1/public/q/deal?symbol=$encoded&num=100")
             val depth = resultObject(depthRaw)
-            val bids = depth.optJSONArray("a") ?: depth.optJSONArray("bids") ?: JSONArray()
-            val asks = depth.optJSONArray("b") ?: depth.optJSONArray("asks") ?: JSONArray()
+            // XT Futures q/depth schema: "a" = asks (sell queue), "b" = bids (buy queue).
+            // Keeping these sides correctly oriented is essential: reversing them inverts
+            // order-book imbalance and can veto valid LONG/SHORT scalp candidates.
+            val asks = depth.optJSONArray("a") ?: depth.optJSONArray("asks") ?: JSONArray()
+            val bids = depth.optJSONArray("b") ?: depth.optJSONArray("bids") ?: JSONArray()
             require(bids.length() > 0 && asks.length() > 0) { "XT depth unavailable" }
             val bidLevels = (0 until bids.length()).mapNotNull { pair(bids.opt(it)) }
             val askLevels = (0 until asks.length()).mapNotNull { pair(asks.opt(it)) }
             require(bidLevels.isNotEmpty() && askLevels.isNotEmpty())
-            val mid = (bidLevels.maxOf { it.first } + askLevels.minOf { it.first }) / 2.0
+            val bestBid = bidLevels.maxOf { it.first }
+            val bestAsk = askLevels.minOf { it.first }
+            require(bestBid > 0.0 && bestAsk > bestBid) { "XT order book sides are crossed or reversed" }
+            val mid = (bestBid + bestAsk) / 2.0
             require(mid > 0.0 && mid.isFinite())
             val bidNotional = bidLevels.sumOf { it.first * it.second }
             val askNotional = askLevels.sumOf { it.first * it.second }
