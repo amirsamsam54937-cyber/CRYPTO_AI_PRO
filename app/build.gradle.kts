@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 87
-  versionName = "2.66.0"
-  // Release 2.66.0: VENOM identity, scenario-weighted signals, and expanded market-context review.
+  versionCode = 88
+  versionName = "2.67.0"
+  // Release 2.67.0: ZORO identity and custom masked-swordsman visual theme.
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
