@@ -1755,12 +1755,17 @@ internal object MarketAnalysisEngine {
                                     short: List<DoubleArray>, confirm: List<DoubleArray>,
                                     trend: List<DoubleArray>, micro: List<DoubleArray>? = null,
                                     macro: List<DoubleArray>? = null,
-                                    marketContext: MacroMarketContext? = null): MarketSignal {
+                                    marketContext: MacroMarketContext? = null,
+                                    primaryLabel: String = "15m", confirmLabel: String = "1h",
+                                    trendLabel: String = "4h", microLabel: String = "5m",
+                                    macroLabel: String = "1D",
+                                    neuralFrame: List<DoubleArray>? = null): MarketSignal {
         val a = indicators(short)
         val b = indicators(confirm)
         val c = indicators(trend)
         val microStats = micro?.let { indicators(it) }
         val macroStats = macro?.let { indicators(it) }
+        val neuralStats = neuralFrame?.let { indicators(it) }
         val frames = buildList {
             microStats?.let { add(it.technical) }
             add(a.technical); add(b.technical); add(c.technical)
@@ -1841,24 +1846,20 @@ internal object MarketAnalysisEngine {
                 (marketContext?.let { " | " + it.conciseSummary() } ?: " | نمای کلان بازار فعلاً در دسترس نیست") +
                 filterNote,
             price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical, short.takeLast(80), wolf,
-            timeframeCoverage = when {
-                microStats != null && macroStats != null -> "5m / 15m / 1h / 4h / 1D"
-                microStats != null -> "5m / 15m / 1h / 4h"
-                macroStats != null -> "15m / 1h / 4h / 1D"
-                else -> "15m / 1h / 4h"
-            },
+            timeframeCoverage = listOfNotNull(primaryLabel, confirmLabel, microLabel.takeIf { microStats != null }, trendLabel, macroLabel.takeIf { macroStats != null }).distinct().joinToString(" / "),
             technicalDirection = direction,
             tradeTimeframe = when {
                 direction == "NEUTRAL" -> "بدون معامله"
-                wolf.direction == "LONG_BIAS" && c.first >= b.first && c.first >= a.first -> "4h"
-                wolf.direction == "SHORT_BIAS" && c.first <= b.first && c.first <= a.first -> "4h"
-                wolf.direction == "LONG_BIAS" && b.first >= a.first -> "1h"
-                wolf.direction == "SHORT_BIAS" && b.first <= a.first -> "1h"
-                else -> "15m"
+                primaryLabel == "5m" -> "5m • اسکالپ"
+                wolf.direction == "LONG_BIAS" && c.first >= b.first && c.first >= a.first -> trendLabel
+                wolf.direction == "SHORT_BIAS" && c.first <= b.first && c.first <= a.first -> trendLabel
+                wolf.direction == "LONG_BIAS" && b.first >= a.first -> confirmLabel
+                wolf.direction == "SHORT_BIAS" && b.first <= a.first -> confirmLabel
+                else -> primaryLabel
             },
-            neuralTechnical = b.technical,
-            neuralRsi = b.third,
-            neuralCandles = confirm.takeLast(80)
+            neuralTechnical = neuralStats?.technical ?: b.technical,
+            neuralRsi = neuralStats?.third ?: b.third,
+            neuralCandles = (neuralFrame ?: confirm).takeLast(80)
         )
     }
 
