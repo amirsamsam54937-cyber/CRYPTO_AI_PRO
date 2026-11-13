@@ -304,7 +304,7 @@ internal class XtAuthenticatedFuturesClient(
      * close quantity and explicit positionSide; never uses close-all.
      */
     suspend fun emergencyClose(position: XtLivePosition): JSONObject {
-        val qty = floorContracts(position.availableCloseQuantity)
+        val qty = floorContracts(position.availableCloseQuantity / position.contractSize)
         require(qty > 0L) { "هیچ حجم آزادی برای بستن اضطراری پوزیشن وجود ندارد." }
         val body = JSONObject()
             .put("clientOrderId", "ZORO-EXIT-" + UUID.randomUUID().toString().replace("-", "").take(20))
