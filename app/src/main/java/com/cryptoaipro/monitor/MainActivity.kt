@@ -132,7 +132,11 @@ data class TechnicalSnapshot(
     val fairValueGap: String = "مشاهده نشد",
     val rsiDivergence: String = "مشاهده نشد",
     val macdLine: Double = 0.0,
-    val macdSignalLine: Double = 0.0
+    val macdSignalLine: Double = 0.0,
+    val buySideLiquidity: Double = 0.0,
+    val sellSideLiquidity: Double = 0.0,
+    val liquidityRead: String = "نقشه نقدینگی در انتظار داده",
+    val liquidityStrength: Int = 0
 )
 
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
@@ -1302,6 +1306,16 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                             SmallStat("مقاومت ساختاری", formatPrice(item.technical.resistance), Red)
                         }
                         Text("ساختار بازار: " + item.technical.marketStructure + " • رژیم: " + item.technical.regime, color = Muted, fontSize = 9.sp)
+                        Divider(color = Gold.copy(alpha = 0.25f))
+                        Text("نقشه استخرهای نقدینگی • Liquidity Pools", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                        Text(item.technical.liquidityRead, color = Color.White, fontSize = 9.sp, lineHeight = 14.sp)
+                        Text("وضعیت جاروب: " + item.technical.liquiditySweep, color = if (item.technical.liquiditySweep.contains("احتمال برگشت")) Gold else Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SmallStat("نقدینگی خرید", formatPrice(item.technical.buySideLiquidity), Green)
+                            SmallStat("نقدینگی فروش", formatPrice(item.technical.sellSideLiquidity), Red)
+                        }
+                        Text("قدرت خوشه سطوح: ${item.technical.liquidityStrength}/10 • برآورد از پیوت‌ها و سقف/کف ۹۶ کندل؛ نه داده قطعی لیکوییدیشن صرافی",
+                            color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
                         Text("تحلیل خودکار چارت و ساختار قیمت توسط موتور داخلی انجام شده است؛ نمایش نمودار خام غیرفعال است.", color = Gold, fontSize = 9.sp, lineHeight = 14.sp)
                         Text("الگوها احتمالی‌اند؛ هیچ الگویی جهت قیمت را تضمین نمی‌کند.", color = Muted, fontSize = 9.sp)
                     }
@@ -1954,15 +1968,8 @@ internal object MarketAnalysisEngine {
             !supertrendBull && lastClose < finalUpper -> "نزولی"
             else -> "خنثی"
         }
-        val prior = data.dropLast(1).takeLast(20)
-        val priorHigh = prior.maxOfOrNull { it[1] } ?: data.last()[1]
-        val priorLow = prior.minOfOrNull { it[2] } ?: data.last()[2]
-        val lastCandle = data.last()
-        val liquiditySweep = when {
-            lastCandle[1] > priorHigh && lastClose < priorHigh -> "جمع‌آوری نقدینگی بالای سقف • احتمال برگشت نزولی"
-            lastCandle[2] < priorLow && lastClose > priorLow -> "جمع‌آوری نقدینگی زیر کف • احتمال برگشت صعودی"
-            else -> "شکار نقدینگی واضح دیده نشد"
-        }
+        val liquidityMap = buildLiquidityMap(data, atr(data).coerceAtLeast(lastClose * 0.0001))
+        val liquiditySweep = liquidityMap.sweepLabel
         val fairValueGap = when {
             data.size >= 3 && data.last()[2] > data[data.lastIndex - 2][1] ->
                 "عدم‌تعادل صعودی سه‌کندلی"
@@ -2025,11 +2032,65 @@ internal object MarketAnalysisEngine {
             e9, e20, e50, e100, e200, adx, bbWidth, bbPosition, relativeVolume, vwap,
             stochRsi, atrPct, regime, pattern, structure, support, resistance,
             cci, roc, mfi, obvTrend, supertrendDirection, liquiditySweep, fairValueGap, rsiDivergence,
-            macdValues.first, macdValues.second
+            macdValues.first, macdValues.second,
+            liquidityMap.buySide, liquidityMap.sellSide, liquidityMap.readout, liquidityMap.strength
         )
         return Quad(score, reasons.joinToString("، "), rsiValue, technical)
     }
 
+    private data class LiquidityMap(val buySide: Double, val sellSide: Double, val readout: String, val sweepLabel: String, val strength: Int)
+
+    /** Estimates visible price-action liquidity pools; not an exchange liquidation feed. */
+    private fun buildLiquidityMap(data: List<DoubleArray>, atrValue: Double): LiquidityMap {
+        val close = data.last()[3]
+        if (data.size < 30 || close <= 0.0) return LiquidityMap(0.0, 0.0, "برای نقشه نقدینگی کندل کافی نیست", "جاروب نقدینگی تأیید نشد", 0)
+        val start = (data.size - 180).coerceAtLeast(0)
+        val volumeBase = data.takeLast(40).map { it[4] }.average().coerceAtLeast(1e-12)
+        val highs = mutableListOf<Pair<Double, Double>>()
+        val lows = mutableListOf<Pair<Double, Double>>()
+        for (i in maxOf(start + 2, 2) until data.size - 2) {
+            val candle = data[i]
+            val weight = (candle[4] / volumeBase).coerceIn(0.5, 3.0)
+            if ((i - 2..i + 2).all { data[it][1] <= candle[1] }) highs.add(candle[1] to weight)
+            if ((i - 2..i + 2).all { data[it][2] >= candle[2] }) lows.add(candle[2] to weight)
+        }
+        val range = data.takeLast(96)
+        highs.add(range.maxOf { it[1] } to 1.0)
+        lows.add(range.minOf { it[2] } to 1.0)
+        val tolerance = maxOf(atrValue * 0.16, close * 0.0006)
+        fun clusters(levels: List<Pair<Double, Double>>, above: Boolean): List<Pair<Double, Int>> {
+            val sorted = levels.filter { if (above) it.first > close + tolerance * 0.25 else it.first < close - tolerance * 0.25 }.sortedBy { it.first }
+            val groups = mutableListOf<MutableList<Pair<Double, Double>>>()
+            for (level in sorted) {
+                val last = groups.lastOrNull()
+                val center = last?.map { it.first }?.average()
+                if (last != null && center != null && abs(level.first - center) <= tolerance) last.add(level) else groups.add(mutableListOf(level))
+            }
+            return groups.map { group ->
+                val weight = group.sumOf { it.second }.coerceAtLeast(1e-12)
+                (group.sumOf { it.first * it.second } / weight) to (group.size + (weight / group.size).toInt().coerceAtMost(2))
+            }.filter { it.second >= 2 || abs(it.first - (if (above) range.maxOf { x -> x[1] } else range.minOf { x -> x[2] })) <= tolerance }
+        }
+        val upperClusters = clusters(highs, true)
+        val lowerClusters = clusters(lows, false)
+        val upperPair = upperClusters.minByOrNull { it.first - close } ?: (range.maxOf { it[1] } to 1)
+        val lowerPair = lowerClusters.maxByOrNull { close - it.first } ?: (range.minOf { it[2] } to 1)
+        val upper = upperPair.first
+        val lower = lowerPair.first
+        val last = data.last()
+        val sweptBuy = last[1] > upper + atrValue * 0.03 && last[3] < upper && last[3] < last[0]
+        val sweptSell = last[2] < lower - atrValue * 0.03 && last[3] > lower && last[3] > last[0]
+        val sweep = when {
+            sweptBuy -> "جمع‌آوری نقدینگی بالای سقف • بازپس‌گیری سطح و احتمال برگشت نزولی"
+            sweptSell -> "جمع‌آوری نقدینگی زیر کف • بازپس‌گیری سطح و احتمال برگشت صعودی"
+            else -> "جاروب و بازپس‌گیری معتبرِ استخر نقدینگی هنوز تأیید نشده"
+        }
+        val upPct = (upper / close - 1.0) * 100.0
+        val downPct = (close / lower - 1.0) * 100.0
+        val readout = "استخر خرید بالای قیمت: " + formatPrice(upper) + " (" + String.format(Locale.US, "%.2f", upPct) + "٪ فاصله، قدرت " + upperPair.second + ") • " +
+            "استخر فروش زیر قیمت: " + formatPrice(lower) + " (" + String.format(Locale.US, "%.2f", downPct) + "٪ فاصله، قدرت " + lowerPair.second + ")"
+        return LiquidityMap(upper, lower, readout, sweep, (upperPair.second + lowerPair.second).coerceAtMost(10))
+    }
     private fun detectCandlePattern(data: List<DoubleArray>): String {
         if (data.size < 3) return "الگوی مشخصی نیست"
         val a = data[data.size - 3]
