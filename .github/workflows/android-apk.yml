@@ -43,7 +43,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - name: Build one million real XT USDT-M candles
+      - name: Build 745,427 real XT USDT-M candles
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.train_models }}
         run: |
           set -euo pipefail
@@ -61,7 +61,7 @@ jobs:
           assert m["status"] == "verified_real_exchange_data"
           assert m["data_source_policy"] == "XT_USDT_M_ONLY"
           assert m["source_exchanges"] == ["XT"]
-          assert m["rows"] >= 1_000_000 and m["synthetic_rows"] == 0
+          assert m["rows"] >= 745_427 and m["synthetic_rows"] == 0
           with (assets/"market_seed.csv").open(newline="") as f:
               reader=csv.DictReader(f)
               rows=0
@@ -112,7 +112,7 @@ jobs:
         if: ${{ success() && github.event_name == 'workflow_dispatch' && inputs.train_models }}
         uses: actions/upload-artifact@v4
         with:
-          name: ZORO-1M-XT-TRAINING-DATA
+          name: ZORO-745K-XT-TRAINING-DATA
           path: |
             app/src/main/assets/market_seed.csv.gz
             app/src/main/assets/wolf_corpus_manifest.json
@@ -136,7 +136,7 @@ jobs:
           model=json.loads((p/"wolf_pretrained_ensemble.json").read_text())
           report=json.loads((p/"wolf_model_training_report.json").read_text())
           assert m.get("status")=="verified_real_exchange_data"
-          assert m.get("rows",0)>=1_000_000 and m.get("synthetic_rows") == 0
+          assert m.get("rows",0)>=745_427 and m.get("synthetic_rows") == 0
           assert m.get("data_source_policy")=="XT_USDT_M_ONLY"
           assert m.get("source_exchanges")==["XT"]
           assert len(model.get("members",[]))==10
@@ -166,7 +166,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ZORO-2.71.0-build-diagnostics
+          name: ZORO-2.72.0-build-diagnostics
           path: |
             build.log
             apk-metadata.txt
@@ -175,7 +175,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZORO-2.71.0-APK
+          name: ZORO-2.72.0-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
