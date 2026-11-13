@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 85
-  versionName = "2.64.0"
-  // Release 2.64.0: adaptive technical qualification and verified compressed XT corpus with ten-model training.
+  versionCode = 86
+  versionName = "2.65.0"
+  // Release 2.65.0: expanded commander, multi-timeframe research, and verified offline AI bundle target (~50 MB).
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
