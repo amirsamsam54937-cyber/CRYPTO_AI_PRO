@@ -36,6 +36,18 @@ object WolfConsensusEngine {
         fun direction(value: Double, threshold: Double = 0.18) =
             if (value >= threshold) "LONG" else if (value <= -threshold) "SHORT" else "NEUTRAL"
         fun clamp(value: Double) = value.coerceIn(-1.0, 1.0)
+        // Input order: 5m, 15m, 1h, 4h, 1d. Higher timeframes carry
+        // more strategic weight; 5m is execution timing, never the market boss.
+        fun weightedMean(values: List<Double>): Double {
+            if (values.isEmpty()) return 0.0
+            val weights = when (values.size) {
+                5 -> listOf(0.45, 0.85, 1.10, 1.30, 1.45)
+                4 -> listOf(0.65, 1.00, 1.25, 1.40)
+                3 -> listOf(0.90, 1.10, 1.30)
+                else -> List(values.size) { 1.0 }
+            }
+            return values.indices.sumOf { values[it] * weights[it] } / weights.sum()
+        }
 
         val ema = t.map { trend((it.ema20 - it.ema50) / max(abs(it.ema50), 1e-12)) }
         val trendStack = t.map {
@@ -80,16 +92,16 @@ object WolfConsensusEngine {
             clamp((it.stochasticRsi - 50.0) / 35.0 * 0.65 +
                 (it.cci / 200.0).coerceIn(-1.0, 1.0) * 0.20 +
                 (it.rocPercent / 2.0).coerceIn(-1.0, 1.0) * 0.15)
-        }.average()
+        }.let(::weightedMean)
         val adxMomentum = t.map {
             val emaDirection = trend((it.ema20 - it.ema50) / max(abs(it.ema50), 1e-12))
             val supertrend = when (it.supertrendDirection) { "صعودی" -> 1.0; "نزولی" -> -1.0; else -> 0.0 }
             clamp(emaDirection * 0.75 + supertrend * 0.25) * (it.adx / 35.0).coerceIn(0.0, 1.0)
-        }.average()
+        }.let(::weightedMean)
         val vwapMomentum = t.map {
             val distance = (price - it.vwap) / max(abs(it.vwap), 1e-12)
             trend(distance * 100.0)
-        }.average()
+        }.let(::weightedMean)
         val bandMomentum = t.map {
             val p = it.bollingerPosition
             // Mean reversion is considered only in a weak/ranging regime; trend breakouts follow direction.
@@ -101,24 +113,24 @@ object WolfConsensusEngine {
                 p < 0.08 -> -0.35
                 else -> clamp((p - 0.5) * 2.0)
             }
-        }.average()
+        }.let(::weightedMean)
         val volumeMomentum = t.map {
             val relative = ((it.relativeVolume - 1.0) / 1.5).coerceIn(0.0, 1.0)
             val side = trend((price - it.vwap) / max(abs(it.vwap), 1e-12) * 100.0)
             val moneyFlow = ((it.mfi - 50.0) / 30.0).coerceIn(-1.0, 1.0)
             clamp((side * 0.40 + moneyFlow * 0.30 + it.obvTrend * 0.30) * relative)
-        }.average()
+        }.let(::weightedMean)
 
         val votes = listOf(
-            WolfAgentVote("روند EMA", direction(ema.average()), ema.average(), 1.2, "فاصله نسبی EMA20 و EMA50 در تایم‌فریم‌های تحلیل‌شده"),
-            WolfAgentVote("چیدمان بلندمدت", direction(trendStack.average()), trendStack.average(), 1.1, "ترتیب EMA20/50/100/200"),
+            WolfAgentVote("روند EMA", direction(weightedMean(ema)), weightedMean(ema), 1.2, "فاصله نسبی EMA20 و EMA50 در تایم‌فریم‌های تحلیل‌شده"),
+            WolfAgentVote("چیدمان بلندمدت", direction(weightedMean(trendStack)), weightedMean(trendStack), 1.1, "ترتیب EMA20/50/100/200"),
             WolfAgentVote("مومنتوم RSI", direction(rsiMomentum), rsiMomentum, 0.9, "Stochastic RSI در تایم‌فریم‌های تحلیل‌شده"),
             WolfAgentVote("قدرت ADX", direction(adxMomentum), clamp(adxMomentum), 1.0, "جهت روند با وزن قدرت ADX؛ روند ضعیف رأی قوی نمی‌گیرد"),
             WolfAgentVote("تأیید VWAP", direction(vwapMomentum), vwapMomentum, 0.8, "موقعیت قیمت نسبت به VWAP"),
             WolfAgentVote("باند بولینگر", direction(bandMomentum), clamp(bandMomentum), 0.7, "مومنتوم باند با کاهش وزن در نواحی افراطی"),
             WolfAgentVote("حجم نسبی", direction(volumeMomentum), clamp(volumeMomentum), 0.8, "حجم بالاتر از میانگین همراه با جهت قیمت"),
-            WolfAgentVote("ساختار بازار", direction(structure.average()), structure.average(), 1.1, "سقف و کف‌های بالاتر یا پایین‌تر"),
-            WolfAgentVote("الگوی کندلی", direction(candle.average()), candle.average(), 0.6, "الگوهای کندلی در بازه‌های تحلیل؛ به‌تنهایی سیگنال‌ساز نیست"),
+            WolfAgentVote("ساختار بازار", direction(weightedMean(structure)), weightedMean(structure), 1.1, "سقف و کف‌های بالاتر یا پایین‌تر"),
+            WolfAgentVote("الگوی کندلی", direction(weightedMean(candle)), weightedMean(candle), 0.6, "الگوهای کندلی در بازه‌های تحلیل؛ به‌تنهایی سیگنال‌ساز نیست"),
             WolfAgentVote(
                 "هم‌گرایی تایم‌فریم",
                 if ((if (t.size >= 5) ema.drop(1).all { it > 0.0 } else ema.all { it > 0.0 }) &&
@@ -150,7 +162,7 @@ object WolfConsensusEngine {
             fourHourTrend >= 0.0 && (t.size < 5 || dailyTrend >= 0.0)
         val alignedShort = ema.count { it < 0.0 } >= (if (t.size >= 5) 3 else 2) &&
             fourHourTrend <= 0.0 && (t.size < 5 || dailyTrend <= 0.0)
-        val averageAdx = t.map { it.adx }.average()
+        val averageAdx = t.map { it.adx }.let(::weightedMean)
         val direction = when {
             weightedScore >= 0.30 && longWeight / totalWeight >= 0.52 && agreement >= 58 &&
                 alignedLong && averageAdx >= 14.0 -> "LONG_BIAS"
