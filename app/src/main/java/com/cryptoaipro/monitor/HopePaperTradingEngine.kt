@@ -31,6 +31,9 @@ internal object HopePaperTradingEngine {
     private const val SLIPPAGE_PER_SIDE = 0.0005
     private const val ESTIMATED_FUNDING_PER_8H = 0.0001
     private const val MAX_HOLD_MS = 48L * 60L * 60L * 1000L
+    private const val MAX_DAILY_ENTRIES = 8
+    private const val MAX_CONSECUTIVE_DAILY_LOSSES = 3
+    private const val MAX_ABSOLUTE_RETURN_CORRELATION = 0.85
 
     data class Position(
         val symbol: String, val side: String, val quantity: Double,
@@ -56,10 +59,14 @@ internal object HopePaperTradingEngine {
         var dailyStart = root.optDouble("dailyStartEquity", equity)
         var dailyDay = root.optLong("dailyDay", day)
         var dailyPnl = root.optDouble("dailyPnl", 0.0)
+        var dailyEntries = root.optInt("dailyEntries", 0)
+        var consecutiveDailyLosses = root.optInt("consecutiveDailyLosses", 0)
         if (dailyDay != day) {
             dailyDay = day
             dailyStart = equity
             dailyPnl = 0.0
+            dailyEntries = 0
+            consecutiveDailyLosses = 0
         }
         var realized = root.optDouble("realizedPnl", 0.0)
         var closed = root.optInt("closedTrades", 0)
@@ -135,7 +142,13 @@ internal object HopePaperTradingEngine {
                 dailyPnl += net
                 cooldowns.put(p.symbol, now + 60L * 60L * 1000L)
                 closed += 1
-                if (net >= 0.0) wins++ else losses++
+                if (net >= 0.0) {
+                    wins++
+                    consecutiveDailyLosses = 0
+                } else {
+                    losses++
+                    consecutiveDailyLosses++
+                }
                 lastAction = "${p.symbol} • خروج: $exitReason • نتیجه خالص تخمینی: ${"%.3f".format(java.util.Locale.US, net)} USDT"
             }
         }
@@ -161,12 +174,15 @@ internal object HopePaperTradingEngine {
         if (enabled && !neuralValidated) {
             lastAction = "ورود خودکار متوقف است: مدل عصبی هنوز اعتبارسنجی نشده است؛ هیچ سیگنال تأییدنشده‌ای معامله نمی‌شود."
         }
-        if (enabled && neuralValidated && dailyLossPct < 2.0 && survivors.size < 3 && openRiskPct < 2.5) {
+        if (enabled && neuralValidated && dailyLossPct < 2.0 &&
+            consecutiveDailyLosses < MAX_CONSECUTIVE_DAILY_LOSSES &&
+            dailyEntries < MAX_DAILY_ENTRIES && survivors.size < 3 && openRiskPct < 2.5) {
             val activeSymbols = survivors.map { it.symbol }.toSet()
             signals.asSequence()
                 .filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
                 .filter { it.symbol !in activeSymbols }
                 .filter { cooldowns.optLong(it.symbol, 0L) <= now }
+                .filter { candidate -> !isTooCorrelatedWithOpen(candidate, survivors, current) }
                 .filter { s ->
                     val validGeometry = if (s.direction == "LONG_BIAS")
                         s.stop < s.entry && s.tp1 > s.entry else s.stop > s.entry && s.tp1 < s.entry
@@ -176,7 +192,9 @@ internal object HopePaperTradingEngine {
                 }
                 .sortedByDescending { it.confidence }
                 .forEach { s ->
-                    if (survivors.size >= 3 || dailyLossPct >= 2.0 || currentEquity <= 0.0) return@forEach
+                    if (survivors.size >= 3 || dailyLossPct >= 2.0 || currentEquity <= 0.0 ||
+                        dailyEntries >= MAX_DAILY_ENTRIES ||
+                        consecutiveDailyLosses >= MAX_CONSECUTIVE_DAILY_LOSSES) return@forEach
                     if (survivors.any { it.symbol == s.symbol }) return@forEach
                     val openRisk = survivors.sumOf { it.riskUsdt }
                     val openRiskPctNow = openRisk / currentEquity * 100.0
@@ -197,7 +215,9 @@ internal object HopePaperTradingEngine {
                             dailyLossPercent = dailyLossPct,
                             portfolioOpenRiskPercent = openRiskPctNow,
                             openPositions = survivors.size,
-                            maxPositions = 3
+                            maxPositions = 3,
+                            dailyEntries = dailyEntries,
+                            consecutiveLosses = consecutiveDailyLosses
                         ),
                         equityUsdt = currentEquity,
                         availableUsdt = currentEquity,
@@ -212,6 +232,7 @@ internal object HopePaperTradingEngine {
                         plan.leverage, s.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: now,
                         s.price, plan.estimatedLossAtStopUsdt, plan.notionalUsdt, abs(fill - s.stop))
                     survivors += position
+                    dailyEntries++
                     lastAction = "${s.symbol} • ورود شبیه‌سازی‌شده ${s.direction} • حجم ${"%.5f".format(java.util.Locale.US, plan.quantity)}"
                     if (survivors.size >= 3) return@forEach
                 }
@@ -223,7 +244,9 @@ internal object HopePaperTradingEngine {
         val updatedOpenRiskPct = if (updatedEquity > 0.0) survivors.sumOf { it.riskUsdt } / updatedEquity * 100.0 else 100.0
         val out = JSONObject().apply {
             put("equity", updatedEquity); put("dailyStartEquity", dailyStart); put("dailyDay", dailyDay)
-            put("dailyPnl", dailyPnl); put("realizedPnl", realized); put("closedTrades", closed)
+            put("dailyPnl", dailyPnl); put("dailyEntries", dailyEntries)
+            put("consecutiveDailyLosses", consecutiveDailyLosses)
+            put("realizedPnl", realized); put("closedTrades", closed)
             put("wins", wins); put("losses", losses); put("lastAction", lastAction)
             put("cooldowns", cooldowns)
             put("positions", JSONArray().apply { survivors.forEach { p ->
@@ -239,6 +262,54 @@ internal object HopePaperTradingEngine {
         prefs.edit().putString(KEY, out.toString()).apply()
         return Snapshot(updatedEquity, STARTING_EQUITY, realized, dailyPnl, updatedDailyLossPct,
             updatedOpenRiskPct, closed, wins, losses, survivors, lastAction)
+    }
+
+    private fun isTooCorrelatedWithOpen(
+        candidate: MarketSignal,
+        openPositions: List<Position>,
+        currentSignals: Map<String, MarketSignal>
+    ): Boolean {
+        for (position in openPositions) {
+            val other = currentSignals[position.symbol] ?: return true
+            val correlation = returnCorrelation(candidate.candles, other.candles) ?: return true
+            if (abs(correlation) >= MAX_ABSOLUTE_RETURN_CORRELATION) return true
+        }
+        return false
+    }
+
+    /** Pearson correlation of aligned completed-candle close-to-close returns. */
+    private fun returnCorrelation(a: List<DoubleArray>, b: List<DoubleArray>): Double? {
+        fun closes(rows: List<DoubleArray>): Map<Long, Double> = rows.mapNotNull { row ->
+            if (row.size < 6 || !row[5].isFinite() || !row[3].isFinite() || row[5] <= 0.0 || row[3] <= 0.0) null
+            else row[5].toLong() to row[3]
+        }.toMap()
+        val ac = closes(a)
+        val bc = closes(b)
+        val times = ac.keys.intersect(bc.keys).sorted().takeLast(64)
+        if (times.size < 25) return null
+        val ar = mutableListOf<Double>()
+        val br = mutableListOf<Double>()
+        for (i in 1 until times.size) {
+            val t0 = times[i - 1]
+            val t1 = times[i]
+            val a0 = ac[t0] ?: continue
+            val a1 = ac[t1] ?: continue
+            val b0 = bc[t0] ?: continue
+            val b1 = bc[t1] ?: continue
+            if (a0 <= 0.0 || b0 <= 0.0) continue
+            ar += a1 / a0 - 1.0
+            br += b1 / b0 - 1.0
+        }
+        if (ar.size < 24 || br.size != ar.size) return null
+        val am = ar.average()
+        val bm = br.average()
+        val covariance = ar.indices.sumOf { (ar[it] - am) * (br[it] - bm) }
+        val av = ar.sumOf { (it - am) * (it - am) }
+        val bv = br.sumOf { (it - bm) * (it - bm) }
+        val denominator = kotlin.math.sqrt(av * bv)
+        if (!denominator.isFinite() || denominator <= 1e-12) return null
+        return (covariance / denominator).takeIf { it.isFinite() && it in -1.000001..1.000001 }
+            ?.coerceIn(-1.0, 1.0)
     }
 
     fun snapshot(context: Context): Snapshot {
