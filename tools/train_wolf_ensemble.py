@@ -10,9 +10,11 @@ import numpy as np
 try:
     from tools.time_series_validation import chronological_masks
     from tools.advanced_validation import evaluate_generalization
+    from tools.wilder_indicators import wilder_atr, wilder_adx
 except ModuleNotFoundError:
     from time_series_validation import chronological_masks
     from advanced_validation import evaluate_generalization
+    from wilder_indicators import wilder_atr, wilder_adx
 
 DATA_SOURCE = "verified XT USDT-M crypto-only historical corpus"
 MIN_LABELED_SAMPLES = 250_000
@@ -54,13 +56,8 @@ def wilder_rsi(close, period=14):
     return result
 
 def app_atr_series(high,low,close,period=14):
-    previous=np.r_[close[0],close[:-1]]
-    tr=np.maximum(high-low,np.maximum(abs(high-previous),abs(low-previous)))
-    result=np.zeros(len(close),dtype=float)
-    for i in range(len(close)):
-        start=max(1,i-period+1)
-        result[i]=float(tr[start:i+1].mean()) if i>=period else close[i]*.01
-    return result
+    """Wilder ATR; NaN warm-up values are excluded by make_rows' 50-bar burn-in."""
+    return np.asarray(wilder_atr(high,low,close,period),dtype=float)
 
 def app_relative_volume(volume,period=20):
     result=np.ones(len(volume),dtype=float)
@@ -69,30 +66,8 @@ def app_relative_volume(volume,period=20):
     return result
 
 def app_adx_series(high,low,close,period=14):
-    result=np.zeros(len(close),dtype=float)
-    if len(close)<period*2+1: return result
-    true_ranges=[]; plus_moves=[]; minus_moves=[]
-    for i in range(1,len(close)):
-        up=high[i]-high[i-1]; down=low[i-1]-low[i]
-        plus_moves.append(up if up>down and up>0 else 0.0)
-        minus_moves.append(down if down>up and down>0 else 0.0)
-        true_ranges.append(max(high[i]-low[i],abs(high[i]-close[i-1]),abs(low[i]-close[i-1])))
-    smooth_tr=sum(true_ranges[:period]); smooth_plus=sum(plus_moves[:period]); smooth_minus=sum(minus_moves[:period])
-    dx=[]; adx=0.0
-    for i in range(period,len(true_ranges)):
-        if i>period:
-            smooth_tr=smooth_tr-smooth_tr/period+true_ranges[i]
-            smooth_plus=smooth_plus-smooth_plus/period+plus_moves[i]
-            smooth_minus=smooth_minus-smooth_minus/period+minus_moves[i]
-        safe=max(smooth_tr,1e-12)
-        plus_di=100.0*smooth_plus/safe; minus_di=100.0*smooth_minus/safe
-        dx_value=abs(plus_di-minus_di)/max(plus_di+minus_di,1e-12)*100.0
-        dx.append(dx_value)
-        if len(dx)<period: adx=dx_value
-        elif len(dx)==period: adx=float(np.mean(dx[:period]))
-        else: adx=(adx*(period-1)+dx_value)/period
-        result[i+1]=adx
-    return np.clip(result,0.0,100.0)
+    """Wilder ADX; NaN warm-up values are excluded by make_rows' 50-bar burn-in."""
+    return np.asarray(wilder_adx(high,low,close,period),dtype=float)
 
 def expected_calibration_error(y_true, probabilities, bins=10):
     y_true=np.asarray(y_true,dtype=float); probabilities=np.asarray(probabilities,dtype=float)
