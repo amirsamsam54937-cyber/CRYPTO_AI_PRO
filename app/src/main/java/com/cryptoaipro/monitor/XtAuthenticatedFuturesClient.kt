@@ -30,81 +30,13 @@ import javax.crypto.spec.SecretKeySpec
  * This class intentionally exposes narrowly-scoped trading operations; it does not
  * contain withdrawal, transfer, or API-key-management methods.
  */
-internal class XtApiCredentialStore(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences("zoro_xt_secure", Context.MODE_PRIVATE)
-    private val alias = "zoro_xt_api_aes_v1"
-
-    private fun key(): java.security.Key {
-        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        store.getKey(alias, null)?.let { return it }
-        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-        generator.init(
-            KeyGenParameterSpec.Builder(
-                alias,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-            ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setRandomizedEncryptionRequired(true)
-                .build()
-        )
-        return generator.generateKey()
-    }
-
-    @Synchronized
-    fun save(appKey: String, secret: String) {
-        require(appKey.isNotBlank() && secret.isNotBlank()) { "کلید API و Secret الزامی هستند." }
-        require(appKey.length <= 256 && secret.length <= 512) { "طول اطلاعات API معتبر نیست." }
-        val plain = JSONObject().put("appKey", appKey.trim()).put("secret", secret.trim())
-            .toString().toByteArray(StandardCharsets.UTF_8)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, key())
-        val encrypted = cipher.doFinal(plain)
-        prefs.edit().putString("iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
-            .putString("payload", Base64.encodeToString(encrypted, Base64.NO_WRAP)).apply()
-    }
-
-    @Synchronized
-    fun load(): Pair<String, String>? = runCatching {
-        val iv = Base64.decode(prefs.getString("iv", null) ?: return null, Base64.NO_WRAP)
-        val payload = Base64.decode(prefs.getString("payload", null) ?: return null, Base64.NO_WRAP)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
-        val json = JSONObject(String(cipher.doFinal(payload), StandardCharsets.UTF_8))
-        val appKey = json.getString("appKey")
-        val secret = json.getString("secret")
-        if (appKey.isBlank() || secret.isBlank()) null else appKey to secret
-    }.getOrNull()
-
-    @Synchronized
-    fun clear() {
-        prefs.edit().clear().apply()
-        runCatching {
-            val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-            if (store.containsAlias(alias)) store.deleteEntry(alias)
-        }
-    }
-
-    fun isConfigured(): Boolean = load() != null
-}
-
-internal data class XtLivePosition(
-    val symbol: String,
-    val side: String,
-    val quantity: Double,
-    val availableCloseQuantity: Double,
-    val entryPrice: Double,
-    val markPrice: Double,
-    val leverage: Int,
-    val contractSize: Double
-)
-
 /**
  * XT Futures v1 private API client.
  * Signature canonicalization follows XT Futures "Obtain Signature" documentation:
  * validate-appkey=...&validate-timestamp=...#/endpoint#sorted-query-or-exact-json-body
  */
 internal class XtAuthenticatedFuturesClient(
-    private val credentialStore: XtApiCredentialStore
+    private val context: Context
 ) {
     private val baseUrl = "https://fapi.xt.com"
     private val entryMutex = Mutex()
@@ -127,7 +59,7 @@ internal class XtAuthenticatedFuturesClient(
         query: Map<String, String> = emptyMap(),
         body: JSONObject? = null
     ): JSONObject = withContext(Dispatchers.IO) {
-        val (appKey, secret) = credentialStore.load()
+        val (appKey, secret) = XtCredentialVault.load(context)
             ?: throw IllegalStateException("اتصال امن XT تنظیم نشده است.")
         require(path.startsWith("/future/") && !path.contains("..")) { "XT endpoint نامعتبر است." }
         val timestamp = System.currentTimeMillis().toString()
