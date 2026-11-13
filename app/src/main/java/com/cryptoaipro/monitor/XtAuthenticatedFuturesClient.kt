@@ -258,6 +258,56 @@ internal class XtAuthenticatedFuturesClient(
         return ContractSizing(contracts, riskBudget, estimatedLoss, margin)
     }
 
+    suspend fun activeTriggerPlans(symbol: String): List<JSONObject> {
+        val normalized = symbol.trim().lowercase()
+        val response = request(
+            "GET", "/future/trade/v1/entrust/plan-list",
+            mapOf("symbol" to normalized, "state" to "TRIGGERING", "page" to "1", "size" to "100")
+        )
+        val result = response.optJSONObject("result")
+        val items = result?.optJSONArray("items") ?: JSONArray()
+        return (0 until items.length()).mapNotNull { items.optJSONObject(it) }
+    }
+
+    suspend fun createProtectionPlan(
+        position: XtLivePosition,
+        entrustType: String,
+        triggerPrice: Double
+    ): JSONObject {
+        require(entrustType == "STOP_MARKET" || entrustType == "TAKE_PROFIT_MARKET")
+        require(triggerPrice.isFinite() && triggerPrice > 0.0)
+        require(position.quantity > 0.0)
+        val closeSide = if (position.side == "LONG") "SELL" else "BUY"
+        val body = JSONObject()
+            .put("clientOrderId", "ZORO-GUARD-" + UUID.randomUUID().toString().replace("-", "").take(20))
+            .put("symbol", position.symbol.lowercase().replace("-", "_"))
+            .put("orderSide", closeSide)
+            .put("entrustType", entrustType)
+            .put("origQty", BigDecimal.valueOf(position.quantity).stripTrailingZeros().toPlainString())
+            .put("stopPrice", BigDecimal.valueOf(triggerPrice).stripTrailingZeros().toPlainString())
+            .put("timeInForce", "IOC")
+            .put("triggerPriceType", "MARK_PRICE")
+            .put("positionSide", position.side)
+        return request("POST", "/future/trade/v1/entrust/create-plan", body = body)
+    }
+
+    /**
+     * Emergency market close for a known position only. Uses XT's reported available
+     * close quantity and explicit positionSide; never uses close-all.
+     */
+    suspend fun emergencyClose(position: XtLivePosition): JSONObject {
+        val qty = floorContracts(position.availableCloseQuantity)
+        require(qty > 0L) { "هیچ حجم آزادی برای بستن اضطراری پوزیشن وجود ندارد." }
+        val body = JSONObject()
+            .put("clientOrderId", "ZORO-EXIT-" + UUID.randomUUID().toString().replace("-", "").take(20))
+            .put("symbol", position.symbol.lowercase().replace("-", "_"))
+            .put("orderSide", if (position.side == "LONG") "SELL" else "BUY")
+            .put("orderType", "MARKET")
+            .put("origQty", qty)
+            .put("positionSide", position.side)
+        return request("POST", "/future/trade/v1/order/create", body = body)
+    }
+
     /**
      * Submit a market entry with exchange-native TP/SL trigger prices attached to
      * the opening order request. Quantity is contract count and must be integral.
