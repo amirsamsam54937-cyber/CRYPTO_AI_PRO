@@ -730,7 +730,7 @@ fun CryptoMonitorScreen() {
                                             }
                                         )
                                     }
-                                    Text("با فعال‌سازی، سرویس پیش‌زمینه اندروید اسکن عمومی قراردادهای XT را در بازه انتخابی ادامه می‌دهد و اعلان وضعیت می‌فرستد. این سرویس سفارش ثبت نمی‌کند. توقف اجباری، قطع اینترنت یا محدودیت باتری می‌تواند آن را متوقف کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                                    Text("با فعال‌سازی، سرویس پیش‌زمینه ZORO اسکن قراردادهای XT را ادامه می‌دهد؛ اگر اجرای خودکار واقعی روشن باشد، سفارش‌های تأییدشده را ثبت و پوزیشن‌ها را پایش می‌کند. توقف اجباری برنامه، قطع اینترنت یا محدودیت باتری می‌تواند سرویس را مختل کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                                 }
                             }
                             HopeLivingBrainPanel(context) { scanIntervalMinutes = it }
@@ -739,7 +739,7 @@ fun CryptoMonitorScreen() {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
                                     Text("بازار: XT USDT-M Futures", color = Muted, fontSize = 11.sp)
-                                    Text("اسکن پایه: ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • بازبینی عمیق ۲۴ نامزد برتر: ۵ دقیقه و ۱ روز", color = Muted, fontSize = 11.sp)
+                                    Text("اسکن چندتایم‌فریمی: ۵ دقیقه، ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • زمینه روزانه و جریان سفارش برای نامزدهای نقدشونده", color = Muted, fontSize = 11.sp)
                                     Text("ابزارها: ۱۰ متخصص تحلیلی، شبکه عصبی اعتبارسنجی‌شده، چندتایم‌فریم، مدیریت ریسک و دفترچه سوابق", color = Muted, fontSize = 11.sp)
                                     Text("دامنه اسکن: تمام قراردادهای دائمی USDT فعال؛ مرتب‌شده بر اساس حجم معاملات", color = Muted, fontSize = 11.sp)
                                     Text("فاصله مکث بین دورهای اسکن (پس از پایان هر دور):", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
