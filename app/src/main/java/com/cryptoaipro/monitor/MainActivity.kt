@@ -1104,7 +1104,7 @@ private fun SignalJournalScreen(
                             SmallStat("قدرت سیگنال", record.confidence.toString() + "%", tint)
                             SmallStat("تایم‌فریم", record.timeframe, Blue)
                         }
-                        Text("امتیاز: " + record.score + " • شبکه عصبی: " + record.neuralScore + "% • اهرم پیشنهادی: " + record.leverage + "x • تغییر ۲۴ساعت: " + String.format(Locale.US, "%.2f%%", record.change), color = Muted, fontSize = 9.sp)
+                        Text("امتیاز: " + record.score + " • احتمال صعود مدل: " + record.neuralScore + "% • اهرم پیشنهادی: " + record.leverage + "x • تغییر ۲۴ساعت: " + String.format(Locale.US, "%.2f%%", record.change), color = Muted, fontSize = 9.sp)
                         if (record.closed) {
                             Text("قیمت خروج: " + formatPrice(record.exitPrice) + " • بازده تخمینی با اهرم: " +
                                 String.format(Locale.US, "%+.2f%%", record.pnlPct), color = if (record.pnlPct >= 0) Green else Red,
@@ -1181,7 +1181,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                 SmallStat("تغییر ۲۴ساعت", String.format(Locale.US, "%.2f%%", item.change), if (item.change >= 0) Green else Red)
                 SmallStat("RSI", String.format(Locale.US, "%.1f", item.rsi))
                 SmallStat("امتیاز خام", item.score.toString())
-                SmallStat("امتیاز جهت‌دار", item.neuralScore.toString() + "/100")
+                SmallStat("احتمال صعود مدل (P↑)", item.neuralScore.toString() + "/100")
             }
             val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
             val neuralTint = when (item.neuralDirection) {
@@ -1234,7 +1234,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                     }
                     Text(
                         "منبع: " + item.neuralModelSource +
-                            (if (neuralValidated && item.neuralDirection != "NEUTRAL") " • امتیاز جهت‌دار: ${item.neuralScore}/100" else ""),
+                            (if (neuralValidated && item.neuralDirection != "NEUTRAL") " • احتمال صعود مدل (P↑): ${item.neuralScore}/100" else ""),
                         color = Muted, fontSize = 9.sp
                     )
                     if (item.neuralMemberVotes.isNotEmpty()) {
