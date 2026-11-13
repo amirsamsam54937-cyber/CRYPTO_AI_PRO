@@ -124,19 +124,25 @@ internal object XtLiveTradingEngine {
             }
             if (positions.size >= MAX_POSITIONS || account.availableBalanceUsdt <= 0.0) return@withContext
 
-            val candidates = signals.asSequence()
-                .filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
-                .filter { it.signalTier != "بدون رتبه" && it.confidence >= MIN_CONFIDENCE }
-                .filter { it.tradeTimeframe.startsWith("5m") }
-                .filter { it.technical.adx >= 16.0 && it.technical.relativeVolume >= 0.65 }
-                .filter { it.hiddenFlowFresh && if (it.direction == "LONG_BIAS") it.hiddenFlowScore >= 4 else it.hiddenFlowScore <= -4 }
-                .filter {
-                    val sweep = it.technical.liquiditySweep
-                    if (it.direction == "LONG_BIAS") sweep.contains("زیر کف")
-                    else sweep.contains("بالای سقف")
-                }
-                .sortedByDescending { it.confidence }
-                .toList()
+            // Stage-by-stage candidate telemetry makes an empty live-trade cycle explainable.
+            // These counters do not relax any entry rule or alter a signal.
+            val directional = signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
+            val ranked = directional.filter { it.signalTier != "بدون رتبه" && it.confidence >= MIN_CONFIDENCE }
+            val scalp = ranked.filter { it.tradeTimeframe.startsWith("5m") }
+            val participation = scalp.filter { it.technical.adx >= 16.0 && it.technical.relativeVolume >= 0.65 }
+            val flowConfirmed = participation.filter {
+                it.hiddenFlowFresh && if (it.direction == "LONG_BIAS") it.hiddenFlowScore >= 4 else it.hiddenFlowScore <= -4
+            }
+            val candidates = flowConfirmed.filter {
+                val sweep = it.technical.liquiditySweep
+                if (it.direction == "LONG_BIAS") sweep.contains("زیر کف")
+                else sweep.contains("بالای سقف")
+            }.sortedByDescending { it.confidence }
+            recordThrottled(
+                context, "candidate_funnel", "XT_LIVE", "INFO",
+                "قیف اسکالپ: جهت‌دار ${directional.size} • رتبه و اعتماد ${ranked.size} • تایم‌فریم ۵دقیقه ${scalp.size} • قدرت/حجم ${participation.size} • جریان سفارش تازه ${flowConfirmed.size} • جاروب نقدینگی ${candidates.size} • پوزیشن XT ${positions.size}",
+                60_000L
+            )
 
             for (signal in candidates) {
                 if (positions.size >= MAX_POSITIONS || p.getInt("daily_trades", 0) >= MAX_DAILY_TRADES) break
