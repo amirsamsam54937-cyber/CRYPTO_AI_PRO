@@ -7,8 +7,8 @@ Only exchange-returned, closed candles are stored. No synthetic rows are generat
 import csv, json, math, os, sys, time, hashlib
 from datetime import datetime, timezone
 
-TARGET = 1_000_000
-MINIMUM = 1_000_000
+TARGET = 745_427
+MINIMUM = 745_427
 TIMEFRAME = "1h"
 OUT = "app/src/main/assets/market_seed.csv"
 META = "market_seed_manifest.json"
