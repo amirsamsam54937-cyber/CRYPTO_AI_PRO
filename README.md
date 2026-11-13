@@ -1,4 +1,4 @@
-# VENOM — AI CRYPTO FUTURES COMPANION
+# ZORO
 
 **Android release line: 2.66.0**  
 A Persian-first Android application for live Binance USDⓈ-M or XT USDT-M perpetual-futures market scanning, explainable technical analysis, signal visualization, and persistent outcome-based learning.
