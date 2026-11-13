@@ -12,16 +12,14 @@ import kotlin.math.tanh
  */
 internal object WolfPretrainedEnsemble {
     data class ResearchPrediction(
-        val referenceDirection:String, val probability:Double,
-        val memberProbabilities:List<Double>
+        val upProbability:Double, val memberProbabilities:List<Double>
     ) {
         val predictedDirection:String get() = when {
-            strength < 55 -> "NEUTRAL"
-            probability >= 0.5 -> referenceDirection
-            referenceDirection == "LONG_BIAS" -> "SHORT_BIAS"
-            else -> "LONG_BIAS"
+            upProbability >= 0.55 -> "LONG_BIAS"
+            upProbability <= 0.45 -> "SHORT_BIAS"
+            else -> "NEUTRAL"
         }
-        val strength:Int get() = (maxOf(probability, 1.0-probability) * 100.0).toInt().coerceIn(1,99)
+        val strength:Int get() = (maxOf(upProbability, 1.0-upProbability) * 100.0).toInt().coerceIn(1,99)
     }
     data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double,
         val baselineAccuracy:Double=0.0,val balancedAccuracy:Double=0.0,val logLoss:Double=0.0,
@@ -49,7 +47,7 @@ internal object WolfPretrainedEnsemble {
             val corpusRows=corpus.optInt("rows",0)
             val sources=corpus.optJSONArray("source_exchanges")
             require(corpus.optString("status")=="verified_real_exchange_data" &&
-                corpusRows>=1_000_000 && corpus.optInt("synthetic_rows",-1)==0 &&
+                corpusRows>=745_427 && corpus.optInt("synthetic_rows",-1)==0 &&
                 corpus.optString("data_source_policy")=="XT_USDT_M_ONLY" &&
                 sources!=null && sources.length()==1 && sources.optString(0).equals("XT",ignoreCase=true))
             fun vector(a:org.json.JSONArray)=DoubleArray(a.length()){a.getDouble(it)}
@@ -101,7 +99,7 @@ internal object WolfPretrainedEnsemble {
     fun status()=status
     fun predict(signal:MarketSignal):Double? {
         val research=predictResearch(signal) ?: return null
-        return research.probability.takeIf{research.referenceDirection==signal.direction}
+        return research.upProbability
     }
 
     /** Research-only inference; probabilities are converted to P(correct relative to the technical reference side). */
@@ -113,9 +111,6 @@ internal object WolfPretrainedEnsemble {
         if(candles.size<7 || candles.takeLast(7).any{it.size<5 || !it[3].isFinite()}) return null
         val candle=candles.last()
         val trend=if(technical.ema20>=technical.ema50) 1.0 else -1.0
-        val rawScore=(trend*25.0+(50.0-rsiValue)*0.55+
-            ((technical.relativeVolume-1.0).coerceIn(-1.0,2.0))*8.0).coerceIn(-100.0,100.0)
-        val referenceSide=if(rawScore>=0.0) "LONG_BIAS" else "SHORT_BIAS"
         val rsi=((rsiValue-50.0)/50.0).coerceIn(-1.0,1.0)
         val adx=(technical.adx/50.0).coerceIn(0.0,1.0)
         val volume=((technical.relativeVolume-1.0)/2.0).coerceIn(-1.0,1.0)
@@ -133,8 +128,8 @@ internal object WolfPretrainedEnsemble {
             val h3=DoubleArray(member.b3.size){i->tanh(member.b3[i]+h2.indices.sumOf{j->member.w3[i][j]*h2[j]})}
             val logit=member.b4+h3.indices.sumOf{j->member.w4[j]*h3[j]}
             val pUp=1.0/(1.0+exp(-logit.coerceIn(-30.0,30.0)))
-            if(referenceSide=="LONG_BIAS") pUp else 1.0-pUp
+            pUp
         }
-        return ResearchPrediction(referenceSide,predictions.average().coerceIn(.01,.99),predictions)
+        return ResearchPrediction(predictions.average().coerceIn(.01,.99),predictions)
     }
 }
