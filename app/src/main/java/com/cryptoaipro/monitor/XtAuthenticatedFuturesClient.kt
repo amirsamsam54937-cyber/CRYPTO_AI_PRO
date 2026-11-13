@@ -35,6 +35,18 @@ import javax.crypto.spec.SecretKeySpec
  * Signature canonicalization follows XT Futures "Obtain Signature" documentation:
  * validate-appkey=...&validate-timestamp=...#/endpoint#sorted-query-or-exact-json-body
  */
+internal data class XtLivePosition(
+    val symbol: String,
+    val side: String,
+    /** XT positionSize is base-asset quantity; convert by contractSize for order lots. */
+    val quantity: Double,
+    val availableCloseQuantity: Double,
+    val entryPrice: Double,
+    val markPrice: Double,
+    val leverage: Int,
+    val contractSize: Double
+)
+
 internal class XtAuthenticatedFuturesClient(
     private val context: Context
 ) {
