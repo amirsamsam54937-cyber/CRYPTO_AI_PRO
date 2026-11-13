@@ -301,15 +301,7 @@ fun CryptoMonitorScreen() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val appSettings = remember(context) {
-        context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE).also { prefs ->
-            // One-time 2.54.0 migration: begin the requested virtual-only evaluation automatically.
-            if (!prefs.getBoolean("hope_paper_default_254_migrated", false)) {
-                prefs.edit().putBoolean("hope_risk_ack_v1", true)
-                    .putBoolean("hope_paper_mode_enabled", true)
-                    .putString("hope_trading_mode", HopeTradingMode.PAPER.name)
-                    .putBoolean("hope_paper_default_254_migrated", true).apply()
-            }
-        }
+        context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE)
     }
     var selectedExchange by remember(context) { mutableStateOf("XT") }
     var backgroundMonitoring by remember(context) { mutableStateOf(appSettings.getBoolean("background_monitoring", false)) }
@@ -422,6 +414,18 @@ fun CryptoMonitorScreen() {
             } else rawMessage.replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ").trim().take(240)
         } finally {
             loading = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (backgroundMonitoring) {
+            val serviceIntent = Intent(context, HopeHunterMonitorService::class.java).apply {
+                action = HopeHunterMonitorService.ACTION_START
+            }
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent)
+                else context.startService(serviceIntent)
+            }
         }
     }
 
@@ -730,7 +734,7 @@ fun CryptoMonitorScreen() {
                                 }
                             }
                             HopeLivingBrainPanel(context) { scanIntervalMinutes = it }
-                            XtApiCredentialPanel(context)
+                            XtApiCredentialPanel(context) { backgroundMonitoring = true }
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
