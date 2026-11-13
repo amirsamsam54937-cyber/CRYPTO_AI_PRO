@@ -242,6 +242,8 @@ internal class XtAuthenticatedFuturesClient(
         stop: Double,
         contractSize: Double,
         leverage: Int,
+        takerFeeRate: Double = 0.0006,
+        slippageRate: Double = 0.0005,
         riskFraction: Double = 0.005,
         marginFraction: Double = 0.10
     ): ContractSizing {
