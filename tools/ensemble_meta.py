@@ -127,8 +127,6 @@ def estimate_member_weights(
     if not 0.0 <= prior_brier <= 1.0:
         raise ValueError("prior_brier must be within [0, 1]")
     names = sorted(history)
-    if len(names) * min_weight > 1.0 + 1e-12 or len(names) * max_weight < 1.0 - 1e-12:
-        raise ValueError("weight bounds are infeasible for member count")
     scores = {}
     diagnostics = {}
     for name in names:
