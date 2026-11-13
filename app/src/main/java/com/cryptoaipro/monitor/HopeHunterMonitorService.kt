@@ -18,7 +18,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Read-only foreground market monitor; it never places or manages exchange orders. */
+/** User-enabled foreground XT USDT-M scanner, live order executor and open-position protector. */
 class HopeHunterMonitorService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val channelId = "hope_hunter_market_monitor"
@@ -30,14 +30,16 @@ class HopeHunterMonitorService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        startForeground(notificationId, notification("در حال آماده‌سازی پایش بازار XT"))
+        startForeground(notificationId, notification("در حال آماده‌سازی موتور بازار و معاملات XT"))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
-                if (XtLiveTradingEngine.positionCount(this) > 0) {
-                    updateNotification("پوزیشن واقعی باز است؛ سرویس برای نظارت و حفاظت آن متوقف نمی‌شود.")
+                if (XtLiveTradingEngine.isEnabled(this) || XtLiveTradingEngine.positionCount(this) > 0) {
+                    updateNotification(if (XtLiveTradingEngine.isEnabled(this))
+                        "اجرای خودکار واقعی فعال است؛ سرویس برای اسکن و حفاظت پوزیشن‌ها متوقف نمی‌شود."
+                    else "پوزیشن واقعی باز است؛ سرویس برای نظارت و حفاظت آن متوقف نمی‌شود.")
                     startMonitoring()
                     return START_STICKY
                 }
@@ -124,7 +126,7 @@ class HopeHunterMonitorService : Service() {
                 Notification.Builder(this, signalChannelId) else Notification.Builder(this)
             val notification = builder
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
-                .setContentTitle("HOPE HUNTER • سیگنال جدید " + signal.symbol + " • " + side)
+                .setContentTitle("ZORO • سیگنال جدید " + signal.symbol + " • " + side)
                 .setContentText(details)
                 .setStyle(Notification.BigTextStyle().bigText(details + " • قدرت: " + signal.confidence + "٪ • تایم‌فریم: " + signal.tradeTimeframe))
                 .setAutoCancel(true)
@@ -139,13 +141,13 @@ class HopeHunterMonitorService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(
-                NotificationChannel(channelId, "پایش بازار HOPE HUNTER", NotificationManager.IMPORTANCE_LOW).apply {
+                NotificationChannel(channelId, "پایش و معاملات ZORO", NotificationManager.IMPORTANCE_LOW).apply {
                     description = "وضعیت اسکن عمومی بازار قراردادهای XT"
                     setShowBadge(false)
                 }
             )
             manager.createNotificationChannel(
-                NotificationChannel(signalChannelId, "سیگنال‌های جدید HOPE HUNTER", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                NotificationChannel(signalChannelId, "سیگنال‌های جدید ZORO", NotificationManager.IMPORTANCE_DEFAULT).apply {
                     description = "اعلان فرصت‌های تازه و تأییدشده تحلیل بازار XT"
                     setShowBadge(true)
                 }
@@ -157,7 +159,7 @@ class HopeHunterMonitorService : Service() {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             Notification.Builder(this, channelId) else Notification.Builder(this)
         return builder.setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setContentTitle("HOPE HUNTER • Market Watch")
+            .setContentTitle("ZORO • XT Futures")
             .setContentText(message)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
