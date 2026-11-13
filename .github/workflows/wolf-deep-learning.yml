@@ -15,7 +15,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: wolf-deep-learning-refresh-${{ github.ref }}
+  group: wolf-deep-learning-refresh-v2-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
