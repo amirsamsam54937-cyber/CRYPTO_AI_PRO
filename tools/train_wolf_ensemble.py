@@ -171,7 +171,9 @@ def main():
         raw=sorted(raw,key=lambda row:row[0]); x,y,t=make_rows(raw)
         if len(x)>100:
             chunks.append((x,y,t))
-            symbol_chunks.append(np.full(len(x),symbol,dtype=str))
+            # dtype=str on np.full defaults to <U1 and silently truncates every symbol to its first character.
+            # Object dtype preserves the complete instrument key for true unseen-symbol validation.
+            symbol_chunks.append(np.full(len(x),symbol,dtype=object))
             used_symbols.append(symbol)
         print(f"REAL SEED {symbol}: {len(x)} directional samples",flush=True)
     if not chunks: raise SystemExit("No valid XT history; refusing to create fake pretrained weights.")
