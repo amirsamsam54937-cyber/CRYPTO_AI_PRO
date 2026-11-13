@@ -20,7 +20,8 @@ class FakeXT:
         return self.markets
 
     def fetch_currencies(self):
-        return {"BTC": {"type": "crypto"}, "AAPLX": {"type": "other"}}
+        return {"BTC": {"type": "crypto", "name": "Bitcoin", "info": {"type": "FT", "fullName": "Bitcoin"}},
+            "AAPLX": {"type": "crypto", "name": "Apple-linked", "info": {"type": "FT", "fullName": "Apple-linked"}}}
 
     def milliseconds(self):
         return 1_800_000_000_000
@@ -40,13 +41,16 @@ def test_collector_returns_auditable_crypto_provenance(monkeypatch):
     fake_ccxt = types.SimpleNamespace(xt=FakeXT)
     monkeypatch.setitem(sys.modules, "ccxt", fake_ccxt)
     monkeypatch.setattr(collector, "TARGET", 2)
+    monkeypatch.setattr(collector, "fetch_crypto_asset_registry", lambda: ([{"id": "bitcoin", "symbol": "btc", "name": "Bitcoin"}], "a" * 64))
 
     rows, provenance = collector.collect("xt")
 
     assert len(rows) == 2
     assert all(row[1] == "BTCUSDT" for row in rows)
     assert provenance["spot_currency_universe_count"] == 2
-    assert provenance["spot_crypto_currency_count"] == 1
+    assert provenance["xt_crypto_type_currency_count"] == 2
+    assert provenance["crypto_asset_registry_source"] == "COINGECKO_PUBLIC_COINS_LIST"
+    assert provenance["crypto_asset_registry_sha256"] == "a" * 64
     assert len(provenance["currency_metadata_sha256"]) == 64
     assert provenance["crypto_symbols"] == ["BTCUSDT"]
     assert provenance["asset_classification"]["BTCUSDT"]["asset_class"] == "crypto"
