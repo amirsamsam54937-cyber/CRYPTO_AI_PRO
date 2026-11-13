@@ -12,7 +12,7 @@
     <path android:fillColor="#171B22" android:pathData="M28,53C39,49 69,49 80,53L75,78C69,89 60,94 54,94C48,94 39,89 33,78z"/>
     <path android:fillColor="#D5D8DA" android:pathData="M43,55L54,55L51,62zM55,55L66,55L57,62z"/>
     <path android:fillColor="#050608" android:pathData="M44,68C49,65 59,65 64,68L61,76L47,76z"/>
-    <path android:strokeColor="#B8202C" android:strokeWidth="3.2" android:strokeLinecap="round" android:fillColor="#00000000" android:pathData="M27,86L79,58L71,78L32,94"/>
-    <path android:strokeColor="#E6E8EA" android:strokeWidth="1.5" android:strokeLinecap="round" android:fillColor="#00000000" android:pathData="M18,82L90,58"/>
+    <path android:strokeColor="#B8202C" android:strokeWidth="3.2" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M27,86L79,58L71,78L32,94"/>
+    <path android:strokeColor="#E6E8EA" android:strokeWidth="1.5" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M18,82L90,58"/>
     <path android:strokeColor="#A9B0B8" android:strokeWidth="1" android:fillColor="#00000000" android:pathData="M15,95L93,95"/>
 </vector>
