@@ -70,6 +70,10 @@ def collect(exchange_id):
                 str((currency.get("info") or {}).get("type") or "").upper() == "FT"
             )
         )
+        perpetuals = [m for m in ex.markets.values()
+                      if m.get("active") is not False and m.get("swap")
+                      and m.get("linear") and m.get("quote") == "USDT"
+                      and m.get("settle") == "USDT"]
         markets, excluded_non_crypto, excluded_unknown = [], [], []
         classification_by_symbol = {}
         for market in perpetuals:
