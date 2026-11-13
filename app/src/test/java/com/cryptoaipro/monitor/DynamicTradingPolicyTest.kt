@@ -67,6 +67,12 @@ class DynamicTradingPolicyTest {
         assertNotNull(DynamicTradingPolicy.evaluate(strongLong().copy(dailyEntries = 7, consecutiveLosses = 2), 1_000.0, 900.0, 100.0, 98.0))
     }
 
+    @Test fun neuralDisagreementBlocksLowConsensusAndRejectsInvalidSpread() {
+        assertNull(DynamicTradingPolicy.evaluate(strongLong().copy(neuralDisagreement = 0.1801), 1_000.0, 900.0, 100.0, 98.0))
+        assertNull(DynamicTradingPolicy.evaluate(strongLong().copy(neuralDisagreement = Double.NaN), 1_000.0, 900.0, 100.0, 98.0))
+        assertNotNull(DynamicTradingPolicy.evaluate(strongLong().copy(neuralDisagreement = 0.18), 1_000.0, 900.0, 100.0, 98.0))
+    }
+
     @Test fun peakDrawdownCircuitBreakerBlocksAtEightPercent() {
         assertNull(DynamicTradingPolicy.evaluate(strongLong().copy(peakDrawdownPercent = 8.0), 1_000.0, 900.0, 100.0, 98.0))
         assertNotNull(DynamicTradingPolicy.evaluate(strongLong().copy(peakDrawdownPercent = 7.99), 1_000.0, 900.0, 100.0, 98.0))
