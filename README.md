@@ -42,7 +42,7 @@ The ten voting specialists are deterministic technical rule modules, **not ten i
 
 The app retrieves public crypto headlines and, on XT USDT-M only, aggregate trades, large-print heuristics, open-interest/funding snapshots and visible order-book depth for up to five leading directional candidates per refresh. These are estimates of large-participant pressure, not verified whale identities or wallet tracking. The flow/news refresh is cached for up to 15 minutes; stale or unavailable sources must not add a positive signal score. These are contextual inputs, not proof of whale intent or a reliable sentiment label. Source, freshness, failures and missing data should remain visible.
 
-The permanent on-device signal notebook stores up to 5,000 recent directional signal records, including timestamp, direction, reference entry, stop, three targets, confidence, rationale and observed status. New same-direction signals are deduplicated for 15 minutes. It observes later public candle prices. It does not submit or simulate real exchange orders. Same-candle stop/target ambiguity is handled conservatively. Learning labels are approximate horizon outcomes and must not be described as verified trade fills.
+The permanent on-device signal notebook stores up to 5,000 recent directional signal records, including timestamp, direction, reference entry, stop, three targets, confidence, rationale and observed status. New same-direction signals are deduplicated for 15 minutes. It observes later public candle prices. Separately, an opt-in paper-autopilot ledger can simulate entries and exits with virtual capital; it never submits exchange orders. Paper entries require a validated neural bundle, aligned neural/technical direction, adequate reward-to-risk and a non-dislocated volatility regime. Risk is adaptive (0.15%-0.50% equity), leverage falls as volatility rises, and the stop can move to break-even / ATR trail after favorable movement. Same-candle stop/target ambiguity is resolved conservatively in favor of the stop. Paper fills and learning labels are estimates, not verified exchange fills.
 
 ## Persian knowledge library
 
@@ -72,7 +72,7 @@ Every push affecting Android source starts the **Build Android APK** GitHub Acti
 4. Download the **AMIR-ARSALAN-TRADER-WOLF-v2.18.0** artifact ZIP.
 5. Extract and install app-debug.apk on Android.
 
-The CI pipeline additionally checks the real-data manifest, absence of synthetic rows, bundled neural model and a minimum 20 MiB APK size. A successful CI build still verifies packaging and compilation only. It does not prove API availability in every region, signal quality, profitability, background reliability or production readiness. The 20 MiB target must be met by real bundled data/model assets; no artificial padding is used.
+The CI pipeline additionally checks the XT-only real-data manifest, absence of synthetic rows, the ten-member neural bundle, offline model validation and APK integrity. A successful CI build verifies packaging and compilation only. It does not prove API availability in every region, signal quality, profitability, background reliability or production readiness.
 
 ## Quality and safety roadmap
 
@@ -87,4 +87,4 @@ Before describing the app as production-ready, verify:
 7. Android UI navigation, voice permissions, foreground-service behavior, persistence and battery restrictions.
 8. Data freshness, error visibility, safe failure behavior and explicit NO TRADE handling.
 
-Never expose secrets in source code, logs, screenshots or public repository commits. This app's analysis-only design does not require exchange API keys.
+Never expose secrets in source code, logs, screenshots or public repository commits. Live order execution is not operational in this build and remains locked. Paper autopilot uses virtual capital and does not require exchange API keys. Do not enter real exchange credentials until a separate live-execution release has passed the documented order-lifecycle, reconciliation, protection, restart-recovery and emergency-stop gates.
