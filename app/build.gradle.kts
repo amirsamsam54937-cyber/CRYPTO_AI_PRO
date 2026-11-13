@@ -10,8 +10,8 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 94
-  versionName = "2.73.0"
+  versionCode = 95
+  versionName = "2.74.0"
   // Release 2.71.0: adaptive ZORO launcher icon with monochrome themed-icon support.
  }
  buildFeatures { compose = true }
