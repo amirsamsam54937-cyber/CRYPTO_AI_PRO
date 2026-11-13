@@ -65,6 +65,20 @@ class HopeHunterMonitorService : Service() {
             }
         }
         monitorJob = serviceScope.launch {
+            // Load the offline ensemble before the first network scan, not after it.
+            val neuralStatus = WolfPretrainedEnsemble.initialize(this@HopeHunterMonitorService)
+            ZoroDiagnostics.record(
+                this@HopeHunterMonitorService,
+                "شبکه عصبی",
+                if (neuralStatus.loaded && neuralStatus.members == 10) "INFO" else "ERROR",
+                if (neuralStatus.loaded) {
+                    "بارگذاری ${neuralStatus.members}/10 مدل؛ اعتبارسنجی امتیازدهی=" +
+                        neuralStatus.validatedForScoring + "؛ نمونه‌های آموزش=" + neuralStatus.samples +
+                        "؛ داده XT=" + neuralStatus.corpusRows
+                } else {
+                    "بارگذاری مدل ناموفق: " + neuralStatus.loadError
+                }
+            )
             while (isActive) {
                 try {
                     val signals = XtFuturesMonitor.scan { _, completed, universe, failed ->
