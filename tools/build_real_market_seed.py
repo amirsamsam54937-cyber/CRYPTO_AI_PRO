@@ -6,6 +6,7 @@ Only exchange-returned, closed candles are stored. No synthetic rows are generat
 """
 import csv, json, math, os, sys, time, hashlib
 from datetime import datetime, timezone
+from tools.xt_asset_classification import classify_xt_market
 
 TARGET = 898_920
 MINIMUM = 898_920
@@ -26,13 +27,30 @@ def collect(exchange_id):
                   "options": {"defaultType": "swap"}})
     try:
         ex.load_markets()
-        markets = [m for m in ex.markets.values()
-                   if m.get("active") is not False and m.get("swap")
-                   and m.get("linear") and m.get("quote") == "USDT"
-                   and m.get("settle") == "USDT"]
+        perpetuals = [m for m in ex.markets.values()
+                      if m.get("active") is not False and m.get("swap")
+                      and m.get("linear") and m.get("quote") == "USDT"
+                      and m.get("settle") == "USDT"]
+        markets, excluded_non_crypto, excluded_unknown = [], [], []
+        classification_by_symbol = {}
+        for market in perpetuals:
+            classification, reason = classify_xt_market(market)
+            symbol = market.get("symbol", "UNKNOWN")
+            if classification == "crypto":
+                markets.append(market)
+                classification_by_symbol[symbol] = {"asset_class": "crypto", "evidence": reason}
+            elif classification == "non_crypto":
+                excluded_non_crypto.append({"symbol": symbol, "reason": reason})
+            else:
+                excluded_unknown.append({"symbol": symbol, "reason": reason})
         markets.sort(key=lambda m: m["symbol"])
         if not markets:
-            raise RuntimeError(f"{exchange_id}: no active linear USDT perpetual markets")
+            raise RuntimeError(
+                f"{exchange_id}: no perpetuals with explicit crypto asset-class metadata; "
+                f"eligible_perpetuals={len(perpetuals)}, "
+                f"non_crypto={len(excluded_non_crypto)}, unknown={len(excluded_unknown)}. "
+                "Failing closed rather than guessing asset class."
+            )
         # Over-collect per market so newly listed or thin-history contracts do not
         # leave the corpus just below the requested training size.
         # The final corpus is capped at exactly TARGET real, closed XT candles.
@@ -130,7 +148,13 @@ def main():
         "minimum_required_rows": MINIMUM,
         "timeframe": TIMEFRAME,
         "source_exchanges": sorted({r[0] for r in rows}),
-        "data_source_policy": "XT_USDT_M_ONLY",
+        "data_source_policy": "XT_USDT_M_CRYPTO_ONLY",
+        "asset_class_policy": "EXPLICIT_XT_METADATA_CRYPTO_ONLY",
+        "crypto_only_verified": True,
+        "eligible_perpetuals": len(markets),
+        "excluded_non_crypto_symbols": excluded_non_crypto,
+        "excluded_unknown_symbols": excluded_unknown,
+        "asset_classification": classification_by_symbol,
         "symbols": len({r[1] for r in rows}),
         "first_timestamp_ms": min(r[3] for r in rows),
         "last_timestamp_ms": max(r[3] for r in rows),
