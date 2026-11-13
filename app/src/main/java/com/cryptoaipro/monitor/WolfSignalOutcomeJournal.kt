@@ -141,11 +141,24 @@ internal object WolfSignalOutcomeJournal {
                     put("confidence", s.confidence); put("neuralScore", s.neuralScore); put("score", s.score)
                     put("reason", s.reason); put("leverage", s.leverage); put("change", s.change)
                     put("lastPrice", s.price); put("lastChecked", now)
+                    put("neuralFeatures", JSONArray().apply { WolfDeepNeuralNetwork.featureVector(s).forEach { put(it) } })
+                    put("learningApplied", false)
                     put("lastEvaluatedCandleOpenTime", s.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: now)
                 })
             }
         }
 
+        rows.filter { it.optBoolean("closed") && !it.optBoolean("learningApplied") }.forEach { record ->
+            val savedFeatures = record.optJSONArray("neuralFeatures")
+            val pnl = record.optDouble("pnlPct", Double.NaN)
+            if (savedFeatures != null && savedFeatures.length() == 7 && pnl.isFinite()) {
+                val vector = DoubleArray(7) { savedFeatures.optDouble(it, Double.NaN) }
+                if (vector.all { it.isFinite() }) {
+                    WolfDeepNeuralNetwork.learn(prefs, vector, if (pnl > 0.0) 1.0 else 0.0)
+                    record.put("learningApplied", true)
+                }
+            }
+        }
         val bounded = rows.takeLast(MAX_RECORDS)
         val saved = JSONArray().apply { bounded.forEach { put(it) } }
         val editor = prefs.edit().putString(KEY, saved.toString())
