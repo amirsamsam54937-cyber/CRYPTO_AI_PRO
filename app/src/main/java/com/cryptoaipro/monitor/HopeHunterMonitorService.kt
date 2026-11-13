@@ -65,7 +65,7 @@ class HopeHunterMonitorService : Service() {
             }
         }
         monitorJob = serviceScope.launch {
-            // Load the offline ensemble before the first network scan, not after it.
+            // Load the complete offline ensemble before any market request; record the exact result.
             val neuralStatus = WolfPretrainedEnsemble.initialize(this@HopeHunterMonitorService)
             ZoroDiagnostics.record(
                 this@HopeHunterMonitorService,
