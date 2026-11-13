@@ -241,7 +241,13 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         // One central authority arbitrates every specialist, the technical consensus and
         // the neural ensemble. The neural model is directional only after holdout validation.
         val commander = HopeCommander.decide(reviewed, neuralValidated)
-        val commanderQualified = commander.direction != "NEUTRAL" && commander.confidence >= 62
+        // Publish a technically valid 5m scalp candidate from 56/100 so the user can
+        // inspect the Commander's decision instead of seeing every sub-62 setup capped
+        // at 49. This is a signal-publication threshold, NOT an order authorization:
+        // XtLiveTradingEngine still requires >=66, fresh aligned flow, a liquidity sweep,
+        // positive net TP1 after fees/slippage, and exchange-native protection.
+        val publishThreshold = if (reviewed.tradeTimeframe.startsWith("5m")) 56 else 62
+        val commanderQualified = commander.direction != "NEUTRAL" && commander.confidence >= publishThreshold
         val neuralAgreement = neuralValidated && bothDirectional && tech == neural && neuralStrength >= 55
         val technicalOnlyQualified = !neuralValidated &&
             (tech == "LONG_BIAS" || tech == "SHORT_BIAS") &&
