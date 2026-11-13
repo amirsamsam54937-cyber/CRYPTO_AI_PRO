@@ -130,7 +130,7 @@ def load_seed_samples():
     if not os.path.exists(path) or not os.path.exists(manifest_path):
         raise SystemExit("Verified XT-only corpus or manifest is missing.")
     with open(manifest_path,encoding="utf-8") as handle: manifest=json.load(handle)
-    if (manifest.get("status")!="verified_real_exchange_data" or int(manifest.get("rows",0))<745_427
+    if (manifest.get("status")!="verified_real_exchange_data" or int(manifest.get("rows",0))<898_920
         or sorted(x.upper() for x in manifest.get("source_exchanges",[]))!=["XT"]
         or int(manifest.get("synthetic_rows",-1))!=0
         or manifest.get("data_source_policy")!="XT_USDT_M_ONLY"):
@@ -158,7 +158,8 @@ def main():
     if not chunks: raise SystemExit("No valid XT history; refusing to create fake pretrained weights.")
     X=np.vstack([z[0] for z in chunks]); y=np.concatenate([z[1] for z in chunks]); ts=np.concatenate([z[2] for z in chunks])
     order=np.argsort(ts,kind="stable"); X,y,ts=X[order],y[order],ts[order]
-    if len(X)<500 or len(np.unique(y))<2: raise SystemExit("Insufficient directional history or only one class.")
+    if len(X)<745_427: raise SystemExit(f"Only {len(X):,} labeled samples; 745,427 are required to match the previous training run.")
+    if len(np.unique(y))<2: raise SystemExit("Insufficient directional history or only one class.")
     train_mask,test_mask,purged,cutoff=chronological_masks(ts)
     X_train,X_test=X[train_mask],X[test_mask]; y_train,y_test=y[train_mask],y[test_mask]
     if len(np.unique(y_train))<2 or len(np.unique(y_test))<2: raise SystemExit("Both chronological partitions need both labels.")
