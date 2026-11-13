@@ -171,7 +171,25 @@ def main():
         model=MLPClassifier(hidden_layer_sizes=(64,32,16),activation="tanh",solver="adam",
             alpha=.002,learning_rate_init=.0015,max_iter=300,early_stopping=False,
             tol=1e-4,n_iter_no_change=22,random_state=20261112+index)
-        model.fit(a,y_train); probabilities=model.predict_proba(b)[:,1]
+        # Train each specialist on a deterministic class-balanced bootstrap.
+        # Correct the posterior back to the real chronological training prevalence
+        # before evaluating on the untouched holdout, preserving calibration semantics.
+        rng=np.random.default_rng(20261112+index)
+        class0=np.flatnonzero(y_train==0); class1=np.flatnonzero(y_train==1)
+        if len(class0)<2 or len(class1)<2:
+            raise SystemExit("Each specialist requires both classes in the training partition.")
+        per_class=max(len(class0),len(class1))
+        balanced_idx=np.concatenate([
+            rng.choice(class0,size=per_class,replace=len(class0)<per_class),
+            rng.choice(class1,size=per_class,replace=len(class1)<per_class)
+        ])
+        rng.shuffle(balanced_idx)
+        model.fit(a[balanced_idx],y_train[balanced_idx])
+        raw_probabilities=np.clip(model.predict_proba(b)[:,1],1e-6,1-1e-6)
+        train_prevalence=float(np.clip(y_train.mean(),1e-4,1-1e-4))
+        raw_logits=np.log(raw_probabilities/(1.0-raw_probabilities))
+        prior_log_odds=np.log(train_prevalence/(1.0-train_prevalence))
+        probabilities=1.0/(1.0+np.exp(-np.clip(raw_logits+prior_log_odds,-30.0,30.0)))
         all_probabilities.append(probabilities)
         metrics.append({"member":index+1,"role":role,"accuracy":round(float(accuracy_score(y_test,probabilities>=.5)),4),
             "log_loss":round(float(log_loss(y_test,np.clip(probabilities,1e-6,1-1e-6))),4),"iterations":int(model.n_iter_)})
