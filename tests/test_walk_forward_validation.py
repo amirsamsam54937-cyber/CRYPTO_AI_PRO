@@ -33,6 +33,12 @@ def test_symbol_holdout_is_deterministic_and_disjoint():
     symbols = np.repeat(np.array(["BTC", "ETH", "SOL", "XRP", "DOGE"]), 4)
     train, test = deterministic_symbol_holdout(symbols, holdout_fraction=0.2)
     assert train.any() and test.any() and not np.any(train & test)
-    assert set(symbols[test]) == {"XRP"}
-    train2, test2 = deterministic_symbol_holdout(symbols, holdout_fraction=0.2)
-    assert np.array_equal(train, train2) and np.array_equal(test, test2)
+    held_out = set(symbols[test])
+    assert len(held_out) == 1
+    # Input row order must not affect the selected unseen instrument.
+    shuffled = np.random.default_rng(9).permutation(len(symbols))
+    train2, test2 = deterministic_symbol_holdout(symbols[shuffled], holdout_fraction=0.2)
+    assert set(symbols[shuffled][test2]) == held_out
+    assert set(symbols[shuffled][train2]).isdisjoint(held_out)
+    train3, test3 = deterministic_symbol_holdout(symbols, holdout_fraction=0.2)
+    assert np.array_equal(train, train3) and np.array_equal(test, test3)
