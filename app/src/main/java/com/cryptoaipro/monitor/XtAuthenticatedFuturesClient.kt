@@ -39,7 +39,13 @@ internal class XtAuthenticatedFuturesClient(
     private val context: Context
 ) {
     private val baseUrl = "https://fapi.xt.com"
-    private val entryMutex = Mutex()\n\n    private fun normalizeSymbol(value: String): String {\n        val compact = value.lowercase().filter(Char::isLetterOrDigit)\n        require(compact.endsWith("usdt") && compact.length > 4) { "نماد قرارداد USDT نامعتبر است." }\n        return compact.dropLast(4) + "_usdt"\n    }
+    private val entryMutex = Mutex()
+
+    private fun normalizeSymbol(value: String): String {
+        val compact = value.lowercase().filter(Char::isLetterOrDigit)
+        require(compact.endsWith("usdt") && compact.length > 4) { "نماد قرارداد USDT نامعتبر است." }
+        return compact.dropLast(4) + "_usdt"
+    }
 
     private fun signature(secret: String, payload: String): String {
         val mac = Mac.getInstance("HmacSHA256")
@@ -242,9 +248,12 @@ internal class XtAuthenticatedFuturesClient(
     ): ContractSizing {
         require(listOf(equityUsdt, availableUsdt, entry, stop, contractSize).all { it.isFinite() && it > 0.0 })
         require(entry != stop && leverage in 1..5)
-        require(riskFraction in 0.001..0.01 && marginFraction in 0.02..0.15 &&\n            takerFeeRate in 0.0..0.02 && slippageRate in 0.0..0.02)
+        require(riskFraction in 0.001..0.01 && marginFraction in 0.02..0.15 &&
+            takerFeeRate in 0.0..0.02 && slippageRate in 0.0..0.02)
         val riskBudget = equityUsdt * riskFraction
-        val lossPerContract = kotlin.math.abs(entry - stop) * contractSize +\n            (entry + stop) * contractSize * takerFeeRate +\n            (entry + stop) * contractSize * slippageRate
+        val lossPerContract = kotlin.math.abs(entry - stop) * contractSize +
+            (entry + stop) * contractSize * takerFeeRate +
+            (entry + stop) * contractSize * slippageRate
         val contractsByRisk = riskBudget / lossPerContract
         val maxNotional = minOf(availableUsdt * leverage * marginFraction, equityUsdt * leverage * marginFraction)
         val contractsByMargin = maxNotional / (entry * contractSize)
