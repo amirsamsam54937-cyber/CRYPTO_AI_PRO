@@ -97,13 +97,18 @@ jobs:
           pathlib.Path("app/src/main/assets/wolf_model_training_report.json").write_text(report_text)
           print(json.dumps({"trained_models":len(d["members"]),"samples":d["samples"],"validation_status":report["validation_status"],"evaluation":e},indent=2))
           PY
+      - name: Compress verified XT corpus for Android assets
+        if: ${{ success() && github.event_name == 'workflow_dispatch' && inputs.train_models }}
+        run: |
+          set -euo pipefail
+          gzip -1 -f app/src/main/assets/market_seed.csv
       - name: Publish verified XT-only training bundle
         if: ${{ success() && github.event_name == 'workflow_dispatch' && inputs.train_models }}
         uses: actions/upload-artifact@v4
         with:
           name: HOPE-HUNTER-1M-XT-TRAINING-DATA
           path: |
-            app/src/main/assets/market_seed.csv
+            app/src/main/assets/market_seed.csv.gz
             app/src/main/assets/wolf_corpus_manifest.json
             app/src/main/assets/wolf_model_training_report.json
             app/src/main/assets/wolf_pretrained_ensemble.json
@@ -128,7 +133,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: HOPE-HUNTER-2.63.1-build-diagnostics
+          name: HOPE-HUNTER-2.64.0-build-diagnostics
           path: |
             build.log
             apk-metadata.txt
@@ -137,7 +142,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: HOPE-HUNTER-2.63.1-APK
+          name: HOPE-HUNTER-2.64.0-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
