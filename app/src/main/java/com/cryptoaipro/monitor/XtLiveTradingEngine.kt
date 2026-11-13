@@ -40,6 +40,19 @@ internal object XtLiveTradingEngine {
             if (enabled) "اجرای واقعی فعال شد؛ شروع سفارش فقط با سرویس پس‌زمینه و کلید معتبر XT" else "اجرای واقعی متوقف شد؛ پایش پوزیشن‌های باز ادامه می‌یابد")
     }
 
+    private fun recordThrottled(
+        context: Context, key: String, module: String, level: String, message: String,
+        intervalMs: Long = 30_000L
+    ) {
+        val p = prefs(context)
+        val now = System.currentTimeMillis()
+        val prefKey = "diag_throttle_" + key
+        if (now - p.getLong(prefKey, 0L) >= intervalMs) {
+            p.edit().putLong(prefKey, now).apply()
+            ZoroDiagnostics.record(context, module, level, message)
+        }
+    }
+
     private fun utcDay(now: Long): String =
         SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
@@ -227,7 +240,7 @@ internal object XtLiveTradingEngine {
                 val plans = try {
                     client.activeTriggerPlans(position.symbol)
                 } catch (error: Exception) {
-                    ZoroDiagnostics.record(context, "XT_POSITION", "ERROR", "بررسی سفارش‌های حفاظتی ${position.symbol} ناموفق بود: ${error.message}")
+                    recordThrottled(context, "plans_" + position.symbol, "XT_POSITION", "ERROR", "بررسی سفارش‌های حفاظتی ${position.symbol} ناموفق بود: ${error.message}")
                     continue
                 }
                 val hasStop = plans.any { it.optString("entrustType") in setOf("STOP_MARKET", "STOP") && it.optString("positionSide").equals(position.side, true) }
@@ -275,7 +288,7 @@ internal object XtLiveTradingEngine {
                 }
             }
         } catch (error: Exception) {
-            ZoroDiagnostics.record(context, "XT_POSITION", "ERROR", "بازیابی پوزیشن‌های XT ناموفق بود: ${error.message}")
+            recordThrottled(context, "positions_sync", "XT_POSITION", "ERROR", "بازیابی پوزیشن‌های XT ناموفق بود: ${error.message}")
         }
     }
 }
