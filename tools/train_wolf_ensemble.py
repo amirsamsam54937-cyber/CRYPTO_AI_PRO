@@ -12,7 +12,8 @@ try:
 except ModuleNotFoundError:
     from time_series_validation import chronological_masks
 
-DATA_SOURCE = "verified XT USDT-M only historical corpus"
+DATA_SOURCE = "verified XT USDT-M crypto-only historical corpus"
+MIN_LABELED_SAMPLES = 100_000
 INTERVAL, HORIZON = "1h", 6
 FEATURE_NAMES = ["ema_trend", "rsi_momentum", "adx_strength", "relative_volume",
                  "candle_body_pressure", "atr_percent", "past_6_bar_momentum"]
@@ -132,17 +133,26 @@ def load_seed_samples():
     if not os.path.exists(path) or not os.path.exists(manifest_path):
         raise SystemExit("Verified XT-only corpus or manifest is missing.")
     with open(manifest_path,encoding="utf-8") as handle: manifest=json.load(handle)
+    asset_map = manifest.get("asset_classification", {})
     if (manifest.get("status")!="verified_real_exchange_data" or int(manifest.get("rows",0))<898_920
         or sorted(x.upper() for x in manifest.get("source_exchanges",[]))!=["XT"]
         or int(manifest.get("synthetic_rows",-1))!=0
-        or manifest.get("data_source_policy")!="XT_USDT_M_ONLY"):
-        raise SystemExit("Training requires at least one million verified real XT USDT-M candles only.")
+        or manifest.get("data_source_policy")!="XT_USDT_M_CRYPTO_ONLY"
+        or manifest.get("asset_class_policy")!="EXPLICIT_XT_METADATA_CRYPTO_ONLY"
+        or manifest.get("crypto_only_verified") is not True
+        or int(manifest.get("excluded_unknown_count",-1)) != 0
+        or not asset_map):
+        raise SystemExit("Training requires a verified XT crypto-only corpus with explicit asset-class metadata.")
+    if any(item.get("asset_class") != "crypto" for item in asset_map.values()):
+        raise SystemExit("Non-crypto or unverified asset classification found in corpus manifest.")
     grouped={}
     with open(path,newline="",encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             if row.get("exchange","").upper()!="XT": raise SystemExit("Non-XT rows detected; refusing mixed-exchange training.")
             if row.get("timeframe")!="1h": continue
             symbol=row["symbol"].upper()
+            if asset_map.get(symbol, {}).get("asset_class") != "crypto":
+                raise SystemExit(f"Symbol {symbol} is not explicitly classified as crypto in the corpus manifest.")
             grouped.setdefault(symbol,[]).append([float(row["timestamp"]),float(row["open"]),float(row["high"]),
                 float(row["low"]),float(row["close"]),float(row["volume"]),0.0])
     return grouped
@@ -160,7 +170,8 @@ def main():
     if not chunks: raise SystemExit("No valid XT history; refusing to create fake pretrained weights.")
     X=np.vstack([z[0] for z in chunks]); y=np.concatenate([z[1] for z in chunks]); ts=np.concatenate([z[2] for z in chunks])
     order=np.argsort(ts,kind="stable"); X,y,ts=X[order],y[order],ts[order]
-    if len(X)<745_427: raise SystemExit(f"Only {len(X):,} labeled samples; 745,427 are required to match the previous training run.")
+    if len(X)<MIN_LABELED_SAMPLES:
+        raise SystemExit(f"Only {len(X):,} crypto-only labeled samples; at least {MIN_LABELED_SAMPLES:,} are required.")
     if len(np.unique(y))<2: raise SystemExit("Insufficient directional history or only one class.")
     train_mask,test_mask,purged,cutoff=chronological_masks(ts)
     X_train,X_test=X[train_mask],X[test_mask]; y_train,y_test=y[train_mask],y[test_mask]
@@ -218,6 +229,7 @@ def main():
         "interval":INTERVAL,"horizon_bars":HORIZON,"feature_names":FEATURE_NAMES,
         "target_definition":"future_return_over_6_hours_positive_vs_nonpositive",
         "specialist_roles":[x[0] for x in SPECIALISTS],"symbols":sorted(used_symbols),"symbols_count":len(used_symbols),
+        "data_source_policy":"XT_USDT_M_CRYPTO_ONLY","asset_class_policy":"EXPLICIT_XT_METADATA_CRYPTO_ONLY",
         "samples":int(len(X)),"train_samples":int(len(X_train)),"test_samples":int(len(X_test)),
         "feature_mean":scaler.mean_.tolist(),"feature_scale":scaler.scale_.tolist(),
         "training_prior_log_odds":float(np.log(np.clip(y_train.mean(),1e-4,1-1e-4)/(1.0-np.clip(y_train.mean(),1e-4,1-1e-4)))),
