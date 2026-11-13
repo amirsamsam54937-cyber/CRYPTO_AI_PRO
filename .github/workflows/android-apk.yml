@@ -161,11 +161,14 @@ jobs:
           assert m.get("asset_class_policy")=="XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH"
           assert len(model.get("members",[]))==10
           assert report.get("validated_for_scoring") is True
-          assert set(model.get("symbols",[])).issubset(set(m.get("crypto_symbols",[])))
-          assert model.get("corpus_sha256")==m.get("sha256")
-          assert model.get("currency_metadata_sha256")==m.get("currency_metadata_sha256")
-           assert model.get("crypto_asset_registry_source")==m.get("crypto_asset_registry_source")
-           assert model.get("crypto_asset_registry_sha256")==m.get("crypto_asset_registry_sha256")
+          assert set(model.get("symbols",[])).issubset(set(manifest.get("crypto_symbols",[])))
+          assert model.get("corpus_sha256")==manifest.get("sha256")
+          assert model.get("currency_metadata_sha256")==manifest.get("currency_metadata_sha256")
+          assert model.get("asset_class_policy")==manifest.get("asset_class_policy")
+          assert model.get("crypto_asset_registry_source")==manifest.get("crypto_asset_registry_source")
+          assert model.get("crypto_asset_registry_sha256")==manifest.get("crypto_asset_registry_sha256")
+          assert model.get("crypto_asset_registry_source")==m.get("crypto_asset_registry_source")
+          assert model.get("crypto_asset_registry_sha256")==m.get("crypto_asset_registry_sha256")
           assert report.get("validation_status")=="validated_for_scoring"
           with gzip.open(p/"market_seed.csv.gz","rt",encoding="utf-8") as f:
               header=f.readline().strip()
