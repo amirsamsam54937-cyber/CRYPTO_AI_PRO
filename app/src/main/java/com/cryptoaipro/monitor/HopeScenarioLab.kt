@@ -52,7 +52,7 @@ internal object HopeScenarioLab {
     private const val PREFS = "hope_scenario_lab"
     private const val KEY = "forecast_journal_v1"
     private const val HORIZON = 8
-    private const val PATHS = 1600
+    private const val PATHS = 5000
     private const val BLOCK = 3
     private const val BAR_MS = 15L * 60L * 1000L
 
@@ -193,8 +193,34 @@ internal object HopeScenarioLab {
         val stopBeforeTarget = if (tradeEvaluated == 0) 0.0 else paths.count { it.firstTradeBarrier == "SL" }.toDouble() / PATHS * 100.0
         val noBarrier = if (tradeEvaluated == 0) 0.0 else paths.count { it.firstTradeBarrier == null }.toDouble() / PATHS * 100.0
         return HopeScenarioForecast(signal.symbol, base, c.last()[5].toLong(), HORIZON, threshold,
-            scenarios, "۱۶۰۰ مسیر بوت‌استرپ شرطی با داده تاریخی، قدرت سیگنال و شواهد معتبر؛ برخورد تقریبی به سطوح ساختاری", pathScenarios,
+            scenarios, "۵۰۰۰ مسیر بوت‌استرپ شرطی با داده تاریخی، قدرت سیگنال و شواهد معتبر؛ برخورد تقریبی به سطوح ساختاری", pathScenarios,
             tp1BeforeStop, tp2BeforeStop, tp3BeforeStop, stopBeforeTarget, tradeEvaluated, noBarrier)
+    }
+
+    /** Apply empirical path-risk evidence to the signal score. This is a conservative filter,
+     * not a calibrated probability or a guarantee; only the top 24 valid candidates are simulated. */
+    fun applySignalImpact(signals: List<MarketSignal>): List<MarketSignal> {
+        val selected = signals.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
+            .sortedByDescending { it.confidence }.take(24).associateBy { it.symbol }
+        return signals.map { signal ->
+            if (signal.symbol !in selected) return@map signal
+            val forecast = forecast(signal) ?: return@map signal
+            if (forecast.barrierEvaluatedPaths < PATHS) return@map signal
+            val edge = forecast.tp1BeforeStopPct - forecast.stopBeforeTargetPct
+            val adjustment = (edge / 100.0 * 24.0).toInt().coerceIn(-10, 10)
+            val weakSetup = forecast.tp1BeforeStopPct <= 25.0 && forecast.stopBeforeTargetPct >= 50.0
+            val side = if (signal.direction == "LONG_BIAS") 1 else -1
+            val summary = " • ونوم/۵۰۰۰ مسیر: هدف قبل از حدضرر " + String.format(Locale.US, "%.1f", forecast.tp1BeforeStopPct) + "٪؛ حدضرر قبل از هدف " + String.format(Locale.US, "%.1f", forecast.stopBeforeTargetPct) + "٪"
+            if (weakSetup) signal.copy(
+                direction = "NEUTRAL", score = 0,
+                confidence = (signal.confidence - 12).coerceIn(0, 100),
+                reason = signal.reason + summary + " • رد سیگنال: ریسک مسیر شبیه‌سازی‌شده نامطلوب است."
+            ) else signal.copy(
+                score = (signal.score + side * adjustment).coerceIn(-100, 100),
+                confidence = (signal.confidence + adjustment).coerceIn(0, 100),
+                reason = signal.reason + summary + if (adjustment > 0) " • شواهد مسیر تقویت‌کننده" else if (adjustment < 0) " • شواهد مسیر تضعیف‌کننده" else " • اثر مسیر خنثی"
+            )
+        }
     }
 
     @Synchronized
