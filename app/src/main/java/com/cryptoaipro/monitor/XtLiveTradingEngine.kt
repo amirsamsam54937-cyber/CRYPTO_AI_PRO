@@ -137,8 +137,10 @@ internal object XtLiveTradingEngine {
                 val geometry = if (side == "LONG") stop < entry && target > entry else target < entry && stop > entry
                 if (!geometry || entry <= 0.0) continue
 
-                val spec = runCatching { client.contractSpec(symbol) }.getOrElse {
-                    ZoroDiagnostics.record(context, "XT_LIVE", "WARNING", "مشخصات قرارداد $symbol دریافت نشد: ${it.message}")
+                val spec = try {
+                    client.contractSpec(symbol)
+                } catch (error: Exception) {
+                    ZoroDiagnostics.record(context, "XT_LIVE", "WARNING", "مشخصات قرارداد $symbol دریافت نشد: ${error.message}")
                     continue
                 }
                 val feeAndSlip = spec.takerFeeRate + 0.0005
@@ -148,7 +150,7 @@ internal object XtLiveTradingEngine {
                 if (!netRr.isFinite() || netRr < 1.8) continue
 
                 val leverage = signal.leverage.coerceIn(1, 3)
-                val sizing = runCatching {
+                val sizing = try {
                     client.sizeForRisk(
                         equityUsdt = account.equityUsdt,
                         availableUsdt = account.availableBalanceUsdt,
@@ -159,8 +161,8 @@ internal object XtLiveTradingEngine {
                         takerFeeRate = spec.takerFeeRate,
                         slippageRate = 0.0005
                     )
-                }.getOrElse {
-                    ZoroDiagnostics.record(context, "XT_LIVE", "INFO", "حجم $symbol به حداقل قابل‌معامله نرسید: ${it.message}")
+                } catch (error: Exception) {
+                    ZoroDiagnostics.record(context, "XT_LIVE", "INFO", "حجم $symbol به حداقل قابل‌معامله نرسید: ${error.message}")
                     continue
                 }
                 val notional = sizing.contracts * entry * spec.contractSize
@@ -210,11 +212,12 @@ internal object XtLiveTradingEngine {
                 val stop = local.optDouble("stop")
                 val target = local.optDouble("takeProfit")
                 if (stop <= 0.0 || target <= 0.0) continue
-                val plans = runCatching { client.activeTriggerPlans(position.symbol.lowercase().replace("-", "_")) }
-                    .getOrElse {
-                        ZoroDiagnostics.record(context, "XT_POSITION", "ERROR", "بررسی سفارش‌های حفاظتی ${position.symbol} ناموفق بود: ${it.message}")
-                        continue
-                    }
+                val plans = try {
+                    client.activeTriggerPlans(position.symbol)
+                } catch (error: Exception) {
+                    ZoroDiagnostics.record(context, "XT_POSITION", "ERROR", "بررسی سفارش‌های حفاظتی ${position.symbol} ناموفق بود: ${error.message}")
+                    continue
+                }
                 val hasStop = plans.any { it.optString("entrustType") in setOf("STOP_MARKET", "STOP") && it.optString("positionSide").equals(position.side, true) }
                 val hasTakeProfit = plans.any { it.optString("entrustType") in setOf("TAKE_PROFIT_MARKET", "TAKE_PROFIT") && it.optString("positionSide").equals(position.side, true) }
                 if (!hasStop) {
