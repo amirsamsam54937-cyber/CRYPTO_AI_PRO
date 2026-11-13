@@ -119,9 +119,11 @@ def make_rows(raw):
     ])
     future=np.full(len(c),np.nan,dtype=float)
     future[:-HORIZON]=c[HORIZON:]/np.maximum(c[:-HORIZON],1e-9)-1.0
-    # Binary target is the actual future direction, independent of any signal rule.
-    y=(future>0.0).astype(int)
-    valid=np.isfinite(future) & (np.arange(len(c))>=50)
+    # Label only economically meaningful future moves; sub-threshold noise is excluded.
+    # Positive class means a forward return greater than +0.25%; negative class
+    # contains returns below -0.25%. This target is independent of technical rules.
+    y=(future>0.0025).astype(int)
+    valid=np.isfinite(future) & (np.arange(len(c))>=50) & (np.abs(future)>0.0025)
     return X[valid],y[valid],a[:,0][valid]
 
 def load_seed_samples():
