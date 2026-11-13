@@ -245,11 +245,10 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         val neuralAgreement = neuralValidated && bothDirectional && tech == neural && neuralStrength >= 55
         val technicalOnlyQualified = !neuralValidated &&
             (tech == "LONG_BIAS" || tech == "SHORT_BIAS") &&
-            reviewed.direction == tech &&
-            reviewed.confidence >= 64 &&
-            (reviewed.consensus?.agreement ?: 0) >= 60 &&
-            reviewed.technical.adx >= 18.0 &&
-            reviewed.technical.relativeVolume >= 0.80
+            reviewed.confidence >= 58 &&
+            (reviewed.consensus?.agreement ?: 0) >= 58 &&
+            reviewed.technical.adx >= 16.0 &&
+            reviewed.technical.relativeVolume >= 0.65
         val tier = when {
             commander.direction == "NEUTRAL" -> "بدون رتبه"
             neuralAgreement && commander.confidence >= 82 && neuralStrength >= 70 -> "نوع ۱ • ممتاز"
