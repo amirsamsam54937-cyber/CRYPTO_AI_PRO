@@ -39,7 +39,7 @@ internal class XtAuthenticatedFuturesClient(
     private val context: Context
 ) {
     private val baseUrl = "https://fapi.xt.com"
-    private val entryMutex = Mutex()
+    private val entryMutex = Mutex()\n\n    private fun normalizeSymbol(value: String): String {\n        val compact = value.lowercase().filter(Char::isLetterOrDigit)\n        require(compact.endsWith("usdt") && compact.length > 4) { "نماد قرارداد USDT نامعتبر است." }\n        return compact.dropLast(4) + "_usdt"\n    }
 
     private fun signature(secret: String, payload: String): String {
         val mac = Mac.getInstance("HmacSHA256")
@@ -280,10 +280,10 @@ internal class XtAuthenticatedFuturesClient(
         val closeSide = if (position.side == "LONG") "SELL" else "BUY"
         val body = JSONObject()
             .put("clientOrderId", "ZORO-GUARD-" + UUID.randomUUID().toString().replace("-", "").take(20))
-            .put("symbol", position.symbol.lowercase().replace("-", "_"))
+            .put("symbol", normalizeSymbol(position.symbol))
             .put("orderSide", closeSide)
             .put("entrustType", entrustType)
-            .put("origQty", BigDecimal.valueOf(position.quantity).stripTrailingZeros().toPlainString())
+            .put("origQty", floorContracts(position.quantity))
             .put("stopPrice", BigDecimal.valueOf(triggerPrice).stripTrailingZeros().toPlainString())
             .put("timeInForce", "IOC")
             .put("triggerPriceType", "MARK_PRICE")
