@@ -27,6 +27,10 @@ internal object XtLiveTradingEngine {
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    fun positionCount(context: Context): Int = runCatching {
+        JSONArray(prefs(context).getString("open_positions", "[]")).length()
+    }.getOrDefault(0)
+
     fun isEnabled(context: Context): Boolean =
         prefs(context).getBoolean("live_execution_enabled", false)
 
