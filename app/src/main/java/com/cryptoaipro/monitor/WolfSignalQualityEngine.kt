@@ -81,8 +81,8 @@ internal object WolfSignalQualityEngine {
             if (signal.rsi <= 16.0) veto = true
         }
 
-        // Hard execution-quality gate: reject invalid or sub-1.8R first targets.
-        // This reduces marginal setups; it cannot guarantee a winning trade.
+        // Reject invalid geometry. Non-scalp setups retain the 1.8R quality gate;
+        // 5m scalps defer their small-target acceptance to the live XT net-fee check.
         val riskDistance = abs(signal.entry - signal.stop)
         val rewardDistance = abs(signal.tp1 - signal.entry)
         val validGeometry = signal.entry.isFinite() && signal.stop.isFinite() &&
@@ -95,7 +95,7 @@ internal object WolfSignalQualityEngine {
             penalty += 20
             veto = true
             notes += "هندسه ورود، حدضرر یا هدف اول نامعتبر است"
-        } else if (rewardRisk < 1.8) {
+        } else if (!signal.tradeTimeframe.startsWith("5m") && rewardRisk < 1.8) {
             penalty += 16
             veto = true
             notes += "نسبت سود به زیان هدف اول کمتر از ۱٫۸ است"
