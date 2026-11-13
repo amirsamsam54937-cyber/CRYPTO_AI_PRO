@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - "app/**"
+      - "tools/**"
       - "tests/**"
       - "requirements.txt"
       - ".github/workflows/python-tests.yml"
