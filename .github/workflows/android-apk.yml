@@ -13,6 +13,11 @@ on:
         required: false
         default: false
         type: boolean
+      require_trained_bundle:
+        description: "Fail the release build unless the verified corpus and ten validated models are packaged"
+        required: false
+        default: false
+        type: boolean
   push:
     paths:
       - "app/**"
@@ -115,6 +120,33 @@ jobs:
             app/src/main/assets/wolf_pretrained_ensemble.json
           if-no-files-found: error
           retention-days: 90
+      - name: Enforce complete offline AI bundle for release builds
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.require_trained_bundle }}
+        run: |
+          set -euo pipefail
+          ASSETS=app/src/main/assets
+          test -s "$ASSETS/market_seed.csv.gz"
+          test -s "$ASSETS/wolf_corpus_manifest.json"
+          test -s "$ASSETS/wolf_pretrained_ensemble.json"
+          test -s "$ASSETS/wolf_model_training_report.json"
+          python - <<'PY'
+          import gzip, json, pathlib
+          p=pathlib.Path("app/src/main/assets")
+          m=json.loads((p/"wolf_corpus_manifest.json").read_text())
+          model=json.loads((p/"wolf_pretrained_ensemble.json").read_text())
+          report=json.loads((p/"wolf_model_training_report.json").read_text())
+          assert m.get("status")=="verified_real_exchange_data"
+          assert m.get("rows",0)>=1_000_000 and m.get("synthetic_rows") == 0
+          assert m.get("data_source_policy")=="XT_USDT_M_ONLY"
+          assert m.get("source_exchanges")==["XT"]
+          assert len(model.get("members",[]))==10
+          assert report.get("validated_for_scoring") is True
+          assert report.get("validation_status")=="validated_for_scoring"
+          with gzip.open(p/"market_seed.csv.gz","rt",encoding="utf-8") as f:
+              header=f.readline().strip()
+              assert header=="exchange,symbol,timeframe,timestamp,open,high,low,close,volume"
+          print("Verified release bundle: XT-only one-million-candle corpus + ten validated neural specialists")
+          PY
       - name: Build installable APK with diagnostic log
         env:
           JAVA_TOOL_OPTIONS: "-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
@@ -134,7 +166,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: HOPE-HUNTER-2.64.0-build-diagnostics
+          name: HOPE-HUNTER-2.65.0-build-diagnostics
           path: |
             build.log
             apk-metadata.txt
@@ -143,7 +175,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: HOPE-HUNTER-2.64.0-APK
+          name: HOPE-HUNTER-2.65.0-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
