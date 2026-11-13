@@ -154,11 +154,14 @@ internal object HopePaperTradingEngine {
         val dailyLossPct = if (dailyStart > 0.0) max(0.0, -(dailyPnl + floatingPnl) / dailyStart * 100.0) else 100.0
         val openRiskUsdt = survivors.sumOf { it.riskUsdt }
         val openRiskPct = if (currentEquity > 0.0) openRiskUsdt / currentEquity * 100.0 else 100.0
-        val enabled = prefs.getBoolean("hope_risk_ack_v1", true) &&
-            prefs.getBoolean("hope_paper_mode_enabled", true)
+        val enabled = prefs.getBoolean("hope_risk_ack_v1", false) &&
+            prefs.getBoolean("hope_paper_mode_enabled", false)
 
         val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
-        if (enabled && dailyLossPct < 2.0 && survivors.size < 3 && openRiskPct < 2.5) {
+        if (enabled && !neuralValidated) {
+            lastAction = "ورود خودکار متوقف است: مدل عصبی هنوز اعتبارسنجی نشده است؛ هیچ سیگنال تأییدنشده‌ای معامله نمی‌شود."
+        }
+        if (enabled && neuralValidated && dailyLossPct < 2.0 && survivors.size < 3 && openRiskPct < 2.5) {
             val activeSymbols = survivors.map { it.symbol }.toSet()
             signals.asSequence()
                 .filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
