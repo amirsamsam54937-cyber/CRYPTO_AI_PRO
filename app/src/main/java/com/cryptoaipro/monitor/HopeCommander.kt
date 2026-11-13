@@ -63,7 +63,7 @@ internal object HopeCommander {
         if (riskDistance <= 0.0 || rewardDistance / riskDistance < 1.8)
             return Decision("NEUTRAL", 0, minOf(signal.confidence, 39), 0,
                 "VETO_REWARD_RISK", "فرمانده: نسبت سود به زیان کمتر از حداقل ۱٫۸ است")
-        if (technicalSign == 0.0 || signal.direction == "NEUTRAL")
+        if (technicalSign == 0.0)
             return Decision("NEUTRAL", 0, minOf(signal.confidence, 45), 0,
                 "ABSTAIN_NO_TECHNICAL_DIRECTION", "فرمانده: جهت تکنیکال شواهد کافی ندارد")
 
