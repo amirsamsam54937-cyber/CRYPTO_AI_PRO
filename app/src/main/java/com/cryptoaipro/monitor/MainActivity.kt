@@ -157,11 +157,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             val research = WolfPretrainedEnsemble.predictResearch(candidate)
             val memberVotes = research?.let { prediction ->
                 prediction.memberProbabilities.mapIndexed { index, p ->
-                    val side = when {
-                        p >= 0.55 -> prediction.referenceDirection
-                        p <= 0.45 -> if (prediction.referenceDirection == "LONG_BIAS") "SHORT_BIAS" else "LONG_BIAS"
-                        else -> "NEUTRAL"
-                    }
+                    val side = when { p >= 0.55 -> "LONG_BIAS"; p <= 0.45 -> "SHORT_BIAS"; else -> "NEUTRAL" }
                     val label = when (side) { "LONG_BIAS" -> "LONG"; "SHORT_BIAS" -> "SHORT"; else -> "خنثی" }
                     "شبکه ${index + 1}: $label ${(maxOf(p,1.0-p)*100.0).toInt()}٪"
                 }
@@ -170,11 +166,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                 // Keep the neural network's independent research opinion visible and active
                 // for comparison, but never allow an unvalidated model to promote or alter
                 // the published live signal. This is a raw model vote, not a calibrated probability.
-                val rawProbability = research?.probability
-                val rawDirectionScore = if (rawProbability == null) 50 else
-                    if (research?.referenceDirection == "LONG_BIAS")
-                        (rawProbability * 100.0).toInt().coerceIn(1, 99)
-                    else ((1.0 - rawProbability) * 100.0).toInt().coerceIn(1, 99)
+                val rawProbability = research?.upProbability
+                val rawDirectionScore = rawProbability?.let { (it * 100.0).toInt().coerceIn(1, 99) } ?: 50
                 val rawPredictedSide = when {
                     rawDirectionScore > 50 -> "LONG_BIAS"
                     rawDirectionScore < 50 -> "SHORT_BIAS"
@@ -187,7 +180,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     neuralMemberVotes = memberVotes
                 )
             } else {
-                val probability = research?.takeIf { it.referenceDirection == candidate.direction }?.probability
+                val probability = research?.upProbability
                 if (probability == null) {
                     signal.copy(
                         neuralScore = 50,
@@ -196,9 +189,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                         neuralMemberVotes = memberVotes
                     )
                 } else {
-                    val candidateConfidence = (probability * 100.0).toInt().coerceIn(1, 99)
-                    val directionalScore = if (candidate.direction == "LONG_BIAS")
-                        candidateConfidence else 100 - candidateConfidence
+                    val directionalScore = (probability * 100.0).toInt().coerceIn(1, 99)
                     val predictedSide = when {
                         directionalScore > 50 -> "LONG_BIAS"
                         directionalScore < 50 -> "SHORT_BIAS"
