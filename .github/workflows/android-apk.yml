@@ -222,9 +222,12 @@ jobs:
           root = Path("app/src/main/java/com/cryptoaipro/monitor")
           main = (root / "MainActivity.kt").read_text(encoding="utf-8")
           service = (root / "HopeHunterMonitorService.kt").read_text(encoding="utf-8")
+          commander = (root / "HopeCommanderScreen.kt").read_text(encoding="utf-8")
           engine = (root / "XtLiveTradingEngine.kt").read_text(encoding="utf-8")
           assert "XtApiCredentialPanel" not in main
           assert "XtLivePositionsPanel" not in main
+          assert "XtLivePositionsPanel" not in commander
+          assert "XtApiCredentialPanel" not in commander
           assert "XtLiveTradingEngine" not in main
           assert "XtLiveTradingEngine" not in service
           assert "XtCredentialVault" not in service
