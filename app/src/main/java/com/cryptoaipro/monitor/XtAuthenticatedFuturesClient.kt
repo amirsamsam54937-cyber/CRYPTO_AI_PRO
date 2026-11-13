@@ -214,8 +214,7 @@ internal class XtAuthenticatedFuturesClient(
     }
 
     suspend fun setLeverage(symbol: String, side: String, leverage: Int) {
-        val normalizedSymbol = symbol.trim().lowercase()
-        require(normalizedSymbol.matches(Regex("[a-z0-9]+_usdt"))) { "نماد قرارداد USDT نامعتبر است." }
+        val normalizedSymbol = normalizeSymbol(symbol)
         require(side == "LONG" || side == "SHORT") { "جهت پوزیشن نامعتبر است." }
         require(leverage in 1..5) { "اهرم خارج از محدوده محافظه‌کارانه ZORO است." }
         val body = JSONObject()
@@ -267,7 +266,7 @@ internal class XtAuthenticatedFuturesClient(
     }
 
     suspend fun activeTriggerPlans(symbol: String): List<JSONObject> {
-        val normalized = symbol.trim().lowercase()
+        val normalized = normalizeSymbol(symbol)
         val response = request(
             "GET", "/future/trade/v1/entrust/plan-list",
             mapOf("symbol" to normalized, "state" to "TRIGGERING", "page" to "1", "size" to "100")
@@ -284,7 +283,7 @@ internal class XtAuthenticatedFuturesClient(
     ): JSONObject {
         require(entrustType == "STOP_MARKET" || entrustType == "TAKE_PROFIT_MARKET")
         require(triggerPrice.isFinite() && triggerPrice > 0.0)
-        require(position.quantity > 0.0)
+        require(position.quantity > 0.0 && position.contractSize > 0.0)
         val closeSide = if (position.side == "LONG") "SELL" else "BUY"
         val body = JSONObject()
             .put("clientOrderId", "ZORO-GUARD-" + UUID.randomUUID().toString().replace("-", "").take(20))
@@ -308,7 +307,7 @@ internal class XtAuthenticatedFuturesClient(
         require(qty > 0L) { "هیچ حجم آزادی برای بستن اضطراری پوزیشن وجود ندارد." }
         val body = JSONObject()
             .put("clientOrderId", "ZORO-EXIT-" + UUID.randomUUID().toString().replace("-", "").take(20))
-            .put("symbol", position.symbol.lowercase().replace("-", "_"))
+            .put("symbol", normalizeSymbol(position.symbol))
             .put("orderSide", if (position.side == "LONG") "SELL" else "BUY")
             .put("orderType", "MARKET")
             .put("origQty", qty)
