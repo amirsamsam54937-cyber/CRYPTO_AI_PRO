@@ -244,8 +244,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         // Publish a technically valid 5m scalp candidate from 56/100 so the user can
         // inspect the Commander's decision instead of seeing every sub-62 setup capped
         // at 49. This is a signal-publication threshold, NOT an order authorization:
-        // XtLiveTradingEngine still requires >=66, fresh aligned flow, a liquidity sweep,
-        // positive net TP1 after fees/slippage, and exchange-native protection.
+        // ZORO is an analysis-and-signals app; it never authorizes or submits exchange orders.
         val publishThreshold = if (reviewed.tradeTimeframe.startsWith("5m")) 56 else 62
         val commanderQualified = commander.direction != "NEUTRAL" && commander.confidence >= publishThreshold
         val neuralAgreement = neuralValidated && bothDirectional && tech == neural && neuralStrength >= 55
@@ -301,7 +300,6 @@ fun CryptoMonitorScreen() {
     var scannedCount by remember { mutableIntStateOf(0) }
     var totalContracts by remember { mutableIntStateOf(0) }
     var selectedTab by remember { mutableStateOf("قدرت سیگنال") }
-    var liveExecutionEnabled by remember(context) { mutableStateOf(XtLiveTradingEngine.isEnabled(context)) }
     var selectedSymbol by remember { mutableStateOf("") }
     var chartInterval by remember { mutableStateOf("15") }
     var voiceTranscript by remember { mutableStateOf("") }
@@ -464,7 +462,7 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Color(0xFF080808), contentColor = Color.White) {
-                    listOf("معاملات", "قدرت سیگنال", "دفترچه", "عیب‌یابی", "تنظیمات").forEach { entry ->
+                    listOf("قدرت سیگنال", "دفترچه", "عیب‌یابی", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
                             onClick = { selectedTab = entry },
@@ -493,7 +491,7 @@ fun CryptoMonitorScreen() {
                     Brush.verticalGradient(listOf(Color(0xE6080808), Color(0xF2050505), Color(0xEA171006)))
                 ))
                 Column(Modifier.fillMaxSize()) {
-                if (selectedTab !in setOf("خانه", "فرمانده", "معاملات")) {
+                if (selectedTab !in setOf("خانه", "فرمانده")) {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -528,58 +526,6 @@ fun CryptoMonitorScreen() {
                 }
 
                 when (selectedTab) {
-                    "معاملات" -> {
-                        Column(
-                            Modifier.fillMaxSize().padding(horizontal = 14.dp).verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text("ZORO • معاملات واقعی XT", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Black)
-                            Text("این صفحه فقط وضعیت اجرای واقعی و پوزیشن‌های حساب را نشان می‌دهد؛ سیگنال‌ها و کارت‌های تحلیلی در رابط اصلی نمایش داده نمی‌شوند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                            Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Column(Modifier.weight(1f)) {
-                                            Text("اجرای خودکار معاملات واقعی", color = Color.White, fontWeight = FontWeight.Bold)
-                                            Text(if (liveExecutionEnabled) "موتور مجاز به ارسال سفارش واقعی است" else "اجرای سفارش واقعی خاموش است", color = if (liveExecutionEnabled) Green else Muted, fontSize = 10.sp)
-                                        }
-                                        Switch(
-                                            checked = liveExecutionEnabled,
-                                            onCheckedChange = { enabled ->
-                                                if (enabled && !XtCredentialVault.hasCredentials(context)) {
-                                                    selectedTab = "تنظیمات"
-                                                } else {
-                                                    XtLiveTradingEngine.setEnabled(context, enabled)
-                                                    liveExecutionEnabled = enabled
-                                                    if (enabled) {
-                                                        val serviceIntent = Intent(context, HopeHunterMonitorService::class.java).apply {
-                                                            action = HopeHunterMonitorService.ACTION_START
-                                                        }
-                                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent)
-                                                        else context.startService(serviceIntent)
-                                                        backgroundMonitoring = true
-                                                        appSettings.edit().putBoolean("background_monitoring", true).apply()
-                                                    }
-                                                }
-                                            }
-                                        )
-                                    }
-                                    Text(
-                                        if (!XtCredentialVault.hasCredentials(context)) "ابتدا کلید API و Secret حساب XT را فقط در تنظیمات خود برنامه ذخیره کن. مجوز برداشت را فعال نکن."
-                                        else "اتصال امن XT ذخیره شده است. موتور فقط در صورت عبور همه کنترل‌های ریسک، نقدینگی، هزینه و حدضرر/حدسود صرافی سفارش می‌فرستد.",
-                                        color = if (!XtCredentialVault.hasCredentials(context)) Gold else Muted,
-                                        fontSize = 10.sp, lineHeight = 15.sp
-                                    )
-                                }
-                            }
-                            XtLivePositionsPanel(context)
-                            Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    Text("حالت اجرا", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                    Text("فقط معاملات واقعی • بدون حساب آزمایشی • بدون نمایش سیگنال • مدیریت پوزیشن‌های باز از داده حساب XT", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                                }
-                            }
-                        }
-                    }
                     "فرمانده" -> {
                         HopeCommanderScreen(
                             signals = rows,
@@ -789,13 +735,11 @@ fun CryptoMonitorScreen() {
                                             }
                                         )
                                     }
-                                    Text("با فعال‌سازی، سرویس پیش‌زمینه ZORO اسکن قراردادهای XT را ادامه می‌دهد؛ اگر اجرای خودکار واقعی روشن باشد، سفارش‌های تأییدشده را ثبت و پوزیشن‌ها را پایش می‌کند. توقف اجباری برنامه، قطع اینترنت یا محدودیت باتری می‌تواند سرویس را مختل کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                                    Text("با فعال‌سازی، سرویس پیش‌زمینه ZORO فقط داده‌های بازار را دریافت می‌کند، تحلیل چندتایم‌فریمی و شبکه‌های عصبی را اجرا می‌کند و سیگنال‌های تازه را اطلاع می‌دهد؛ هیچ سفارش واقعی یا مدیریت پوزیشن حسابی انجام نمی‌شود. توقف اجباری برنامه، قطع اینترنت یا محدودیت باتری می‌تواند سرویس را مختل کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                                 }
                             }
                             HopeLivingBrainPanel(context) { scanIntervalMinutes = it }
-                            XtApiCredentialPanel(context) { backgroundMonitoring = true }
-                            XtLivePositionsPanel(context)
-                            Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
+                                                                                    Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
                                     Text("بازار: XT USDT-M Futures", color = Muted, fontSize = 11.sp)
