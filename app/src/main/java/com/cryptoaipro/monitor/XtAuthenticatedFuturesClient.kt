@@ -6,6 +6,8 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.math.BigDecimal
@@ -105,6 +107,7 @@ internal class XtAuthenticatedFuturesClient(
     private val credentialStore: XtApiCredentialStore
 ) {
     private val baseUrl = "https://fapi.xt.com"
+    private val entryMutex = Mutex()
 
     private fun signature(secret: String, payload: String): String {
         val mac = Mac.getInstance("HmacSHA256")
@@ -279,20 +282,30 @@ internal class XtAuthenticatedFuturesClient(
         symbol: String,
         side: String,
         contracts: Long,
+        leverage: Int,
         takeProfit: Double,
         stopLoss: Double
-    ): JSONObject {
+    ): JSONObject = entryMutex.withLock {
         val normalizedSymbol = symbol.trim().lowercase()
         require(normalizedSymbol.matches(Regex("[a-z0-9]+_usdt"))) { "نماد قرارداد USDT نامعتبر است." }
         require(side == "LONG" || side == "SHORT") { "جهت پوزیشن نامعتبر است." }
-        require(contracts > 0) { "تعداد قرارداد باید مثبت باشد." }
+        require(contracts > 0 && leverage in 1..5) { "حجم یا اهرم خارج از محدوده مجاز است." }
         require(takeProfit.isFinite() && stopLoss.isFinite() && takeProfit > 0.0 && stopLoss > 0.0) {
             "حدسود و حدضرر معتبر و اجباری هستند."
         }
+        require(if (side == "LONG") stopLoss < takeProfit else stopLoss > takeProfit) {
+            "ترتیب حدضرر و حدسود برای جهت پوزیشن معتبر نیست."
+        }
+        val account = accountSnapshot()
+        require(account.canTrade && account.canOpenPosition) {
+            "حساب XT مجوز معامله یا بازکردن پوزیشن ندارد؛ سفارش ارسال نشد."
+        }
+        require(account.availableBalanceUsdt > 0.0) { "موجودی آزاد USDT کافی نیست." }
         val current = activePositions()
-        require(current.none { it.symbol == normalizedSymbol && it.side == side }) {
+        require(current.none { it.symbol.replace("-", "_").lowercase() == normalizedSymbol && it.side == side }) {
             "برای این نماد و جهت، پوزیشن باز وجود دارد؛ ورود تکراری مسدود شد."
         }
+        setLeverage(normalizedSymbol, side, leverage)
         val body = JSONObject()
             .put("clientOrderId", "ZORO-" + UUID.randomUUID().toString().replace("-", "").take(24))
             .put("symbol", normalizedSymbol)
@@ -302,7 +315,7 @@ internal class XtAuthenticatedFuturesClient(
             .put("positionSide", side)
             .put("triggerProfitPrice", BigDecimal.valueOf(takeProfit).stripTrailingZeros().toPlainString())
             .put("triggerStopPrice", BigDecimal.valueOf(stopLoss).stripTrailingZeros().toPlainString())
-        return request("POST", "/future/trade/v1/order/create", body = body)
+        request("POST", "/future/trade/v1/order/create", body = body)
     }
 
     companion object {
