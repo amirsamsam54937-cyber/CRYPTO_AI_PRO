@@ -161,12 +161,12 @@ jobs:
           assert m.get("asset_class_policy")=="XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH"
           assert len(model.get("members",[]))==10
           assert report.get("validated_for_scoring") is True
-          assert set(model.get("symbols",[])).issubset(set(manifest.get("crypto_symbols",[])))
-          assert model.get("corpus_sha256")==manifest.get("sha256")
-          assert model.get("currency_metadata_sha256")==manifest.get("currency_metadata_sha256")
-          assert model.get("asset_class_policy")==manifest.get("asset_class_policy")
-          assert model.get("crypto_asset_registry_source")==manifest.get("crypto_asset_registry_source")
-          assert model.get("crypto_asset_registry_sha256")==manifest.get("crypto_asset_registry_sha256")
+          assert set(model.get("symbols",[])).issubset(set(m.get("crypto_symbols",[])))
+          assert model.get("corpus_sha256")==m.get("sha256")
+          assert model.get("currency_metadata_sha256")==m.get("currency_metadata_sha256")
+          assert model.get("asset_class_policy")==m.get("asset_class_policy")
+          assert model.get("crypto_asset_registry_source")==m.get("crypto_asset_registry_source")
+          assert model.get("crypto_asset_registry_sha256")==m.get("crypto_asset_registry_sha256")
           assert model.get("crypto_asset_registry_source")==m.get("crypto_asset_registry_source")
           assert model.get("crypto_asset_registry_sha256")==m.get("crypto_asset_registry_sha256")
           assert report.get("validation_status")=="validated_for_scoring"
@@ -201,6 +201,9 @@ jobs:
           assert set(report.get("symbols",[])).issubset(set(manifest.get("crypto_symbols",[])))
           assert model.get("corpus_sha256")==manifest.get("sha256")
           assert model.get("currency_metadata_sha256")==manifest.get("currency_metadata_sha256")
+          assert model.get("asset_class_policy")==manifest.get("asset_class_policy")
+          assert model.get("crypto_asset_registry_source")==manifest.get("crypto_asset_registry_source")
+          assert model.get("crypto_asset_registry_sha256")==manifest.get("crypto_asset_registry_sha256")
           assert manifest.get("rows",0)>=898920 and manifest.get("synthetic_rows")==0
           e=model["evaluation"]
           wf=model["walk_forward"]; cross=model["cross_symbol_holdout"]
@@ -218,11 +221,11 @@ jobs:
           assert e["ensemble_brier_score"]<e["prevalence_baseline_brier_score"]
           assert e["ensemble_roc_auc"]>=0.55 and e["ensemble_expected_calibration_error"]<=0.10
           assert report.get("validated_for_scoring") is True
-          assert set(model.get("symbols",[])).issubset(set(m.get("crypto_symbols",[])))
-          assert model.get("corpus_sha256")==m.get("sha256")
-          assert model.get("currency_metadata_sha256")==m.get("currency_metadata_sha256")
-           assert model.get("crypto_asset_registry_source")==m.get("crypto_asset_registry_source")
-           assert model.get("crypto_asset_registry_sha256")==m.get("crypto_asset_registry_sha256")
+          assert set(model.get("symbols",[])).issubset(set(manifest.get("crypto_symbols",[])))
+          assert model.get("corpus_sha256")==manifest.get("sha256")
+          assert model.get("currency_metadata_sha256")==manifest.get("currency_metadata_sha256")
+           assert model.get("crypto_asset_registry_source")==manifest.get("crypto_asset_registry_source")
+           assert model.get("crypto_asset_registry_sha256")==manifest.get("crypto_asset_registry_sha256")
           print("Verified: 10 XT-trained neural specialists and chronological holdout gates.")
           PY
       - name: Verify analysis-only product has no live execution entry points
