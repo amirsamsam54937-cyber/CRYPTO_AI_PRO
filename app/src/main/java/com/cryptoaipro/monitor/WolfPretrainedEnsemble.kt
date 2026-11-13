@@ -35,6 +35,7 @@ internal object WolfPretrainedEnsemble {
     @Volatile private var members:List<Member> = emptyList()
     @Volatile private var mean=DoubleArray(7)
     @Volatile private var scale=DoubleArray(7){1.0}
+    @Volatile private var trainingPriorLogOdds=0.0
     @Volatile private var status=Status(false,0,0,"",0.0)
 
     @Synchronized fun initialize(context:Context):Status {
@@ -67,7 +68,8 @@ internal object WolfPretrainedEnsemble {
             require(members.map{it.featureMask.joinToString(""){v->if(v)"1" else "0"}}.distinct().size==10)
             mean=vector(root.getJSONArray("feature_mean"))
             scale=vector(root.getJSONArray("feature_scale")).map{if(it==0.0)1.0 else it}.toDoubleArray()
-            require(mean.size==7 && scale.size==7)
+            trainingPriorLogOdds=root.getDouble("training_prior_log_odds")
+            require(mean.size==7 && scale.size==7 && trainingPriorLogOdds.isFinite())
             val metrics=root.getJSONArray("metrics")
             val memberAccuracy=(0 until metrics.length()).map{metrics.getJSONObject(it).optDouble("accuracy",0.0)}.average()
             val evaluation=root.optJSONObject("evaluation")
@@ -126,7 +128,8 @@ internal object WolfPretrainedEnsemble {
             val h1=DoubleArray(member.b1.size){i->tanh(member.b1[i]+x.indices.sumOf{j->member.w1[i][j]*x[j]})}
             val h2=DoubleArray(member.b2.size){i->tanh(member.b2[i]+h1.indices.sumOf{j->member.w2[i][j]*h1[j]})}
             val h3=DoubleArray(member.b3.size){i->tanh(member.b3[i]+h2.indices.sumOf{j->member.w3[i][j]*h2[j]})}
-            val logit=member.b4+h3.indices.sumOf{j->member.w4[j]*h3[j]}
+            // Match the class-prior correction used during chronological holdout evaluation.
+            val logit=member.b4+h3.indices.sumOf{j->member.w4[j]*h3[j]}+trainingPriorLogOdds
             val pUp=1.0/(1.0+exp(-logit.coerceIn(-30.0,30.0)))
             pUp
         }
