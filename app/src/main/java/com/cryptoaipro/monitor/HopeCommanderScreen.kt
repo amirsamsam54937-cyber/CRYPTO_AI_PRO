@@ -301,6 +301,15 @@ internal fun HopeCommanderScreen(
             }
         }
         item {
+            paperSnapshot?.let { HopePaperTradingDashboard(it) }
+        }
+        item {
+            PaperTradingSafetyPanel(
+                context,
+                context.getSharedPreferences("hope_paper_ledger", Context.MODE_PRIVATE)
+            )
+        }
+        item {
             HopeScenarioLabCard(scenarioScorecard)
         }
         item {
@@ -315,7 +324,7 @@ internal fun HopeCommanderScreen(
             }
         }
         item {
-            Text("ZORO • تحلیل فرمانده، اجرای خودکار XT و پایش پوزیشن‌های باز",
+            Text("ZORO • تحلیل فرمانده و خودکارسازی آزمایشی پویا • اجرای واقعی قفل است",
                 color = HMuted, fontSize = 8.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
