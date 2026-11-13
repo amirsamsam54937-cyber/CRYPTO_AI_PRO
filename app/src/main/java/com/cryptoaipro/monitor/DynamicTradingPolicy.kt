@@ -44,6 +44,17 @@ internal object DynamicTradingPolicy {
         val qualityScore: Double
     )
 
+    /** Reward/risk after round-trip fees and adverse exit slippage. */
+    fun netRiskReward(entry: Double, stop: Double, target: Double, costPercent: Double): Double {
+        if (listOf(entry, stop, target, costPercent).any { !it.isFinite() } ||
+            entry <= 0.0 || stop <= 0.0 || target <= 0.0 || costPercent !in 0.0..1.0) return 0.0
+        val cost = costPercent / 100.0
+        val netReward = abs(target - entry) / entry - cost
+        val netRisk = abs(entry - stop) / entry + cost
+        if (netReward <= 0.0 || netRisk <= 0.0) return 0.0
+        return netReward / netRisk
+    }
+
     fun evaluate(
         input: Input,
         equityUsdt: Double,
