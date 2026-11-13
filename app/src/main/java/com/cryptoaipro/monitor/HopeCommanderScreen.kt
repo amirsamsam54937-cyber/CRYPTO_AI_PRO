@@ -42,7 +42,7 @@ private val HMint = Color(0xFF25D978)
 private val HRed = Color(0xFFFF5361)
 private val HMuted = Color(0xFFB8B0A0)
 private val HBlue = Color(0xFF31B9E8)
-private val HPurple = Color(0xFFB58AFF)
+private val HPurple = Color(0xFFC7CDD4)
 
 @Composable
 fun HopeCommanderBrain(modifier: Modifier = Modifier) {
@@ -222,7 +222,7 @@ internal fun HopeCommanderScreen(
                 HPanelCard(Modifier.weight(1f), "تحلیل چندلایه") {
                     ScoreRing(agreement ?: 0, "اجماع")
                     StatusLine("تکنیکال", best?.technicalDirection?.let { sideFa(it) } ?: "بدون داده", best != null)
-                    StatusLine("شبکه عصبی", best?.neuralDirection?.let { sideFa(it) } ?: "بدون داده", neuralActive)
+                    StatusLine("نظر مستقل شبکه", best?.neuralDirection?.let { sideFa(it) + " • ${best.neuralScore}%" } ?: "بدون داده", neuralActive)
                     StatusLine("فرمانده", best?.direction?.let { sideFa(it) } ?: "انتظار", best?.direction != "NEUTRAL")
                 }
                 HPanelCard(Modifier.weight(1f), "انتخاب استراتژی") {
