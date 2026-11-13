@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 91
-  versionName = "2.70.0"
-  // Release 2.70.0: truthful on-device corpus counts and explicit neural model availability.
+  versionCode = 92
+  versionName = "2.71.0"
+  // Release 2.71.0: adaptive ZORO launcher icon with monochrome themed-icon support.
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
