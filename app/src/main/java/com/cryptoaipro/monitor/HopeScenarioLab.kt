@@ -292,7 +292,7 @@ internal fun HopeScenarioLabCard(scorecard: HopeScenarioScorecard?) {
         Column(Modifier.padding(13.dp), verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically) {
                 Text("آزمایشگاه سناریوهای آینده", color=Color(0xFFECE5D6), fontWeight=FontWeight.Black, fontSize=14.sp, modifier=Modifier.weight(1f))
-                Text("HOPE • SIMULATION", color=gold, fontSize=8.sp, fontWeight=FontWeight.Bold)
+                Text("VENOM • 5K SCENARIO ENGINE", color=gold, fontSize=8.sp, fontWeight=FontWeight.Bold)
             }
             if (f == null) Text("برای شبیه‌سازی حداقل ۸۰ کندل معتبر لازم است.", color=muted, fontSize=10.sp)
             else {
