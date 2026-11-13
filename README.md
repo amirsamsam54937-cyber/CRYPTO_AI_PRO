@@ -1,6 +1,6 @@
 # ZORO
 
-**Android release line: 2.66.0**  
+**Android release line: 2.72.0**  
 A Persian-first Android application for live Binance USDⓈ-M or XT USDT-M perpetual-futures market scanning, explainable technical analysis, signal visualization, and persistent outcome-based learning.
 
 > **Analysis and signals only.** The Android app does not connect exchange accounts, store API keys, submit orders, change leverage, or execute trades. Entry, stop and target levels are analytical references, not orders or guarantees.
