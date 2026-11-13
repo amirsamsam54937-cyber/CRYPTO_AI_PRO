@@ -147,6 +147,32 @@ jobs:
               assert header=="exchange,symbol,timeframe,timestamp,open,high,low,close,volume"
           print("Verified release bundle: XT-only one-million-candle corpus + ten validated neural specialists")
           PY
+      - name: Verify mandatory offline neural bundle before every APK build
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib
+          p=pathlib.Path("app/src/main/assets")
+          for name in ("wolf_pretrained_ensemble.json","wolf_corpus_manifest.json","wolf_model_training_report.json"):
+              assert (p/name).is_file() and (p/name).stat().st_size > 100, f"Missing/empty asset: {name}"
+          model=json.loads((p/"wolf_pretrained_ensemble.json").read_text())
+          manifest=json.loads((p/"wolf_corpus_manifest.json").read_text())
+          report=json.loads((p/"wolf_model_training_report.json").read_text())
+          assert model.get("format")=="amir-wolf-ensemble-v1" and len(model.get("members",[]))==10
+          assert len(model.get("metrics",[]))==10
+          assert manifest.get("status")=="verified_real_exchange_data"
+          assert manifest.get("data_source_policy")=="XT_USDT_M_ONLY" and manifest.get("source_exchanges")==["XT"]
+          assert manifest.get("rows",0)>=898920 and manifest.get("synthetic_rows")==0
+          e=model["evaluation"]
+          assert e["split"]=="chronological_purged" and model.get("test_samples",0)>=300
+          assert e["ensemble_balanced_accuracy"]>=0.52
+          assert e["ensemble_log_loss"]<e["prevalence_baseline_log_loss"]
+          assert e["ensemble_accuracy"]>=e["majority_class_baseline_accuracy"]
+          assert e["ensemble_brier_score"]<e["prevalence_baseline_brier_score"]
+          assert e["ensemble_roc_auc"]>=0.55 and e["ensemble_expected_calibration_error"]<=0.10
+          assert report.get("validated_for_scoring") is True
+          print("Verified: 10 XT-trained neural specialists and chronological holdout gates.")
+          PY
       - name: Build installable APK with diagnostic log
         env:
           JAVA_TOOL_OPTIONS: "-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
@@ -162,6 +188,20 @@ jobs:
           unzip -t "$APK" >/dev/null
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee apk-metadata.txt
           grep -q "com.cryptoaipro.monitor" apk-metadata.txt
+          python3 - <<'PY'
+          import json, zipfile
+          apk="app/build/outputs/apk/debug/app-debug.apk"
+          required=("assets/wolf_pretrained_ensemble.json","assets/wolf_corpus_manifest.json","assets/wolf_model_training_report.json")
+          with zipfile.ZipFile(apk) as z:
+              names=set(z.namelist())
+              for name in required:
+                  assert name in names, f"APK is missing {name}"
+              model=json.loads(z.read(required[0]))
+              manifest=json.loads(z.read(required[1]))
+              assert len(model.get("members",[]))==10
+              assert manifest.get("rows",0)>=898920 and manifest.get("source_exchanges")==["XT"]
+          print("APK package check passed: all neural assets and 10 models are present.")
+          PY
       - name: Upload build diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
