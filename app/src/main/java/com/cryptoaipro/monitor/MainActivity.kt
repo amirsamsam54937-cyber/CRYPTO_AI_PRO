@@ -300,7 +300,7 @@ fun CryptoMonitorScreen() {
     var scanProgress by remember { mutableStateOf("آماده اسکن") }
     var scannedCount by remember { mutableIntStateOf(0) }
     var totalContracts by remember { mutableIntStateOf(0) }
-    var selectedTab by remember { mutableStateOf("معاملات") }
+    var selectedTab by remember { mutableStateOf("قدرت سیگنال") }
     var liveExecutionEnabled by remember(context) { mutableStateOf(XtLiveTradingEngine.isEnabled(context)) }
     var selectedSymbol by remember { mutableStateOf("") }
     var chartInterval by remember { mutableStateOf("15") }
@@ -464,7 +464,7 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Color(0xFF080808), contentColor = Color.White) {
-                    listOf("معاملات", "عیب‌یابی", "تنظیمات").forEach { entry ->
+                    listOf("معاملات", "قدرت سیگنال", "دفترچه", "عیب‌یابی", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
                             onClick = { selectedTab = entry },
