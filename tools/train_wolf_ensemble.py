@@ -138,8 +138,10 @@ def load_seed_samples():
         or sorted(x.upper() for x in manifest.get("source_exchanges",[]))!=["XT"]
         or int(manifest.get("synthetic_rows",-1))!=0
         or manifest.get("data_source_policy")!="XT_USDT_M_CRYPTO_ONLY"
-        or manifest.get("asset_class_policy")!="EXPLICIT_XT_METADATA_CRYPTO_ONLY"
+        or manifest.get("asset_class_policy")!="XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY"
         or manifest.get("crypto_only_verified") is not True
+        or manifest.get("currency_universe_source")!="XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES"
+        or int(manifest.get("spot_crypto_currency_count",0)) < 1
         or not asset_map):
         raise SystemExit("Training requires a verified XT crypto-only corpus with explicit asset-class metadata.")
     if any(item.get("asset_class") != "crypto" for item in asset_map.values()):
@@ -228,7 +230,7 @@ def main():
         "interval":INTERVAL,"horizon_bars":HORIZON,"feature_names":FEATURE_NAMES,
         "target_definition":"future_return_over_6_hours_positive_vs_nonpositive",
         "specialist_roles":[x[0] for x in SPECIALISTS],"symbols":sorted(used_symbols),"symbols_count":len(used_symbols),
-        "data_source_policy":"XT_USDT_M_CRYPTO_ONLY","asset_class_policy":"EXPLICIT_XT_METADATA_CRYPTO_ONLY",
+        "data_source_policy":"XT_USDT_M_CRYPTO_ONLY","asset_class_policy":"XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY",
         "samples":int(len(X)),"train_samples":int(len(X_train)),"test_samples":int(len(X_test)),
         "feature_mean":scaler.mean_.tolist(),"feature_scale":scaler.scale_.tolist(),
         "training_prior_log_odds":float(np.log(np.clip(y_train.mean(),1e-4,1-1e-4)/(1.0-np.clip(y_train.mean(),1e-4,1-1e-4)))),
