@@ -232,6 +232,29 @@ internal object XtLiveTradingEngine {
                 }
                 val hasStop = plans.any { it.optString("entrustType") in setOf("STOP_MARKET", "STOP") && it.optString("positionSide").equals(position.side, true) }
                 val hasTakeProfit = plans.any { it.optString("entrustType") in setOf("TAKE_PROFIT_MARKET", "TAKE_PROFIT") && it.optString("positionSide").equals(position.side, true) }
+                val stopCrossed = if (position.side == "LONG") position.markPrice <= stop else position.markPrice >= stop
+                val targetCrossed = if (position.side == "LONG") position.markPrice >= target else position.markPrice <= target
+                val triggerKey = "cross_" + position.symbol.filter(Char::isLetterOrDigit).lowercase() + "_" + position.side
+                if (stopCrossed || targetCrossed) {
+                    val now = System.currentTimeMillis()
+                    val firstCross = prefs(context).getLong(triggerKey, 0L)
+                    if (firstCross == 0L) {
+                        prefs(context).edit().putLong(triggerKey, now).apply()
+                        ZoroDiagnostics.record(context, "XT_POSITION", "WARNING",
+                            "قیمت مارک از سطح حفاظتی ${position.symbol} عبور کرد؛ در انتظار اجرای صرافی و آماده بستن اضطراری")
+                    } else if (now - firstCross >= 2_000L &&
+                        now - prefs(context).getLong(triggerKey + "_exit", 0L) >= 5_000L) {
+                        prefs(context).edit().putLong(triggerKey + "_exit", now).apply()
+                        runCatching { client.emergencyClose(position) }
+                            .onSuccess { ZoroDiagnostics.record(context, "XT_POSITION", "ERROR",
+                                "حد حفاظتی اجرا نشد؛ فرمان بستن اضطراری بازار برای ${position.symbol} ارسال شد") }
+                            .onFailure { ZoroDiagnostics.record(context, "XT_POSITION", "ERROR",
+                                "قیمت از حد حفاظتی عبور کرده اما بستن اضطراری ${position.symbol} ناموفق بود: ${it.message}") }
+                    }
+                    continue
+                } else {
+                    prefs(context).edit().remove(triggerKey).remove(triggerKey + "_exit").apply()
+                }
                 if (!hasStop) {
                     val stopAlreadyCrossed = if (position.side == "LONG") position.markPrice <= stop else position.markPrice >= stop
                     val repaired = runCatching { client.createProtectionPlan(position, "STOP_MARKET", stop) }
