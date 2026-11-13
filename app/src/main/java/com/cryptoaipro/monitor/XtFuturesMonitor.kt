@@ -200,9 +200,13 @@ internal object XtFuturesMonitor {
                             }
                             MarketAnalysisEngine.analyzeWithCandles(
                                 item.second, price, change, volume,
-                                f.first[1], f.first[2], f.first[3],
-                                micro = f.first[0], macro = f.second,
-                                marketContext = marketContext
+                                f.first[0], f.first[1], f.first[3],
+                                // 5m entry timing, 15m/4h confirmation, 1h flow context.
+                                micro = f.first[2], macro = f.second,
+                                marketContext = marketContext,
+                                primaryLabel = "5m", confirmLabel = "15m", trendLabel = "4h",
+                                microLabel = "1h", macroLabel = "1D",
+                                neuralFrame = f.first[2]
                             )
                         }
                     } }.awaitAll()
