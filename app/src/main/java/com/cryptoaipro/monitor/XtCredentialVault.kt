@@ -1,6 +1,7 @@
 package com.cryptoaipro.monitor
 
 import android.content.Context
+import android.content.Intent
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -15,6 +16,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -104,6 +106,7 @@ internal fun XtApiCredentialPanel(context: Context) {
     var appKey by remember { mutableStateOf("") }
     var secret by remember { mutableStateOf("") }
     var permissionConfirmed by remember { mutableStateOf(false) }
+    var liveEnabled by remember { mutableStateOf(XtLiveTradingEngine.isEnabled(context)) }
     var status by remember {
         mutableStateOf(if (XtCredentialVault.hasCredentials(context)) "کلیدها به‌صورت رمزنگاری‌شده روی دستگاه ذخیره شده‌اند." else "هنوز کلیدی ذخیره نشده است.")
     }
@@ -163,6 +166,32 @@ internal fun XtApiCredentialPanel(context: Context) {
                 },
                 modifier = Modifier.align(Alignment.End)
             ) { Text("پاک‌کردن کلیدهای ذخیره‌شده", color = gold, fontSize = 10.sp) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("اجرای خودکار واقعی در XT", color = ivory, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("با فعال‌سازی، سرویس پس‌زمینه فرمانده را به موتور سفارش واقعی متصل می‌کند.", color = muted, fontSize = 9.sp, lineHeight = 13.sp)
+                }
+                Switch(
+                    checked = liveEnabled,
+                    enabled = XtCredentialVault.hasCredentials(context) && permissionConfirmed,
+                    onCheckedChange = { enabled ->
+                        XtLiveTradingEngine.setEnabled(context, enabled)
+                        liveEnabled = enabled
+                        if (enabled) {
+                            context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE)
+                                .edit().putBoolean("background_monitoring", true).apply()
+                            val serviceIntent = Intent(context, HopeHunterMonitorService::class.java).apply {
+                                action = HopeHunterMonitorService.ACTION_START
+                            }
+                            runCatching { context.startForegroundService(serviceIntent) }
+                                .onSuccess { status = "اجرای واقعی فعال شد؛ سرویس پایش و بازیابی پوزیشن XT شروع شد." }
+                                .onFailure { status = "سرویس شروع نشد؛ اجرای واقعی تا فعال‌شدن سرویس متوقف می‌ماند: ${it.message}" }
+                        } else {
+                            status = "ورودهای جدید متوقف شد؛ پایش و حفاظت پوزیشن‌های باز تا زمان توقف سرویس ادامه دارد."
+                        }
+                    }
+                )
+            }
             Text(status, color = gold, fontSize = 9.sp, lineHeight = 14.sp)
             Text(
                 "کلید را در چت ارسال نکن. برای حساب شخصی، IP whitelist را در پنل XT فعال کن. این ذخیره‌سازی به‌تنهایی اتصال یا مجوز معامله واقعی را فعال نمی‌کند.",
