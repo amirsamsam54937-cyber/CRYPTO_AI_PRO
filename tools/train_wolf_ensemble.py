@@ -120,8 +120,8 @@ def make_rows(raw):
     future=np.full(len(c),np.nan,dtype=float)
     future[:-HORIZON]=c[HORIZON:]/np.maximum(c[:-HORIZON],1e-9)-1.0
     # Binary target is the actual future direction, independent of any signal rule.
-    y=(future>0.0025).astype(int)
-    valid=np.isfinite(future) & (np.abs(future)>0.0025) & (np.arange(len(c))>=50)
+    y=(future>0.0).astype(int)
+    valid=np.isfinite(future) & (np.arange(len(c))>=50)
     return X[valid],y[valid],a[:,0][valid]
 
 def load_seed_samples():
@@ -214,7 +214,7 @@ def main():
         "ensemble_roc_auc":round(float(roc_auc_score(y_test,ensemble)),4)}
     output={"format":"amir-wolf-ensemble-v1","trained_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
         "interval":INTERVAL,"horizon_bars":HORIZON,"feature_names":FEATURE_NAMES,
-        "target_definition":"future_return_over_6_hours_gt_0.25_percent",
+        "target_definition":"future_return_over_6_hours_positive_vs_nonpositive",
         "specialist_roles":[x[0] for x in SPECIALISTS],"symbols":sorted(used_symbols),"symbols_count":len(used_symbols),
         "samples":int(len(X)),"train_samples":int(len(X_train)),"test_samples":int(len(X_test)),
         "feature_mean":scaler.mean_.tolist(),"feature_scale":scaler.scale_.tolist(),
