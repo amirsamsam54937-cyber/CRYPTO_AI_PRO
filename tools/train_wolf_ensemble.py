@@ -147,10 +147,12 @@ def load_seed_samples():
         or sorted(x.upper() for x in manifest.get("source_exchanges",[]))!=["XT"]
         or int(manifest.get("synthetic_rows",-1))!=0
         or manifest.get("data_source_policy")!="XT_USDT_M_CRYPTO_ONLY"
-        or manifest.get("asset_class_policy")!="XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY"
+        or manifest.get("asset_class_policy")!="XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH"
         or manifest.get("crypto_only_verified") is not True
-        or manifest.get("currency_universe_source")!="XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES"
-        or int(manifest.get("spot_crypto_currency_count",0)) < 1
+        or manifest.get("currency_universe_source")!="XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES+COINGECKO_PUBLIC_COINS_LIST"
+        or int(manifest.get("xt_crypto_type_currency_count",0)) < 1
+        or manifest.get("crypto_asset_registry_source")!="COINGECKO_PUBLIC_COINS_LIST"
+        or len(str(manifest.get("crypto_asset_registry_sha256",""))) != 64
         or not asset_map):
         raise SystemExit("Training requires a verified XT crypto-only corpus with explicit asset-class metadata.")
     if any(item.get("asset_class") != "crypto" for item in asset_map.values()):
@@ -250,6 +252,8 @@ def main():
         "data_source_policy":"XT_USDT_M_CRYPTO_ONLY","asset_class_policy":"XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY",
         "corpus_sha256":corpus_manifest.get("sha256",""),
         "currency_metadata_sha256":corpus_manifest.get("currency_metadata_sha256",""),
+         "crypto_asset_registry_source":corpus_manifest.get("crypto_asset_registry_source",""),
+         "crypto_asset_registry_sha256":corpus_manifest.get("crypto_asset_registry_sha256",""),
         "samples":int(len(X)),"train_samples":int(len(X_train)),"test_samples":int(len(X_test)),
         "feature_mean":scaler.mean_.tolist(),"feature_scale":scaler.scale_.tolist(),
         "training_prior_log_odds":float(np.log(np.clip(y_train.mean(),1e-4,1-1e-4)/(1.0-np.clip(y_train.mean(),1e-4,1-1e-4)))),
