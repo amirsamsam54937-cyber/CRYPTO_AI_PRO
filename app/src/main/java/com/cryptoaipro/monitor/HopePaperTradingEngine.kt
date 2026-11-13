@@ -212,7 +212,7 @@ internal object HopePaperTradingEngine {
                         plan.leverage, s.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: now,
                         s.price, plan.estimatedLossAtStopUsdt, plan.notionalUsdt, abs(fill - s.stop))
                     survivors += position
-                    lastAction = "${s.symbol} • ورود شبیه‌سازی‌شده ${s.direction} • حجم ${"%.5f".format(java.util.Locale.US, sizing.quantity)}"
+                    lastAction = "${s.symbol} • ورود شبیه‌سازی‌شده ${s.direction} • حجم ${"%.5f".format(java.util.Locale.US, plan.quantity)}"
                     if (survivors.size >= 3) return@forEach
                 }
         }
