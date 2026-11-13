@@ -60,9 +60,16 @@ internal object HopeCommander {
 
         val riskDistance = abs(signal.entry - signal.stop)
         val rewardDistance = abs(signal.tp1 - signal.entry)
-        if (riskDistance <= 0.0 || rewardDistance / riskDistance < 1.8)
+        // Scalping accepts a small first target when it is directionally valid.
+        // The live XT executor separately checks actual taker fees + slippage and
+        // refuses any TP1 whose estimated net return is not positive.
+        val scalpMode = signal.tradeTimeframe.startsWith("5m")
+        if (riskDistance <= 0.0 || rewardDistance <= 0.0 ||
+            (!scalpMode && rewardDistance / riskDistance < 1.8))
             return Decision("NEUTRAL", 0, minOf(signal.confidence, 39), 0,
-                "VETO_REWARD_RISK", "فرمانده: نسبت سود به زیان کمتر از حداقل ۱٫۸ است")
+                "VETO_REWARD_RISK", if (scalpMode)
+                    "فرمانده: هندسه هدف اسکالپ معتبر نیست"
+                else "فرمانده: نسبت سود به زیان کمتر از حداقل ۱٫۸ است")
         if (technicalSign == 0.0)
             return Decision("NEUTRAL", 0, minOf(signal.confidence, 45), 0,
                 "ABSTAIN_NO_TECHNICAL_DIRECTION", "فرمانده: جهت تکنیکال شواهد کافی ندارد")
