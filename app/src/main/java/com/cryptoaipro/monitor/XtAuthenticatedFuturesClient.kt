@@ -291,7 +291,7 @@ internal class XtAuthenticatedFuturesClient(
             .put("symbol", normalizeSymbol(position.symbol))
             .put("orderSide", closeSide)
             .put("entrustType", entrustType)
-            .put("origQty", floorContracts(position.quantity))
+            .put("origQty", floorContracts(position.quantity / position.contractSize))
             .put("stopPrice", BigDecimal.valueOf(triggerPrice).stripTrailingZeros().toPlainString())
             .put("timeInForce", "IOC")
             .put("triggerPriceType", "MARK_PRICE")
