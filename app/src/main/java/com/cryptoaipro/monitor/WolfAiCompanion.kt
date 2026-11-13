@@ -41,10 +41,10 @@ private fun localPersianReply(question: String): String? {
     if (words.isEmpty()) return "پیامت خالی است؛ هر سؤالی داری بنویس."
     val greetings = setOf("سلام", "درود", "hi", "hello", "hey")
     if (words.first() in greetings || normalized.startsWith("سلام علیکم") || normalized.startsWith("علیک سلام")) {
-        return "سلام رفیق! خوش اومدی 🐺 من گرگ، دستیار برنامه‌ات هستم. می‌تونم درباره بازار و تحلیل تکنیکال کمکت کنم. چه چیزی می‌خوای بدونی؟"
+        return "سلام رفیق! خوش اومدی 🐺 من ونوم، همراه وفادار برنامه‌ات هستم. می‌تونم درباره بازار و تحلیل تکنیکال کمکت کنم. چه چیزی می‌خوای بدونی؟"
     }
     if (words.any { it in setOf("ممنون", "مرسی", "سپاس", "متشکرم") }) return "خواهش می‌کنم! هر وقت خواستی من اینجام. 🐺"
-    if (normalized.contains("اسم") && (normalized.contains("تو") || normalized.contains("شما"))) return "من دستیار گرگ در برنامه AMIR ARSALAN TRADER WOLF هستم."
+    if (normalized.contains("اسم") && (normalized.contains("تو") || normalized.contains("شما"))) return "من VENOM هستم؛ همراه هوشمند تحلیل بازار تو."
     if (normalized in setOf("خوبی", "حالت چطوره", "چطوری")) return "ممنون، آماده‌ام کمکت کنم! تو چه کمکی ازم می‌خوای؟"
     return null
 }
@@ -60,7 +60,7 @@ internal object WolfKnowledgeSearch {
             requestMethod = "GET"
             connectTimeout = 9000
             readTimeout = 12000
-            setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.14 (Android)")
+            setRequestProperty("User-Agent", "VENOM-AI/2.66 (Android)")
             setRequestProperty("Accept", "application/json")
         }
         return try {
@@ -132,7 +132,7 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
     val messages = remember {
         mutableStateListOf(
             WolfChatMessage(
-                "سلام! من دستیار دانشی گرگ هستم. می‌توانی درباره تحلیل تکنیکال، مفاهیم برنامه‌نویسی، علم، تاریخ و موضوعات عمومی سؤال کنی. برای پرسش‌های دانشی، وب را جست‌وجو می‌کنم و منبع را نشان می‌دهم. فعلاً موتور من بازیابی و جمع‌بندی نتایج است، نه یک مدل زبانی عمومیِ ازپیش‌آموزش‌دیده.",
+                "سلام! من VENOM هستم؛ همراه دانشی و تحلیلی تو. می‌توانی درباره تحلیل تکنیکال، مفاهیم برنامه‌نویسی، علم، تاریخ و موضوعات عمومی سؤال کنی. برای پرسش‌های دانشی، وب را جست‌وجو می‌کنم و منبع را نشان می‌دهم. فعلاً موتور من بازیابی و جمع‌بندی نتایج است، نه یک مدل زبانی عمومیِ ازپیش‌آموزش‌دیده.",
                 false
             )
         )
@@ -153,7 +153,7 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
     Column(Modifier.fillMaxSize().background(navy).padding(12.dp)) {
         Surface(color = Color(0xFF14243C), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {
-                Text("WOLF AI • دستیار زبانی و تحلیلی", color = Color.White, fontSize = 18.sp)
+                Text("VENOM AI • همراه زبانی و تحلیلی", color = Color.White, fontSize = 18.sp)
                 Text("دانشنامه تخصصی آفلاین + جست‌وجوی وب + مدل زبانی قابل اتصال", color = muted, fontSize = 10.sp)
                 Text("بدون اتصال به حساب صرافی یا امکان ثبت سفارش", color = Color(0xFF27D6A0), fontSize = 10.sp)
             }
