@@ -1,0 +1,17 @@
+{
+  "status": "verified_real_exchange_data",
+  "rows": 898920,
+  "target_rows": 898920,
+  "minimum_required_rows": 898920,
+  "timeframe": "1h",
+  "source_exchanges": [
+    "XT"
+  ],
+  "data_source_policy": "XT_USDT_M_ONLY",
+  "symbols": 614,
+  "first_timestamp_ms": 1788127200000,
+  "last_timestamp_ms": 1794567600000,
+  "generated_at_utc": "2026-11-13T12:53:22.571667+00:00",
+  "sha256": "5ab2c65e82f1d50d058249228c0ee0958762ce4b1f218411a5dca76dddeaea95",
+  "synthetic_rows": 0
+}
