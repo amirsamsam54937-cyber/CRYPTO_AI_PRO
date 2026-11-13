@@ -214,6 +214,26 @@ jobs:
           assert model.get("currency_metadata_sha256")==m.get("currency_metadata_sha256")
           print("Verified: 10 XT-trained neural specialists and chronological holdout gates.")
           PY
+      - name: Verify analysis-only product has no live execution entry points
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path("app/src/main/java/com/cryptoaipro/monitor")
+          main = (root / "MainActivity.kt").read_text(encoding="utf-8")
+          service = (root / "HopeHunterMonitorService.kt").read_text(encoding="utf-8")
+          engine = (root / "XtLiveTradingEngine.kt").read_text(encoding="utf-8")
+          assert "XtApiCredentialPanel" not in main
+          assert "XtLivePositionsPanel" not in main
+          assert "XtLiveTradingEngine" not in main
+          assert "XtLiveTradingEngine" not in service
+          assert "XtCredentialVault" not in service
+          assert "XtAuthenticatedFuturesClient" not in engine
+          assert "openMarketWithProtection" not in engine
+          assert "emergencyClose" not in engine
+          assert "live_execution_enabled", False
+          print("Verified: UI and background service are analysis-only; live execution coordinator is a no-op safety stub.")
+          PY
       - name: Build installable APK with diagnostic log
         env:
           JAVA_TOOL_OPTIONS: "-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
