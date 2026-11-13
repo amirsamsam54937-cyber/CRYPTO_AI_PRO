@@ -17,6 +17,11 @@ internal object WolfSignalOutcomeJournal {
     private const val MAX_RECORDS = 5000
     private const val SIGNAL_TIMEFRAME = "15m"
     private const val VALIDITY_MS = 15L * 60L * 1000L
+    // Conservative paper assumptions: net outcomes, not gross price moves, drive learning.
+    private const val TAKER_FEE_PER_SIDE = 0.0006
+    private const val SLIPPAGE_PER_SIDE = 0.0005
+    private const val FUNDING_PER_8H = 0.0001
+    private const val EIGHT_HOURS_MS = 8L * 60L * 60L * 1000L
 
     data class Record(
         val symbol: String, val side: String, val created: Long, val expiresAt: Long,
@@ -93,9 +98,7 @@ internal object WolfSignalOutcomeJournal {
                     if (entry > 0.0 && exit > 0.0) {
                         val rawPct = if (long) (exit / entry - 1.0) * 100.0
                             else ((entry - exit) / entry) * 100.0
-                        record.put("priceChangePct", rawPct)
-                        // Estimated leveraged gross return; excludes fees, funding and slippage.
-                        record.put("pnlPct", rawPct * record.optInt("leverage", 1).coerceAtLeast(1))
+                        applyNetPaperPnl(record, rawPct, now)
                     }
                 } else if (now >= expiresAt) {
                     closeRecord(record, "EXPIRED", signal.price, now)
@@ -103,8 +106,7 @@ internal object WolfSignalOutcomeJournal {
                     if (entry > 0.0 && exit > 0.0) {
                         val rawPct = if (long) (exit / entry - 1.0) * 100.0
                             else ((entry - exit) / entry) * 100.0
-                        record.put("priceChangePct", rawPct)
-                        record.put("pnlPct", rawPct * record.optInt("leverage", 1).coerceAtLeast(1))
+                        applyNetPaperPnl(record, rawPct, now)
                     }
                 } else {
                     record.put("lastPrice", signal.price)
@@ -117,8 +119,7 @@ internal object WolfSignalOutcomeJournal {
                 if (entry > 0.0 && exit > 0.0) {
                     val rawPct = if (record.optString("side") == "LONG_BIAS") (exit / entry - 1.0) * 100.0
                         else ((entry - exit) / entry) * 100.0
-                    record.put("priceChangePct", rawPct)
-                    record.put("pnlPct", rawPct * record.optInt("leverage", 1).coerceAtLeast(1))
+                    applyNetPaperPnl(record, rawPct, now)
                 }
             }
         }
@@ -165,6 +166,20 @@ internal object WolfSignalOutcomeJournal {
         LEGACY_KEYS.forEach { editor.remove(it) }
         editor.apply()
         return snapshot(bounded)
+    }
+
+    private fun applyNetPaperPnl(record: JSONObject, grossPriceChangePct: Double, now: Long) {
+        val leverage = record.optInt("leverage", 1).coerceIn(1, 20)
+        val heldMs = (now - record.optLong("created", now)).coerceAtLeast(0L)
+        val roundTripCostFraction = 2.0 * (TAKER_FEE_PER_SIDE + SLIPPAGE_PER_SIDE) +
+            FUNDING_PER_8H * (heldMs.toDouble() / EIGHT_HOURS_MS.toDouble())
+        val costPctOnNotional = roundTripCostFraction * 100.0
+        val netMarginPct = (grossPriceChangePct - costPctOnNotional) * leverage
+        record.put("grossPriceChangePct", grossPriceChangePct)
+        record.put("estimatedCostPctOnNotional", costPctOnNotional)
+        record.put("priceChangePct", grossPriceChangePct)
+        record.put("pnlPct", netMarginPct)
+        record.put("pnlBasis", "estimated_net_after_round_trip_fee_slippage_funding")
     }
 
     private fun closeRecord(record: JSONObject, status: String, exitPrice: Double, now: Long) {
