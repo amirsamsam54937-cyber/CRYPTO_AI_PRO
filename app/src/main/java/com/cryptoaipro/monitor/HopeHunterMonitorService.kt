@@ -36,6 +36,10 @@ class HopeHunterMonitorService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                if (XtLiveTradingEngine.isEnabled(this) && XtLiveTradingEngine.positionCount(this) > 0) {
+                    updateNotification("پوزیشن واقعی باز است؛ سرویس برای نظارت بر حدضرر/حدسود متوقف نمی‌شود. ابتدا اجرای خودکار را خاموش کن.")
+                    return START_STICKY
+                }
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
