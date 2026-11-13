@@ -111,6 +111,7 @@ data class MarketSignal(
     val neuralRsi: Double? = null,
     val neuralCandles: List<DoubleArray> = emptyList(),
     val neuralMemberVotes: List<String> = emptyList(),
+    val neuralMemberProbabilities: List<Double> = emptyList(),
     // Internal XT microstructure features; deliberately not rendered in any UI or notification.
     val hiddenFlowScore: Int = 0,
     val hiddenFlowFresh: Boolean = false
@@ -177,7 +178,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     neuralScore = rawDirectionScore,
                     neuralDirection = research?.predictedDirection ?: rawPredictedSide,
                     neuralModelSource = "۱۰ شبکه عصبی • رأی پژوهشی مستقل • خارج از تصمیم نهایی تا اعتبارسنجی",
-                    neuralMemberVotes = memberVotes
+                    neuralMemberVotes = memberVotes,
+                    neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
                 )
             } else {
                 val probability = research?.upProbability
@@ -186,7 +188,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                         neuralScore = 50,
                         neuralDirection = "NEUTRAL",
                         neuralModelSource = "مدل معتبر در دسترس نیست",
-                        neuralMemberVotes = memberVotes
+                        neuralMemberVotes = memberVotes,
+                    neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
                     )
                 } else {
                     val directionalScore = (probability * 100.0).toInt().coerceIn(1, 99)
@@ -203,7 +206,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                         neuralDirection = predictedSide,
                         neuralModelSource = "۱۰مدلی • اعتبارسنجی‌شده",
                         confidence = adjustedConfidence,
-                        neuralMemberVotes = memberVotes
+                        neuralMemberVotes = memberVotes,
+                    neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
                     )
                 }
             }
