@@ -48,3 +48,29 @@ def test_ten_neural_experts_have_distinct_feature_specializations():
     masks = [tuple(mask) for _, mask in SPECIALISTS]
     assert len(set(masks)) == 10
     assert all(len(mask) == 7 and sum(mask) >= 3 for mask in masks)
+
+
+
+def test_balanced_bootstrap_is_deterministic_balanced_and_bounded():
+    from tools.train_wolf_ensemble import balanced_bootstrap_indices
+
+    labels = np.array([0] * 90_000 + [1] * 10_000)
+    first = balanced_bootstrap_indices(labels, seed=77, max_per_class=12_000)
+    second = balanced_bootstrap_indices(labels, seed=77, max_per_class=12_000)
+
+    assert np.array_equal(first, second)
+    assert len(first) == 24_000
+    assert np.count_nonzero(labels[first] == 0) == 12_000
+    assert np.count_nonzero(labels[first] == 1) == 12_000
+    # Majority class is sampled without replacement; minority is bootstrapped.
+    assert len(np.unique(first[labels[first] == 0])) == 12_000
+    assert len(np.unique(first[labels[first] == 1])) <= 10_000
+
+
+def test_balanced_bootstrap_rejects_missing_or_tiny_class():
+    from tools.train_wolf_ensemble import balanced_bootstrap_indices
+
+    with pytest.raises(ValueError):
+        balanced_bootstrap_indices(np.array([0, 0, 0]), seed=1)
+    with pytest.raises(ValueError):
+        balanced_bootstrap_indices(np.array([0, 1, 1]), seed=1, max_per_class=1)
