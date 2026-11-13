@@ -182,6 +182,7 @@ internal class XtAuthenticatedFuturesClient(
         val canTrade: Boolean,
         val canOpenPosition: Boolean,
         val walletBalanceUsdt: Double,
+        val equityUsdt: Double,
         val availableBalanceUsdt: Double
     )
 
@@ -202,6 +203,7 @@ internal class XtAuthenticatedFuturesClient(
             account.optBoolean("allowTrade", false),
             account.optBoolean("allowOpenPosition", false),
             wallet,
+            value("totalAmount").takeIf { it > 0.0 } ?: value("amount").takeIf { it > 0.0 } ?: wallet,
             available
         )
     }
