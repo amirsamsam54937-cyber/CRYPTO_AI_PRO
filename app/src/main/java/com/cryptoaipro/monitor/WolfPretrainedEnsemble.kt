@@ -50,10 +50,12 @@ internal object WolfPretrainedEnsemble {
             require(corpus.optString("status")=="verified_real_exchange_data" &&
                 corpusRows>=898_920 && corpus.optInt("synthetic_rows",-1)==0 &&
                 corpus.optString("data_source_policy")=="XT_USDT_M_CRYPTO_ONLY" &&
-                corpus.optString("asset_class_policy")=="XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY" &&
+                corpus.optString("asset_class_policy")=="XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH" &&
                 corpus.optBoolean("crypto_only_verified",false) &&
-                corpus.optString("currency_universe_source")=="XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES" &&
+                corpus.optString("currency_universe_source")=="XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES+COINGECKO_PUBLIC_COINS_LIST" &&
                 corpus.optString("currency_metadata_sha256").length==64 &&
+                corpus.optString("crypto_asset_registry_source")=="COINGECKO_PUBLIC_COINS_LIST" &&
+                corpus.optString("crypto_asset_registry_sha256").length==64 &&
                 sources!=null && sources.length()==1 && sources.optString(0).equals("XT",ignoreCase=true))
             fun vector(a:org.json.JSONArray)=DoubleArray(a.length()){a.getDouble(it)}
             fun matrix(a:org.json.JSONArray)=Array(a.length()){r->vector(a.getJSONArray(r))}
@@ -78,6 +80,8 @@ internal object WolfPretrainedEnsemble {
             require(root.optString("asset_class_policy")==corpus.optString("asset_class_policy"))
             require(root.optString("corpus_sha256")==corpus.optString("sha256"))
             require(root.optString("currency_metadata_sha256")==corpus.optString("currency_metadata_sha256"))
+            require(root.optString("crypto_asset_registry_source")==corpus.optString("crypto_asset_registry_source"))
+            require(root.optString("crypto_asset_registry_sha256")==corpus.optString("crypto_asset_registry_sha256"))
             val cryptoSymbols=corpus.optJSONArray("crypto_symbols")
             val verifiedSymbols=(0 until (cryptoSymbols?.length() ?: 0)).map { cryptoSymbols!!.optString(it) }.toSet()
             val modelSymbols=root.optJSONArray("symbols")
