@@ -160,11 +160,22 @@ internal object XtLiveTradingEngine {
                     ZoroDiagnostics.record(context, "XT_LIVE", "WARNING", "مشخصات قرارداد $symbol دریافت نشد: ${error.message}")
                     continue
                 }
-                val feeAndSlip = spec.takerFeeRate + 0.0005
-                val riskDistance = abs(entry - stop) + (entry + stop) * feeAndSlip
-                val rewardDistance = abs(target - entry) - (entry + target) * feeAndSlip
+                // TP1 is a scalp exit: accept a small positive NET return after
+                // estimated taker fees on entry+exit and slippage on both legs.
+                // Never force an arbitrary 1.8R target when the user's goal is a small
+                // but genuinely positive first take-profit.
+                val oneWayExecutionCost = spec.takerFeeRate + 0.0005
+                val riskDistance = abs(entry - stop) + (entry + stop) * oneWayExecutionCost
+                val grossRewardDistance = abs(target - entry)
+                val estimatedRoundTripCost = (entry + target) * oneWayExecutionCost
+                val rewardDistance = grossRewardDistance - estimatedRoundTripCost
+                val minNetProfitDistance = entry * 0.0001 // 1 bp net price movement after estimated costs
                 val netRr = if (riskDistance > 0.0) rewardDistance / riskDistance else 0.0
-                if (!netRr.isFinite() || netRr < 1.8) continue
+                if (!netRr.isFinite() || rewardDistance < minNetProfitDistance) {
+                    ZoroDiagnostics.record(context, "XT_LIVE", "INFO",
+                        "TP1 برای $symbol پس از کسر کارمزد و لغزش، سود خالص کافی ندارد؛ ورود رد شد.")
+                    continue
+                }
 
                 val leverage = signal.leverage.coerceIn(1, 3)
                 val sizing = try {
@@ -201,7 +212,7 @@ internal object XtLiveTradingEngine {
                     .putInt("daily_trades", p.getInt("daily_trades", 0) + 1)
                     .putString("last_order_result", result.toString()).apply()
                 ZoroDiagnostics.record(context, "XT_LIVE", "WARNING",
-                    "درخواست ورود واقعی $side $symbol ثبت شد؛ قرارداد: ${sizing.contracts}؛ اهرم: ${leverage}x؛ حدضرر و حدسود در درخواست سفارش ضمیمه شدند؛ R خالص تخمینی: ${"%.2f".format(Locale.US, netRr)}")
+                    "درخواست ورود واقعی $side $symbol ثبت شد؛ قرارداد: ${sizing.contracts}؛ اهرم: ${leverage}x؛ حدضرر و حدسود در درخواست سفارش ضمیمه شدند؛ R خالص تخمینی: ${"%.2f".format(Locale.US, netRr)}؛ سود خالص TP1 پس از هزینه‌ها مثبت و حداقل ۱bp است")
                 break
             }
         } catch (error: Exception) {
