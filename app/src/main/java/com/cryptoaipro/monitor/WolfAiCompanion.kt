@@ -184,7 +184,7 @@ internal fun WolfAiCompanionScreen(marketSignal: MarketSignal? = null) {
                         modifier = Modifier.fillMaxWidth(0.92f)
                     ) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(if (message.fromUser) "تو" else "گرگ", color = blue, fontSize = 10.sp)
+                            Text(if (message.fromUser) "تو" else "VENOM", color = blue, fontSize = 10.sp)
                             Text(message.text, color = Color.White, fontSize = 12.sp, lineHeight = 18.sp)
                             if (message.source.isNotBlank()) Text("منبع: " + message.source, color = muted, fontSize = 9.sp)
                         }
