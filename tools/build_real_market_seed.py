@@ -33,76 +33,75 @@ def collect(exchange_id):
         markets.sort(key=lambda m: m["symbol"])
         if not markets:
             raise RuntimeError(f"{exchange_id}: no active linear USDT perpetual markets")
-        per_symbol = math.ceil(TARGET / len(markets))
-        rows, errors = [], []
-        market_history = []
-        for market in markets:
+        per_symbol = max(1, math.ceil(TARGET / len(markets)))
+        rows, errors, coverage = [], [], []
+        now = ex.milliseconds()
+        for market_index, market in enumerate(markets, 1):
             symbol = market["symbol"]
-            # Request recent history first. XT does not provide 2020-era candles
-            # for newly listed contracts; an ancient since= timestamp returned empty pages.
-            since = max(START, ex.milliseconds() - (per_symbol + 96) * 3_600_000)
-            local = []
+            # Paginate real 1h candles. A single 1,000-row response per symbol
+            # cannot guarantee a million-row corpus on a smaller exchange universe.
+            cursor = max(START, now - (per_symbol + 96) * 3_600_000)
+            local = {}
+            pages = 0
             try:
-                page = ex.fetch_ohlcv(symbol, TIMEFRAME, since=since, limit=1000)
-                # Some public endpoints return the latest page only when since is omitted.
-                if not page:
-                    page = ex.fetch_ohlcv(symbol, TIMEFRAME, since=None, limit=1000)
-                if page:
-                    now = ex.milliseconds()
+                while len(local) < per_symbol and pages < 40:
+                    page = ex.fetch_ohlcv(symbol, TIMEFRAME, since=cursor, limit=1000)
+                    pages += 1
+                    if not page:
+                        break
+                    accepted = []
                     for candle in page:
                         ts, op, hi, lo, cl, vol = candle
-                        if ts + 3_600_000 > now:
+                        if ts < cursor or ts + 3_600_000 > ex.milliseconds():
                             continue
                         if not all(math.isfinite(float(x)) for x in candle):
                             continue
                         if min(op,hi,lo,cl) <= 0 or vol < 0 or hi < max(op,cl) or lo > min(op,cl):
                             continue
-                        local.append((int(ts),float(op),float(hi),float(lo),float(cl),float(vol)))
-            except Exception as exc:
-                errors.append(f"{symbol}: {type(exc).__name__}: {exc}")
-            unique = {r[0]: r for r in local}
-            local = [unique[k] for k in sorted(unique)]
-            if local:
-                normalized = normalized_symbol(market)
-                rows.extend((exchange_id.upper(), normalized, TIMEFRAME, *r)
-                            for r in local[-per_symbol:])
-                market_history.append((market, normalized, local[0][0], len(local)))
-            print(f"{exchange_id}: {symbol}: {len(local)} real closed candles; total={len(rows)}", flush=True)
-            if len(rows) >= TARGET:
-                break
-            time.sleep(max(ex.rateLimit / 1000.0, 0.05))
-
-        # Backfill older closed candles when newer contracts fall short of their quota.
-        if len(rows) < TARGET:
-            for market, normalized, earliest, first_count in market_history:
-                if len(rows) >= TARGET:
-                    break
-                if first_count < 100:
-                    continue
-                try:
-                    page = ex.fetch_ohlcv(market["symbol"], TIMEFRAME,
-                        since=max(START, earliest - 1000 * 3_600_000), limit=1000)
-                    older = []
-                    now = ex.milliseconds()
+                        local[int(ts)] = (int(ts),float(op),float(hi),float(lo),float(cl),float(vol))
+                        accepted.append(int(ts))
+                    if not accepted:
+                        break
+                    next_cursor = max(accepted) + 3_600_000
+                    if next_cursor <= cursor:
+                        break
+                    cursor = next_cursor
+                    if len(page) < 1000:
+                        break
+                if not local and pages == 1:
+                    # Some XT endpoint variants ignore a very old since value.
+                    page = ex.fetch_ohlcv(symbol, TIMEFRAME, since=None, limit=1000)
                     for candle in page or []:
                         ts, op, hi, lo, cl, vol = candle
-                        if ts >= earliest or ts + 3_600_000 > now:
+                        if ts + 3_600_000 > ex.milliseconds():
                             continue
                         if not all(math.isfinite(float(x)) for x in candle):
                             continue
                         if min(op,hi,lo,cl) <= 0 or vol < 0 or hi < max(op,cl) or lo > min(op,cl):
                             continue
-                        older.append((int(ts),float(op),float(hi),float(lo),float(cl),float(vol)))
-                    older = sorted({r[0]: r for r in older}.values(), key=lambda r:r[0])
-                    rows.extend((exchange_id.upper(), normalized, TIMEFRAME, *r) for r in older)
-                    print(f"{exchange_id}: backfill {normalized}: +{len(older)}; total={len(rows)}", flush=True)
-                except Exception as exc:
-                    errors.append(f"{market['symbol']} backfill: {type(exc).__name__}: {exc}")
-                time.sleep(max(ex.rateLimit / 1000.0, 0.05))
+                        local[int(ts)] = (int(ts),float(op),float(hi),float(lo),float(cl),float(vol))
+            except Exception as exc:
+                errors.append(f"{symbol}: {type(exc).__name__}: {exc}")
+            candles = [local[k] for k in sorted(local)]
+            if candles:
+                normalized = normalized_symbol(market)
+                rows.extend((exchange_id.upper(), normalized, TIMEFRAME, *r)
+                            for r in candles[-per_symbol:])
+                coverage.append({"symbol": normalized, "candles": min(len(candles),per_symbol),
+                                 "pages": pages})
+            print(f"{exchange_id}: {symbol}: {len(candles)} real closed candles "
+                  f"({pages} pages); total={len(rows)}; market={market_index}/{len(markets)}",
+                  flush=True)
+            if len(rows) >= TARGET:
+                break
 
         rows.sort(key=lambda r: (r[1], r[3]))
         if len(rows) < TARGET:
-            raise RuntimeError(f"{exchange_id}: collected {len(rows):,}; the full {TARGET:,} real-candle target is required; errors={errors[:5]}")
+            raise RuntimeError(
+                f"{exchange_id}: collected {len(rows):,} real candles; "
+                f"target is {TARGET:,}; markets={len(markets)}; "
+                f"covered_symbols={len(coverage)}; errors={errors[:8]}"
+            )
         return rows[:TARGET]
     finally:
         ex.close()
