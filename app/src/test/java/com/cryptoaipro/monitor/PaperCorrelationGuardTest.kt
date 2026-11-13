@@ -23,6 +23,11 @@ class PaperCorrelationGuardTest {
         assertTrue(correlation!! < -0.999)
     }
 
+    @Test fun mismatchedCandleIntervalsFailClosedInsteadOfComparingMultiBarReturns() {
+        val everyOther = candles().filterIndexed { index, _ -> index % 2 == 0 }
+        assertNull(HopePaperTradingEngine.returnCorrelation(everyOther, everyOther))
+    }
+
     @Test fun insufficientAlignedHistoryFailsClosed() {
         val short = candles().take(12)
         assertNull(HopePaperTradingEngine.returnCorrelation(short, short))
