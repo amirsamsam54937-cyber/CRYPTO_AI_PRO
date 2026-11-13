@@ -104,10 +104,10 @@ internal object HopeRiskManager {
 @Composable
 internal fun PaperTradingSafetyPanel(context: Context, prefs: android.content.SharedPreferences) {
     var acknowledged by remember {
-        mutableStateOf(prefs.getBoolean("hope_risk_ack_v1", true))
+        mutableStateOf(prefs.getBoolean("hope_risk_ack_v1", false))
     }
     var paperEnabled by remember {
-        mutableStateOf(prefs.getBoolean("hope_paper_mode_enabled", true))
+        mutableStateOf(prefs.getBoolean("hope_paper_mode_enabled", false))
     }
     val gold = Color(0xFFFFD45A)
     val ivory = Color(0xFFECE5D6)
@@ -135,7 +135,7 @@ internal fun PaperTradingSafetyPanel(context: Context, prefs: android.content.Sh
                 )
             }
             Text(
-                "شبیه‌ساز از نصب، به‌صورت پیش‌فرض با ۱۰۰۰ تتر مجازی و داده زنده بازار XT شروع می‌کند. هیچ سفارش واقعی به صرافی ارسال نمی‌شود و سرمایه واقعی درگیر نیست.",
+                "پس از تأیید شما، شبیه‌ساز با ۱۰۰۰ تتر مجازی و داده زنده بازار XT آغاز می‌شود. هیچ سفارش واقعی به صرافی ارسال نمی‌شود و سرمایه واقعی درگیر نیست.",
                 color = ivory, fontSize = 10.sp, lineHeight = 16.sp
             )
             Divider(color = gold.copy(alpha = 0.22f))
