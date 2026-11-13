@@ -20,6 +20,14 @@ class DynamicTradingPolicyTest {
         openPositions = 0
     )
 
+    @Test fun netRewardRiskIncludesRoundTripCosts() {
+        val marginal = DynamicTradingPolicy.netRiskReward(100.0, 98.0, 104.0, 0.17)
+        val stronger = DynamicTradingPolicy.netRiskReward(100.0, 98.0, 104.5, 0.17)
+        assertTrue(marginal < 1.8)
+        assertTrue(stronger >= 1.8)
+        assertEquals(0.0, DynamicTradingPolicy.netRiskReward(100.0, 98.0, 100.1, 0.17), 1e-12)
+    }
+
     @Test fun strongValidatedSignalGetsBoundedDynamicPlan() {
         val plan = DynamicTradingPolicy.evaluate(strongLong(), 1_000.0, 900.0, 100.0, 98.0)
         assertNotNull(plan)
