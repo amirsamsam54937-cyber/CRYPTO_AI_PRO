@@ -301,9 +301,6 @@ internal fun HopeCommanderScreen(
             }
         }
         item {
-            paperSnapshot?.let { HopePaperTradingDashboard(it) }
-        }
-        item {
             HopeScenarioLabCard(scenarioScorecard)
         }
         item {
@@ -318,7 +315,7 @@ internal fun HopeCommanderScreen(
             }
         }
         item {
-            Text("HOPE HUNTER • تحلیل و سیگنال‌دهی فقط؛ بدون ارسال سفارش واقعی به صرافی",
+            Text("ZORO • تحلیل فرمانده، اجرای خودکار XT و پایش پوزیشن‌های باز",
                 color = HMuted, fontSize = 8.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
