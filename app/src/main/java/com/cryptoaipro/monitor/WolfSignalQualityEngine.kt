@@ -25,10 +25,16 @@ internal object WolfSignalQualityEngine {
             notes += "اجماع چندتحلیلی در دسترس نیست"
         } else {
             when {
-                consensus.agreement < 60 -> {
-                    penalty += 12
+                consensus.agreement < 58 -> {
+                    penalty += 15
                     veto = true
-                    notes += "اختلاف زیاد میان رأی تحلیلگرها"
+                    notes += "اجماع کمتر از حداقل فرمانده است"
+                }
+                consensus.agreement < 60 -> {
+                    // Borderline consensus is a soft penalty, not an automatic signal kill.
+                    // Commander still checks directional evidence, timeframe conflict and risk.
+                    penalty += 6
+                    notes += "اجماع نزدیک به آستانه؛ نیازمند تأیید مستقل فرمانده"
                 }
                 consensus.agreement < 66 -> {
                     penalty += 7
