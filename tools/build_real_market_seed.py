@@ -36,6 +36,15 @@ def collect(exchange_id):
         spot_currencies = ex.fetch_currencies()
         if not spot_currencies:
             raise RuntimeError("XT public spot currency metadata is empty; refusing unclassified futures.")
+        currency_payload = json.dumps(spot_currencies, sort_keys=True, separators=(",", ":"), default=str)
+        currency_metadata_sha256 = hashlib.sha256(currency_payload.encode("utf-8")).hexdigest()
+        spot_crypto_currency_count = sum(
+            1 for currency in spot_currencies.values()
+            if isinstance(currency, dict) and (
+                str(currency.get("type") or "").lower() == "crypto" or
+                str((currency.get("info") or {}).get("type") or "").upper() == "FT"
+            )
+        )
         perpetuals = [m for m in ex.markets.values()
                       if m.get("active") is not False and m.get("swap")
                       and m.get("linear") and m.get("quote") == "USDT"
@@ -132,14 +141,26 @@ def collect(exchange_id):
                 f"target is {TARGET:,}; markets={len(markets)}; "
                 f"covered_symbols={len(coverage)}; errors={errors[:8]}"
             )
-        return rows[:TARGET]
+        provenance = {
+            "spot_currency_universe_count": len(spot_currencies),
+            "spot_crypto_currency_count": spot_crypto_currency_count,
+            "currency_metadata_sha256": currency_metadata_sha256,
+            "eligible_perpetuals": len(markets),
+            "excluded_non_crypto_count": len(excluded_non_crypto),
+            "excluded_unknown_count": len(excluded_unknown),
+            "crypto_symbols": sorted(classification_by_symbol),
+            "excluded_non_crypto_symbols": excluded_non_crypto,
+            "excluded_unknown_symbols": excluded_unknown,
+            "asset_classification": classification_by_symbol,
+        }
+        return rows[:TARGET], provenance
     finally:
         ex.close()
 
 def main():
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     try:
-        rows = collect("xt")
+        rows, provenance = collect("xt")
     except Exception as exc:
         raise SystemExit(
             "XT-only historical collection failed; no other exchange or synthetic data will be used. "
@@ -160,16 +181,8 @@ def main():
         "data_source_policy": "XT_USDT_M_CRYPTO_ONLY",
         "asset_class_policy": "XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY",
         "currency_universe_source": "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES",
-        "spot_currency_universe_count": len(spot_currencies),
-        "spot_crypto_currency_count": sum(1 for c in spot_currencies.values() if c.get("type") == "crypto"),
         "crypto_only_verified": True,
-        "eligible_perpetuals": len(markets),
-        "excluded_non_crypto_count": len(excluded_non_crypto),
-        "excluded_unknown_count": len(excluded_unknown),
-        "crypto_symbols": sorted(classification_by_symbol),
-        "excluded_non_crypto_symbols": excluded_non_crypto,
-        "excluded_unknown_symbols": excluded_unknown,
-        "asset_classification": classification_by_symbol,
+        **provenance,
         "symbols": len({r[1] for r in rows}),
         "first_timestamp_ms": min(r[3] for r in rows),
         "last_timestamp_ms": max(r[3] for r in rows),
