@@ -42,7 +42,7 @@ internal object WolfPretrainedEnsemble {
         runCatching {
             val root=JSONObject(context.assets.open("wolf_pretrained_ensemble.json").bufferedReader().use{it.readText()})
             require(root.optString("format")=="amir-wolf-ensemble-v1")
-            require(root.optString("target_definition")=="future_return_over_6_hours_gt_0.25_percent")
+            require(root.optString("target_definition")=="future_return_over_6_hours_positive_vs_nonpositive")
             val corpus=JSONObject(context.assets.open("wolf_corpus_manifest.json").bufferedReader().use{it.readText()})
             val corpusRows=corpus.optInt("rows",0)
             val sources=corpus.optJSONArray("source_exchanges")
