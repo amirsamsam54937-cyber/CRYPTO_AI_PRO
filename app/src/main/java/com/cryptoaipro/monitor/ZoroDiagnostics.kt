@@ -18,6 +18,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -54,7 +56,7 @@ internal object ZoroDiagnostics {
             val info = context.packageManager.getPackageInfo(context.packageName, 0)
             info.versionName ?: "unknown"
         }.getOrDefault("unknown")
-        val model = WolfPretrainedEnsemble.status()
+        val model = WolfPretrainedEnsemble.initialize(context)
         val all = events(context)
         val root = JSONObject()
             .put("app", "ZORO").put("version", version)
@@ -65,6 +67,7 @@ internal object ZoroDiagnostics {
             .put("neural_baseline_accuracy", model.baselineAccuracy)
             .put("neural_balanced_accuracy", model.balancedAccuracy)
             .put("neural_corpus_rows", model.corpusRows)
+            .put("neural_load_error", model.loadError)
             .put("events", JSONArray(all))
         return root.toString(2)
     }
@@ -74,14 +77,17 @@ internal object ZoroDiagnostics {
 internal fun ZoroDiagnosticsScreen(context: Context = LocalContext.current) {
     var refresh by remember { mutableIntStateOf(0) }
     val entries = remember(refresh) { ZoroDiagnostics.events(context) }
-    val model = remember(refresh) { WolfPretrainedEnsemble.status() }
+    var model by remember { mutableStateOf(WolfPretrainedEnsemble.status()) }
+    LaunchedEffect(context, refresh) {
+        model = withContext(Dispatchers.IO) { WolfPretrainedEnsemble.initialize(context) }
+    }
     val bg = Color(0xFF080808)
     val panel = Color(0xFF151515)
     val silver = Color(0xFFD6D6D6)
     val red = Color(0xFFFF4655)
     Column(Modifier.fillMaxSize().background(bg).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("ZORO CONTROL CENTER", color = silver, fontSize = 18.sp, fontWeight = FontWeight.Black)
-        Text("مرکز سلامت، خطاها و علت منتشر نشدن سیگنال", color = Color.LightGray, fontSize = 11.sp)
+        Text("مرکز سلامت، خطاها و وضعیت شبکه عصبی", color = Color.LightGray, fontSize = 11.sp)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DiagnosticTile("مدل عصبی", if (model.loaded) "بارگذاری شد" else "بارگذاری ناموفق", model.loaded, Modifier.weight(1f))
             DiagnosticTile("اعتبار تصمیم", if (model.validatedForScoring) "تأییدشده" else "فقط پژوهشی", model.validatedForScoring, Modifier.weight(1f))
@@ -92,7 +98,10 @@ internal fun ZoroDiagnosticsScreen(context: Context = LocalContext.current) {
                 Text("اعضا: ${model.members}/10 • داده آموزشی ثبت‌شده: ${model.corpusRows}", color = Color.White, fontSize = 10.sp)
                 Text("دقت آزمون: ${String.format(Locale.US, "%.3f", model.testAccuracy)} • خط مبنا: ${String.format(Locale.US, "%.3f", model.baselineAccuracy)}", color = Color.LightGray, fontSize = 10.sp)
                 Text("Balanced accuracy: ${String.format(Locale.US, "%.3f", model.balancedAccuracy)}", color = Color.LightGray, fontSize = 10.sp)
-                Text(if (model.validatedForScoring) "مدل اجازه اثرگذاری بر سیگنال را دارد." else "مدل هنوز اجازه اثرگذاری بر تصمیم نهایی ندارد؛ رأی آن فقط نمایشی است.", color = if (model.validatedForScoring) Color(0xFF35D08A) else red, fontSize = 10.sp)
+                if (model.loadError.isNotBlank()) {
+                    Text("علت: ${model.loadError}", color = red, fontSize = 9.sp)
+                }
+                Text(if (model.validatedForScoring) "مدل اجازه اثرگذاری بر امتیازدهی را دارد." else "مدل تا عبور از معیارهای آزمون اجازه اثرگذاری بر تصمیم نهایی ندارد.", color = if (model.validatedForScoring) Color(0xFF35D08A) else red, fontSize = 10.sp)
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
