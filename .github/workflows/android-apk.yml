@@ -237,6 +237,11 @@ jobs:
           assert 'putBoolean("live_execution_enabled", false)' in engine
           print("Verified: UI and background service are analysis-only; live execution coordinator is a no-op safety stub.")
           PY
+      - name: Run Android unit tests for neural signal consensus
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --stacktrace :app:testDebugUnitTest
+
       - name: Build installable APK with diagnostic log
         env:
           JAVA_TOOL_OPTIONS: "-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
