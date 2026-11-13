@@ -382,7 +382,7 @@ fun CryptoMonitorScreen() {
             appSettings.edit().putString("market_exchange", selectedExchange).apply()
             val scanned = XtFuturesMonitor.scan(progress)
             researchStats = WolfMarketDataStore.recordLiveScan(context, selectedExchange, scanned)
-            rows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned))
+            rows = HopeScenarioLab.applySignalImpact(applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned)))
             scannedCount = totalContracts
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
