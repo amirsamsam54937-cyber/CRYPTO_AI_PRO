@@ -38,7 +38,7 @@ jobs:
       - name: Install XT collection and training dependencies
         run: python -m pip install --upgrade pip ccxt numpy scikit-learn
 
-      - name: Build 745,427 real XT USDT-M candles
+      - name: Build 898,920 real XT USDT-M candles
         run: |
           set -euo pipefail
           python tools/build_real_market_seed.py
@@ -54,7 +54,7 @@ jobs:
           assert m["status"]=="verified_real_exchange_data"
           assert m["data_source_policy"]=="XT_USDT_M_ONLY"
           assert m["source_exchanges"]==["XT"]
-          assert m["rows"]>=745_427 and m["synthetic_rows"]==0
+          assert m["rows"]>=898_920 and m["synthetic_rows"]==0
           with (root/"market_seed.csv").open(newline="") as f:
               rows=0
               for row in csv.DictReader(f):
@@ -95,7 +95,7 @@ jobs:
                             "validation_status":report["validation_status"],"evaluation":e},indent=2))
           PY
 
-      - name: Compress verified 745k-candle corpus
+      - name: Compress verified 899k-candle corpus
         run: |
           set -euo pipefail
           gzip -1 -f app/src/main/assets/market_seed.csv
