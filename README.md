@@ -1,6 +1,6 @@
-# AMIR ARSALAN TRADER WOLF — CRYPTO AI PRO
+# VENOM — AI CRYPTO FUTURES COMPANION
 
-**Android release line: 2.18.0**  
+**Android release line: 2.66.0**  
 A Persian-first Android application for live Binance USDⓈ-M or XT USDT-M perpetual-futures market scanning, explainable technical analysis, signal visualization, and persistent outcome-based learning.
 
 > **Analysis and signals only.** The Android app does not connect exchange accounts, store API keys, submit orders, change leverage, or execute trades. Entry, stop and target levels are analytical references, not orders or guarantees.
@@ -40,7 +40,7 @@ The ten voting specialists are deterministic technical rule modules, **not ten i
 
 ## Market context and learning
 
-The app can collect public aggregate trades, open interest and funding context from the selected exchange where supported for a small number of leading candidates, and retrieve public crypto news feeds. These are contextual inputs, not proof of whale intent or a reliable sentiment label. Source, freshness, failures and missing data should remain visible.
+The app retrieves public crypto headlines and, on XT USDT-M only, aggregate trades, large-print heuristics, open-interest/funding snapshots and visible order-book depth for up to five leading directional candidates per refresh. These are estimates of large-participant pressure, not verified whale identities or wallet tracking. The flow/news refresh is cached for up to 15 minutes; stale or unavailable sources must not add a positive signal score. These are contextual inputs, not proof of whale intent or a reliable sentiment label. Source, freshness, failures and missing data should remain visible.
 
 The permanent on-device signal notebook stores up to 5,000 recent directional signal records, including timestamp, direction, reference entry, stop, three targets, confidence, rationale and observed status. New same-direction signals are deduplicated for 15 minutes. It observes later public candle prices. It does not submit or simulate real exchange orders. Same-candle stop/target ambiguity is handled conservatively. Learning labels are approximate horizon outcomes and must not be described as verified trade fills.
 
