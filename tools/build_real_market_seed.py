@@ -7,7 +7,10 @@ Only exchange-returned, closed candles are stored. No synthetic rows are generat
 import csv, json, math, os, sys, time, hashlib
 from datetime import datetime, timezone
 try:
+    try:
     from tools.xt_asset_classification import classify_xt_market
+except ModuleNotFoundError:
+    from xt_asset_classification import classify_xt_market
 except ModuleNotFoundError:
     from xt_asset_classification import classify_xt_market
 
