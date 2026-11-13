@@ -100,6 +100,13 @@ def expected_calibration_error(y_true, probabilities, bins=10):
         if np.any(mask): error += float(mask.mean())*abs(float(y_true[mask].mean())-float(probabilities[mask].mean()))
     return float(error)
 
+def repeat_symbol_labels(symbol, count):
+    """Repeat a complete instrument identifier without NumPy's one-character <U1 truncation."""
+    if count < 0:
+        raise ValueError("count must be non-negative")
+    return np.full(count, str(symbol), dtype=object)
+
+
 def make_rows(raw):
     a=np.asarray(raw,dtype=float)
     o,h,l,c,v=a[:,1],a[:,2],a[:,3],a[:,4],a[:,5]
@@ -173,7 +180,7 @@ def main():
             chunks.append((x,y,t))
             # dtype=str on np.full defaults to <U1 and silently truncates every symbol to its first character.
             # Object dtype preserves the complete instrument key for true unseen-symbol validation.
-            symbol_chunks.append(np.full(len(x),symbol,dtype=object))
+            symbol_chunks.append(repeat_symbol_labels(symbol,len(x)))
             used_symbols.append(symbol)
         print(f"REAL SEED {symbol}: {len(x)} directional samples",flush=True)
     if not chunks: raise SystemExit("No valid XT history; refusing to create fake pretrained weights.")
