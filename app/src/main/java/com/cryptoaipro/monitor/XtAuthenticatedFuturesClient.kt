@@ -76,7 +76,7 @@ internal class XtAuthenticatedFuturesClient(
             connection.connectTimeout = 7000
             connection.readTimeout = 9000
             connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("Content-Type", if (method == "GET") "application/x-www-form-urlencoded" else "application/json")
             connection.setRequestProperty("validate-appkey", appKey)
             connection.setRequestProperty("validate-timestamp", timestamp)
             connection.setRequestProperty("validate-signature", sig)
@@ -215,6 +215,7 @@ internal class XtAuthenticatedFuturesClient(
         side: String,
         contracts: Long,
         leverage: Int,
+        entryPrice: Double,
         takeProfit: Double,
         stopLoss: Double
     ): JSONObject = entryMutex.withLock {
@@ -222,11 +223,12 @@ internal class XtAuthenticatedFuturesClient(
         require(normalizedSymbol.matches(Regex("[a-z0-9]+_usdt"))) { "نماد قرارداد USDT نامعتبر است." }
         require(side == "LONG" || side == "SHORT") { "جهت پوزیشن نامعتبر است." }
         require(contracts > 0 && leverage in 1..5) { "حجم یا اهرم خارج از محدوده مجاز است." }
+        require(entryPrice.isFinite() && entryPrice > 0.0) { "قیمت ورود نامعتبر است." }
         require(takeProfit.isFinite() && stopLoss.isFinite() && takeProfit > 0.0 && stopLoss > 0.0) {
             "حدسود و حدضرر معتبر و اجباری هستند."
         }
-        require(if (side == "LONG") stopLoss < takeProfit else stopLoss > takeProfit) {
-            "ترتیب حدضرر و حدسود برای جهت پوزیشن معتبر نیست."
+        require(if (side == "LONG") stopLoss < entryPrice && takeProfit > entryPrice else takeProfit < entryPrice && stopLoss > entryPrice) {
+            "حدضرر و حدسود باید در سمت صحیح قیمت ورود قرار بگیرند."
         }
         val account = accountSnapshot()
         require(account.canTrade && account.canOpenPosition) {
@@ -234,7 +236,7 @@ internal class XtAuthenticatedFuturesClient(
         }
         require(account.availableBalanceUsdt > 0.0) { "موجودی آزاد USDT کافی نیست." }
         val current = activePositions()
-        require(current.none { it.symbol.replace("-", "_").lowercase() == normalizedSymbol && it.side == side }) {
+        require(current.none { it.symbol.filter(Char::isLetterOrDigit).lowercase() == normalizedSymbol.filter(Char::isLetterOrDigit) && it.side == side }) {
             "برای این نماد و جهت، پوزیشن باز وجود دارد؛ ورود تکراری مسدود شد."
         }
         setLeverage(normalizedSymbol, side, leverage)
