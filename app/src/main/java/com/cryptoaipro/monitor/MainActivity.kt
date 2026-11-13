@@ -192,24 +192,13 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
                     )
                 } else {
-                    // The pretrained target is absolute future UP/DOWN, not "probability
-                    // that the technical signal is correct". Confidence must therefore be
-                    // conditioned on whether the model agrees with this signal's side.
+                    // The model predicts absolute future price direction. It only
+                    // adjusts confidence when its directional vote agrees/disagrees.
                     val directionalScore = (probability * 100.0).toInt().coerceIn(1, 99)
-                    val predictedSide = when {
-                        probability >= 0.55 -> "LONG_BIAS"
-                        probability <= 0.45 -> "SHORT_BIAS"
-                        else -> "NEUTRAL"
-                    }
-                    val directionalStrength = (maxOf(probability, 1.0 - probability) * 100.0)
-                        .toInt().coerceIn(50, 99)
-                    val alignedStrength = when {
-                        predictedSide == signal.direction -> directionalStrength
-                        predictedSide == "NEUTRAL" -> 50
-                        else -> 100 - directionalStrength
-                    }
-                    val adjustedConfidence =
-                        (signal.confidence * 0.90 + alignedStrength * 0.10).toInt().coerceIn(0, 100)
+                    val predictedSide = NeuralSignalAlignment.predictedDirection(probability)
+                    val adjustedConfidence = NeuralSignalAlignment.adjustedConfidence(
+                        signal.confidence, candidate.direction, probability
+                    )
                     signal.copy(
                         neuralScore = directionalScore,
                         neuralDirection = predictedSide,
