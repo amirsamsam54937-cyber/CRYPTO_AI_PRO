@@ -65,6 +65,9 @@ internal object HopeCommander {
         val technicalConflict = technicalEvidence * technicalSign < 0.0
         val neuralConflict = neuralValidated && neuralSign != 0.0 && neuralSign != technicalSign
         val agreement = consensus?.agreement ?: 0
+        val directionalVotes = consensus?.votes?.count {
+            it.direction == "LONG" || it.direction == "SHORT"
+        } ?: 0
         val adx = signal.technical.adx
         val volume = signal.technical.relativeVolume
 
@@ -72,9 +75,10 @@ internal object HopeCommander {
             return Decision("NEUTRAL", 0, minOf(signal.confidence, 48), neuralStrength,
                 "ABSTAIN_NEURAL_CONFLICT", "فرمانده: اختلاف معنادار شبکه عصبی و تکنیکال؛ سیگنال متوقف شد")
 
-        if (technicalConflict || abs(combined) < 18.0 || agreement < 55 || adx < 14.0 || volume < 0.55)
+        if (technicalConflict || abs(combined) < 18.0 || agreement < 58 ||
+            directionalVotes < 3 || adx < 16.0 || volume < 0.65)
             return Decision("NEUTRAL", 0, minOf(signal.confidence, 49), neuralStrength,
-                "ABSTAIN_WEAK_EVIDENCE", "فرمانده: شواهد، اجماع یا مشارکت بازار برای صدور سیگنال کافی نیست")
+                "ABSTAIN_WEAK_EVIDENCE", "فرمانده: حداقل سه رأی جهت‌دار مستقل، اجماع ۵۸٪، ADX شانزده و حجم نسبی ۰٫۶۵ لازم است")
 
         val chosen = if (combined > 0.0) "LONG_BIAS" else "SHORT_BIAS"
         if (chosen != technicalDirection)
