@@ -34,6 +34,7 @@ internal object HopePaperTradingEngine {
     private const val MAX_DAILY_ENTRIES = 8
     private const val MAX_CONSECUTIVE_DAILY_LOSSES = 3
     private const val MAX_ABSOLUTE_RETURN_CORRELATION = 0.85
+    private const val PRIMARY_CANDLE_INTERVAL_MS = 15L * 60L * 1000L
 
     data class Position(
         val symbol: String, val side: String, val quantity: Double,
@@ -121,7 +122,7 @@ internal object HopePaperTradingEngine {
                 if (exit == null && signal.price > 0.0) {
                     val trailedStop = DynamicTradingPolicy.trailStop(
                         p.side, p.entry, signal.price, p.stop, p.initialRiskDistance, signal.atr,
-                        roundTripCostFraction = FEE_PER_SIDE * 2.0 + SLIPPAGE_PER_SIDE * 2.0
+                        roundTripCostFraction = FEE_PER_SIDE * 2.0 + SLIPPAGE_PER_SIDE
                     )
                     survivors += p.copy(mark = signal.price, stop = trailedStop)
                 }
@@ -199,7 +200,12 @@ internal object HopePaperTradingEngine {
                     val openRisk = survivors.sumOf { it.riskUsdt }
                     val openRiskPctNow = openRisk / currentEquity * 100.0
                     val regime = WolfRegimeRiskEngine.analyze(s.candles) ?: return@forEach
-                    val riskReward = abs(s.tp1 - s.entry) / abs(s.entry - s.stop).coerceAtLeast(1e-12)
+                    val isLong = s.direction == "LONG_BIAS"
+                    // Size against the adverse simulated entry fill, not the ideal signal price.
+                    // Entry slippage is already reflected in fill-to-stop distance; cost reserve
+                    // below therefore includes round-trip fees plus the exit-side slippage only.
+                    val fill = s.entry * (if (isLong) 1.0 + SLIPPAGE_PER_SIDE else 1.0 - SLIPPAGE_PER_SIDE)
+                    val riskReward = abs(s.tp1 - fill) / abs(fill - s.stop).coerceAtLeast(1e-12)
                     val plan = DynamicTradingPolicy.evaluate(
                         DynamicTradingPolicy.Input(
                             direction = s.direction,
@@ -221,13 +227,11 @@ internal object HopePaperTradingEngine {
                         ),
                         equityUsdt = currentEquity,
                         availableUsdt = currentEquity,
-                        entry = s.entry,
+                        entry = fill,
                         stop = s.stop,
-                        estimatedRoundTripCostPercent = (FEE_PER_SIDE * 2.0 + SLIPPAGE_PER_SIDE * 2.0) * 100.0
+                        estimatedRoundTripCostPercent = (FEE_PER_SIDE * 2.0 + SLIPPAGE_PER_SIDE) * 100.0
                     ) ?: return@forEach
                     if ((openRisk + plan.estimatedLossAtStopUsdt) / currentEquity * 100.0 > 2.5) return@forEach
-                    val isLong = s.direction == "LONG_BIAS"
-                    val fill = s.entry * (if (isLong) 1.0 + SLIPPAGE_PER_SIDE else 1.0 - SLIPPAGE_PER_SIDE)
                     val position = Position(s.symbol, s.direction, plan.quantity, fill, s.stop, s.tp1,
                         plan.leverage, s.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: now,
                         s.price, plan.estimatedLossAtStopUsdt, plan.notionalUsdt, abs(fill - s.stop))
@@ -285,13 +289,16 @@ internal object HopePaperTradingEngine {
         }.toMap()
         val ac = closes(a)
         val bc = closes(b)
-        val times = ac.keys.intersect(bc.keys).sorted().takeLast(64)
+        val times = ac.keys.intersect(bc.keys).sorted().takeLast(96)
         if (times.size < 25) return null
         val ar = mutableListOf<Double>()
         val br = mutableListOf<Double>()
         for (i in 1 until times.size) {
             val t0 = times[i - 1]
             val t1 = times[i]
+            // Never correlate multi-bar returns against single 15m returns. Sparse history
+            // is treated as unknown and the caller fails closed rather than guessing exposure.
+            if (t1 - t0 != PRIMARY_CANDLE_INTERVAL_MS) continue
             val a0 = ac[t0] ?: continue
             val a1 = ac[t1] ?: continue
             val b0 = bc[t0] ?: continue
