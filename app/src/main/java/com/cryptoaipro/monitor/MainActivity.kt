@@ -327,11 +327,10 @@ fun CryptoMonitorScreen() {
     var learningWins by remember { mutableIntStateOf(learningPrefs.getInt("wins", 0)) }
     var learningLosses by remember { mutableIntStateOf(learningPrefs.getInt("losses", 0)) }
     var researchStats by remember { mutableStateOf(WolfMarketDataStore.Stats()) }
-    var paperSnapshot by remember(context) { mutableStateOf(HopePaperTradingEngine.snapshot(context)) }
+    var paperSnapshot by remember { mutableStateOf<HopePaperTradingEngine.Snapshot?>(null) }
     var scenarioScorecard by remember(context) { mutableStateOf<HopeScenarioScorecard?>(null) }
     LaunchedEffect(Unit) {
         researchStats = WolfMarketDataStore.importVerifiedSeed(context)
-        paperSnapshot = HopePaperTradingEngine.snapshot(context)
         scenarioScorecard = withContext(Dispatchers.Default) {
             HopeScenarioLab.recordAndEvaluate(context, rows)
         }
@@ -399,7 +398,6 @@ fun CryptoMonitorScreen() {
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
-            paperSnapshot = HopePaperTradingEngine.processScan(context, rows)
             scenarioScorecard = withContext(Dispatchers.Default) {
                 HopeScenarioLab.recordAndEvaluate(context, rows)
             }
@@ -732,14 +730,13 @@ fun CryptoMonitorScreen() {
                                 }
                             }
                             HopeLivingBrainPanel(context) { scanIntervalMinutes = it }
-                            PaperTradingSafetyPanel(context, appSettings)
                             XtApiCredentialPanel(context)
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
                                     Text("بازار: XT USDT-M Futures", color = Muted, fontSize = 11.sp)
                                     Text("اسکن پایه: ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • بازبینی عمیق ۲۴ نامزد برتر: ۵ دقیقه و ۱ روز", color = Muted, fontSize = 11.sp)
-                                    Text("ابزارها: ۱۰ متخصص تحلیلی، شبکه عصبی آزمایشی، چندتایم‌فریم، مدیریت ریسک و دفترچه سوابق", color = Muted, fontSize = 11.sp)
+                                    Text("ابزارها: ۱۰ متخصص تحلیلی، شبکه عصبی اعتبارسنجی‌شده، چندتایم‌فریم، مدیریت ریسک و دفترچه سوابق", color = Muted, fontSize = 11.sp)
                                     Text("دامنه اسکن: تمام قراردادهای دائمی USDT فعال؛ مرتب‌شده بر اساس حجم معاملات", color = Muted, fontSize = 11.sp)
                                     Text("فاصله مکث بین دورهای اسکن (پس از پایان هر دور):", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
