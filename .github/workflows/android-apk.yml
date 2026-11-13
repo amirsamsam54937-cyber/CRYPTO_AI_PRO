@@ -43,7 +43,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - name: Build 745,427 real XT USDT-M candles
+      - name: Build 898,920 real XT USDT-M candles
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.train_models }}
         run: |
           set -euo pipefail
@@ -61,7 +61,7 @@ jobs:
           assert m["status"] == "verified_real_exchange_data"
           assert m["data_source_policy"] == "XT_USDT_M_ONLY"
           assert m["source_exchanges"] == ["XT"]
-          assert m["rows"] >= 745_427 and m["synthetic_rows"] == 0
+          assert m["rows"] >= 898_920 and m["synthetic_rows"] == 0
           with (assets/"market_seed.csv").open(newline="") as f:
               reader=csv.DictReader(f)
               rows=0
@@ -136,7 +136,7 @@ jobs:
           model=json.loads((p/"wolf_pretrained_ensemble.json").read_text())
           report=json.loads((p/"wolf_model_training_report.json").read_text())
           assert m.get("status")=="verified_real_exchange_data"
-          assert m.get("rows",0)>=745_427 and m.get("synthetic_rows") == 0
+          assert m.get("rows",0)>=898_920 and m.get("synthetic_rows") == 0
           assert m.get("data_source_policy")=="XT_USDT_M_ONLY"
           assert m.get("source_exchanges")==["XT"]
           assert len(model.get("members",[]))==10
