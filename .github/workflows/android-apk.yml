@@ -167,8 +167,6 @@ jobs:
           assert model.get("asset_class_policy")==m.get("asset_class_policy")
           assert model.get("crypto_asset_registry_source")==m.get("crypto_asset_registry_source")
           assert model.get("crypto_asset_registry_sha256")==m.get("crypto_asset_registry_sha256")
-          assert model.get("crypto_asset_registry_source")==m.get("crypto_asset_registry_source")
-          assert model.get("crypto_asset_registry_sha256")==m.get("crypto_asset_registry_sha256")
           assert report.get("validation_status")=="validated_for_scoring"
           with gzip.open(p/"market_seed.csv.gz","rt",encoding="utf-8") as f:
               header=f.readline().strip()
