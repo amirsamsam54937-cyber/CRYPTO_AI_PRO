@@ -23,4 +23,4 @@ def test_walk_forward_and_unseen_symbol_holdout_are_reported():
     assert cross["status"] == "evaluated"
     assert len(cross["held_out_symbols"]) >= 1
     assert cross["train_samples"] > 0
-    assert cross["test_samples"] > 0
+    assert cross["samples"] > 0
