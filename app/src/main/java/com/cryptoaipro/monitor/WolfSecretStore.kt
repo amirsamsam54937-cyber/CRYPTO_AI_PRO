@@ -27,8 +27,11 @@ internal object WolfSecretStore {
         val legacyPrefs = app.getSharedPreferences("wolf_llm_settings", Context.MODE_PRIVATE)
         val legacy = legacyPrefs.getString(name, "").orEmpty()
         if (legacy.isNotBlank()) {
-            put(context, name, legacy)
-            legacyPrefs.edit().remove(name).apply()
+            runCatching { put(context, name, legacy) }.onSuccess {
+                legacyPrefs.edit().remove(name).apply()
+            }.onFailure {
+                return ""
+            }
         }
         return legacy
     }

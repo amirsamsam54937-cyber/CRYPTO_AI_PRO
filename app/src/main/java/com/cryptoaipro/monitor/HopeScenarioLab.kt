@@ -107,7 +107,7 @@ internal object HopeScenarioLab {
                 for (j in 0 until BLOCK) {
                     if (step >= HORIZON) break
                     val sourceIndex = (start + j) % recent.size
-                    val sourceCandle = c[c.size - recent.size + sourceIndex + 1]
+                    val sourceCandle = c[c.size - recent.size + sourceIndex]
                     sum += drift + (recent[sourceIndex] - mean) * 0.90
                     val move = (exp(sum) - 1.0) * 100.0
                     highExcursion = max(highExcursion, move)

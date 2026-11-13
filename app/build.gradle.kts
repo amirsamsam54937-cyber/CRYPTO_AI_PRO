@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 88
-  versionName = "2.67.0"
-  // Release 2.67.0: ZORO identity and custom masked-swordsman visual theme.
+  versionCode = 89
+  versionName = "2.68.0"
+  // Release 2.68.0: encrypted API credentials, corrected bootstrap sampling and responsive scan updates.
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
