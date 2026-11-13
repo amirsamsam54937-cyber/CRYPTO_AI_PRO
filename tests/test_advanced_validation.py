@@ -22,5 +22,6 @@ def test_walk_forward_and_unseen_symbol_holdout_are_reported():
     assert all(fold["purged_rows"] > 0 for fold in walk["folds"])
     assert cross["status"] == "evaluated"
     assert len(cross["held_out_symbols"]) >= 1
+    assert all(len(symbol) > 1 for symbol in cross["held_out_symbols"])
     assert cross["train_samples"] > 0
     assert cross["samples"] > 0
