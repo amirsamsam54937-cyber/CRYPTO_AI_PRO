@@ -52,7 +52,7 @@ def expanding_walk_forward_masks(timestamps, *, horizon_bars=6, interval_ms=HOUR
 
 
 def deterministic_symbol_holdout(symbols, *, holdout_fraction=0.20):
-    """Stable sorted-symbol holdout for cross-sectional generalization diagnostics."""
+    """Stable SHA-256-ranked symbol holdout for cross-sectional generalization diagnostics."""
     values = np.asarray(symbols, dtype=str)
     if values.ndim != 1 or values.size == 0:
         raise ValueError("symbols must be a non-empty one-dimensional array")
@@ -61,7 +61,14 @@ def deterministic_symbol_holdout(symbols, *, holdout_fraction=0.20):
     unique = np.unique(values)
     if unique.size < 4:
         raise ValueError("at least four distinct symbols are required")
+    # Rank symbols by a stable cryptographic digest rather than lexical order.
+    # This avoids systematically holding out the same alphabetic tail (e.g.
+    # XRP/ZEC) while keeping the split reproducible across processes/platforms.
+    ranked = sorted(
+        unique.tolist(),
+        key=lambda symbol: hashlib.sha256(symbol.encode("utf-8")).hexdigest(),
+    )
     count = max(1, int(np.ceil(unique.size * holdout_fraction)))
-    held_out = set(unique[-count:].tolist())
+    held_out = set(ranked[:count])
     test = np.fromiter((s in held_out for s in values), dtype=bool, count=values.size)
     return ~test, test
