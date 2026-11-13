@@ -231,7 +231,7 @@ jobs:
           assert "XtAuthenticatedFuturesClient" not in engine
           assert "openMarketWithProtection" not in engine
           assert "emergencyClose" not in engine
-          assert "live_execution_enabled", False
+          assert 'putBoolean("live_execution_enabled", false)' in engine
           print("Verified: UI and background service are analysis-only; live execution coordinator is a no-op safety stub.")
           PY
       - name: Build installable APK with diagnostic log
