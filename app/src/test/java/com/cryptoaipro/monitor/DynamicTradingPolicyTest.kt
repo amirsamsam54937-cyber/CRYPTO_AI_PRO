@@ -67,6 +67,12 @@ class DynamicTradingPolicyTest {
         assertNotNull(DynamicTradingPolicy.evaluate(strongLong().copy(dailyEntries = 7, consecutiveLosses = 2), 1_000.0, 900.0, 100.0, 98.0))
     }
 
+    @Test fun peakDrawdownCircuitBreakerBlocksAtEightPercent() {
+        assertNull(DynamicTradingPolicy.evaluate(strongLong().copy(peakDrawdownPercent = 8.0), 1_000.0, 900.0, 100.0, 98.0))
+        assertNotNull(DynamicTradingPolicy.evaluate(strongLong().copy(peakDrawdownPercent = 7.99), 1_000.0, 900.0, 100.0, 98.0))
+        assertNull(DynamicTradingPolicy.evaluate(strongLong().copy(peakDrawdownPercent = Double.NaN), 1_000.0, 900.0, 100.0, 98.0))
+    }
+
     @Test fun trailingStopOnlyTightensAndWaitsForOneR() {
         val unchanged = DynamicTradingPolicy.trailStop("LONG_BIAS", 100.0, 100.5, 98.0, 2.0, 1.0)
         assertEquals(98.0, unchanged, 1e-12)
