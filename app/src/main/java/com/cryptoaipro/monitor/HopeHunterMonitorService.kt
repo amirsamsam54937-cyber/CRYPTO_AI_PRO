@@ -24,7 +24,8 @@ class HopeHunterMonitorService : Service() {
     private val channelId = "hope_hunter_market_monitor"
     private val notificationId = 2401
     private val signalChannelId = "hope_hunter_new_signals"
-    private var monitorJob: kotlinx.coroutines.Job? = null\n    private var livePositionJob: kotlinx.coroutines.Job? = null
+    private var monitorJob: kotlinx.coroutines.Job? = null
+    private var livePositionJob: kotlinx.coroutines.Job? = null
 
     override fun onCreate() {
         super.onCreate()
