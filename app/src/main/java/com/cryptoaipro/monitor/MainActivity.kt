@@ -1812,13 +1812,17 @@ internal object MarketAnalysisEngine {
             maxOf(atrBase, structuralDistance).coerceAtMost(atrValue * 2.5)
         else atrBase
         val stop = when { isLong -> price - stopDistance; isShort -> price + stopDistance; else -> price }
-        // Targets are deliberately 2R / 3R / 4R: the first published target must
-        // satisfy the independent 1.8R execution-quality and Commander gates.
-        // TP3 may respect a nearby confirmed structural barrier beyond TP2.
-        // These are analytical levels, not guaranteed fills.
-        val tp1 = when { isLong -> price + stopDistance * 2.0; isShort -> price - stopDistance * 2.0; else -> price }
-        val tp2 = when { isLong -> price + stopDistance * 3.0; isShort -> price - stopDistance * 3.0; else -> price }
-        val rawTp3 = when { isLong -> price + stopDistance * 4.0; isShort -> price - stopDistance * 4.0; else -> price }
+        // Scalping uses a closer first target. The live XT executor independently
+        // subtracts the contract's taker fees and estimated slippage on both legs and
+        // rejects TP1 unless its estimated net return remains positive.
+        // Wider timeframes retain the original 2R / 3R / 4R target ladder.
+        val scalpMode = primaryLabel == "5m"
+        val tp1Multiple = if (scalpMode) 0.80 else 2.0
+        val tp2Multiple = if (scalpMode) 1.50 else 3.0
+        val tp3Multiple = if (scalpMode) 2.25 else 4.0
+        val tp1 = when { isLong -> price + stopDistance * tp1Multiple; isShort -> price - stopDistance * tp1Multiple; else -> price }
+        val tp2 = when { isLong -> price + stopDistance * tp2Multiple; isShort -> price - stopDistance * tp2Multiple; else -> price }
+        val rawTp3 = when { isLong -> price + stopDistance * tp3Multiple; isShort -> price - stopDistance * tp3Multiple; else -> price }
         val structuralTp3 = when {
             isLong && a.technical.resistance > tp2 && a.technical.resistance < rawTp3 -> a.technical.resistance
             isShort && a.technical.support < tp2 && a.technical.support > rawTp3 -> a.technical.support
