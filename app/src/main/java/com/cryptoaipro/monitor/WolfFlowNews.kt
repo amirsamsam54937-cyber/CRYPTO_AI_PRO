@@ -42,7 +42,7 @@ internal object WolfFlowNewsRepository {
         connection.requestMethod = "GET"
         connection.connectTimeout = 8000
         connection.readTimeout = 10000
-        connection.setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.14 Android")
+        connection.setRequestProperty("User-Agent", "VENOM-AI/2.66 Android")
         connection.setRequestProperty("Accept", "application/json, application/rss+xml, application/xml")
         return try {
             val code = connection.responseCode
