@@ -278,7 +278,7 @@ internal object HopePaperTradingEngine {
     }
 
     /** Pearson correlation of aligned completed-candle close-to-close returns. */
-    private fun returnCorrelation(a: List<DoubleArray>, b: List<DoubleArray>): Double? {
+    internal fun returnCorrelation(a: List<DoubleArray>, b: List<DoubleArray>): Double? {
         fun closes(rows: List<DoubleArray>): Map<Long, Double> = rows.mapNotNull { row ->
             if (row.size < 6 || !row[5].isFinite() || !row[3].isFinite() || row[5] <= 0.0 || row[3] <= 0.0) null
             else row[5].toLong() to row[3]
