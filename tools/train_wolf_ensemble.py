@@ -9,8 +9,10 @@ import csv, json, os, time
 import numpy as np
 try:
     from tools.time_series_validation import chronological_masks
+    from tools.advanced_validation import evaluate_generalization
 except ModuleNotFoundError:
     from time_series_validation import chronological_masks
+    from advanced_validation import evaluate_generalization
 
 DATA_SOURCE = "verified XT USDT-M crypto-only historical corpus"
 MIN_LABELED_SAMPLES = 250_000
@@ -164,17 +166,22 @@ def main():
     from sklearn.preprocessing import StandardScaler
     from sklearn.metrics import accuracy_score, balanced_accuracy_score, brier_score_loss, log_loss, roc_auc_score
     grouped, corpus_manifest = load_seed_samples()
-    chunks=[]; used_symbols=[]
+    chunks=[]; used_symbols=[]; symbol_chunks=[]
     for symbol,raw in grouped.items():
         raw=sorted(raw,key=lambda row:row[0]); x,y,t=make_rows(raw)
-        if len(x)>100: chunks.append((x,y,t)); used_symbols.append(symbol)
+        if len(x)>100:
+            chunks.append((x,y,t))
+            symbol_chunks.append(np.full(len(x),symbol,dtype=str))
+            used_symbols.append(symbol)
         print(f"REAL SEED {symbol}: {len(x)} directional samples",flush=True)
     if not chunks: raise SystemExit("No valid XT history; refusing to create fake pretrained weights.")
     X=np.vstack([z[0] for z in chunks]); y=np.concatenate([z[1] for z in chunks]); ts=np.concatenate([z[2] for z in chunks])
-    order=np.argsort(ts,kind="stable"); X,y,ts=X[order],y[order],ts[order]
+    symbols=np.concatenate(symbol_chunks)
+    order=np.argsort(ts,kind="stable"); X,y,ts,symbols=X[order],y[order],ts[order],symbols[order]
     if len(X)<MIN_LABELED_SAMPLES:
         raise SystemExit(f"Only {len(X):,} crypto-only labeled samples; at least {MIN_LABELED_SAMPLES:,} are required.")
     if len(np.unique(y))<2: raise SystemExit("Insufficient directional history or only one class.")
+    generalization = evaluate_generalization(X,y,ts,symbols,horizon_bars=HORIZON,n_splits=3)
     train_mask,test_mask,purged,cutoff=chronological_masks(ts)
     X_train,X_test=X[train_mask],X[test_mask]; y_train,y_test=y[train_mask],y[test_mask]
     if len(np.unique(y_train))<2 or len(np.unique(y_test))<2: raise SystemExit("Both chronological partitions need both labels.")
@@ -237,7 +244,9 @@ def main():
         "samples":int(len(X)),"train_samples":int(len(X_train)),"test_samples":int(len(X_test)),
         "feature_mean":scaler.mean_.tolist(),"feature_scale":scaler.scale_.tolist(),
         "training_prior_log_odds":float(np.log(np.clip(y_train.mean(),1e-4,1-1e-4)/(1.0-np.clip(y_train.mean(),1e-4,1-1e-4)))),
-        "evaluation":evaluation,"metrics":metrics,"members":members}
+        "evaluation":evaluation,"walk_forward":generalization["walk_forward"],
+        "cross_symbol_holdout":generalization["cross_symbol_holdout"],
+        "metrics":metrics,"members":members}
     os.makedirs("app/src/main/assets",exist_ok=True)
     with open("app/src/main/assets/wolf_pretrained_ensemble.json","w") as f: json.dump(output,f,separators=(",",":"))
     with open("wolf_model_training_report.json","w") as f: json.dump({k:v for k,v in output.items() if k!="members"},f,indent=2)
