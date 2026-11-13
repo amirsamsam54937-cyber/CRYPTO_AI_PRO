@@ -38,20 +38,20 @@ jobs:
         with:
           gradle-version: "8.9"
       - name: Set up Python for XT-only historical data and model training
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement')) }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation')) }}
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
       - name: Build 898,920 real XT USDT-M candles
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement')) }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation')) }}
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip ccxt numpy scikit-learn
           python tools/build_real_market_seed.py
           cp market_seed_manifest.json app/src/main/assets/wolf_corpus_manifest.json
       - name: Verify XT-only corpus provenance and row count
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement')) }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation')) }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -76,7 +76,7 @@ jobs:
           print(f"Verified {rows:,} real XT USDT-M candles; no mixed-exchange or synthetic rows")
           PY
       - name: Train ten neural networks on verified real futures history
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement')) }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation')) }}
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip numpy scikit-learn
@@ -91,6 +91,8 @@ jobs:
           assert e["split"] == "chronological_purged", "Missing chronological purged holdout"
           assert d["test_samples"] >= 300, "Insufficient holdout samples"
           assert d["samples"] >= 10000, "Insufficient real labeled samples"
+          wf=d["walk_forward"]
+          cross=d["cross_symbol_holdout"]
           validated = (
               e["ensemble_balanced_accuracy"] >= 0.52
               and e["ensemble_log_loss"] < e["prevalence_baseline_log_loss"]
@@ -98,6 +100,14 @@ jobs:
               and e["ensemble_brier_score"] < e["prevalence_baseline_brier_score"]
               and e["ensemble_roc_auc"] >= 0.55
               and e["ensemble_expected_calibration_error"] <= 0.10
+              and wf.get("status") == "evaluated"
+              and wf.get("fold_count",0) >= 3
+              and wf.get("mean_balanced_accuracy",0) >= 0.50
+              and wf.get("mean_log_loss",999) < wf.get("mean_baseline_log_loss",0)
+              and cross.get("status") == "evaluated"
+              and cross.get("balanced_accuracy",0) >= 0.50
+              and cross.get("log_loss",999) < cross.get("baseline_log_loss",0)
+              and cross.get("roc_auc",0) >= 0.52
           )
           report={k:v for k,v in d.items() if k != "members"}
           report["validation_status"] = "validated_for_scoring" if validated else "trained_but_not_validated"
@@ -108,12 +118,12 @@ jobs:
           print(json.dumps({"trained_models":len(d["members"]),"samples":d["samples"],"validation_status":report["validation_status"],"evaluation":e},indent=2))
           PY
       - name: Compress verified XT corpus for Android assets
-        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement'))) }}
+        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation'))) }}
         run: |
           set -euo pipefail
           gzip -1 -f app/src/main/assets/market_seed.csv
       - name: Publish verified XT-only training bundle
-        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement'))) }}
+        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation'))) }}
         uses: actions/upload-artifact@v4
         with:
           name: ZORO-745K-XT-TRAINING-DATA
@@ -125,7 +135,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
       - name: Enforce complete offline AI bundle for release builds
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.require_trained_bundle) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement')) }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.require_trained_bundle) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation')) }}
         run: |
           set -euo pipefail
           ASSETS=app/src/main/assets
@@ -184,6 +194,14 @@ jobs:
           assert model.get("currency_metadata_sha256")==manifest.get("currency_metadata_sha256")
           assert manifest.get("rows",0)>=898920 and manifest.get("synthetic_rows")==0
           e=model["evaluation"]
+          wf=model["walk_forward"]; cross=model["cross_symbol_holdout"]
+          assert wf.get("status")=="evaluated" and wf.get("fold_count",0)>=3
+          assert wf.get("mean_balanced_accuracy",0)>=0.50
+          assert wf.get("mean_log_loss",999)<wf.get("mean_baseline_log_loss",0)
+          assert cross.get("status")=="evaluated"
+          assert cross.get("balanced_accuracy",0)>=0.50
+          assert cross.get("log_loss",999)<cross.get("baseline_log_loss",0)
+          assert cross.get("roc_auc",0)>=0.52
           assert e["split"]=="chronological_purged" and model.get("test_samples",0)>=300
           assert e["ensemble_balanced_accuracy"]>=0.52
           assert e["ensemble_log_loss"]<e["prevalence_baseline_log_loss"]
