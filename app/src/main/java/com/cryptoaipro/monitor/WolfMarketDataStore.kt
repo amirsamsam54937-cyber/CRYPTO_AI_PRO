@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.zip.GZIPInputStream
 import org.json.JSONObject
 
 /**
@@ -106,7 +107,10 @@ internal object WolfMarketDataStore {
             }
             require(existing <= expectedRows) { "نسخه پایگاه داده از بذر جدید بزرگ‌تر است؛ واردسازی امن متوقف شد." }
 
-            val input = BufferedReader(InputStreamReader(context.assets.open("market_seed.csv"), Charsets.UTF_8), 1024 * 1024)
+            val input = BufferedReader(
+                InputStreamReader(GZIPInputStream(context.assets.open("market_seed.csv.gz")), Charsets.UTF_8),
+                1024 * 1024
+            )
             db.beginTransaction()
             var imported = 0
             try {
