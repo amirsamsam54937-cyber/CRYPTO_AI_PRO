@@ -33,7 +33,10 @@ def collect(exchange_id):
         markets.sort(key=lambda m: m["symbol"])
         if not markets:
             raise RuntimeError(f"{exchange_id}: no active linear USDT perpetual markets")
-        # Over-collect per market so newly listed or thin-history contracts do not\n        # leave the global corpus just below one million rows. The final corpus is\n        # still capped at exactly TARGET real, closed XT candles.\n        per_symbol = max(1, math.ceil((TARGET * 1.6) / len(markets)))
+        # Over-collect per market so newly listed or thin-history contracts do not
+        # leave the corpus just below the requested training size.
+        # The final corpus is capped at exactly TARGET real, closed XT candles.
+        per_symbol = max(1, math.ceil((TARGET * 1.6) / len(markets)))
         rows, errors, coverage = [], [], []
         now = ex.milliseconds()
         for market_index, market in enumerate(markets, 1):
