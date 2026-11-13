@@ -17,12 +17,6 @@ internal object WolfSignalOutcomeJournal {
     private const val MAX_RECORDS = 5000
     private const val SIGNAL_TIMEFRAME = "15m"
     private const val VALIDITY_MS = 15L * 60L * 1000L
-    // Conservative paper assumptions: net outcomes, not gross price moves, drive learning.
-    private const val TAKER_FEE_PER_SIDE = 0.0006
-    private const val SLIPPAGE_PER_SIDE = 0.0005
-    private const val FUNDING_PER_8H = 0.0001
-    private const val EIGHT_HOURS_MS = 8L * 60L * 60L * 1000L
-
     data class Record(
         val symbol: String, val side: String, val created: Long, val expiresAt: Long,
         val timeframe: String, val entry: Double, val stop: Double,
@@ -171,14 +165,10 @@ internal object WolfSignalOutcomeJournal {
     private fun applyNetPaperPnl(record: JSONObject, grossPriceChangePct: Double, now: Long) {
         val leverage = record.optInt("leverage", 1).coerceIn(1, 20)
         val heldMs = (now - record.optLong("created", now)).coerceAtLeast(0L)
-        val roundTripCostFraction = 2.0 * (TAKER_FEE_PER_SIDE + SLIPPAGE_PER_SIDE) +
-            FUNDING_PER_8H * (heldMs.toDouble() / EIGHT_HOURS_MS.toDouble())
-        val costPctOnNotional = roundTripCostFraction * 100.0
-        val netMarginPct = (grossPriceChangePct - costPctOnNotional) * leverage
         record.put("grossPriceChangePct", grossPriceChangePct)
-        record.put("estimatedCostPctOnNotional", costPctOnNotional)
+        record.put("estimatedCostPctOnNotional", PaperOutcomeEconomics.costPercentOnNotional(heldMs))
         record.put("priceChangePct", grossPriceChangePct)
-        record.put("pnlPct", netMarginPct)
+        record.put("pnlPct", PaperOutcomeEconomics.netMarginPercent(grossPriceChangePct, leverage, heldMs))
         record.put("pnlBasis", "estimated_net_after_round_trip_fee_slippage_funding")
     }
 
