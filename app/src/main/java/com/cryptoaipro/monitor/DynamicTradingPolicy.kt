@@ -28,7 +28,8 @@ internal object DynamicTradingPolicy {
         val maxPositions: Int = 3,
         val dailyEntries: Int = 0,
         val consecutiveLosses: Int = 0,
-        val peakDrawdownPercent: Double = 0.0
+        val peakDrawdownPercent: Double = 0.0,
+        val neuralDisagreement: Double = 0.0
     )
 
     data class Plan(
@@ -54,6 +55,7 @@ internal object DynamicTradingPolicy {
         if (input.direction !in setOf("LONG_BIAS", "SHORT_BIAS")) return null
         if (!input.neuralValidated || !input.neuralUpProbability.isFinite() ||
             input.neuralUpProbability !in 0.0..1.0) return null
+        if (!input.neuralDisagreement.isFinite() || input.neuralDisagreement !in 0.0..0.18) return null
         if (input.confidence !in 70..100 || input.consensusAgreement !in 62..100) return null
         if (input.consensusDirection != input.direction) return null
         if (!input.riskReward.isFinite() || input.riskReward < 1.8) return null
