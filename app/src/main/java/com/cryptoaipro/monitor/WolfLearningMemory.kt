@@ -8,8 +8,9 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
 /**
- * Durable, outcome-based learning journal. It stores signal snapshots locally and
- * trains from closed journal outcomes (TP/SL/expiry) and retains a four-hour fallback horizon.
+ * Durable outcome statistics and fallback journal. Neural updates are owned exclusively
+ * by WolfSignalOutcomeJournal so one outcome cannot train the online network twice or
+ * mix the 15-minute journal target with this fallback horizon.
  * This is online fine-tuning of the app's small DNN, not a pretrained foundation model.
  */
 internal object WolfLearningMemory {
@@ -45,12 +46,10 @@ internal object WolfLearningMemory {
                 it.symbol == symbol && it.closed && abs(it.created - createdAt) <= 10_000L
             }
             if (closedOutcome != null) {
-                val savedSignal = decodeSignal(item)
-                if (savedSignal != null && abs(closedOutcome.pnlPct) >= 0.05) {
-                    val outcome = if (closedOutcome.pnlPct > 0.0) 1.0 else 0.0
-                    WolfDeepNeuralNetwork.learn(p, savedSignal, outcome)
+                if (abs(closedOutcome.pnlPct) >= 0.05) {
+                    val isWin = closedOutcome.pnlPct > 0.0
                     samples++
-                    if (outcome > 0.5) wins++ else losses++
+                    if (isWin) wins++ else losses++
                     learned++
                 }
                 continue
@@ -60,11 +59,9 @@ internal object WolfLearningMemory {
                 val side = item.optString("side")
                 val move = if (entry > 0.0) (current.price / entry - 1.0) * if (side == "SHORT_BIAS") -100.0 else 100.0 else 0.0
                 if (abs(move) >= 0.15) {
-                    val savedSignal = decodeSignal(item) ?: continue
-                    val outcome = if (move > 0.0) 1.0 else 0.0
-                    WolfDeepNeuralNetwork.learn(p, savedSignal, outcome)
+                    val isWin = move > 0.0
                     samples++
-                    if (outcome > 0.5) wins++ else losses++
+                    if (isWin) wins++ else losses++
                     learned++
                     continue
                 }
