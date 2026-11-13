@@ -38,7 +38,7 @@ def collect(exchange_id):
             symbol = market.get("symbol", "UNKNOWN")
             if classification == "crypto":
                 markets.append(market)
-                classification_by_symbol[symbol] = {"asset_class": "crypto", "evidence": reason}
+                classification_by_symbol[normalized_symbol(market)] = {"asset_class": "crypto", "evidence": reason}
             elif classification == "non_crypto":
                 excluded_non_crypto.append({"symbol": symbol, "reason": reason})
             else:
@@ -152,6 +152,9 @@ def main():
         "asset_class_policy": "EXPLICIT_XT_METADATA_CRYPTO_ONLY",
         "crypto_only_verified": True,
         "eligible_perpetuals": len(markets),
+        "excluded_non_crypto_count": len(excluded_non_crypto),
+        "excluded_unknown_count": len(excluded_unknown),
+        "crypto_symbols": sorted(classification_by_symbol),
         "excluded_non_crypto_symbols": excluded_non_crypto,
         "excluded_unknown_symbols": excluded_unknown,
         "asset_classification": classification_by_symbol,
