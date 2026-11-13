@@ -8,6 +8,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -29,6 +31,10 @@ internal data class HiddenFlowFeatures(
 internal object HopeHiddenFlowEngine {
     private const val BASE = "https://fapi.xt.com"
     private val previousWalls = ConcurrentHashMap<String, Map<Long, Double>>()
+    // XT depth has a tighter public rate limit than candles. Keep this path deliberately narrow.
+    private val requestGate = Semaphore(2)
+    private val freshCache = ConcurrentHashMap<String, Pair<Long, HiddenFlowFeatures>>()
+    private const val CACHE_TTL_MS = 30_000L
 
     private fun get(path: String): String {
         val connection = (URL(BASE + path).openConnection() as HttpURLConnection)
@@ -38,7 +44,7 @@ internal object HopeHiddenFlowEngine {
             connection.readTimeout = 8500
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-            connection.setRequestProperty("User-Agent", "HOPE-HUNTER/2.56")
+            connection.setRequestProperty("User-Agent", "ZORO/2.69.0")
             val code = connection.responseCode
             val body = (if (code in 200..299) connection.inputStream else connection.errorStream)
                 ?.bufferedReader()?.use { it.readText() }.orEmpty()
@@ -91,6 +97,12 @@ internal object HopeHiddenFlowEngine {
     }
 
     suspend fun fetch(symbol: String): HiddenFlowFeatures? = withContext(Dispatchers.IO) {
+        val cacheKey = symbol.trim().lowercase()
+        val nowAtStart = System.currentTimeMillis()
+        freshCache[cacheKey]?.let { (savedAt, value) ->
+            if (value.fresh && nowAtStart - savedAt in 0..CACHE_TTL_MS) return@withContext value
+        }
+        requestGate.withPermit {
         runCatching {
             val encoded = URLEncoder.encode(symbol, "UTF-8")
             val depthRaw = get("/future/market/v1/public/q/depth?symbol=$encoded&level=20")
@@ -150,11 +162,12 @@ internal object HopeHiddenFlowEngine {
             val timestamp = depth.optLong("t", now).let { if (it in 1L..9_999_999_999L) it * 1000L else it }
             val lastTradeTime = trades.maxOfOrNull { it.third } ?: 0L
             val normalizedTradeTime = if (lastTradeTime in 1L..9_999_999_999L) lastTradeTime * 1000L else lastTradeTime
-            val fresh = abs(now - timestamp) <= 120_000L &&
-                normalizedTradeTime > 0L && abs(now - normalizedTradeTime) <= 300_000L && trades.isNotEmpty()
+            val fresh = now - timestamp in 0..120_000L &&
+                normalizedTradeTime > 0L && now - normalizedTradeTime in 0..300_000L && trades.isNotEmpty()
             if (!fresh) return@runCatching HiddenFlowFeatures(0, false, 0.0, 0.0, 0.0, 0.0)
             // Keep the feature internal: caller stores only a signed bounded score.
             HiddenFlowFeatures(score, true, depthImbalance, takerImbalance, largeTradeImbalance, wallBias)
-        }.getOrNull()
+        }.getOrNull()?.also { if (it.fresh) freshCache[cacheKey] = System.currentTimeMillis() to it }
+        }
     }
 }

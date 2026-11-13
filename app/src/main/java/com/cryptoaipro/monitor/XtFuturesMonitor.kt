@@ -23,7 +23,7 @@ internal object XtFuturesMonitor {
         val c = URL(BASE + path).openConnection() as HttpURLConnection
         try {
             c.requestMethod = "GET"; c.connectTimeout = 9000; c.readTimeout = 12000
-            c.setRequestProperty("User-Agent", "AmirArsalanTraderWolf/2.17")
+            c.setRequestProperty("User-Agent", "ZORO/2.69.0")
             c.setRequestProperty("Accept", "application/json")
             c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
             val code = c.responseCode
