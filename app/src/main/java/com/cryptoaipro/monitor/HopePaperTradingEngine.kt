@@ -57,6 +57,7 @@ internal object HopePaperTradingEngine {
         val now = System.currentTimeMillis()
         val day = now / 86_400_000L
         val equity = root.optDouble("equity", STARTING_EQUITY).takeIf { it.isFinite() && it > 0.0 } ?: STARTING_EQUITY
+        var peakEquity = root.optDouble("peakEquity", STARTING_EQUITY).takeIf { it.isFinite() && it > 0.0 } ?: STARTING_EQUITY
         var dailyStart = root.optDouble("dailyStartEquity", equity)
         var dailyDay = root.optLong("dailyDay", day)
         var dailyPnl = root.optDouble("dailyPnl", 0.0)
@@ -166,6 +167,8 @@ internal object HopePaperTradingEngine {
         val floatingPnl = survivors.sumOf { unrealizedNet(it) }
         val currentEquity = max(0.0, STARTING_EQUITY + realized + floatingPnl)
         val dailyLossPct = if (dailyStart > 0.0) max(0.0, -(dailyPnl + floatingPnl) / dailyStart * 100.0) else 100.0
+        peakEquity = max(peakEquity, currentEquity)
+        val peakDrawdownPct = if (peakEquity > 0.0) max(0.0, (peakEquity - currentEquity) / peakEquity * 100.0) else 100.0
         val openRiskUsdt = survivors.sumOf { it.riskUsdt }
         val openRiskPct = if (currentEquity > 0.0) openRiskUsdt / currentEquity * 100.0 else 100.0
         val enabled = prefs.getBoolean("hope_risk_ack_v1", false) &&
@@ -174,8 +177,10 @@ internal object HopePaperTradingEngine {
         val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
         if (enabled && !neuralValidated) {
             lastAction = "ورود خودکار متوقف است: مدل عصبی هنوز اعتبارسنجی نشده است؛ هیچ سیگنال تأییدنشده‌ای معامله نمی‌شود."
+        } else if (enabled && peakDrawdownPct >= 8.0) {
+            lastAction = "مدار قطع ریسک فعال شد: افت سرمایه از اوج به ۸٪ رسیده است؛ ورود جدید ممنوع است."
         }
-        if (enabled && neuralValidated && dailyLossPct < 2.0 &&
+        if (enabled && neuralValidated && peakDrawdownPct < 8.0 && dailyLossPct < 2.0 &&
             consecutiveDailyLosses < MAX_CONSECUTIVE_DAILY_LOSSES &&
             dailyEntries < MAX_DAILY_ENTRIES && survivors.size < 3 && openRiskPct < 2.5) {
             val activeSymbols = survivors.map { it.symbol }.toSet()
@@ -223,7 +228,8 @@ internal object HopePaperTradingEngine {
                             openPositions = survivors.size,
                             maxPositions = 3,
                             dailyEntries = dailyEntries,
-                            consecutiveLosses = consecutiveDailyLosses
+                            consecutiveLosses = consecutiveDailyLosses,
+                            peakDrawdownPercent = peakDrawdownPct
                         ),
                         equityUsdt = currentEquity,
                         availableUsdt = currentEquity,
@@ -247,7 +253,8 @@ internal object HopePaperTradingEngine {
         val updatedDailyLossPct = if (dailyStart > 0.0) max(0.0, -(dailyPnl + updatedFloatingPnl) / dailyStart * 100.0) else 100.0
         val updatedOpenRiskPct = if (updatedEquity > 0.0) survivors.sumOf { it.riskUsdt } / updatedEquity * 100.0 else 100.0
         val out = JSONObject().apply {
-            put("equity", updatedEquity); put("dailyStartEquity", dailyStart); put("dailyDay", dailyDay)
+            put("equity", updatedEquity); put("peakEquity", max(peakEquity, updatedEquity))
+            put("dailyStartEquity", dailyStart); put("dailyDay", dailyDay)
             put("dailyPnl", dailyPnl); put("dailyEntries", dailyEntries)
             put("consecutiveDailyLosses", consecutiveDailyLosses)
             put("realizedPnl", realized); put("closedTrades", closed)
