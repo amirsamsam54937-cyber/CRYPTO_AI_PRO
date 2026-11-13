@@ -249,7 +249,7 @@ def main():
         "interval":INTERVAL,"horizon_bars":HORIZON,"feature_names":FEATURE_NAMES,
         "target_definition":"future_return_6h_up_vs_down_neutral_band_excluded",
         "specialist_roles":[x[0] for x in SPECIALISTS],"symbols":sorted(used_symbols),"symbols_count":len(used_symbols),
-        "data_source_policy":"XT_USDT_M_CRYPTO_ONLY","asset_class_policy":"XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY",
+        "data_source_policy":"XT_USDT_M_CRYPTO_ONLY","asset_class_policy":"XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH",
         "corpus_sha256":corpus_manifest.get("sha256",""),
         "currency_metadata_sha256":corpus_manifest.get("currency_metadata_sha256",""),
          "crypto_asset_registry_source":corpus_manifest.get("crypto_asset_registry_source",""),
