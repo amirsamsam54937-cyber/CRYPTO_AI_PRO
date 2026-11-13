@@ -114,6 +114,10 @@ jobs:
             echo "Training bundle unchanged; no commit needed."
           else
             git commit -m "chore(ai): add verified XT corpus and refreshed ten-model ensemble"
+            # A concurrent APK/workflow commit may advance the branch during training.
+            # Rebase the generated bundle onto the latest branch before publishing.
+            git fetch origin "${GITHUB_REF_NAME}"
+            git rebase "origin/${GITHUB_REF_NAME}"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
 
