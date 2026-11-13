@@ -18,31 +18,28 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** User-enabled foreground XT USDT-M scanner, live order executor and open-position protector. */
+/**
+ * Foreground market scanner for ZORO.
+ * Analysis, signal publication and outcome learning only; no account or order execution.
+ */
 class HopeHunterMonitorService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val channelId = "hope_hunter_market_monitor"
     private val notificationId = 2401
     private val signalChannelId = "hope_hunter_new_signals"
     private var monitorJob: kotlinx.coroutines.Job? = null
-    private var livePositionJob: kotlinx.coroutines.Job? = null
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        startForeground(notificationId, notification("در حال آماده‌سازی موتور بازار و معاملات XT"))
+        startForeground(notificationId, notification("در حال آماده‌سازی موتور تحلیل بازار ZORO"))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
-                if (XtLiveTradingEngine.isEnabled(this) || XtLiveTradingEngine.positionCount(this) > 0) {
-                    updateNotification(if (XtLiveTradingEngine.isEnabled(this))
-                        "اجرای خودکار واقعی فعال است؛ سرویس برای اسکن و حفاظت پوزیشن‌ها متوقف نمی‌شود."
-                    else "پوزیشن واقعی باز است؛ سرویس برای نظارت و حفاظت آن متوقف نمی‌شود.")
-                    startMonitoring()
-                    return START_STICKY
-                }
+                monitorJob?.cancel()
+                monitorJob = null
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
@@ -54,25 +51,14 @@ class HopeHunterMonitorService : Service() {
 
     private fun startMonitoring() {
         if (monitorJob?.isActive == true) return
-        if (livePositionJob?.isActive != true) {
-            livePositionJob = serviceScope.launch {
-                while (isActive) {
-                    if (XtCredentialVault.hasCredentials(this@HopeHunterMonitorService)) {
-                        XtLiveTradingEngine.monitorOpenPositions(this@HopeHunterMonitorService)
-                    }
-                    delay(2_000L)
-                }
-            }
-        }
         monitorJob = serviceScope.launch {
-            // Load the complete offline ensemble before any market request; record the exact result.
             val neuralStatus = WolfPretrainedEnsemble.initialize(this@HopeHunterMonitorService)
             ZoroDiagnostics.record(
                 this@HopeHunterMonitorService,
                 "شبکه عصبی",
                 if (neuralStatus.loaded && neuralStatus.members == 10) "INFO" else "ERROR",
                 if (neuralStatus.loaded) {
-                    "بارگذاری ${neuralStatus.members}/10 مدل؛ اعتبارسنجی امتیازدهی=" +
+                    "بارگذاری " + neuralStatus.members + "/10 مدل؛ اعتبارسنجی امتیازدهی=" +
                         neuralStatus.validatedForScoring + "؛ نمونه‌های آموزش=" + neuralStatus.samples +
                         "؛ داده XT=" + neuralStatus.corpusRows
                 } else {
@@ -85,16 +71,9 @@ class HopeHunterMonitorService : Service() {
                         updateNotification("پایش XT • " + completed + " از " + universe + " قرارداد • خطا: " + failed)
                     }
                     WolfMarketDataStore.recordLiveScan(this@HopeHunterMonitorService, "XT", signals)
-                    // Background intelligence refresh is throttled internally to 15 minutes.
                     WolfFlowNewsRepository.refreshForEngine(this@HopeHunterMonitorService, signals, "XT")
-                    // Keep background scans behaviorally identical to foreground scans.
                     val enrichedSignals = WolfFlowNewsRepository.enrichSignals(this@HopeHunterMonitorService, signals)
                     val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, enrichedSignals)
-                    // Live execution remains disabled until explicitly enabled in settings.
-                    // When enabled, only Commander-approved 5m scalps with fresh liquidity
-                    // flow and exchange-native TP/SL are eligible for an XT order.
-                    XtLiveTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
-                    // Publish only newly qualified signals; the app also shows the full live signal list.
                     notifyNewPublishedSignals(scoredSignals)
                     withContext(Dispatchers.Default) {
                         HopeScenarioLab.recordAndEvaluate(this@HopeHunterMonitorService, scoredSignals)
@@ -102,10 +81,7 @@ class HopeHunterMonitorService : Service() {
                     val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, scoredSignals)
                     val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records)
                     HopeLivingBrain.runCycle(this@HopeHunterMonitorService, scoredSignals, learningStats, outcomeSnapshot.records)
-                    updateNotification(
-                        "پایش کامل • " + scoredSignals.size + " تحلیل • پوزیشن واقعی XT: " +
-                            XtLiveTradingEngine.positionCount(this@HopeHunterMonitorService)
-                    )
+                    updateNotification("پایش و تحلیل کامل • " + scoredSignals.size + " تحلیل • بدون اجرای سفارش")
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
@@ -156,8 +132,8 @@ class HopeHunterMonitorService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(
-                NotificationChannel(channelId, "پایش و معاملات ZORO", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "وضعیت اسکن عمومی بازار قراردادهای XT"
+                NotificationChannel(channelId, "پایش بازار ZORO", NotificationManager.IMPORTANCE_LOW).apply {
+                    description = "وضعیت اسکن و تحلیل عمومی بازار قراردادهای XT"
                     setShowBadge(false)
                 }
             )
@@ -174,7 +150,7 @@ class HopeHunterMonitorService : Service() {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             Notification.Builder(this, channelId) else Notification.Builder(this)
         return builder.setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setContentTitle("ZORO • XT Futures")
+            .setContentTitle("ZORO • XT Futures Analysis")
             .setContentText(message)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
