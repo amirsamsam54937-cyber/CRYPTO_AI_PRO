@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 86
-  versionName = "2.65.0"
-  // Release 2.65.0: expanded commander, multi-timeframe research, and verified offline AI bundle target (~50 MB).
+  versionCode = 87
+  versionName = "2.66.0"
+  // Release 2.66.0: VENOM identity, scenario-weighted signals, and expanded market-context review.
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
