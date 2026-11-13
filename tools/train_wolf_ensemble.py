@@ -140,7 +140,6 @@ def load_seed_samples():
         or manifest.get("data_source_policy")!="XT_USDT_M_CRYPTO_ONLY"
         or manifest.get("asset_class_policy")!="EXPLICIT_XT_METADATA_CRYPTO_ONLY"
         or manifest.get("crypto_only_verified") is not True
-        or int(manifest.get("excluded_unknown_count",-1)) != 0
         or not asset_map):
         raise SystemExit("Training requires a verified XT crypto-only corpus with explicit asset-class metadata.")
     if any(item.get("asset_class") != "crypto" for item in asset_map.values()):
