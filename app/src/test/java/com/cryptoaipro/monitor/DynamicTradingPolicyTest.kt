@@ -31,6 +31,13 @@ class DynamicTradingPolicyTest {
         assertTrue(plan.marginRequiredUsdt <= 900.0 * 0.15 * 1.000001)
     }
 
+    @Test fun adverseEntrySlippageReducesPositionSizeForSameStop() {
+        val ideal = DynamicTradingPolicy.evaluate(strongLong(), 1_000.0, 900.0, 100.0, 98.0)!!
+        val slipped = DynamicTradingPolicy.evaluate(strongLong(), 1_000.0, 900.0, 100.05, 98.0)!!
+        assertTrue(slipped.quantity < ideal.quantity)
+        assertTrue(slipped.estimatedLossAtStopUsdt <= slipped.riskBudgetUsdt * 1.000001)
+    }
+
     @Test fun unvalidatedNeuralModelCannotAuthorizeAutopilot() {
         assertNull(DynamicTradingPolicy.evaluate(strongLong().copy(neuralValidated = false), 1_000.0, 900.0, 100.0, 98.0))
     }
