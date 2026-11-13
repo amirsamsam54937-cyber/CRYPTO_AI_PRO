@@ -33,15 +33,15 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.max
 import kotlin.math.min
 
-private val HGold = Color(0xFFE8B85B)
-private val HGoldBright = Color(0xFFFFD45A)
+private val HGold = Color(0xFFD5DCE5)
+private val HGoldBright = Color(0xFFF4F6FA)
 private val HInk = Color(0xFF050606)
 private val HPanel = Color(0xFF101211)
 private val HPanel2 = Color(0xFF171A18)
 private val HMint = Color(0xFF25D978)
 private val HRed = Color(0xFFFF5361)
 private val HMuted = Color(0xFFB8B0A0)
-private val HBlue = Color(0xFF31B9E8)
+private val HBlue = Color(0xFFFF5361)
 private val HPurple = Color(0xFFC7CDD4)
 
 @Composable
@@ -133,8 +133,8 @@ internal fun HopeCommanderScreen(
                 }
                 Spacer(Modifier.width(9.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("HOPE HUNTER", color = HGoldBright, fontSize = 17.sp, fontWeight = FontWeight.Black, letterSpacing = 1.1.sp)
-                    Text("اتاق شکار امیدها", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("ZORO", color = HGoldBright, fontSize = 17.sp, fontWeight = FontWeight.Black, letterSpacing = 1.1.sp)
+                    Text("مرکز هوشمند تحلیل و سیگنال بازار", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
                 IconButton(onClick = onOpenSettings) { Icon(Icons.Outlined.Settings, "تنظیمات", tint = HGold) }
                 Icon(Icons.Outlined.Notifications, contentDescription = "اعلان‌ها", tint = HGoldBright, modifier = Modifier.padding(8.dp))
@@ -155,6 +155,8 @@ internal fun HopeCommanderScreen(
                 HPanelCard(Modifier.weight(.92f), "وضعیت سیستم") {
                     StatusLine("فرمانده مرکزی", "فعال", true)
                     StatusLine("متخصصان عصبی", if (neuralActive) "۱۰/۱۰ معتبر" else "۱۰ نظر / اعتبارسنجی نشده", neuralActive)
+                    val onlineSamples = WolfDeepNeuralNetwork.reviewedSamples(context.getSharedPreferences("wolf_signal_outcomes", Context.MODE_PRIVATE))
+                    StatusLine("یادگیری زنده", "$onlineSamples نتیجهٔ بررسی‌شده", onlineSamples >= 30)
                     StatusLine("تحلیل تکنیکال", if (signals.isNotEmpty()) "فعال" else "در انتظار داده", signals.isNotEmpty())
                     StatusLine("پایش پس‌زمینه", if (backgroundMonitoring) "روشن" else "خاموش", backgroundMonitoring)
                     StatusLine("دادهٔ کلان", if (macro?.fresh == true) "تازه" else "ناموجود/قدیمی", macro?.fresh == true)
