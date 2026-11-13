@@ -247,8 +247,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         val technicalOnlyQualified = !neuralValidated &&
             (tech == "LONG_BIAS" || tech == "SHORT_BIAS") &&
             reviewed.direction == tech &&
-            reviewed.confidence >= 68 &&
-            (reviewed.consensus?.agreement ?: 0) >= 65 &&
+            reviewed.confidence >= 64 &&
+            (reviewed.consensus?.agreement ?: 0) >= 60 &&
             reviewed.technical.adx >= 18.0 &&
             reviewed.technical.relativeVolume >= 0.80
         val tier = when {
