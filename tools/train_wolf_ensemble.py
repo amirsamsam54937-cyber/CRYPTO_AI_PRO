@@ -13,7 +13,7 @@ except ModuleNotFoundError:
     from time_series_validation import chronological_masks
 
 DATA_SOURCE = "verified XT USDT-M crypto-only historical corpus"
-MIN_LABELED_SAMPLES = 100_000
+MIN_LABELED_SAMPLES = 250_000
 INTERVAL, HORIZON = "1h", 6
 FEATURE_NAMES = ["ema_trend", "rsi_momentum", "adx_strength", "relative_volume",
                  "candle_body_pressure", "atr_percent", "past_6_bar_momentum"]
@@ -156,15 +156,16 @@ def load_seed_samples():
                 raise SystemExit(f"Symbol {symbol} is not explicitly classified as crypto in the corpus manifest.")
             grouped.setdefault(symbol,[]).append([float(row["timestamp"]),float(row["open"]),float(row["high"]),
                 float(row["low"]),float(row["close"]),float(row["volume"]),0.0])
-    return grouped
+    return grouped, manifest
 
 def main():
     # Keep feature extraction importable in lightweight test/API environments.
     from sklearn.neural_network import MLPClassifier
     from sklearn.preprocessing import StandardScaler
     from sklearn.metrics import accuracy_score, balanced_accuracy_score, brier_score_loss, log_loss, roc_auc_score
+    grouped, corpus_manifest = load_seed_samples()
     chunks=[]; used_symbols=[]
-    for symbol,raw in load_seed_samples().items():
+    for symbol,raw in grouped.items():
         raw=sorted(raw,key=lambda row:row[0]); x,y,t=make_rows(raw)
         if len(x)>100: chunks.append((x,y,t)); used_symbols.append(symbol)
         print(f"REAL SEED {symbol}: {len(x)} directional samples",flush=True)
@@ -226,11 +227,13 @@ def main():
         "prevalence_baseline_brier_score":round(float(np.mean((y_test-float(y_train.mean()))**2)),4),
         "ensemble_expected_calibration_error":round(expected_calibration_error(y_test,ensemble),4),
         "ensemble_roc_auc":round(float(roc_auc_score(y_test,ensemble)),4)}
-    output={"format":"amir-wolf-ensemble-v1","trained_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
+    output={"format":"amir-wolf-ensemble-v2","trained_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
         "interval":INTERVAL,"horizon_bars":HORIZON,"feature_names":FEATURE_NAMES,
-        "target_definition":"future_return_over_6_hours_positive_vs_nonpositive",
+        "target_definition":"future_return_6h_up_vs_down_neutral_band_excluded",
         "specialist_roles":[x[0] for x in SPECIALISTS],"symbols":sorted(used_symbols),"symbols_count":len(used_symbols),
         "data_source_policy":"XT_USDT_M_CRYPTO_ONLY","asset_class_policy":"XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY",
+        "corpus_sha256":corpus_manifest.get("sha256",""),
+        "currency_metadata_sha256":corpus_manifest.get("currency_metadata_sha256",""),
         "samples":int(len(X)),"train_samples":int(len(X_train)),"test_samples":int(len(X_test)),
         "feature_mean":scaler.mean_.tolist(),"feature_scale":scaler.scale_.tolist(),
         "training_prior_log_odds":float(np.log(np.clip(y_train.mean(),1e-4,1-1e-4)/(1.0-np.clip(y_train.mean(),1e-4,1-1e-4)))),
