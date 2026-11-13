@@ -36,7 +36,8 @@ internal object HopePaperTradingEngine {
         val symbol: String, val side: String, val quantity: Double,
         val entry: Double, val stop: Double, val target: Double,
         val leverage: Int, val openedAt: Long, val mark: Double,
-        val riskUsdt: Double, val notionalUsdt: Double
+        val riskUsdt: Double, val notionalUsdt: Double,
+        val initialRiskDistance: Double
     )
     data class Snapshot(
         val equity: Double, val startingEquity: Double, val realizedPnl: Double,
@@ -73,7 +74,8 @@ internal object HopePaperTradingEngine {
                 Position(p.getString("symbol"), p.getString("side"), p.getDouble("quantity"),
                     p.getDouble("entry"), p.getDouble("stop"), p.getDouble("target"),
                     p.optInt("leverage", 1), p.getLong("openedAt"), p.optDouble("mark", p.getDouble("entry")),
-                    p.optDouble("riskUsdt"), p.optDouble("notionalUsdt"))
+                    p.optDouble("riskUsdt"), p.optDouble("notionalUsdt"),
+                    p.optDouble("initialRiskDistance", abs(p.getDouble("entry") - p.getDouble("stop"))))
             }.getOrNull()
         }.toMutableList()
         val current = signals.associateBy { it.symbol }
@@ -110,7 +112,11 @@ internal object HopePaperTradingEngine {
                     exitReason = "پایان حداکثر زمان نگهداری"
                 }
                 if (exit == null && signal.price > 0.0) {
-                    survivors += p.copy(mark = signal.price)
+                    val trailedStop = DynamicTradingPolicy.trailStop(
+                        p.side, p.entry, signal.price, p.stop, p.initialRiskDistance, signal.atr,
+                        roundTripCostFraction = FEE_PER_SIDE * 2.0 + SLIPPAGE_PER_SIDE * 2.0
+                    )
+                    survivors += p.copy(mark = signal.price, stop = trailedStop)
                 }
             } else {
                 // Missing/stale symbol data must never silently erase an open simulated position.
@@ -151,7 +157,8 @@ internal object HopePaperTradingEngine {
         val enabled = prefs.getBoolean("hope_risk_ack_v1", true) &&
             prefs.getBoolean("hope_paper_mode_enabled", true)
 
-        if (enabled && dailyLossPct < 2.0 && survivors.size < 3 && openRiskPct < 3.0) {
+        val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
+        if (enabled && dailyLossPct < 2.0 && survivors.size < 3 && openRiskPct < 2.5) {
             val activeSymbols = survivors.map { it.symbol }.toSet()
             signals.asSequence()
                 .filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
@@ -162,7 +169,7 @@ internal object HopePaperTradingEngine {
                         s.stop < s.entry && s.tp1 > s.entry else s.stop > s.entry && s.tp1 < s.entry
                     validGeometry && s.entry > 0.0 && s.price > 0.0 &&
                         abs(s.price - s.entry) / s.entry <= 0.0075 &&
-                        s.confidence >= 68 && s.signalTier != "بدون رتبه"
+                        s.confidence >= 70 && s.signalTier != "بدون رتبه"
                 }
                 .sortedByDescending { it.confidence }
                 .forEach { s ->
@@ -170,15 +177,37 @@ internal object HopePaperTradingEngine {
                     if (survivors.any { it.symbol == s.symbol }) return@forEach
                     val openRisk = survivors.sumOf { it.riskUsdt }
                     val openRiskPctNow = openRisk / currentEquity * 100.0
-                    val leverage = s.leverage.coerceIn(1, 3)
-                    if (!HopeRiskManager.mayOpenNewPosition(dailyLossPct, openRiskPctNow, survivors.size, leverage)) return@forEach
-                    val sizing = HopeRiskManager.calculateLinearUsdtSize(currentEquity, s.entry, s.stop, leverage) ?: return@forEach
-                    if ((openRisk + sizing.estimatedLossAtStopUsdt) / currentEquity * 100.0 > 3.0) return@forEach
+                    val regime = WolfRegimeRiskEngine.analyze(s.candles) ?: return@forEach
+                    val riskReward = abs(s.tp1 - s.entry) / abs(s.entry - s.stop).coerceAtLeast(1e-12)
+                    val plan = DynamicTradingPolicy.evaluate(
+                        DynamicTradingPolicy.Input(
+                            direction = s.direction,
+                            confidence = s.confidence,
+                            neuralUpProbability = s.neuralScore.coerceIn(1, 99) / 100.0,
+                            neuralValidated = neuralValidated,
+                            consensusDirection = s.consensus?.direction ?: "NEUTRAL",
+                            consensusAgreement = s.consensus?.agreement ?: 0,
+                            riskReward = riskReward,
+                            atrPercent = s.technical.atrPercent,
+                            volatilityRatio = regime.volatilityRatio,
+                            structuralBreak = regime.structuralBreak,
+                            dailyLossPercent = dailyLossPct,
+                            portfolioOpenRiskPercent = openRiskPctNow,
+                            openPositions = survivors.size,
+                            maxPositions = 3
+                        ),
+                        equityUsdt = currentEquity,
+                        availableUsdt = currentEquity,
+                        entry = s.entry,
+                        stop = s.stop,
+                        estimatedRoundTripCostPercent = (FEE_PER_SIDE * 2.0 + SLIPPAGE_PER_SIDE * 2.0) * 100.0
+                    ) ?: return@forEach
+                    if ((openRisk + plan.estimatedLossAtStopUsdt) / currentEquity * 100.0 > 2.5) return@forEach
                     val isLong = s.direction == "LONG_BIAS"
                     val fill = s.entry * (if (isLong) 1.0 + SLIPPAGE_PER_SIDE else 1.0 - SLIPPAGE_PER_SIDE)
-                    val position = Position(s.symbol, s.direction, sizing.quantity, fill, s.stop, s.tp1,
-                        leverage, s.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: now,
-                        s.price, sizing.estimatedLossAtStopUsdt, sizing.notionalUsdt)
+                    val position = Position(s.symbol, s.direction, plan.quantity, fill, s.stop, s.tp1,
+                        plan.leverage, s.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: now,
+                        s.price, plan.estimatedLossAtStopUsdt, plan.notionalUsdt, abs(fill - s.stop))
                     survivors += position
                     lastAction = "${s.symbol} • ورود شبیه‌سازی‌شده ${s.direction} • حجم ${"%.5f".format(java.util.Locale.US, sizing.quantity)}"
                     if (survivors.size >= 3) return@forEach
@@ -200,6 +229,7 @@ internal object HopePaperTradingEngine {
                     put("entry", p.entry); put("stop", p.stop); put("target", p.target)
                     put("leverage", p.leverage); put("openedAt", p.openedAt); put("mark", p.mark)
                     put("riskUsdt", p.riskUsdt); put("notionalUsdt", p.notionalUsdt)
+                    put("initialRiskDistance", p.initialRiskDistance)
                 })
             } })
         }
@@ -217,7 +247,7 @@ internal object HopePaperTradingEngine {
             runCatching { Position(p.getString("symbol"), p.getString("side"), p.getDouble("quantity"),
                 p.getDouble("entry"), p.getDouble("stop"), p.getDouble("target"), p.optInt("leverage", 1),
                 p.getLong("openedAt"), p.optDouble("mark", p.getDouble("entry")), p.optDouble("riskUsdt"),
-                p.optDouble("notionalUsdt")) }.getOrNull()
+                p.optDouble("notionalUsdt"), p.optDouble("initialRiskDistance", abs(p.getDouble("entry") - p.getDouble("stop")))) }.getOrNull()
         }
         val equity = root.optDouble("equity", STARTING_EQUITY)
         val dailyStart = root.optDouble("dailyStartEquity", equity)
