@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 90
-  versionName = "2.69.0"
-  // Release 2.69.0: rate-limited microstructure sampling, short-lived flow cache and strict timestamp freshness.
+  versionCode = 91
+  versionName = "2.70.0"
+  // Release 2.70.0: truthful on-device corpus counts and explicit neural model availability.
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.

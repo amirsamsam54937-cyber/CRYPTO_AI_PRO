@@ -13,7 +13,7 @@ import org.json.JSONObject
 
 /**
  * On-device durable market research store.
- * Imports the verified 500k real-candle seed once, then appends live 15m candles
+ * Imports the verified one-million-row XT-only real-candle seed once, then appends live 15m candles
  * and signal snapshots. This is a data store, not a claim that the seed itself
  * retrains the bundled neural ensemble.
  */

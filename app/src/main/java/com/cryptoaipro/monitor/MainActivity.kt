@@ -897,11 +897,11 @@ private fun SignalStrengthScreen(
                     Text("سیگنال قوی: قدرت ۷۵٪ به بالا؛ این امتیاز تضمین سود یا احتمال قطعی موفقیت نیست.", color = Gold, fontSize = 9.sp)
                     val model = WolfPretrainedEnsemble.status()
                     Text(
-                        "مغز داده: ${if (researchStats.imported) "۵۰۰٬۰۰۰ ردیف تاریخی وارد پایگاه محلی شده" else "در حال آماده‌سازی پایگاه تاریخی"} • کندل زنده ذخیره‌شده: ${researchStats.liveCandles} • سوابق تحلیل: ${researchStats.signalSnapshots}",
+                        "مغز داده: ${if (researchStats.imported) researchStats.corpusRows.toString() + " ردیف واقعی در پایگاه محلی" else "پایگاه تاریخی آماده نیست؛ " + researchStats.corpusRows + " ردیف موجود"} • کندل زنده ذخیره‌شده: ${researchStats.liveCandles} • سوابق تحلیل: ${researchStats.signalSnapshots}",
                         color = Muted, fontSize = 9.sp, lineHeight = 14.sp
                     )
                     Text(
-                        "شبکه عصبی: ${if (model.loaded) model.members.toString() + " مدل بارگذاری‌شده" else "مدل بارگذاری نشده"} • داده آموزش گزارش‌شده: ${model.samples} • پیش‌بینی مستقل در کارت‌ها فعال است؛ اثر بر رتبه‌بندی اصلی: ${if (model.validatedForScoring) "مجاز" else "غیرفعال تا اعتبارسنجی"}",
+                        "شبکه عصبی: ${if (model.loaded) model.members.toString() + " مدل بارگذاری‌شده" else "مدل بارگذاری نشده"} • نمونه آموزش: ${model.samples} • ${if (model.loaded) "رأی پژوهشی مستقل در کارت‌ها قابل مشاهده است" else "رأی مدل در دسترس نیست"} • اثر بر رتبه‌بندی اصلی: ${if (model.validatedForScoring) "مجاز" else "غیرفعال تا اعتبارسنجی"}",
                         color = if (model.validatedForScoring) Green else Gold, fontSize = 9.sp, lineHeight = 14.sp
                     )
                     researchStats.error?.let { Text("وضعیت پایگاه داده: $it", color = Red, fontSize = 9.sp) }
