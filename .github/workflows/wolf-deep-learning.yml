@@ -95,7 +95,7 @@ jobs:
                             "validation_status":report["validation_status"],"evaluation":e},indent=2))
           PY
 
-      - name: Compress verified one-million-candle corpus
+      - name: Compress verified 745k-candle corpus
         run: |
           set -euo pipefail
           gzip -1 -f app/src/main/assets/market_seed.csv
