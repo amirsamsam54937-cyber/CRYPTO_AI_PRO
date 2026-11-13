@@ -36,7 +36,22 @@ def _ece(y_true, probability, bins=10):
     return float(error)
 
 
+SPECIALIST_MASKS = (
+    ("trend_structure",        [1,0,1,0,0,1,1]),
+    ("momentum_oscillator",    [0,1,1,0,0,0,1]),
+    ("volume_participation",  [0,0,1,1,1,0,0]),
+    ("candle_pressure",        [0,1,0,1,1,1,0]),
+    ("volatility_regime",      [1,0,1,1,0,1,1]),
+    ("mean_reversion",         [0,1,1,1,1,1,1]),
+    ("breakout_continuation",  [1,0,1,1,1,0,1]),
+    ("short_horizon_momentum", [1,1,0,0,1,0,1]),
+    ("risk_regime",            [1,1,1,1,0,1,0]),
+    ("balanced_critic",        [1,1,1,1,1,1,1]),
+)
+
+
 def _fit_probability(X_train, y_train, X_test, seed):
+    """Evaluate the same ten-member, role-masked MLP ensemble exported to Android."""
     y_train = np.asarray(y_train, dtype=int)
     if np.unique(y_train).size != 2:
         raise ValueError("training fold must contain both directional classes")
@@ -44,24 +59,36 @@ def _fit_probability(X_train, y_train, X_test, seed):
     a = scaler.transform(X_train)
     b = scaler.transform(X_test)
     rng = np.random.default_rng(seed)
-    indices = []
-    for cls in (0, 1):
-        positions = np.flatnonzero(y_train == cls)
-        indices.append(rng.choice(positions, size=max(np.bincount(y_train)), replace=len(positions) < max(np.bincount(y_train))))
-    sample = np.concatenate(indices)
-    rng.shuffle(sample)
-    model = MLPClassifier(
-        hidden_layer_sizes=(32, 16), activation="tanh", solver="adam",
-        alpha=0.003, learning_rate_init=0.001, max_iter=120,
-        early_stopping=False, tol=1e-4, n_iter_no_change=12,
-        random_state=seed,
-    )
-    model.fit(a[sample], y_train[sample])
-    raw = np.clip(model.predict_proba(b)[:, 1], 1e-6, 1 - 1e-6)
-    # Restore the real, non-balanced training prior.
+    class_positions = [np.flatnonzero(y_train == cls) for cls in (0, 1)]
+    if min(map(len, class_positions)) < 2:
+        raise ValueError("each specialist fold requires both classes")
+    # Bound fold cost while retaining deterministic class-balanced samples.
+    per_class = min(max(map(len, class_positions)), 60_000)
     prior = float(np.clip(y_train.mean(), 1e-4, 1 - 1e-4))
-    logits = np.log(raw / (1.0 - raw)) + np.log(prior / (1.0 - prior))
-    return 1.0 / (1.0 + np.exp(-np.clip(logits, -30.0, 30.0)))
+    prior_log_odds = np.log(prior / (1.0 - prior))
+    member_probabilities = []
+    for member_index, (_, mask_values) in enumerate(SPECIALIST_MASKS):
+        mask = np.asarray(mask_values, dtype=bool)
+        a_member = a.copy()
+        b_member = b.copy()
+        a_member[:, ~mask] = 0.0
+        b_member[:, ~mask] = 0.0
+        sample = np.concatenate([
+            rng.choice(positions, size=per_class, replace=len(positions) < per_class)
+            for positions in class_positions
+        ])
+        rng.shuffle(sample)
+        model = MLPClassifier(
+            hidden_layer_sizes=(64, 32, 16), activation="tanh", solver="adam",
+            alpha=0.002, learning_rate_init=0.0015, max_iter=160,
+            early_stopping=False, tol=1e-4, n_iter_no_change=16,
+            random_state=seed + member_index,
+        )
+        model.fit(a_member[sample], y_train[sample])
+        raw = np.clip(model.predict_proba(b_member)[:, 1], 1e-6, 1 - 1e-6)
+        logits = np.log(raw / (1.0 - raw)) + prior_log_odds
+        member_probabilities.append(1.0 / (1.0 + np.exp(-np.clip(logits, -30.0, 30.0))))
+    return np.mean(member_probabilities, axis=0)
 
 
 def _metrics(y_true, probability, baseline_prevalence):
