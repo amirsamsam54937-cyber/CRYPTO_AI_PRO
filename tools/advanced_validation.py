@@ -64,20 +64,22 @@ def _fit_probability(X_train, y_train, X_test, seed):
     return 1.0 / (1.0 + np.exp(-np.clip(logits, -30.0, 30.0)))
 
 
-def _metrics(y_true, probability):
+def _metrics(y_true, probability, baseline_prevalence):
     y_true = np.asarray(y_true, dtype=int)
     probability = np.clip(np.asarray(probability, dtype=float), 1e-6, 1 - 1e-6)
     prevalence = float(y_true.mean())
-    baseline = np.full(len(y_true), prevalence)
+    baseline_prevalence = float(np.clip(baseline_prevalence, 1e-4, 1 - 1e-4))
+    baseline = np.full(len(y_true), baseline_prevalence)
     return {
         "samples": int(len(y_true)),
         "positive_rate": round(prevalence, 6),
         "accuracy": round(float(accuracy_score(y_true, probability >= 0.5)), 4),
         "balanced_accuracy": round(float(balanced_accuracy_score(y_true, probability >= 0.5)), 4),
         "log_loss": round(float(log_loss(y_true, probability, labels=[0, 1])), 4),
+        "baseline_train_prevalence": round(baseline_prevalence, 6),
         "baseline_log_loss": round(float(log_loss(y_true, baseline, labels=[0, 1])), 4),
         "brier_score": round(float(brier_score_loss(y_true, probability)), 4),
-        "baseline_brier_score": round(float(np.mean((y_true - prevalence) ** 2)), 4),
+        "baseline_brier_score": round(float(np.mean((y_true - baseline_prevalence) ** 2)), 4),
         "roc_auc": round(float(roc_auc_score(y_true, probability)), 4),
         "expected_calibration_error": round(_ece(y_true, probability), 4),
     }
@@ -100,7 +102,7 @@ def evaluate_generalization(X, y, timestamps, symbols, *, horizon_bars=6, n_spli
     fold_results = []
     for index, (train, test, purged, cutoff) in enumerate(folds):
         probability = _fit_probability(X[train], y[train], X[test], 611_000 + index)
-        result = _metrics(y[test], probability)
+        result = _metrics(y[test], probability, float(y[train].mean()))
         result.update({"fold": index + 1, "purged_rows": int(purged), "cutoff_timestamp_ms": int(cutoff)})
         fold_results.append(result)
 
@@ -130,7 +132,7 @@ def evaluate_generalization(X, y, timestamps, symbols, *, horizon_bars=6, n_spli
         }
     else:
         probability = _fit_probability(X[train], y[train], X[test], 719_000)
-        cross = _metrics(y[test], probability)
+        cross = _metrics(y[test], probability, float(y[train].mean()))
         cross.update({
             "status": "evaluated",
             "train_samples": int(train.sum()),
