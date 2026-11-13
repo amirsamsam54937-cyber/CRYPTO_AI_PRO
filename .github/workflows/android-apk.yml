@@ -18,6 +18,7 @@ on:
       - "app/**"
       - "tools/**"
       - ".github/workflows/android-apk.yml"
+      - ".github/workflows/wolf-deep-learning.yml"
 jobs:
   build-apk:
     runs-on: ubuntu-latest
