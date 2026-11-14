@@ -192,20 +192,18 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
                     )
                 } else {
-                    // The model predicts absolute future price direction. It only
-                    // adjusts confidence when its directional vote agrees/disagrees.
+                    // This model is trained on 1h inputs with a 6h forecast horizon,
+                    // while the live paper signals are evaluated on a 15m window.
+                    // Keep its ten specialist opinions visible as higher-timeframe context;
+                    // never blend a mismatched horizon into 15m signal confidence.
                     val directionalScore = (probability * 100.0).toInt().coerceIn(1, 99)
                     val predictedSide = NeuralSignalAlignment.predictedDirection(probability)
-                    val adjustedConfidence = NeuralSignalAlignment.adjustedConfidence(
-                        signal.confidence, candidate.direction, probability
-                    )
                     signal.copy(
                         neuralScore = directionalScore,
                         neuralDirection = predictedSide,
-                        neuralModelSource = "۱۰مدلی • اعتبارسنجی‌شده",
-                        confidence = adjustedConfidence,
+                        neuralModelSource = "۱۰ شبکه عصبی • پیش‌بینی ۶ساعته • نظر کمکی",
                         neuralMemberVotes = memberVotes,
-                    neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
+                        neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
                     )
                 }
             }
