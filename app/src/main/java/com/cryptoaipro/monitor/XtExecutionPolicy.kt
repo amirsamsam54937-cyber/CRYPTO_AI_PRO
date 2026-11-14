@@ -15,12 +15,8 @@ internal object XtExecutionPolicy {
         val readOnlyConnectionVerified: Boolean = false
     )
 
-    fun maySendOrder(state: State): Boolean =
-        state.mode == Mode.LIVE_LOCKED &&
-            state.explicitLiveApproval &&
-            state.testnetEvidenceComplete &&
-            state.readOnlyConnectionVerified &&
-            false // Hard lock: no public XT futures testnet is available to validate execution.
+    @Suppress("UNUSED_PARAMETER")
+    fun maySendOrder(state: State): Boolean = false
 
     fun label(state: State): String = when {
         maySendOrder(state) -> "LIVE" // Unreachable until the hard lock is deliberately removed after review.
