@@ -185,3 +185,33 @@ def test_funding_uses_actual_elapsed_time_for_irregular_candle_intervals(monkeyp
     expected_eight_hour_funding = trade["quantity"] * trade["entry"] * 0.001
     assert trade["exit_reason"] == "END_OF_DATA"
     assert trade["funding_estimate"] == pytest.approx(expected_eight_hour_funding)
+
+def test_position_size_caps_net_stop_loss_after_round_trip_fees_and_slippage(monkeypatch):
+    frame = sample_frame(103)
+    frame.loc[100:102, ["open", "high", "low", "close"]] = [
+        100.0, 100.5, 98.0, 99.0
+    ]
+    monkeypatch.setattr(
+        "app.backtest.analyze_ohlcv",
+        lambda history: {"direction": "LONG_BIAS", "atr": 1.0},
+    )
+
+    result = run_backtest(
+        frame,
+        initial_equity=1000.0,
+        risk_per_trade=0.01,
+        max_leverage=3.0,
+        fee_rate=0.001,
+        slippage_rate=0.0005,
+        funding_rate_8h=0.0,
+        warmup=100,
+    )
+
+    assert result["trade_count"] == 1
+    trade = result["trades"][0]
+    assert trade["exit_reason"] == "STOP_LOSS"
+    # The 1% risk budget now includes adverse entry/exit fills and both fees.
+    assert trade["net_pnl"] == pytest.approx(-10.0, abs=1e-8)
+    assert result["final_equity"] == pytest.approx(990.0, abs=1e-8)
+    assert trade["fees"] > 0
+    assert trade["slippage_cost"] > 0
