@@ -278,10 +278,17 @@ internal class XtAuthenticatedFuturesClient(
             throw IllegalStateException("فیلد ضروری موجودی XT یافت نشد: " + keys.joinToString("/"))
         }
         val wallet = requiredNumber("walletBalance")
-        val equity = requiredNumber("totalAmount", "totalEquity", "equity")
-        val available = requiredNumber("availableAmount", "availableBalance", "available")
-        val used = requiredNumber("positionMargin", "positionMarginFrozen", "usedMargin")
-        val orderFrozen = requiredNumber("openOrderMarginFrozen", "orderMarginFrozen", "orderFrozen")
+        val isolated = requiredNumber("isolatedMargin")
+        val crossed = requiredNumber("crossedMargin")
+        val used = isolated + crossed
+        val orderFrozen = requiredNumber("openOrderMarginFrozen")
+        // XT defines available = wallet balance - position margin - order freeze.
+        // Prefer the explicit available field when the account API returns it.
+        val available = runCatching { requiredNumber("availableBalance", "availableAmount", "available") }
+            .getOrElse { (wallet - used - orderFrozen).coerceAtLeast(0.0) }
+        val unrealized = row.optString("notProfit").toDoubleOrNull()
+        val equity = unrealized?.let { wallet + it }
+            ?: requiredNumber("totalAmount", "totalEquity", "equity")
         return XtFuturesCapitalManager.Wallet("USDT", wallet, equity, available, used, orderFrozen)
             .also { it.validate() }
     }
