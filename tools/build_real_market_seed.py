@@ -5,11 +5,12 @@ Sole source: XT USDT-M public API. No cross-exchange fallback is permitted.
 Only exchange-returned, closed candles are stored. No synthetic rows are generated.
 """
 import csv, json, math, os, sys, time, hashlib
+from urllib.request import Request, urlopen
 from datetime import datetime, timezone
 try:
-    from tools.xt_asset_classification import classify_xt_market
+    from tools.xt_asset_classification import build_registry_index, classify_xt_market
 except ModuleNotFoundError:
-    from xt_asset_classification import classify_xt_market
+    from xt_asset_classification import build_registry_index, classify_xt_market
 
 TARGET = 898_920
 MINIMUM = 898_920
@@ -22,6 +23,25 @@ FIELDS = ["exchange","symbol","timeframe","timestamp","open","high","low","close
 def normalized_symbol(market):
     return (market.get("base", "") + market.get("quote", "")).upper()
 
+COINGECKO_LIST_URL = "https://api.coingecko.com/api/v3/coins/list?include_platform=false"
+
+def fetch_crypto_registry():
+    request = Request(COINGECKO_LIST_URL, headers={
+        "Accept": "application/json", "User-Agent": "ZORO-crypto-asset-audit/1.0"
+    })
+    with urlopen(request, timeout=45) as response:
+        if getattr(response, "status", 200) != 200:
+            raise RuntimeError(f"CoinGecko registry returned HTTP {response.status}")
+        payload = response.read()
+    records = json.loads(payload.decode("utf-8"))
+    if not isinstance(records, list) or len(records) < 1000:
+        raise RuntimeError("Public crypto identity registry is empty or incomplete.")
+    registry = build_registry_index(records)
+    if not registry:
+        raise RuntimeError("Public crypto identity registry has no usable symbols.")
+    return registry, hashlib.sha256(payload).hexdigest(), len(records)
+
+
 def collect(exchange_id):
     import ccxt
     if exchange_id != "xt":
@@ -30,12 +50,13 @@ def collect(exchange_id):
                   "options": {"defaultType": "swap"}})
     try:
         ex.load_markets()
-        # XT's public spot currency catalogue exposes an explicit currency type;
-        # CCXT maps XT type='FT' to type='crypto'. Use it to verify each futures
-        # underlying instead of guessing from USDT settlement or ticker spelling.
+        # XT public spot-currency metadata is the first gate. CoinGecko identity
+        # matching is a second gate to reject tokenized equities, FX, indices and
+        # ambiguous instruments. USDT quote/settlement never proves crypto.
         spot_currencies = ex.fetch_currencies()
         if not spot_currencies:
             raise RuntimeError("XT public spot currency metadata is empty; refusing unclassified futures.")
+        crypto_registry, crypto_asset_registry_sha256, crypto_asset_registry_entries = fetch_crypto_registry()
         currency_payload = json.dumps(spot_currencies, sort_keys=True, separators=(",", ":"), default=str)
         currency_metadata_sha256 = hashlib.sha256(currency_payload.encode("utf-8")).hexdigest()
         spot_crypto_currency_count = sum(
@@ -52,11 +73,12 @@ def collect(exchange_id):
         markets, excluded_non_crypto, excluded_unknown = [], [], []
         classification_by_symbol = {}
         for market in perpetuals:
-            classification, reason = classify_xt_market(market, spot_currencies)
+            classification, reason = classify_xt_market(market, spot_currencies, crypto_registry)
             symbol = market.get("symbol", "UNKNOWN")
+            normalized = normalized_symbol(market)
             if classification == "crypto":
                 markets.append(market)
-                classification_by_symbol[normalized_symbol(market)] = {"asset_class": "crypto", "evidence": reason}
+                classification_by_symbol[normalized] = {"asset_class": "crypto", "evidence": reason}
             elif classification == "non_crypto":
                 excluded_non_crypto.append({"symbol": symbol, "reason": reason})
             else:
@@ -145,8 +167,15 @@ def collect(exchange_id):
             "spot_currency_universe_count": len(spot_currencies),
             "spot_crypto_currency_count": spot_crypto_currency_count,
             "currency_metadata_sha256": currency_metadata_sha256,
+            "crypto_asset_registry_source": "COINGECKO_PUBLIC_COINS_LIST",
+            "crypto_asset_registry_sha256": crypto_asset_registry_sha256,
+            "crypto_asset_registry_entries": crypto_asset_registry_entries,
+            "candidate_perpetuals_count": len(perpetuals),
             "eligible_perpetuals": len(markets),
+            "accepted_crypto_perpetuals": len(markets),
+            "rejected_non_crypto_count": len(excluded_non_crypto),
             "excluded_non_crypto_count": len(excluded_non_crypto),
+            "unknown_perpetuals_count": len(excluded_unknown),
             "excluded_unknown_count": len(excluded_unknown),
             "crypto_symbols": sorted(classification_by_symbol),
             "excluded_non_crypto_symbols": excluded_non_crypto,
@@ -179,9 +208,9 @@ def main():
         "timeframe": TIMEFRAME,
         "source_exchanges": sorted({r[0] for r in rows}),
         "data_source_policy": "XT_USDT_M_CRYPTO_ONLY",
-        "asset_class_policy": "XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY",
-        "currency_universe_source": "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES",
-        "crypto_only_verified": True,
+        "asset_class_policy": "XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH",
+        "currency_universe_source": "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES+COINGECKO_PUBLIC_COINS_LIST",
+        "crypto_only_verified": bool(rows) and all(r[1] in provenance["asset_classification"] for r in rows),
         **provenance,
         "symbols": len({r[1] for r in rows}),
         "first_timestamp_ms": min(r[3] for r in rows),

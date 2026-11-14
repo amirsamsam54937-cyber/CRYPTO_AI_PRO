@@ -6,8 +6,8 @@ import kotlin.math.exp
 import kotlin.math.tanh
 
 /**
- * Ten role-diverse MLP experts. Training labels are future market direction,
- * independent of the technical rule used to define the reference side.
+ * Ten feature-specialized MLP experts using one shared architecture.
+ * Training labels are future market direction, independent of technical rules.
  * Each expert has its own feature mask and remains advisory until holdout validation passes.
  */
 internal object WolfPretrainedEnsemble {
@@ -45,15 +45,24 @@ internal object WolfPretrainedEnsemble {
             require(root.optString("format")=="amir-wolf-ensemble-v2")
             require(root.optString("target_definition")=="future_return_6h_up_vs_down_neutral_band_excluded")
             val corpus=JSONObject(context.assets.open("wolf_corpus_manifest.json").bufferedReader().use{it.readText()})
+            val report=JSONObject(context.assets.open("wolf_model_training_report.json").bufferedReader().use{it.readText()})
             val corpusRows=corpus.optInt("rows",0)
             val sources=corpus.optJSONArray("source_exchanges")
+            val accepted=corpus.optInt("accepted_crypto_perpetuals",0)
+            val rejected=corpus.optInt("rejected_non_crypto_count",-1)
+            val unknown=corpus.optInt("unknown_perpetuals_count",-1)
+            val candidates=corpus.optInt("candidate_perpetuals_count",0)
             require(corpus.optString("status")=="verified_real_exchange_data" &&
                 corpusRows>=898_920 && corpus.optInt("synthetic_rows",-1)==0 &&
                 corpus.optString("data_source_policy")=="XT_USDT_M_CRYPTO_ONLY" &&
-                corpus.optString("asset_class_policy")=="XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY" &&
+                corpus.optString("asset_class_policy")=="XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH" &&
                 corpus.optBoolean("crypto_only_verified",false) &&
-                corpus.optString("currency_universe_source")=="XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES" &&
+                corpus.optString("currency_universe_source")=="XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES+COINGECKO_PUBLIC_COINS_LIST" &&
+                corpus.optString("crypto_asset_registry_source")=="COINGECKO_PUBLIC_COINS_LIST" &&
                 corpus.optString("currency_metadata_sha256").length==64 &&
+                corpus.optString("crypto_asset_registry_sha256").length==64 &&
+                accepted>0 && accepted==corpus.optInt("eligible_perpetuals",0) &&
+                candidates==accepted+rejected+unknown &&
                 sources!=null && sources.length()==1 && sources.optString(0).equals("XT",ignoreCase=true))
             fun vector(a:org.json.JSONArray)=DoubleArray(a.length()){a.getDouble(it)}
             fun matrix(a:org.json.JSONArray)=Array(a.length()){r->vector(a.getJSONArray(r))}
@@ -76,12 +85,27 @@ internal object WolfPretrainedEnsemble {
             require(mean.size==7 && scale.size==7 && trainingPriorLogOdds.isFinite())
             require(root.optString("data_source_policy")==corpus.optString("data_source_policy"))
             require(root.optString("asset_class_policy")==corpus.optString("asset_class_policy"))
+            require(root.optString("crypto_asset_registry_source")==corpus.optString("crypto_asset_registry_source"))
+            require(root.optString("crypto_asset_registry_sha256")==corpus.optString("crypto_asset_registry_sha256"))
             require(root.optString("corpus_sha256")==corpus.optString("sha256"))
             require(root.optString("currency_metadata_sha256")==corpus.optString("currency_metadata_sha256"))
+            require(root.optString("model_family")=="MLPClassifier" && !root.optBoolean("architecture_diversity",true))
+            require(root.optString("baseline_source")=="training_partition_only")
+            require(root.optBoolean("validated_for_scoring",false))
+            require(report.optBoolean("validated_for_scoring",false) &&
+                report.optString("validation_status")=="validated_for_scoring" &&
+                report.optString("corpus_sha256")==corpus.optString("sha256") &&
+                report.optString("crypto_asset_registry_sha256")==corpus.optString("crypto_asset_registry_sha256") &&
+                report.optString("trained_at_utc")==root.optString("trained_at_utc") &&
+                report.optInt("samples",-1)==root.optInt("samples",-2))
             val cryptoSymbols=corpus.optJSONArray("crypto_symbols")
             val verifiedSymbols=(0 until (cryptoSymbols?.length() ?: 0)).map { cryptoSymbols!!.optString(it) }.toSet()
             val modelSymbols=root.optJSONArray("symbols")
-            require(modelSymbols!=null && (0 until modelSymbols.length()).all { verifiedSymbols.contains(modelSymbols.optString(it)) })
+            require(modelSymbols!=null && modelSymbols.length()>0 &&
+                (0 until modelSymbols.length()).all { verifiedSymbols.contains(modelSymbols.optString(it)) })
+            val heldOutJson=root.optJSONObject("cross_symbol_holdout")?.optJSONArray("held_out_symbols")
+            val heldOut=(0 until (heldOutJson?.length() ?: 0)).map { heldOutJson!!.optString(it) }
+            require(heldOut.isNotEmpty() && heldOut.all { it.length>4 && it.endsWith("USDT") })
             val metrics=root.getJSONArray("metrics")
             val memberAccuracy=(0 until metrics.length()).map{metrics.getJSONObject(it).optDouble("accuracy",0.0)}.average()
             val evaluation=root.optJSONObject("evaluation")

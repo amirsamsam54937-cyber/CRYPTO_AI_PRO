@@ -62,6 +62,8 @@ def deterministic_symbol_holdout(symbols, *, holdout_fraction=0.20):
     if unique.size < 4:
         raise ValueError("at least four distinct symbols are required")
     count = max(1, int(np.ceil(unique.size * holdout_fraction)))
-    held_out = set(unique[-count:].tolist())
+    # Stable hash ranking avoids lexical ticker-prefix bias.
+    ranked = sorted(unique.tolist(), key=lambda symbol: hashlib.sha256(str(symbol).encode("utf-8")).digest())
+    held_out = set(ranked[:count])
     test = np.fromiter((s in held_out for s in values), dtype=bool, count=values.size)
     return ~test, test

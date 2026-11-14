@@ -2,7 +2,10 @@ import numpy as np
 import pytest
 
 from tools.time_series_validation import chronological_masks
-from tools.train_wolf_ensemble import FEATURE_NAMES, HORIZON, SPECIALISTS, make_rows
+from tools.train_wolf_ensemble import (
+    ARCHITECTURE_DIVERSITY, FEATURE_NAMES, HORIZON, MODEL_FAMILY,
+    SPECIALISTS, make_rows, repeat_symbol_labels, majority_baseline_from_training,
+)
 
 
 def test_chronological_split_keeps_same_timestamp_rows_together_and_purges_horizon():
@@ -43,8 +46,19 @@ def test_neural_target_is_future_price_direction_not_technical_rule_output():
         assert abs(future_return) > 0.0025
 
 
-def test_ten_neural_experts_have_distinct_feature_specializations():
+def test_ten_mlp_experts_have_distinct_feature_masks_not_architectures():
     assert len(SPECIALISTS) == 10
     masks = [tuple(mask) for _, mask in SPECIALISTS]
     assert len(set(masks)) == 10
     assert all(len(mask) == 7 and sum(mask) >= 3 for mask in masks)
+    assert MODEL_FAMILY == "MLPClassifier" and ARCHITECTURE_DIVERSITY is False
+
+
+def test_symbol_labels_preserve_full_ticker_names():
+    assert repeat_symbol_labels("AAPLXUSDT", 3).tolist() == ["AAPLXUSDT"] * 3
+
+
+def test_majority_baseline_uses_training_partition_not_test_prevalence():
+    majority, accuracy = majority_baseline_from_training([0,0,0,1], [1,1,1,0,0])
+    assert majority == 0
+    assert accuracy == 0.4

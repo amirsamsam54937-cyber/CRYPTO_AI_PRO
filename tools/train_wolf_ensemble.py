@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Train a leakage-aware, role-diverse ten-network directional ensemble on XT OHLCV.
+"""Train ten feature-specialized MLP experts on audited XT crypto OHLCV.
 
-Labels describe the subsequent market move (up/down), never the output of the
-technical rules used to choose a reference side. Each member receives a distinct
-feature mask so the ensemble contains genuine specialist diversity.
+All members use one shared MLP architecture; diversity comes from feature masks,
+roles and deterministic seeds, not ten different architectures.
 """
-import csv, json, os, time
+import csv, json, os, time, hashlib
 import numpy as np
 try:
     from tools.time_series_validation import chronological_masks
@@ -14,8 +13,20 @@ except ModuleNotFoundError:
     from time_series_validation import chronological_masks
     from advanced_validation import evaluate_generalization
 
-DATA_SOURCE = "verified XT USDT-M crypto-only historical corpus"
+DATA_SOURCE = "XT public crypto catalogue plus exact external crypto identity match"
+MODEL_FAMILY = "MLPClassifier"
+ARCHITECTURE_DIVERSITY = False
 MIN_LABELED_SAMPLES = 250_000
+
+def repeat_symbol_labels(symbol, count):
+    return np.full(int(count), str(symbol), dtype=object)
+
+
+def majority_baseline_from_training(y_train, y_test):
+    """Choose the majority class from train only; score that fixed rule on test."""
+    majority = int(float(np.mean(y_train)) >= 0.5)
+    accuracy = float(np.mean(np.asarray(y_test, dtype=int) == majority))
+    return majority, accuracy
 INTERVAL, HORIZON = "1h", 6
 FEATURE_NAMES = ["ema_trend", "rsi_momentum", "adx_strength", "relative_volume",
                  "candle_body_pressure", "atr_percent", "past_6_bar_momentum"]
@@ -140,24 +151,42 @@ def load_seed_samples():
         or sorted(x.upper() for x in manifest.get("source_exchanges",[]))!=["XT"]
         or int(manifest.get("synthetic_rows",-1))!=0
         or manifest.get("data_source_policy")!="XT_USDT_M_CRYPTO_ONLY"
-        or manifest.get("asset_class_policy")!="XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY"
+        or manifest.get("asset_class_policy")!="XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH"
         or manifest.get("crypto_only_verified") is not True
-        or manifest.get("currency_universe_source")!="XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES"
-        or int(manifest.get("spot_crypto_currency_count",0)) < 1
+        or manifest.get("currency_universe_source")!="XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES+COINGECKO_PUBLIC_COINS_LIST"
+        or manifest.get("crypto_asset_registry_source")!="COINGECKO_PUBLIC_COINS_LIST"
+        or len(manifest.get("crypto_asset_registry_sha256",""))!=64
+        or int(manifest.get("accepted_crypto_perpetuals",0))<1
+        or int(manifest.get("candidate_perpetuals_count",0)) != (
+            int(manifest.get("accepted_crypto_perpetuals",0))+
+            int(manifest.get("rejected_non_crypto_count",0))+
+            int(manifest.get("unknown_perpetuals_count",0))
+        )
         or not asset_map):
-        raise SystemExit("Training requires a verified XT crypto-only corpus with explicit asset-class metadata.")
+        raise SystemExit("Training requires an XT-listed, identity-confirmed crypto-only corpus with complete exclusion counts.")
+    digest=hashlib.sha256(open(path,"rb").read()).hexdigest()
+    if digest != manifest.get("sha256"):
+        raise SystemExit("Market corpus SHA-256 does not match its manifest.")
     if any(item.get("asset_class") != "crypto" for item in asset_map.values()):
         raise SystemExit("Non-crypto or unverified asset classification found in corpus manifest.")
+    if set(asset_map) != set(manifest.get("crypto_symbols",[])):
+        raise SystemExit("Accepted symbols and asset-classification map do not match.")
     grouped={}
+    csv_rows=0
     with open(path,newline="",encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
+            csv_rows += 1
             if row.get("exchange","").upper()!="XT": raise SystemExit("Non-XT rows detected; refusing mixed-exchange training.")
-            if row.get("timeframe")!="1h": continue
             symbol=row["symbol"].upper()
+            if asset_map.get(symbol, {}).get("asset_class") != "crypto":
+                raise SystemExit(f"Symbol {symbol} is not identity-confirmed crypto; refusing training.")
+            if row.get("timeframe")!="1h": continue
             if asset_map.get(symbol, {}).get("asset_class") != "crypto":
                 raise SystemExit(f"Symbol {symbol} is not explicitly classified as crypto in the corpus manifest.")
             grouped.setdefault(symbol,[]).append([float(row["timestamp"]),float(row["open"]),float(row["high"]),
                 float(row["low"]),float(row["close"]),float(row["volume"]),0.0])
+    if csv_rows != int(manifest.get("rows",0)):
+        raise SystemExit(f"CSV row count {csv_rows} does not match manifest {manifest.get('rows')}.")
     return grouped, manifest
 
 def main():
@@ -171,7 +200,7 @@ def main():
         raw=sorted(raw,key=lambda row:row[0]); x,y,t=make_rows(raw)
         if len(x)>100:
             chunks.append((x,y,t))
-            symbol_chunks.append(np.full(len(x),symbol,dtype=str))
+            symbol_chunks.append(repeat_symbol_labels(symbol,len(x)))
             used_symbols.append(symbol)
         print(f"REAL SEED {symbol}: {len(x)} directional samples",flush=True)
     if not chunks: raise SystemExit("No valid XT history; refusing to create fake pretrained weights.")
@@ -223,22 +252,32 @@ def main():
             "w4":model.coefs_[3][:,0].tolist(),"b4":float(model.intercepts_[3][0])})
         print(f"EXPERT {index+1}/10 {role}: {metrics[-1]}",flush=True)
     ensemble=np.mean(all_probabilities,axis=0)
+    train_prevalence=float(y_train.mean())
+    majority_class, majority_accuracy=majority_baseline_from_training(y_train,y_test)
     evaluation={"split":"chronological_purged","target":"future_price_direction_up_vs_down",
+        "baseline_source":"training_partition_only",
+        "baseline_training_prevalence":round(train_prevalence,6),
+        "majority_class_prediction":majority_class,
         "cutoff_timestamp_ms":int(cutoff),"purged_rows":int(purged),"positive_rate":round(float(y_test.mean()),6),
-        "majority_class_baseline_accuracy":round(float(max(y_test.mean(),1-y_test.mean())),4),
-        "prevalence_baseline_log_loss":round(float(log_loss(y_test,np.full(len(y_test),float(y_train.mean())),labels=[0,1])),4),
+        "majority_class_baseline_accuracy":round(majority_accuracy,4),
+        "prevalence_baseline_log_loss":round(float(log_loss(y_test,np.full(len(y_test),train_prevalence),labels=[0,1])),4),
         "ensemble_accuracy":round(float(accuracy_score(y_test,ensemble>=.5)),4),
         "ensemble_balanced_accuracy":round(float(balanced_accuracy_score(y_test,ensemble>=.5)),4),
         "ensemble_log_loss":round(float(log_loss(y_test,np.clip(ensemble,1e-6,1-1e-6))),4),
         "ensemble_brier_score":round(float(brier_score_loss(y_test,ensemble)),4),
-        "prevalence_baseline_brier_score":round(float(np.mean((y_test-float(y_train.mean()))**2)),4),
+        "prevalence_baseline_brier_score":round(float(np.mean((y_test-train_prevalence)**2)),4),
         "ensemble_expected_calibration_error":round(expected_calibration_error(y_test,ensemble),4),
         "ensemble_roc_auc":round(float(roc_auc_score(y_test,ensemble)),4)}
     output={"format":"amir-wolf-ensemble-v2","trained_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
+        "model_family":MODEL_FAMILY,"architecture_diversity":ARCHITECTURE_DIVERSITY,
+        "member_diversity_basis":"distinct_feature_masks_and_roles_same_MLP_architecture",
+        "baseline_source":"training_partition_only",
         "interval":INTERVAL,"horizon_bars":HORIZON,"feature_names":FEATURE_NAMES,
         "target_definition":"future_return_6h_up_vs_down_neutral_band_excluded",
         "specialist_roles":[x[0] for x in SPECIALISTS],"symbols":sorted(used_symbols),"symbols_count":len(used_symbols),
-        "data_source_policy":"XT_USDT_M_CRYPTO_ONLY","asset_class_policy":"XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY",
+        "data_source_policy":"XT_USDT_M_CRYPTO_ONLY","asset_class_policy":"XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH",
+        "crypto_asset_registry_source":corpus_manifest.get("crypto_asset_registry_source",""),
+        "crypto_asset_registry_sha256":corpus_manifest.get("crypto_asset_registry_sha256",""),
         "corpus_sha256":corpus_manifest.get("sha256",""),
         "currency_metadata_sha256":corpus_manifest.get("currency_metadata_sha256",""),
         "samples":int(len(X)),"train_samples":int(len(X_train)),"test_samples":int(len(X_test)),
@@ -251,6 +290,6 @@ def main():
     with open("app/src/main/assets/wolf_pretrained_ensemble.json","w") as f: json.dump(output,f,separators=(",",":"))
     with open("wolf_model_training_report.json","w") as f: json.dump({k:v for k,v in output.items() if k!="members"},f,indent=2)
     print(f"PURGED HOLDOUT: {evaluation}",flush=True)
-    print(f"EXPORTED ten role-diverse XT networks from {len(X)} labeled samples.",flush=True)
+    print(f"EXPORTED ten MLP specialists with distinct feature masks (one shared architecture) from {len(X)} labeled samples.",flush=True)
 
 if __name__=="__main__": main()

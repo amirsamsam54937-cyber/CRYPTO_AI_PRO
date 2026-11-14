@@ -4,7 +4,7 @@ permissions:
   actions: read
 concurrency:
   group: hope-hunter-apk-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 on:
   workflow_dispatch:
     inputs:
@@ -43,7 +43,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - name: Build 898,920 real XT USDT-M candles
+      - name: Build 898,920 real XT USDT-M candles with dual crypto identity verification
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation' || github.ref == 'refs/heads/zoro-gen4-validation-audit')) }}
         run: |
           set -euo pipefail
@@ -62,9 +62,9 @@ jobs:
           assert m["data_source_policy"] == "XT_USDT_M_CRYPTO_ONLY"
           assert m["source_exchanges"] == ["XT"]
           assert m["crypto_only_verified"] is True
-          assert m["currency_universe_source"] == "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES"
+          assert m["currency_universe_source"] == "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES+COINGECKO_PUBLIC_COINS_LIST"
           assert m["spot_crypto_currency_count"] >= 1
-          assert m["asset_class_policy"] == "XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY"
+          assert m["asset_class_policy"] == "XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH"
           assert m["rows"] >= 898_920 and m["synthetic_rows"] == 0
           with (assets/"market_seed.csv").open(newline="") as f:
               reader=csv.DictReader(f)
@@ -75,7 +75,7 @@ jobs:
           assert rows == m["rows"], (rows,m["rows"])
           print(f"Verified {rows:,} real XT USDT-M candles; no mixed-exchange or synthetic rows")
           PY
-      - name: Train ten neural networks on verified real futures history
+      - name: Train ten MLP specialists on verified real crypto futures history
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation' || github.ref == 'refs/heads/zoro-gen4-validation-audit')) }}
         run: |
           set -euo pipefail
@@ -87,12 +87,17 @@ jobs:
           assert p.is_file() and p.stat().st_size > 10000, "Fresh model weights were not exported"
           d=json.loads(p.read_text())
           e=d["evaluation"]
-          assert len(d["members"]) == 10, "Expected ten trained models"
+          assert len(d["members"]) == 10, "Expected ten trained MLP specialists"
+          assert d.get("model_family") == "MLPClassifier" and d.get("architecture_diversity") is False
+          assert d.get("baseline_source") == "training_partition_only"
+          assert e.get("baseline_source") == "training_partition_only"
           assert e["split"] == "chronological_purged", "Missing chronological purged holdout"
           assert d["test_samples"] >= 300, "Insufficient holdout samples"
           assert d["samples"] >= 10000, "Insufficient real labeled samples"
           wf=d["walk_forward"]
           cross=d["cross_symbol_holdout"]
+          held_out=cross.get("held_out_symbols",[])
+          assert len(held_out)>=1 and all(isinstance(s,str) and len(s)>4 and s.endswith("USDT") for s in held_out), "Unseen-symbol holdout must use full tickers"
           validated = (
               e["ensemble_balanced_accuracy"] >= 0.52
               and e["ensemble_log_loss"] < e["prevalence_baseline_log_loss"]
@@ -109,9 +114,10 @@ jobs:
               and cross.get("log_loss",999) < cross.get("baseline_log_loss",0)
               and cross.get("roc_auc",0) >= 0.52
           )
+          d["validation_status"] = "validated_for_scoring" if validated else "trained_but_not_validated"
+          d["validated_for_scoring"] = bool(validated)
+          p.write_text(json.dumps(d,separators=(",",":")))
           report={k:v for k,v in d.items() if k != "members"}
-          report["validation_status"] = "validated_for_scoring" if validated else "trained_but_not_validated"
-          report["validated_for_scoring"] = bool(validated)
           report_text = json.dumps(report,indent=2)
           pathlib.Path("wolf_model_training_report.json").write_text(report_text)
           pathlib.Path("app/src/main/assets/wolf_model_training_report.json").write_text(report_text)
@@ -126,7 +132,7 @@ jobs:
         if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation' || github.ref == 'refs/heads/zoro-gen4-validation-audit'))) }}
         uses: actions/upload-artifact@v4
         with:
-          name: ZORO-745K-XT-TRAINING-DATA
+          name: ZORO-XT-CRYPTO-TRAINING-BUNDLE
           path: |
             app/src/main/assets/market_seed.csv.gz
             app/src/main/assets/wolf_corpus_manifest.json
@@ -154,19 +160,55 @@ jobs:
           assert m.get("data_source_policy")=="XT_USDT_M_CRYPTO_ONLY"
           assert m.get("source_exchanges")==["XT"]
           assert m.get("crypto_only_verified") is True
-          assert m.get("currency_universe_source") == "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES"
+          assert m.get("currency_universe_source") == "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES+COINGECKO_PUBLIC_COINS_LIST"
           assert m.get("spot_crypto_currency_count",0) >= 1
-          assert m.get("asset_class_policy")=="XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY"
+          assert m.get("crypto_asset_registry_source")=="COINGECKO_PUBLIC_COINS_LIST"
+          assert len(m.get("crypto_asset_registry_sha256",""))==64
+          assert m.get("candidate_perpetuals_count")==m.get("accepted_crypto_perpetuals",0)+m.get("rejected_non_crypto_count",0)+m.get("unknown_perpetuals_count",0)
+          assert m.get("accepted_crypto_perpetuals")==m.get("eligible_perpetuals")==len(m.get("asset_classification",{}))
+          assert m.get("rejected_non_crypto_count")==len(m.get("excluded_non_crypto_symbols",[]))
+          assert m.get("unknown_perpetuals_count")==len(m.get("excluded_unknown_symbols",[]))
+          assert all(v.get("asset_class")=="crypto" for v in m.get("asset_classification",{}).values())
+          assert m.get("asset_class_policy")=="XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH"
           assert len(model.get("members",[]))==10
           assert report.get("validated_for_scoring") is True
           assert set(model.get("symbols",[])).issubset(set(m.get("crypto_symbols",[])))
           assert model.get("corpus_sha256")==m.get("sha256")
           assert model.get("currency_metadata_sha256")==m.get("currency_metadata_sha256")
+          assert model.get("crypto_asset_registry_sha256")==m.get("crypto_asset_registry_sha256")
+          assert report.get("crypto_asset_registry_sha256")==m.get("crypto_asset_registry_sha256")
+          assert model.get("model_family")=="MLPClassifier" and model.get("architecture_diversity") is False
+          assert model.get("baseline_source")=="training_partition_only"
+          assert model.get("validated_for_scoring") is True
           assert report.get("validation_status")=="validated_for_scoring"
           with gzip.open(p/"market_seed.csv.gz","rt",encoding="utf-8") as f:
               header=f.readline().strip()
               assert header=="exchange,symbol,timeframe,timestamp,open,high,low,close,volume"
           print("Verified release bundle: XT-only one-million-candle corpus + ten validated neural specialists")
+          PY
+      - name: Download published training artifact before APK build
+        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.train_models && inputs.require_trained_bundle) || (github.event_name == 'push' && github.ref == 'refs/heads/zoro-gen4-validation-audit')) }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ZORO-XT-CRYPTO-TRAINING-BUNDLE
+          path: downloaded-training-bundle
+      - name: Verify downloaded artifact matches the validated bundle
+        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.train_models && inputs.require_trained_bundle) || (github.event_name == 'push' && github.ref == 'refs/heads/zoro-gen4-validation-audit')) }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, pathlib
+          src=pathlib.Path("app/src/main/assets"); dst=pathlib.Path("downloaded-training-bundle")
+          names=("market_seed.csv.gz","wolf_corpus_manifest.json","wolf_pretrained_ensemble.json","wolf_model_training_report.json")
+          for name in names:
+              assert hashlib.sha256((src/name).read_bytes()).digest()==hashlib.sha256((dst/name).read_bytes()).digest(), name
+          m=json.loads((dst/"wolf_corpus_manifest.json").read_text())
+          model=json.loads((dst/"wolf_pretrained_ensemble.json").read_text())
+          report=json.loads((dst/"wolf_model_training_report.json").read_text())
+          assert m.get("crypto_only_verified") is True and model.get("validated_for_scoring") is True and report.get("validated_for_scoring") is True
+          assert model.get("corpus_sha256")==m.get("sha256")==report.get("corpus_sha256")
+          assert model.get("crypto_asset_registry_sha256")==m.get("crypto_asset_registry_sha256")==report.get("crypto_asset_registry_sha256")
+          print("Downloaded artifact hashes and model/manifest/report identities match.")
           PY
       - name: Verify mandatory offline neural bundle before every APK build
         run: |
@@ -183,12 +225,12 @@ jobs:
           assert len(model.get("metrics",[]))==10
           assert manifest.get("status")=="verified_real_exchange_data"
           assert manifest.get("data_source_policy")=="XT_USDT_M_CRYPTO_ONLY" and manifest.get("source_exchanges")==["XT"]
-          assert manifest.get("asset_class_policy")=="XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY"
+          assert manifest.get("asset_class_policy")=="XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH"
           assert len(manifest.get("currency_metadata_sha256",""))==64
           assert manifest.get("crypto_only_verified") is True
-          assert manifest.get("currency_universe_source") == "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES"
+          assert manifest.get("currency_universe_source") == "XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES+COINGECKO_PUBLIC_COINS_LIST"
           assert manifest.get("spot_crypto_currency_count",0) >= 1
-          assert manifest.get("asset_class_policy")=="XT_SPOT_CURRENCY_TYPE_CRYPTO_ONLY"
+          assert manifest.get("asset_class_policy")=="XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH"
           assert set(report.get("symbols",[])).issubset(set(manifest.get("crypto_symbols",[])))
           assert model.get("corpus_sha256")==manifest.get("sha256")
           assert model.get("currency_metadata_sha256")==manifest.get("currency_metadata_sha256")
@@ -239,8 +281,16 @@ jobs:
                   assert name in names, f"APK is missing {name}"
               model=json.loads(z.read(required[0]))
               manifest=json.loads(z.read(required[1]))
-              assert len(model.get("members",[]))==10
+              report=json.loads(z.read(required[2]))
+              assert len(model.get("members",[]))==10 and model.get("validated_for_scoring") is True
+              assert report.get("validated_for_scoring") is True
               assert manifest.get("rows",0)>=898920 and manifest.get("source_exchanges")==["XT"]
+              assert manifest.get("crypto_only_verified") is True
+              assert model.get("corpus_sha256")==manifest.get("sha256")==report.get("corpus_sha256")
+              assert model.get("crypto_asset_registry_sha256")==manifest.get("crypto_asset_registry_sha256")==report.get("crypto_asset_registry_sha256")
+              assert set(model.get("symbols",[])).issubset(set(manifest.get("crypto_symbols",[])))
+              assert report.get("samples")==model.get("samples")
+              assert report.get("trained_at_utc")==model.get("trained_at_utc")
           print("APK package check passed: all neural assets and 10 models are present.")
           PY
       - name: Upload build diagnostics on failure

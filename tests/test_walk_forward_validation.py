@@ -33,6 +33,14 @@ def test_symbol_holdout_is_deterministic_and_disjoint():
     symbols = np.repeat(np.array(["BTC", "ETH", "SOL", "XRP", "DOGE"]), 4)
     train, test = deterministic_symbol_holdout(symbols, holdout_fraction=0.2)
     assert train.any() and test.any() and not np.any(train & test)
-    assert set(symbols[test]) == {"XRP"}
+    assert len(set(symbols[test])) == 1
     train2, test2 = deterministic_symbol_holdout(symbols, holdout_fraction=0.2)
     assert np.array_equal(train, train2) and np.array_equal(test, test2)
+
+
+def test_hash_ranked_symbol_holdout_keeps_full_tickers():
+    symbols=np.repeat(np.array(["BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT","DOGEUSDT"],dtype=object),3)
+    train,test=deterministic_symbol_holdout(symbols,holdout_fraction=0.2)
+    assert set(symbols[train]).isdisjoint(set(symbols[test]))
+    assert len(set(symbols[test]))==1
+    assert all(len(s)>4 and s.endswith("USDT") for s in symbols[test])
