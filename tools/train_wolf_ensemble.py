@@ -102,6 +102,18 @@ def expected_calibration_error(y_true, probabilities, bins=10):
         if np.any(mask): error += float(mask.mean())*abs(float(y_true[mask].mean())-float(probabilities[mask].mean()))
     return float(error)
 
+def train_majority_class_baseline_accuracy(y_train, y_test):
+    """Score a constant-majority classifier whose class is selected from train only."""
+    train = np.asarray(y_train)
+    test = np.asarray(y_test)
+    if train.ndim != 1 or test.ndim != 1 or train.size == 0 or test.size == 0:
+        raise ValueError("training and test labels must be non-empty one-dimensional arrays")
+    if not np.isin(train, (0, 1)).all() or not np.isin(test, (0, 1)).all():
+        raise ValueError("majority baseline requires binary labels")
+    majority_class = int(float(np.mean(train)) >= 0.5)
+    return majority_class, float(np.mean(test == majority_class))
+
+
 def balanced_bootstrap_indices(labels, seed, max_per_class=MAX_TRAIN_SAMPLES_PER_CLASS):
     """Return a deterministic, balanced and bounded training sample.
 
@@ -298,9 +310,13 @@ def main():
             "w4":model.coefs_[3][:,0].tolist(),"b4":float(model.intercepts_[3][0])})
         print(f"EXPERT {index+1}/10 {role}: {metrics[-1]}",flush=True)
     ensemble=np.mean(all_probabilities,axis=0)
+    baseline_class, baseline_accuracy = train_majority_class_baseline_accuracy(y_train, y_test)
     evaluation={"split":"chronological_purged","target":"future_price_direction_up_vs_down",
         "cutoff_timestamp_ms":int(cutoff),"purged_rows":int(purged),"positive_rate":round(float(y_test.mean()),6),
-        "majority_class_baseline_accuracy":round(float(max(y_test.mean(),1-y_test.mean())),4),
+        "majority_class_baseline_accuracy":round(baseline_accuracy,4),
+        "majority_class_baseline_class":baseline_class,
+        "majority_class_baseline_train_positive_rate":round(float(y_train.mean()),6),
+        "majority_class_baseline_selection_split":"train_only",
         "prevalence_baseline_log_loss":round(float(log_loss(y_test,np.full(len(y_test),float(y_train.mean())),labels=[0,1])),4),
         "ensemble_accuracy":round(float(accuracy_score(y_test,ensemble>=.5)),4),
         "ensemble_balanced_accuracy":round(float(balanced_accuracy_score(y_test,ensemble>=.5)),4),

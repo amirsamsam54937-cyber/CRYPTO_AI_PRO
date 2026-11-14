@@ -2,7 +2,21 @@ import numpy as np
 import pytest
 
 from tools.time_series_validation import chronological_masks
-from tools.train_wolf_ensemble import FEATURE_NAMES, HORIZON, SPECIALISTS, make_rows
+from tools.train_wolf_ensemble import (
+    FEATURE_NAMES, HORIZON, SPECIALISTS, make_rows,
+    train_majority_class_baseline_accuracy,
+)
+
+
+def test_majority_accuracy_baseline_selects_class_from_training_only():
+    # Test prevalence favors class 1, but the training-only majority is class 0.
+    y_train = np.array([0, 0, 0, 1], dtype=int)
+    y_test = np.array([1, 1, 1, 0, 0], dtype=int)
+
+    majority_class, test_accuracy = train_majority_class_baseline_accuracy(y_train, y_test)
+
+    assert majority_class == 0
+    assert test_accuracy == 0.4
 
 
 def test_chronological_split_keeps_same_timestamp_rows_together_and_purges_horizon():
