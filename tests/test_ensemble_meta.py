@@ -5,7 +5,7 @@ from tools.ensemble_meta import (
     estimate_member_weights,
     evaluate_consensus,
     expected_calibration_error,
-    estimate_regime_member_weights,
+    estimate_regime_member_weights,\n    select_abstention_threshold,
 )
 
 
@@ -79,6 +79,33 @@ class EnsembleMetaTests(unittest.TestCase):
         result = evaluate_consensus(ps, weights)
         self.assertFalse(result["approved"])
         self.assertEqual(result["direction"], "WAIT")
+
+
+    def test_abstention_gate_uses_calibration_quality_and_coverage(self):
+        outcomes = [1, 0] * 100
+        probabilities = [0.9, 0.1] * 100
+        result = select_abstention_threshold(
+            outcomes, probabilities, min_samples=100, minimum_balanced_accuracy=0.6,
+        )
+        self.assertTrue(result["enabled"])
+        self.assertEqual(result["threshold"], 0.55)
+        self.assertAlmostEqual(result["coverage"], 1.0)
+        self.assertAlmostEqual(result["balanced_accuracy"], 1.0)
+
+    def test_abstention_gate_fails_closed_when_calibration_is_weak(self):
+        outcomes = [0, 1] * 100
+        probabilities = [0.9, 0.1] * 100
+        result = select_abstention_threshold(
+            outcomes, probabilities, min_samples=100, minimum_balanced_accuracy=0.6,
+        )
+        self.assertFalse(result["enabled"])
+        self.assertGreater(result["threshold"], 1.0)
+
+    def test_abstention_gate_rejects_mismatched_or_invalid_inputs(self):
+        with self.assertRaises(ValueError):
+            select_abstention_threshold([1], [0.8, 0.9])
+        with self.assertRaises(ValueError):
+            select_abstention_threshold([2, 0], [0.8, 0.2])
 
     def test_rejects_nonfinite_probability_and_mismatched_members(self):
         with self.assertRaises(ValueError):
