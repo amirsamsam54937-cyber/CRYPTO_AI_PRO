@@ -237,7 +237,7 @@ def main():
     members=[]; metrics=[]; calibration_probabilities=[]; test_probabilities=[]
     for index,(role,mask_values) in enumerate(SPECIALISTS):
         mask=np.asarray(mask_values,dtype=bool)
-        a=A.copy(); b=B.copy(); a[:,~mask]=0.0; b[:,~mask]=0.0
+        a=A.copy(); c=C.copy(); b=B.copy(); a[:,~mask]=0.0; c[:,~mask]=0.0; b[:,~mask]=0.0
         model=MLPClassifier(hidden_layer_sizes=(64,32,16),activation="tanh",solver="adam",
             alpha=.002,learning_rate_init=.0015,max_iter=300,early_stopping=False,
             tol=1e-4,n_iter_no_change=22,random_state=20261112+index)
@@ -261,7 +261,7 @@ def main():
             raw_p=np.clip(model.predict_proba(features)[:,1],1e-6,1-1e-6)
             logits=np.log(raw_p/(1.0-raw_p))
             return 1.0/(1.0+np.exp(-np.clip(logits+prior_log_odds,-30.0,30.0)))
-        cal_probabilities=corrected_probability(C)
+        cal_probabilities=corrected_probability(c)
         probabilities=corrected_probability(B)
         calibration_probabilities.append(cal_probabilities)
         test_probabilities.append(probabilities)
