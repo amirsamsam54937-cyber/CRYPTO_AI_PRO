@@ -53,7 +53,7 @@ These are engineering guardrails, not a guarantee against losses or exchange-sid
 - It distinguishes Wallet Balance, Equity, Available Margin, Used Margin, and Open-Order Frozen Margin. The authenticated client reads the explicit USDT Futures balance fields and fails closed if the exchange response does not contain a recognized free-margin field; it does not guess free margin by subtracting assumed fields.
 - Contract sizing is constrained simultaneously by stop-loss risk budget, available margin, leverage cap, quantity step, minimum quantity, and minimum notional.
 - Baseline cost model includes entry fee, exit fee, adverse slippage on both sides, and expected funding. Funding is costed using the absolute rate, so a possible funding receipt is not counted as guaranteed profit.
-- The default cost baseline is Maker 0.02% / Taker 0.06%, based on XT's updated futures fee schedule; account VIP rates can differ. Actual exchange fill fee and funding records must reconcile the estimate and replace it in the realized-PnL ledger.
+- The default cost baseline is Maker 0.04% / Taker 0.06% (محافظه‌کارانه؛ XT در برخی سطوح VIP نرخ Maker پایین‌تری منتشر می‌کند), based on XT's updated futures fee schedule; account VIP rates can differ. Actual exchange fill fee and funding records must reconcile the estimate and replace it in the realized-PnL ledger.
 - Rejects a trade if estimated net target profit is non-positive or net reward/risk is below 1.2 after costs.
 - Current guardrails in the helper: 0.10%–1.00% equity risk input (default 0.50%), maximum 10% equity margin allocation per trade by default, and maximum 3x leverage.
 - Unit tests cover small balances, fees, adverse funding, insufficient margin, excessive leverage, and net-profit rejection.
