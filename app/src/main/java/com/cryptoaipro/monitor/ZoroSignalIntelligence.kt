@@ -101,13 +101,21 @@ internal object ZoroSignalIntelligence {
 
         val finalQuality = quality.coerceIn(0, 100)
         // Only reduce the displayed confidence; this layer never boosts a signal.
-        val penalty = when {
+        val qualityPenalty = when {
             finalQuality < 30 -> 18
             finalQuality < 42 -> 12
             finalQuality < 52 -> 7
             finalQuality < 62 -> 3
             else -> 0
         }
+        val evidencePenalty =
+            (if (technicalSide != side && technicalSide != "NEUTRAL") 6 else 0) +
+            (if (neuralSide == "LONG_BIAS" || neuralSide == "SHORT_BIAS") {
+                if (neuralSide != side) 8 else 0
+            } else 0) +
+            (if (rr == null) 8 else if (rr < 1.0) 10 else if (rr < 1.5) 5 else 0) +
+            (if (uncertainty.highDisagreement) 5 else 0)
+        val penalty = maxOf(qualityPenalty, evidencePenalty).coerceIn(0, 20)
         return Assessment(finalQuality, penalty, warnings.distinct())
     }
 
