@@ -122,6 +122,20 @@ internal object XtFuturesCapitalManager {
 
     data class Decision(val allowed: Boolean, val reason: String, val plan: Plan? = null)
 
+    fun planAdaptive(
+        wallet: Wallet,
+        fees: Fees,
+        rules: ContractRules,
+        request: Request,
+        portfolio: PortfolioState
+    ): Decision {
+        val policy = riskPolicy(portfolio)
+        if (!policy.allowNewTrades) return Decision(false, policy.reason)
+        return plan(wallet, fees, rules, request.copy(
+            riskFraction = min(request.riskFraction, policy.riskFraction)
+        ))
+    }
+
     /**
      * Uses the standard XT futures schedule as a conservative baseline (maker 2bp,
      * taker 6bp). Account/VIP-specific actual fills must replace estimates in the
