@@ -1,8 +1,6 @@
 package com.cryptoaipro.monitor
 
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 
 /**
  * Deterministic, explainable post-model quality review.
@@ -97,7 +95,7 @@ internal object ZoroSignalIntelligence {
         }
 
         val uncertainty = signal.neuralUncertainty
-        if (uncertainty.disagreementPercent >= 40) {
+        if (uncertainty.highDisagreement) {
             quality -= 8; warnings += "اختلاف زیاد بین اعضای شبکه عصبی"
         }
 
