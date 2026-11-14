@@ -177,7 +177,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                 signal.copy(
                     neuralScore = rawDirectionScore,
                     neuralDirection = research?.predictedDirection ?: rawPredictedSide,
-                    neuralModelSource = "۱۰ شبکه عصبی • رأی پژوهشی مستقل • خارج از تصمیم نهایی تا اعتبارسنجی",
+                    neuralModelSource = "۱۰ شبکه عصبی • پیش‌بینی ۶ساعته • نظر کمکی تا اعتبارسنجی مستقل",
                     neuralMemberVotes = memberVotes,
                     neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
                 )
