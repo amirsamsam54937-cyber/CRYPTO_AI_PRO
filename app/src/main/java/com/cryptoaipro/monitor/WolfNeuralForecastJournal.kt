@@ -118,6 +118,33 @@ internal object WolfNeuralForecastJournal {
         return snapshot((0 until rows.length()).mapNotNull { rows.optJSONObject(it) })
     }
 
+    internal fun metrics(probabilities: List<Double>, labels: List<Int>, index: Int): MemberStats {
+        val count = minOf(probabilities.size, labels.size)
+        if (count == 0) return MemberStats(index, 0, 0, 0.0, 0.0, 0.0, 0.0)
+        var correct = 0
+        var voted = 0
+        var brier = 0.0
+        var logLoss = 0.0
+        for (i in 0 until count) {
+            val p = probabilities[i].coerceIn(1e-6, 1.0 - 1e-6)
+            val y = labels[i]
+            brier += (p - y) * (p - y)
+            logLoss += -(y * ln(p) + (1 - y) * ln(1.0 - p))
+            val prediction = when {
+                p >= 0.55 -> 1
+                p <= 0.45 -> 0
+                else -> -1
+            }
+            if (prediction >= 0) {
+                voted++
+                if (prediction == y) correct++
+            }
+        }
+        return MemberStats(index, count, correct,
+            if (voted == 0) 0.0 else correct.toDouble() / voted,
+            brier / count, logLoss / count, voted.toDouble() / count)
+    }
+
     private fun snapshot(rows: List<JSONObject>): Snapshot {
         val evaluated = rows.filter {
             it.optBoolean("closed") && !it.optBoolean("neutral") && !it.optBoolean("stale") &&
@@ -126,33 +153,6 @@ internal object WolfNeuralForecastJournal {
         val neutral = rows.count { it.optBoolean("closed") && it.optBoolean("neutral") }
         val stale = rows.count { it.optBoolean("stale") }
         val pending = rows.count { !it.optBoolean("closed") }
-
-        internal fun metrics(probabilities: List<Double>, labels: List<Int>, index: Int): MemberStats {
-            val count = minOf(probabilities.size, labels.size)
-            if (count == 0) return MemberStats(index, 0, 0, 0.0, 0.0, 0.0, 0.0)
-            var correct = 0
-            var voted = 0
-            var brier = 0.0
-            var logLoss = 0.0
-            for (i in 0 until count) {
-                val p = probabilities[i].coerceIn(1e-6, 1.0 - 1e-6)
-                val y = labels[i]
-                brier += (p - y) * (p - y)
-                logLoss += -(y * ln(p) + (1 - y) * ln(1.0 - p))
-                val prediction = when {
-                    p >= 0.55 -> 1
-                    p <= 0.45 -> 0
-                    else -> -1
-                }
-                if (prediction >= 0) {
-                    voted++
-                    if (prediction == y) correct++
-                }
-            }
-            return MemberStats(index, count, correct,
-                if (voted == 0) 0.0 else correct.toDouble() / voted,
-                brier / count, logLoss / count, voted.toDouble() / count)
-        }
 
         val labels = evaluated.map { it.optInt("outcome") }
         val memberStats = (0 until EXPERTS).map { index ->
