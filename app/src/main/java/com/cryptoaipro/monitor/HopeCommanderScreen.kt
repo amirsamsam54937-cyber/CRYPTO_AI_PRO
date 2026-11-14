@@ -191,7 +191,7 @@ internal fun HopeCommanderScreen(
         }
         item {
             HPanelCard(Modifier.fillMaxWidth(), "ده متخصص هوش مصنوعی") {
-                val names = listOf("ساختار بازار","مومنتوم","حجم","نوسان","نقدینگی","جریان سفارش","مشتقات","اخبار","رژیم بازار","پیش‌بینی")
+                val names = best?.neuralMemberRoles?.takeIf { it.size == 10 } ?: List(10) { "شبکه ${it + 1}" }
                 for (row in 0..1) {
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         for (col in 0..4) {
@@ -213,6 +213,10 @@ internal fun HopeCommanderScreen(
                         }
                     }
                     if (row == 0) Spacer(Modifier.height(5.dp))
+                }
+                Text("رژیم تشخیص‌داده‌شده توسط شبکه‌ها: ${best?.neuralMarketRegime ?: "نامشخص"}", color = HGold, fontSize = 9.sp)
+                best?.neuralMemberWeights?.takeIf { it.size == 10 }?.let { weights ->
+                    Text("وزن هر شبکه: " + weights.mapIndexed { i, w -> "${i + 1}: ${(w * 100).toInt()}٪" }.joinToString("  "), color = HMuted, fontSize = 8.sp)
                 }
                 Text(if (neuralActive) "خروجی مدل‌های اعتبارسنجی‌شده در داوری فرمانده لحاظ می‌شود"
                     else "نظر مدل‌ها صرفاً پژوهشی است؛ تا عبور از آزمون مستقل، وزن تصمیم‌گیری آن‌ها صفر است",
