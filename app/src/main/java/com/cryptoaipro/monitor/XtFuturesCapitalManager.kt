@@ -31,7 +31,7 @@ internal object XtFuturesCapitalManager {
     }
 
     data class Fees(
-        val makerRate: Double = 0.0002,
+        val makerRate: Double = 0.0004,
         val takerRate: Double = 0.0006,
         val expectedEntryAsTaker: Boolean = true,
         val expectedExitAsTaker: Boolean = true
