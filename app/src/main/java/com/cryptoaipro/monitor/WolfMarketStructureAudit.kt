@@ -33,8 +33,8 @@ internal object WolfMarketStructureAudit {
                     c[1] >= maxOf(c[0], c[3]) && c[2] <= minOf(c[0], c[3]) &&
                     c[1] >= c[2] && c[4] >= 0.0
             }
-            .takeLast(maxBars)
             .toList()
+            .takeLast(maxBars)
         if (valid.size < leftBars + rightBars + 5) return unavailable()
 
         val pivots = mutableListOf<Pivot>()
