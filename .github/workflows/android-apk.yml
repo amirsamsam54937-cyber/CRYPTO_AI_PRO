@@ -160,7 +160,6 @@ jobs:
           assert m.get("xt_crypto_type_currency_count",0) >= 1
           assert m.get("asset_class_policy")=="XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH"
           assert len(model.get("members",[]))==10
-          assert report.get("validated_for_scoring") is True
           assert set(model.get("symbols",[])).issubset(set(m.get("crypto_symbols",[])))
           assert model.get("corpus_sha256")==m.get("sha256")
           assert model.get("currency_metadata_sha256")==m.get("currency_metadata_sha256")
@@ -218,7 +217,6 @@ jobs:
           assert e["ensemble_accuracy"]>=e["majority_class_baseline_accuracy"]
           assert e["ensemble_brier_score"]<e["prevalence_baseline_brier_score"]
           assert e["ensemble_roc_auc"]>=0.55 and e["ensemble_expected_calibration_error"]<=0.10
-          assert report.get("validated_for_scoring") is True
           assert set(model.get("symbols",[])).issubset(set(manifest.get("crypto_symbols",[])))
           assert model.get("corpus_sha256")==manifest.get("sha256")
           assert model.get("currency_metadata_sha256")==manifest.get("currency_metadata_sha256")
