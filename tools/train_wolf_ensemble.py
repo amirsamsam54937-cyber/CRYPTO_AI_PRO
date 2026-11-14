@@ -12,7 +12,7 @@ try:
     from tools.advanced_validation import evaluate_generalization
     from tools.wilder_indicators import wilder_atr, wilder_adx
     from tools.regime_analysis import specialist_regime_breakdown, classify_regime
-    from tools.ensemble_meta import estimate_regime_member_weights
+    from tools.ensemble_meta import estimate_regime_member_weights, select_abstention_threshold
 except ModuleNotFoundError:
     from time_series_validation import three_way_chronological_masks
     from advanced_validation import evaluate_generalization
@@ -293,12 +293,27 @@ def main():
         for (role,_),probability in zip(SPECIALISTS,member_probs):
             regime_history[label][role].append((float(probability),int(outcome)))
     regime_calibration=estimate_regime_member_weights(regime_history,min_observations=40)
-    ensemble=[]; test_regimes=[classify_regime(row) for row in X_test]
-    for row_index,regime in enumerate(test_regimes):
-        weights=regime_calibration["regimes"][regime]["weights"]
-        ensemble.append(sum(weights[role]*float(test_probabilities[member_index][row_index])
-                            for member_index,(role,_) in enumerate(SPECIALISTS)))
-    ensemble=np.asarray(ensemble,dtype=float)
+    def combine_by_regime(features, member_probability_arrays):
+        regimes=[classify_regime(row) for row in features]
+        combined=[]
+        for row_index,regime in enumerate(regimes):
+            weights=regime_calibration["regimes"][regime]["weights"]
+            combined.append(sum(weights[role]*float(member_probability_arrays[member_index][row_index])
+                                for member_index,(role,_) in enumerate(SPECIALISTS)))
+        return np.asarray(combined,dtype=float),regimes
+    calibration_ensemble,calibration_regimes=combine_by_regime(X_cal,calibration_probabilities)
+    ensemble,test_regimes=combine_by_regime(X_test,test_probabilities)
+    signal_policy=select_abstention_threshold(
+        y_cal.astype(int).tolist(),calibration_ensemble.tolist(),
+        min_samples=100,minimum_balanced_accuracy=0.52)
+    confidence=np.maximum(ensemble,1.0-ensemble)
+    emitted=confidence>=float(signal_policy["threshold"])
+    selected_y=y_test[emitted]
+    selected_pred=(ensemble[emitted]>=0.5).astype(int)
+    selective_balanced_accuracy=None
+    if len(selected_y) and len(np.unique(selected_y))==2:
+        selective_balanced_accuracy=float(balanced_accuracy_score(selected_y,selected_pred))
+    selective_accuracy=float(accuracy_score(selected_y,selected_pred)) if len(selected_y) else None
     evaluation={"split":"purged_train_calibration_final_test","target":"future_price_direction_up_vs_down",
         "calibration_cutoff_timestamp_ms":int(cal_cutoff),"final_test_cutoff_timestamp_ms":int(test_cutoff),
         "purged_rows":int(purged),"calibration_samples":int(len(y_cal)),"positive_rate":round(float(y_test.mean()),6),
@@ -310,7 +325,7 @@ def main():
         "ensemble_brier_score":round(float(brier_score_loss(y_test,ensemble)),4),
         "prevalence_baseline_brier_score":round(float(np.mean((y_test-float(y_train.mean()))**2)),4),
         "ensemble_expected_calibration_error":round(expected_calibration_error(y_test,ensemble),4),
-        "ensemble_roc_auc":round(float(roc_auc_score(y_test,ensemble)),4)}
+        "ensemble_roc_auc":round(float(roc_auc_score(y_test,ensemble)),4),\n        "signal_coverage":round(float(emitted.mean()),4),\n        "signals_emitted":int(emitted.sum()),\n        "selective_accuracy":round(selective_accuracy,4) if selective_accuracy is not None else None,\n        "selective_balanced_accuracy":round(selective_balanced_accuracy,4) if selective_balanced_accuracy is not None else None}
     output={"format":"amir-wolf-ensemble-v2","trained_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
         "interval":INTERVAL,"horizon_bars":HORIZON,"feature_names":FEATURE_NAMES,
         "regime_diagnostics":{"method":"deterministic_feature_thresholds","regimes":["high_volatility","low_volatility","trend_up","trend_down","range"],"per_specialist_final_test_metrics":True,"min_samples_per_regime":30,"calibration":regime_calibration,"runtime_weighting_enabled":False},
@@ -324,7 +339,7 @@ def main():
         "samples":int(len(X)),"train_samples":int(len(X_train)),"calibration_samples":int(len(X_cal)),"test_samples":int(len(X_test)),
         "feature_mean":scaler.mean_.tolist(),"feature_scale":scaler.scale_.tolist(),
         "training_prior_log_odds":float(np.log(np.clip(y_train.mean(),1e-4,1-1e-4)/(1.0-np.clip(y_train.mean(),1e-4,1-1e-4)))),
-        "evaluation":evaluation,"walk_forward":generalization["walk_forward"],
+        "evaluation":evaluation,"signal_policy":signal_policy,"walk_forward":generalization["walk_forward"],
         "cross_symbol_holdout":generalization["cross_symbol_holdout"],
         "training_sampling":{"method":"deterministic_balanced_bootstrap","max_samples_per_class":MAX_TRAIN_SAMPLES_PER_CLASS,"actual_samples_per_class":int(len(balanced_idx)//2)},"metrics":metrics,"members":members}
     os.makedirs("app/src/main/assets",exist_ok=True)
