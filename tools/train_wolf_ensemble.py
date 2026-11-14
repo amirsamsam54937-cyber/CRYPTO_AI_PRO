@@ -11,10 +11,12 @@ try:
     from tools.time_series_validation import chronological_masks
     from tools.advanced_validation import evaluate_generalization
     from tools.wilder_indicators import wilder_atr, wilder_adx
+    from tools.regime_analysis import specialist_regime_breakdown
 except ModuleNotFoundError:
     from time_series_validation import chronological_masks
     from advanced_validation import evaluate_generalization
     from wilder_indicators import wilder_atr, wilder_adx
+    from regime_analysis import specialist_regime_breakdown
 
 DATA_SOURCE = "verified XT USDT-M crypto-only historical corpus"
 MIN_LABELED_SAMPLES = 250_000
@@ -255,7 +257,11 @@ def main():
         prior_log_odds=np.log(train_prevalence/(1.0-train_prevalence))
         probabilities=1.0/(1.0+np.exp(-np.clip(raw_logits+prior_log_odds,-30.0,30.0)))
         all_probabilities.append(probabilities)
+        regime_breakdown = specialist_regime_breakdown(
+            X_test.tolist(), y_test.astype(int).tolist(), probabilities.tolist()
+        )
         metrics.append({"member":index+1,"role":role,
+            "regime_breakdown":regime_breakdown,
             "accuracy":round(float(accuracy_score(y_test,probabilities>=.5)),4),
             "balanced_accuracy":round(float(balanced_accuracy_score(y_test,probabilities>=.5)),4),
             "log_loss":round(float(log_loss(y_test,np.clip(probabilities,1e-6,1-1e-6))),4),
@@ -286,6 +292,7 @@ def main():
         "ensemble_roc_auc":round(float(roc_auc_score(y_test,ensemble)),4)}
     output={"format":"amir-wolf-ensemble-v2","trained_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
         "interval":INTERVAL,"horizon_bars":HORIZON,"feature_names":FEATURE_NAMES,
+        "regime_diagnostics":{"method":"deterministic_feature_thresholds","regimes":["high_volatility","low_volatility","trend_up","trend_down","range"],"per_specialist_holdout_metrics":True,"min_samples_per_regime":30,"runtime_weighting_enabled":False},
         "target_definition":"future_return_6h_up_vs_down_neutral_band_excluded",
         "specialist_roles":[x[0] for x in SPECIALISTS],"symbols":sorted(used_symbols),"symbols_count":len(used_symbols),
         "data_source_policy":"XT_USDT_M_CRYPTO_ONLY","asset_class_policy":"XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH",
