@@ -8,15 +8,17 @@ feature mask so the ensemble contains genuine specialist diversity.
 import csv, json, os, time
 import numpy as np
 try:
-    from tools.time_series_validation import chronological_masks
+    from tools.time_series_validation import three_way_chronological_masks
     from tools.advanced_validation import evaluate_generalization
     from tools.wilder_indicators import wilder_atr, wilder_adx
-    from tools.regime_analysis import specialist_regime_breakdown
+    from tools.regime_analysis import specialist_regime_breakdown, classify_regime
+    from tools.ensemble_meta import estimate_regime_member_weights
 except ModuleNotFoundError:
-    from time_series_validation import chronological_masks
+    from time_series_validation import three_way_chronological_masks
     from advanced_validation import evaluate_generalization
     from wilder_indicators import wilder_atr, wilder_adx
-    from regime_analysis import specialist_regime_breakdown
+    from regime_analysis import specialist_regime_breakdown, classify_regime
+    from ensemble_meta import estimate_regime_member_weights
 
 DATA_SOURCE = "verified XT USDT-M crypto-only historical corpus"
 MIN_LABELED_SAMPLES = 250_000
@@ -225,12 +227,14 @@ def main():
         raise SystemExit(f"Only {len(X):,} crypto-only labeled samples; at least {MIN_LABELED_SAMPLES:,} are required.")
     if len(np.unique(y))<2: raise SystemExit("Insufficient directional history or only one class.")
     generalization = evaluate_generalization(X,y,ts,symbols,horizon_bars=HORIZON,n_splits=3)
-    train_mask,test_mask,purged,cutoff=chronological_masks(ts)
-    X_train,X_test=X[train_mask],X[test_mask]; y_train,y_test=y[train_mask],y[test_mask]
-    if len(np.unique(y_train))<2 or len(np.unique(y_test))<2: raise SystemExit("Both chronological partitions need both labels.")
+    train_mask,cal_mask,test_mask,purged,cal_cutoff,test_cutoff=three_way_chronological_masks(ts,horizon_bars=HORIZON)
+    X_train,X_cal,X_test=X[train_mask],X[cal_mask],X[test_mask]
+    y_train,y_cal,y_test=y[train_mask],y[cal_mask],y[test_mask]
+    if any(len(np.unique(part))<2 for part in (y_train,y_cal,y_test)):
+        raise SystemExit("Train, calibration and final-test partitions each need both labels.")
     scaler=StandardScaler().fit(X_train)
-    A,B=scaler.transform(X_train),scaler.transform(X_test)
-    members=[]; metrics=[]; all_probabilities=[]
+    A,C,B=scaler.transform(X_train),scaler.transform(X_cal),scaler.transform(X_test)
+    members=[]; metrics=[]; calibration_probabilities=[]; test_probabilities=[]
     for index,(role,mask_values) in enumerate(SPECIALISTS):
         mask=np.asarray(mask_values,dtype=bool)
         a=A.copy(); b=B.copy(); a[:,~mask]=0.0; b[:,~mask]=0.0
@@ -251,12 +255,16 @@ def main():
             warnings.simplefilter("always", ConvergenceWarning)
             model.fit(a[balanced_idx],y_train[balanced_idx])
         convergence_warning=any(issubclass(item.category,ConvergenceWarning) for item in caught_warnings)
-        raw_probabilities=np.clip(model.predict_proba(b)[:,1],1e-6,1-1e-6)
         train_prevalence=float(np.clip(y_train.mean(),1e-4,1-1e-4))
-        raw_logits=np.log(raw_probabilities/(1.0-raw_probabilities))
         prior_log_odds=np.log(train_prevalence/(1.0-train_prevalence))
-        probabilities=1.0/(1.0+np.exp(-np.clip(raw_logits+prior_log_odds,-30.0,30.0)))
-        all_probabilities.append(probabilities)
+        def corrected_probability(features):
+            raw_p=np.clip(model.predict_proba(features)[:,1],1e-6,1-1e-6)
+            logits=np.log(raw_p/(1.0-raw_p))
+            return 1.0/(1.0+np.exp(-np.clip(logits+prior_log_odds,-30.0,30.0)))
+        cal_probabilities=corrected_probability(C)
+        probabilities=corrected_probability(B)
+        calibration_probabilities.append(cal_probabilities)
+        test_probabilities.append(probabilities)
         regime_breakdown = specialist_regime_breakdown(
             X_test.tolist(), y_test.astype(int).tolist(), probabilities.tolist()
         )
@@ -278,9 +286,22 @@ def main():
             "w3":model.coefs_[2].T.tolist(),"b3":model.intercepts_[2].tolist(),
             "w4":model.coefs_[3][:,0].tolist(),"b4":float(model.intercepts_[3][0])})
         print(f"EXPERT {index+1}/10 {role}: {metrics[-1]}",flush=True)
-    ensemble=np.mean(all_probabilities,axis=0)
-    evaluation={"split":"chronological_purged","target":"future_price_direction_up_vs_down",
-        "cutoff_timestamp_ms":int(cutoff),"purged_rows":int(purged),"positive_rate":round(float(y_test.mean()),6),
+    regime_history={name:{role:[] for role,_ in SPECIALISTS}
+                    for name in ("high_volatility","low_volatility","trend_up","trend_down","range")}
+    for row,label,outcome,member_probs in zip(X_cal,[classify_regime(row) for row in X_cal],y_cal,
+                                               zip(*calibration_probabilities)):
+        for (role,_),probability in zip(SPECIALISTS,member_probs):
+            regime_history[label][role].append((float(probability),int(outcome)))
+    regime_calibration=estimate_regime_member_weights(regime_history,min_observations=40)
+    ensemble=[]; test_regimes=[classify_regime(row) for row in X_test]
+    for row_index,regime in enumerate(test_regimes):
+        weights=regime_calibration["regimes"][regime]["weights"]
+        ensemble.append(sum(weights[role]*float(test_probabilities[member_index][row_index])
+                            for member_index,(role,_) in enumerate(SPECIALISTS)))
+    ensemble=np.asarray(ensemble,dtype=float)
+    evaluation={"split":"purged_train_calibration_final_test","target":"future_price_direction_up_vs_down",
+        "calibration_cutoff_timestamp_ms":int(cal_cutoff),"final_test_cutoff_timestamp_ms":int(test_cutoff),
+        "purged_rows":int(purged),"calibration_samples":int(len(y_cal)),"positive_rate":round(float(y_test.mean()),6),
         "majority_class_baseline_accuracy":round(float(max(y_test.mean(),1-y_test.mean())),4),
         "prevalence_baseline_log_loss":round(float(log_loss(y_test,np.full(len(y_test),float(y_train.mean())),labels=[0,1])),4),
         "ensemble_accuracy":round(float(accuracy_score(y_test,ensemble>=.5)),4),
@@ -292,7 +313,7 @@ def main():
         "ensemble_roc_auc":round(float(roc_auc_score(y_test,ensemble)),4)}
     output={"format":"amir-wolf-ensemble-v2","trained_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
         "interval":INTERVAL,"horizon_bars":HORIZON,"feature_names":FEATURE_NAMES,
-        "regime_diagnostics":{"method":"deterministic_feature_thresholds","regimes":["high_volatility","low_volatility","trend_up","trend_down","range"],"per_specialist_holdout_metrics":True,"min_samples_per_regime":30,"runtime_weighting_enabled":False},
+        "regime_diagnostics":{"method":"deterministic_feature_thresholds","regimes":["high_volatility","low_volatility","trend_up","trend_down","range"],"per_specialist_final_test_metrics":True,"min_samples_per_regime":30,"calibration":regime_calibration,"runtime_weighting_enabled":False},
         "target_definition":"future_return_6h_up_vs_down_neutral_band_excluded",
         "specialist_roles":[x[0] for x in SPECIALISTS],"symbols":sorted(used_symbols),"symbols_count":len(used_symbols),
         "data_source_policy":"XT_USDT_M_CRYPTO_ONLY","asset_class_policy":"XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH",
@@ -300,7 +321,7 @@ def main():
         "currency_metadata_sha256":corpus_manifest.get("currency_metadata_sha256",""),
          "crypto_asset_registry_source":corpus_manifest.get("crypto_asset_registry_source",""),
          "crypto_asset_registry_sha256":corpus_manifest.get("crypto_asset_registry_sha256",""),
-        "samples":int(len(X)),"train_samples":int(len(X_train)),"test_samples":int(len(X_test)),
+        "samples":int(len(X)),"train_samples":int(len(X_train)),"calibration_samples":int(len(X_cal)),"test_samples":int(len(X_test)),
         "feature_mean":scaler.mean_.tolist(),"feature_scale":scaler.scale_.tolist(),
         "training_prior_log_odds":float(np.log(np.clip(y_train.mean(),1e-4,1-1e-4)/(1.0-np.clip(y_train.mean(),1e-4,1-1e-4)))),
         "evaluation":evaluation,"walk_forward":generalization["walk_forward"],
