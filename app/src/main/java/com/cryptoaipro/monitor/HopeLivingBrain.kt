@@ -51,7 +51,8 @@ internal object HopeLivingBrain {
         val neuralReady: Boolean,
         val neuralManagement: String,
         val mode: String,
-        val lastCycle: Long
+        val lastCycle: Long,
+        val neuralForecast: WolfNeuralForecastJournal.Snapshot
     )
 
     fun status(context: Context): Status {
@@ -72,7 +73,8 @@ internal object HopeLivingBrain {
         return Status(
             p.getInt("cycles", 0), learning.samples, learning.pending,
             HopeResearchEngine.memoryCount(context), winRate, online, interval, auto,
-            ready, neuralManagement, mode, p.getLong("last_cycle_at", 0L)
+            ready, neuralManagement, mode, p.getLong("last_cycle_at", 0L),
+            WolfNeuralForecastJournal.snapshot(context)
         )
     }
 
@@ -218,6 +220,30 @@ internal fun HopeLivingBrainPanel(context: Context, onIntervalChanged: (Int) -> 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("اعتماد خروجی شبکه آنلاین: ${status.onlineConfidence}٪ • مشورتی", color = muted, fontSize = 10.sp)
                 Text(if (status.neuralReady) "مدل اصلی معتبر" else "مدل اصلی نیازمند اعتبارسنجی", color = if (status.neuralReady) Color(0xFF73D6A0) else gold, fontSize = 9.sp)
+            }
+            val forecast = status.neuralForecast
+            Text("آزمون مستقل ۱۰ شبکه عصبی • افق واقعی ۶ ساعت", color = Color.White, fontSize = 11.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("ارزیابی‌شده: ${forecast.evaluated}", color = muted, fontSize = 9.sp)
+                Text("در انتظار: ${forecast.pending}", color = muted, fontSize = 9.sp)
+                Text("خنثی: ${forecast.neutral}", color = muted, fontSize = 9.sp)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("دقت رأی مجموعه: ${String.format(java.util.Locale.US, "%.1f", forecast.ensembleAccuracy * 100.0)}٪", color = muted, fontSize = 9.sp)
+                Text("Brier: ${String.format(java.util.Locale.US, "%.3f", forecast.ensembleBrier)}", color = muted, fontSize = 9.sp)
+            }
+            if (forecast.evaluated == 0) {
+                Text("پس از بسته‌شدن افق ۶ساعته، عملکرد هر شبکه اینجا ثبت می‌شود.", color = muted, fontSize = 9.sp)
+            } else {
+                forecast.members.forEach { member ->
+                    val best = forecast.bestMember?.index == member.index
+                    Text(
+                        "شبکه ${member.index} • نمونه ${member.samples} • دقت رأی ${String.format(java.util.Locale.US, "%.0f", member.accuracy * 100.0)}٪ • پوشش ${String.format(java.util.Locale.US, "%.0f", member.coverage * 100.0)}٪ • Brier ${String.format(java.util.Locale.US, "%.3f", member.brier)}" + if (best) " • بهترین فعلی" else "",
+                        color = if (best) gold else muted,
+                        fontSize = 9.sp,
+                        lineHeight = 13.sp
+                    )
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
