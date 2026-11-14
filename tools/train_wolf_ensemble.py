@@ -18,7 +18,7 @@ except ModuleNotFoundError:
     from advanced_validation import evaluate_generalization
     from wilder_indicators import wilder_atr, wilder_adx
     from regime_analysis import specialist_regime_breakdown, classify_regime
-    from ensemble_meta import estimate_regime_member_weights
+    from ensemble_meta import estimate_regime_member_weights, select_abstention_threshold
 
 DATA_SOURCE = "verified XT USDT-M crypto-only historical corpus"
 MIN_LABELED_SAMPLES = 250_000
@@ -325,7 +325,11 @@ def main():
         "ensemble_brier_score":round(float(brier_score_loss(y_test,ensemble)),4),
         "prevalence_baseline_brier_score":round(float(np.mean((y_test-float(y_train.mean()))**2)),4),
         "ensemble_expected_calibration_error":round(expected_calibration_error(y_test,ensemble),4),
-        "ensemble_roc_auc":round(float(roc_auc_score(y_test,ensemble)),4),\n        "signal_coverage":round(float(emitted.mean()),4),\n        "signals_emitted":int(emitted.sum()),\n        "selective_accuracy":round(selective_accuracy,4) if selective_accuracy is not None else None,\n        "selective_balanced_accuracy":round(selective_balanced_accuracy,4) if selective_balanced_accuracy is not None else None}
+        "ensemble_roc_auc":round(float(roc_auc_score(y_test,ensemble)),4),
+        "signal_coverage":round(float(emitted.mean()),4),
+        "signals_emitted":int(emitted.sum()),
+        "selective_accuracy":round(selective_accuracy,4) if selective_accuracy is not None else None,
+        "selective_balanced_accuracy":round(selective_balanced_accuracy,4) if selective_balanced_accuracy is not None else None}
     output={"format":"amir-wolf-ensemble-v2","trained_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
         "interval":INTERVAL,"horizon_bars":HORIZON,"feature_names":FEATURE_NAMES,
         "regime_diagnostics":{"method":"deterministic_feature_thresholds","regimes":["high_volatility","low_volatility","trend_up","trend_down","range"],"per_specialist_final_test_metrics":True,"min_samples_per_regime":30,"calibration":regime_calibration,"runtime_weighting_enabled":False},
