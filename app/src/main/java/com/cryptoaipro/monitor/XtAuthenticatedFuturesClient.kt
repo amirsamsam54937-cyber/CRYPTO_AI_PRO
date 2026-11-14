@@ -1,13 +1,8 @@
 package com.cryptoaipro.monitor
 
 import android.content.Context
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
-import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.math.BigDecimal
@@ -15,13 +10,6 @@ import java.math.RoundingMode
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
-import java.security.KeyStore
-import java.util.UUID
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.Mac
-import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.SecretKeySpec
 
 /**
  * Authenticated XT USDT-M futures transport.
@@ -51,7 +39,6 @@ internal class XtAuthenticatedFuturesClient(
     private val context: Context
 ) {
     private val baseUrl = "https://fapi.xt.com"
-    private val entryMutex = Mutex()
 
     private fun normalizeSymbol(value: String): String {
         val compact = value.lowercase().filter(Char::isLetterOrDigit)
@@ -59,17 +46,8 @@ internal class XtAuthenticatedFuturesClient(
         return compact.dropLast(4) + "_usdt"
     }
 
-    private fun signature(secret: String, payload: String): String {
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(secret.toByteArray(StandardCharsets.UTF_8), "HmacSHA256"))
-        return mac.doFinal(payload.toByteArray(StandardCharsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
-    }
-
     private fun canonicalQuery(values: Map<String, String>): String =
-        values.toSortedMap().entries.joinToString("&") { (k, v) ->
-            java.net.URLEncoder.encode(k, "UTF-8") + "=" + java.net.URLEncoder.encode(v, "UTF-8")
-        }
+        XtRequestSigner.canonicalQuery(values)
 
     private suspend fun request(
         method: String,
@@ -84,9 +62,14 @@ internal class XtAuthenticatedFuturesClient(
         val queryString = canonicalQuery(query)
         val bodyText = body?.toString().orEmpty()
         val signedPart = if (method == "GET") queryString else bodyText
-        val fixedHeader = "validate-appkey=$appKey&validate-timestamp=$timestamp"
-        val signingText = "$fixedHeader#$path" + if (signedPart.isNotEmpty()) "#$signedPart" else ""
-        val sig = signature(secret, signingText)
+        val signingText = XtRequestSigner.signingPayload(
+            appKey = appKey,
+            timestampMs = timestamp,
+            endpoint = path,
+            queryString = if (method == "GET") queryString else "",
+            exactJsonBody = if (method == "GET") null else bodyText
+        )
+        val sig = XtRequestSigner.sign(secret, signingText)
         val urlText = baseUrl + path + if (method == "GET" && queryString.isNotEmpty()) "?$queryString" else ""
         val connection = (URL(urlText).openConnection() as HttpURLConnection)
         try {
@@ -98,6 +81,7 @@ internal class XtAuthenticatedFuturesClient(
             connection.setRequestProperty("validate-appkey", appKey)
             connection.setRequestProperty("validate-timestamp", timestamp)
             connection.setRequestProperty("validate-signature", sig)
+            connection.setRequestProperty("validate-recvwindow", "5000")
             if (method != "GET") {
                 connection.doOutput = true
                 connection.outputStream.use { it.write(bodyText.toByteArray(StandardCharsets.UTF_8)) }
@@ -110,7 +94,8 @@ internal class XtAuthenticatedFuturesClient(
                 throw IllegalStateException("XT HTTP $code" + if (message.isNotBlank()) ": ${message.take(120)}" else "")
             }
             val response = JSONObject(raw)
-            val returnCode = response.optInt("returnCode", 0)
+            require(response.has("returnCode")) { "پاسخ XT فاقد returnCode است؛ نتیجه درخواست قابل تأیید نیست." }
+            val returnCode = response.optInt("returnCode", Int.MIN_VALUE)
             if (returnCode != 0) {
                 val error = response.optJSONObject("error")
                 throw IllegalStateException("XT خطای API: " + (error?.optString("msg")?.take(140) ?: response.optString("msgInfo", "نامشخص")))
@@ -225,17 +210,6 @@ internal class XtAuthenticatedFuturesClient(
         )
     }
 
-    suspend fun setLeverage(symbol: String, side: String, leverage: Int) {
-        val normalizedSymbol = normalizeSymbol(symbol)
-        require(side == "LONG" || side == "SHORT") { "جهت پوزیشن نامعتبر است." }
-        require(leverage in 1..5) { "اهرم خارج از محدوده محافظه‌کارانه ZORO است." }
-        val body = JSONObject()
-            .put("symbol", normalizedSymbol)
-            .put("positionSide", side)
-            .put("leverage", leverage)
-        request("POST", "/future/user/v1/position/adjust-leverage", body = body)
-    }
-
     data class ContractSizing(
         val contracts: Long,
         val riskBudgetUsdt: Double,
@@ -260,7 +234,7 @@ internal class XtAuthenticatedFuturesClient(
         marginFraction: Double = 0.10
     ): ContractSizing {
         require(listOf(equityUsdt, availableUsdt, entry, stop, contractSize).all { it.isFinite() && it > 0.0 })
-        require(entry != stop && leverage in 1..5)
+        require(entry != stop && leverage in 1..3)
         require(riskFraction in 0.001..0.01 && marginFraction in 0.02..0.15 &&
             takerFeeRate in 0.0..0.02 && slippageRate in 0.0..0.02)
         val riskBudget = equityUsdt * riskFraction
@@ -288,92 +262,6 @@ internal class XtAuthenticatedFuturesClient(
         val result = response.optJSONObject("result")
         val items = result?.optJSONArray("items") ?: JSONArray()
         return (0 until items.length()).mapNotNull { items.optJSONObject(it) }
-    }
-
-    suspend fun createProtectionPlan(
-        position: XtLivePosition,
-        entrustType: String,
-        triggerPrice: Double
-    ): JSONObject {
-        require(entrustType == "STOP_MARKET" || entrustType == "TAKE_PROFIT_MARKET")
-        require(triggerPrice.isFinite() && triggerPrice > 0.0)
-        require(position.quantity > 0.0 && position.contractSize > 0.0)
-        val closeSide = if (position.side == "LONG") "SELL" else "BUY"
-        val body = JSONObject()
-            .put("clientOrderId", "ZORO-GUARD-" + UUID.randomUUID().toString().replace("-", "").take(20))
-            .put("symbol", normalizeSymbol(position.symbol))
-            .put("orderSide", closeSide)
-            .put("entrustType", entrustType)
-            .put("origQty", floorContracts(position.quantity / position.contractSize))
-            .put("stopPrice", BigDecimal.valueOf(triggerPrice).stripTrailingZeros().toPlainString())
-            .put("timeInForce", "IOC")
-            .put("triggerPriceType", "MARK_PRICE")
-            .put("positionSide", position.side)
-        return request("POST", "/future/trade/v1/entrust/create-plan", body = body)
-    }
-
-    /**
-     * Emergency market close for a known position only. Uses XT's reported available
-     * close quantity and explicit positionSide; never uses close-all.
-     */
-    suspend fun emergencyClose(position: XtLivePosition): JSONObject {
-        val qty = floorContracts(position.availableCloseQuantity / position.contractSize)
-        require(qty > 0L) { "هیچ حجم آزادی برای بستن اضطراری پوزیشن وجود ندارد." }
-        val body = JSONObject()
-            .put("clientOrderId", "ZORO-EXIT-" + UUID.randomUUID().toString().replace("-", "").take(20))
-            .put("symbol", normalizeSymbol(position.symbol))
-            .put("orderSide", if (position.side == "LONG") "SELL" else "BUY")
-            .put("orderType", "MARKET")
-            .put("origQty", qty)
-            .put("positionSide", position.side)
-        return request("POST", "/future/trade/v1/order/create", body = body)
-    }
-
-    /**
-     * Submit a market entry with exchange-native TP/SL trigger prices attached to
-     * the opening order request. Quantity is contract count and must be integral.
-     * This method refuses entries without both protective prices.
-     */
-    suspend fun openMarketWithProtection(
-        symbol: String,
-        side: String,
-        contracts: Long,
-        leverage: Int,
-        entryPrice: Double,
-        takeProfit: Double,
-        stopLoss: Double
-    ): JSONObject = entryMutex.withLock {
-        val normalizedSymbol = symbol.trim().lowercase()
-        require(normalizedSymbol.matches(Regex("[a-z0-9]+_usdt"))) { "نماد قرارداد USDT نامعتبر است." }
-        require(side == "LONG" || side == "SHORT") { "جهت پوزیشن نامعتبر است." }
-        require(contracts > 0 && leverage in 1..5) { "حجم یا اهرم خارج از محدوده مجاز است." }
-        require(entryPrice.isFinite() && entryPrice > 0.0) { "قیمت ورود نامعتبر است." }
-        require(takeProfit.isFinite() && stopLoss.isFinite() && takeProfit > 0.0 && stopLoss > 0.0) {
-            "حدسود و حدضرر معتبر و اجباری هستند."
-        }
-        require(if (side == "LONG") stopLoss < entryPrice && takeProfit > entryPrice else takeProfit < entryPrice && stopLoss > entryPrice) {
-            "حدضرر و حدسود باید در سمت صحیح قیمت ورود قرار بگیرند."
-        }
-        val account = accountSnapshot()
-        require(account.canTrade && account.canOpenPosition) {
-            "حساب XT مجوز معامله یا بازکردن پوزیشن ندارد؛ سفارش ارسال نشد."
-        }
-        require(account.availableBalanceUsdt > 0.0) { "موجودی آزاد USDT کافی نیست." }
-        val current = activePositions()
-        require(current.none { it.symbol.filter(Char::isLetterOrDigit).lowercase() == normalizedSymbol.filter(Char::isLetterOrDigit) && it.side == side }) {
-            "برای این نماد و جهت، پوزیشن باز وجود دارد؛ ورود تکراری مسدود شد."
-        }
-        setLeverage(normalizedSymbol, side, leverage)
-        val body = JSONObject()
-            .put("clientOrderId", "ZORO-" + UUID.randomUUID().toString().replace("-", "").take(24))
-            .put("symbol", normalizedSymbol)
-            .put("orderSide", if (side == "LONG") "BUY" else "SELL")
-            .put("orderType", "MARKET")
-            .put("origQty", contracts)
-            .put("positionSide", side)
-            .put("triggerProfitPrice", BigDecimal.valueOf(takeProfit).stripTrailingZeros().toPlainString())
-            .put("triggerStopPrice", BigDecimal.valueOf(stopLoss).stripTrailingZeros().toPlainString())
-        request("POST", "/future/trade/v1/order/create", body = body)
     }
 
     companion object {

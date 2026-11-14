@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import java.nio.charset.StandardCharsets
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -105,19 +106,20 @@ internal object XtCredentialVault {
 internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> Unit = {}) {
     var appKey by remember { mutableStateOf("") }
     var secret by remember { mutableStateOf("") }
-    val permissionPrefs = remember(context) {
-        context.getSharedPreferences("zoro_xt_permissions", Context.MODE_PRIVATE)
-    }
-    var permissionConfirmed by remember(context) {
-        mutableStateOf(permissionPrefs.getBoolean("trade_without_withdrawal_confirmed", false))
-    }
-    var liveEnabled by remember { mutableStateOf(XtLiveTradingEngine.isEnabled(context)) }
+    var busy by remember { mutableStateOf(false) }
     var status by remember {
-        mutableStateOf(if (XtCredentialVault.hasCredentials(context)) "کلیدها به‌صورت رمزنگاری‌شده روی دستگاه ذخیره شده‌اند." else "هنوز کلیدی ذخیره نشده است.")
+        mutableStateOf(
+            if (XtCredentialVault.hasCredentials(context))
+                "کلید ذخیره‌شده وجود دارد؛ برای بررسی، اتصال خواندنی را آزمایش کن."
+            else "برای اتصال خواندنی، کلید API با مجوز Read-only بساز."
+        )
     }
+    var accountLine by remember { mutableStateOf("") }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val gold = Color(0xFFFFD45A)
     val ivory = Color(0xFFECE5D6)
     val muted = Color(0xFFB8B0A0)
+
     Surface(
         color = Color(0xFF111111),
         shape = RoundedCornerShape(16.dp),
@@ -125,9 +127,10 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("اتصال امن API صرافی XT", color = ivory, fontSize = 14.sp, fontWeight = FontWeight.Black)
+            Text("اتصال رسمی XT Futures • مرحله خواندنی", color = ivory,
+                fontSize = 14.sp, fontWeight = FontWeight.Black)
             Text(
-                "کلید فقط در Android Keystore رمزنگاری می‌شود. با فعال‌کردن اجرای واقعی، ZORO از آن برای خواندن حساب، بازیابی پوزیشن‌ها و ثبت سفارش فیوچرز استفاده می‌کند.",
+                "این مرحله فقط امضای درخواست و دسترسی خواندن حساب را بررسی می‌کند. برای Shadow/Paper هیچ مجوز Trade یا Withdrawal لازم نیست و هیچ سفارش، تغییر اهرم یا انتقال وجهی ارسال نمی‌شود.",
                 color = muted, fontSize = 10.sp, lineHeight = 15.sp
             )
             OutlinedTextField(
@@ -141,75 +144,64 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 visualTransformation = PasswordVisualTransformation(),
                 label = { Text("XT API Secret") }
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = permissionConfirmed, onCheckedChange = {
-                    permissionConfirmed = it
-                    permissionPrefs.edit().putBoolean("trade_without_withdrawal_confirmed", it).apply()
-                })
-                Text(
-                    "تأیید می‌کنم مجوز برداشت (Withdrawal) خاموش است؛ فقط Read و Trade فعال‌اند.",
-                    color = ivory, fontSize = 10.sp, lineHeight = 15.sp
-                )
-            }
             Button(
                 onClick = {
                     runCatching { XtCredentialVault.save(context, appKey, secret) }
                         .onSuccess {
                             appKey = ""
                             secret = ""
-                            status = "کلیدها رمزنگاری و فقط روی همین دستگاه ذخیره شدند."
+                            status = "کلیدها با AES-GCM و Android Keystore روی همین گوشی ذخیره شدند."
                         }
                         .onFailure { status = "ذخیره امن انجام نشد: ${it.message ?: "خطای رمزنگاری"}" }
                 },
-                enabled = permissionConfirmed && appKey.isNotBlank() && secret.isNotBlank(),
+                enabled = !busy && appKey.isNotBlank() && secret.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("ذخیره امن روی گوشی") }
+            ) { Text("ذخیره امن کلید خواندنی") }
+            Button(
+                onClick = {
+                    busy = true
+                    status = "در حال بررسی امضای XT و دسترسی فقط‌خواندنی حساب..."
+                    scope.launch {
+                        try {
+                            val account = XtAuthenticatedFuturesClient(context).accountSnapshot()
+                            accountLine = "موجودی کیف پول: ${String.format(java.util.Locale.US, "%.4f", account.walletBalanceUsdt)} USDT • موجودی آزاد تخمینی: ${String.format(java.util.Locale.US, "%.4f", account.availableBalanceUsdt)} USDT"
+                            status = "اتصال خصوصی خواندنی موفق شد. مجوز حساب برای معامله: ${if (account.canTrade) "مجاز" else "غیرفعال"} • مجوز بازکردن پوزیشن حساب: ${if (account.canOpenPosition) "مجاز" else "غیرفعال"}. این بررسی به‌هیچ‌وجه سفارش ارسال نکرد."
+                        } catch (error: Exception) {
+                            accountLine = ""
+                            status = "بررسی اتصال ناموفق: ${error.message ?: error.javaClass.simpleName}"
+                        } finally {
+                            busy = false
+                        }
+                    }
+                },
+                enabled = !busy && XtCredentialVault.hasCredentials(context),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (busy) "در حال بررسی..." else "آزمایش اتصال خواندنی XT") }
+            if (accountLine.isNotBlank()) Text(accountLine, color = ivory, fontSize = 10.sp)
+            Text(status, color = gold, fontSize = 9.sp, lineHeight = 14.sp)
+            Text(
+                XtExecutionPolicy.label(
+                    XtExecutionPolicy.State(
+                        readOnlyConnectionVerified = accountLine.isNotBlank()
+                    )
+                ),
+                color = gold, fontSize = 10.sp, fontWeight = FontWeight.Bold
+            )
+            Text(
+                "در پنل XT کلید را با مجوز Read-only بساز؛ مجوز Trade و Withdrawal را خاموش بگذار و IP whitelist را فعال کن. برنامه فعلاً این مجوزها را از روی رابط API به‌طور مستقل ممیزی نمی‌کند.",
+                color = muted, fontSize = 9.sp, lineHeight = 14.sp
+            )
             TextButton(
                 onClick = {
                     XtLiveTradingEngine.setEnabled(context, false)
                     XtCredentialVault.clear(context)
-                    permissionPrefs.edit().putBoolean("trade_without_withdrawal_confirmed", false).apply()
-                    liveEnabled = false
-                    appKey = ""
-                    secret = ""
-                    permissionConfirmed = false
+                    accountLine = ""
                     status = "کلیدهای ذخیره‌شده و کلید رمزنگاری دستگاه پاک شدند."
                 },
                 modifier = Modifier.align(Alignment.End)
             ) { Text("پاک‌کردن کلیدهای ذخیره‌شده", color = gold, fontSize = 10.sp) }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("اجرای خودکار واقعی در XT", color = ivory, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text("با فعال‌سازی، سرویس پس‌زمینه فرمانده را به موتور سفارش واقعی متصل می‌کند.", color = muted, fontSize = 9.sp, lineHeight = 13.sp)
-                }
-                Switch(
-                    checked = liveEnabled,
-                    enabled = XtCredentialVault.hasCredentials(context) && permissionConfirmed,
-                    onCheckedChange = { enabled ->
-                        XtLiveTradingEngine.setEnabled(context, enabled)
-                        liveEnabled = enabled
-                        if (enabled) {
-                            context.getSharedPreferences("wolf_app_settings", Context.MODE_PRIVATE)
-                                .edit().putBoolean("background_monitoring", true).apply()
-                            val serviceIntent = Intent(context, HopeHunterMonitorService::class.java).apply {
-                                action = HopeHunterMonitorService.ACTION_START
-                            }
-                            runCatching { context.startForegroundService(serviceIntent) }
-                                .onSuccess { status = "اجرای واقعی فعال شد؛ سرویس پایش و بازیابی پوزیشن XT شروع شد."; onBackgroundStarted() }
-                                .onFailure {
-                                    XtLiveTradingEngine.setEnabled(context, false)
-                                    liveEnabled = false
-                                    status = "سرویس شروع نشد؛ اجرای واقعی خاموش شد تا سفارش بدون پایش ارسال نشود: " + (it.message ?: "خطای شروع سرویس")
-                                }
-                        } else {
-                            status = "ورودهای جدید متوقف شد؛ پایش و حفاظت پوزیشن‌های باز تا زمان توقف سرویس ادامه دارد."
-                        }
-                    }
-                )
-            }
-            Text(status, color = gold, fontSize = 9.sp, lineHeight = 14.sp)
             Text(
-                "کلید را در چت ارسال نکن. مجوز برداشت را خاموش نگه دار و IP whitelist را در پنل XT فعال کن. اجرای واقعی فقط با کلید معتبر، مجوز Trade و روشن‌بودن کلید اجرای خودکار کار می‌کند.",
+                "وضعیت اجرای واقعی: قفل سخت‌افزاری/نرم‌افزاری فعال؛ تا زمان فراهم‌شدن محیط آزمون معتبر و بازبینی مستقل، هیچ سفارش واقعی ارسال نمی‌شود.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
             )
         }
