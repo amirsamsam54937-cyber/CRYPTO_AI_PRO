@@ -56,6 +56,7 @@ These are engineering guardrails, not a guarantee against losses or exchange-sid
 - The default cost baseline is Maker 0.04% / Taker 0.06% (محافظه‌کارانه؛ XT در برخی سطوح VIP نرخ Maker پایین‌تری منتشر می‌کند), based on XT's updated futures fee schedule; account VIP rates can differ. Actual exchange fill fee and funding records must reconcile the estimate and replace it in the realized-PnL ledger.
 - Rejects a trade if estimated net target profit is non-positive or net reward/risk is below 1.2 after costs.
 - Current guardrails in the helper: 0.10%–1.00% equity risk input (default 0.50%), maximum 10% equity margin allocation per trade by default, and maximum 3x leverage.
-- Unit tests cover small balances, fees, adverse funding, insufficient margin, excessive leverage, and net-profit rejection.
+- Adaptive compounding policy reduces per-trade risk as peak-to-trough drawdown or consecutive losses increase; hard breakers stop new risk at 2% daily loss, 8% peak drawdown, or 5 consecutive losses. The adaptive policy is connected to the sizing helper.
+- Unit tests cover small balances, fees, adverse funding, insufficient margin, excessive leverage, net-profit rejection, daily-loss breaker, drawdown breaker, and loss-streak scaling.
 
 Important: Gen27 adds the capital and fee calculation engine and a read-only wallet display. It does not activate order placement. XT public Futures Testnet is still not documented, so exchange-side order execution remains locked. A small balance is supported only if it satisfies the exchange's minimum order quantity/notional while staying inside the risk budget; otherwise the correct decision is no trade.
