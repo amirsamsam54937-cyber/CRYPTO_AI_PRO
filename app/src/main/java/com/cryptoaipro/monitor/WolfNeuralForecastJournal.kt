@@ -16,7 +16,6 @@ internal object WolfNeuralForecastJournal {
     private const val MAX_RECORDS = 2500
     private const val HORIZON_MS = 6L * WolfCandleHorizon.HOUR_MS
     private const val MAX_BASE_AGE_MS = 2L * WolfCandleHorizon.HOUR_MS
-    private const val NEUTRAL_BAND = 0.0025
     private const val EXPERTS = 10
 
     data class MemberStats(
@@ -128,7 +127,7 @@ internal object WolfNeuralForecastJournal {
         val stale = rows.count { it.optBoolean("stale") }
         val pending = rows.count { !it.optBoolean("closed") }
 
-        fun metrics(probabilities: List<Double>, labels: List<Int>, index: Int): MemberStats {
+        internal fun metrics(probabilities: List<Double>, labels: List<Int>, index: Int): MemberStats {
             val count = minOf(probabilities.size, labels.size)
             if (count == 0) return MemberStats(index, 0, 0, 0.0, 0.0, 0.0, 0.0)
             var correct = 0
