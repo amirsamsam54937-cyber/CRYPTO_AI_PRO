@@ -253,6 +253,46 @@ internal class XtAuthenticatedFuturesClient(
         return ContractSizing(contracts, riskBudget, estimatedLoss, margin)
     }
 
+    /**
+     * Strict Futures wallet snapshot. We never infer free margin by subtracting
+     * guessed fields: if XT does not return an explicit available balance, the
+     * caller must stop and request schema verification rather than oversize.
+     */
+    suspend fun futuresWallet(): XtFuturesCapitalManager.Wallet {
+        val response = request("GET", "/future/user/v1/compat/balance/list")
+        val rows = response.optJSONArray("result")
+            ?: throw IllegalStateException("پاسخ موجودی فیوچرز XT آرایه نیست.")
+        val row = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
+            .firstOrNull { it.optString("coin").equals("USDT", true) }
+            ?: throw IllegalStateException("دارایی USDT در کیف پول Futures پیدا نشد.")
+        fun requiredNumber(vararg keys: String): Double {
+            for (key in keys) {
+                val raw = row.optString(key)
+                val parsed = raw.toDoubleOrNull()
+                if (parsed != null && parsed.isFinite()) return parsed
+                if (row.has(key) && row.opt(key) is Number) {
+                    val n = row.optDouble(key)
+                    if (n.isFinite()) return n
+                }
+            }
+            throw IllegalStateException("فیلد ضروری موجودی XT یافت نشد: " + keys.joinToString("/"))
+        }
+        val wallet = requiredNumber("walletBalance")
+        val isolated = requiredNumber("isolatedMargin")
+        val crossed = requiredNumber("crossedMargin")
+        val used = isolated + crossed
+        val orderFrozen = requiredNumber("openOrderMarginFrozen")
+        // XT defines available = wallet balance - position margin - order freeze.
+        // Prefer the explicit available field when the account API returns it.
+        val available = runCatching { requiredNumber("availableBalance", "availableAmount", "available") }
+            .getOrElse { (wallet - used - orderFrozen).coerceAtLeast(0.0) }
+        val unrealized = row.optString("notProfit").toDoubleOrNull()
+        val equity = unrealized?.let { wallet + it }
+            ?: requiredNumber("totalAmount", "totalEquity", "equity")
+        return XtFuturesCapitalManager.Wallet("USDT", wallet, equity, available, used, orderFrozen)
+            .also { it.validate() }
+    }
+
     suspend fun activeTriggerPlans(symbol: String): List<JSONObject> {
         val normalized = normalizeSymbol(symbol)
         val response = request(

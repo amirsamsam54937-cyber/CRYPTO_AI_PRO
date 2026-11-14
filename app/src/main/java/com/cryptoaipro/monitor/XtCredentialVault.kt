@@ -130,7 +130,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
             Text("اتصال رسمی XT Futures • مرحله خواندنی", color = ivory,
                 fontSize = 14.sp, fontWeight = FontWeight.Black)
             Text(
-                "این مرحله فقط امضای درخواست و دسترسی خواندن حساب را بررسی می‌کند. برای Shadow/Paper هیچ مجوز Trade یا Withdrawal لازم نیست و هیچ سفارش، تغییر اهرم یا انتقال وجهی ارسال نمی‌شود.",
+                "این مرحله فقط امضای درخواست و اطلاعات حساب USDT-M Futures را می‌خواند: Wallet، Equity، Free Margin، مارجین مصرف‌شده و سفارش‌های فریزکننده. هیچ Spot، سفارش، تغییر اهرم یا انتقال وجهی در این نسخه اجرا نمی‌شود.",
                 color = muted, fontSize = 10.sp, lineHeight = 15.sp
             )
             OutlinedTextField(
@@ -156,15 +156,17 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 },
                 enabled = !busy && appKey.isNotBlank() && secret.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("ذخیره امن کلید خواندنی") }
+            ) { Text("ذخیره امن کلید فقط‌خواندنی Futures") }
             Button(
                 onClick = {
                     busy = true
                     status = "در حال بررسی امضای XT و دسترسی فقط‌خواندنی حساب..."
                     scope.launch {
                         try {
-                            val account = XtAuthenticatedFuturesClient(context).accountSnapshot()
-                            accountLine = "موجودی کیف پول: ${String.format(java.util.Locale.US, "%.4f", account.walletBalanceUsdt)} USDT • موجودی آزاد تخمینی: ${String.format(java.util.Locale.US, "%.4f", account.availableBalanceUsdt)} USDT"
+                            val client = XtAuthenticatedFuturesClient(context)
+                            val wallet = client.futuresWallet()
+                            val account = client.accountSnapshot()
+                            accountLine = "Wallet: ${String.format(java.util.Locale.US, "%.4f", wallet.walletBalance)} USDT • Equity: ${String.format(java.util.Locale.US, "%.4f", wallet.equity)} USDT • Free margin: ${String.format(java.util.Locale.US, "%.4f", wallet.availableMargin)} USDT • Margin used: ${String.format(java.util.Locale.US, "%.4f", wallet.usedMargin)} USDT"
                             status = "اتصال خصوصی خواندنی موفق شد. مجوز حساب برای معامله: ${if (account.canTrade) "مجاز" else "غیرفعال"} • مجوز بازکردن پوزیشن حساب: ${if (account.canOpenPosition) "مجاز" else "غیرفعال"}. این بررسی به‌هیچ‌وجه سفارش ارسال نکرد."
                         } catch (error: Exception) {
                             accountLine = ""
@@ -188,7 +190,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 color = gold, fontSize = 10.sp, fontWeight = FontWeight.Bold
             )
             Text(
-                "در پنل XT کلید را با مجوز Read-only بساز؛ مجوز Trade و Withdrawal را خاموش بگذار و IP whitelist را فعال کن. برنامه فعلاً این مجوزها را از روی رابط API به‌طور مستقل ممیزی نمی‌کند.",
+                "مدیریت سرمایه ZORO موجودی آزاد را مبنای تخصیص می‌گیرد، نه کل Wallet. نرخ پایه محافظه‌کارانه کارمزد Futures برابر Maker=0.04% و Taker=0.06% است؛ نرخ واقعی VIP باید با کارمزد ثبت‌شده هر Fill تطبیق داده شود. کلید فعلاً فقط Read-only باشد؛ Trade و Withdrawal خاموش و IP whitelist روشن.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
             )
             TextButton(
