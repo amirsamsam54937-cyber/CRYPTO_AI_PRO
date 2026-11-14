@@ -65,8 +65,9 @@ def _bounded_weights(raw: Mapping[str, float], minimum: float, maximum: float) -
     count = len(names)
     if minimum < 0 or maximum <= 0 or count * minimum > 1.0 + 1e-12:
         raise ValueError("infeasible minimum weight")
-    if count * maximum < 1.0 - 1e-12:
-        raise ValueError("infeasible maximum weight")
+    # A fixed cap such as 0.20 is infeasible for fewer than five members.
+    # Relax only the cap needed to make the simplex feasible; never relax the floor.
+    maximum = max(maximum, 1.0 / count)
     scores = {name: max(float(raw[name]), 1e-15) for name in names}
     total = sum(scores.values())
     weights = {name: scores[name] / total for name in names}
@@ -210,5 +211,93 @@ def evaluate_consensus(
                 "vote": "UP" if ps[name] >= 0.5 else "DOWN",
             }
             for name in names
+        },
+    }
+
+
+def estimate_regime_member_weights(
+    regime_history: Mapping[str, Mapping[str, Iterable[tuple[float, int]]]],
+    *,
+    global_weights: Mapping[str, float] | None = None,
+    min_observations: int = 40,
+    prior_brier: float = 0.25,
+    shrinkage: float = 40.0,
+    temperature: float = 0.05,
+    min_weight: float = 0.02,
+    max_weight: float = 0.20,
+) -> dict:
+    """Estimate specialist reliability per market regime with conservative fallback.
+
+    Each regime must contain the same specialist set. Regime-specific weights are
+    activated only when EVERY specialist has enough chronological OOS observations
+    in that regime. Otherwise the supplied global weights (or uniform priors) are
+    used. This prevents a sparse regime from silently producing unstable weights.
+    """
+    if not regime_history:
+        raise ValueError("at least one regime is required")
+    if min_observations < 1:
+        raise ValueError("min_observations must be positive")
+
+    regimes = sorted(regime_history)
+    first_members = set(regime_history[regimes[0]])
+    if not first_members:
+        raise ValueError("each regime must contain at least one member")
+    if any(set(regime_history[name]) != first_members for name in regimes):
+        raise ValueError("all regimes must contain the same specialist set")
+
+    names = sorted(first_members)
+    if global_weights is not None:
+        if set(global_weights) != first_members:
+            raise ValueError("global weights must match the specialist set")
+        normalized_global = {
+            name: _probability(global_weights[name], f"{name} global weight")
+            for name in names
+        }
+        total = sum(normalized_global.values())
+        if total <= 0.0:
+            raise ValueError("global weights must sum to a positive value")
+        normalized_global = {name: value / total for name, value in normalized_global.items()}
+    else:
+        normalized_global = {name: 1.0 / len(names) for name in names}
+
+    result = {}
+    for regime in regimes:
+        history = regime_history[regime]
+        # Materialize once so generators are not consumed by the count check.
+        materialized = {name: list(history[name]) for name in names}
+        counts = {name: len(materialized[name]) for name in names}
+        if all(counts[name] >= min_observations for name in names):
+            estimate = estimate_member_weights(
+                materialized,
+                min_observations=min_observations,
+                prior_brier=prior_brier,
+                shrinkage=shrinkage,
+                temperature=temperature,
+                min_weight=min_weight,
+                max_weight=max_weight,
+            )
+            result[regime] = {
+                "weights": estimate["weights"],
+                "diagnostics": estimate["diagnostics"],
+                "source": "regime_oos",
+                "observations_by_member": counts,
+            }
+        else:
+            result[regime] = {
+                "weights": normalized_global,
+                "diagnostics": {
+                    name: {"observations": counts[name], "brier": None}
+                    for name in names
+                },
+                "source": "global_fallback" if global_weights is not None else "uniform_fallback",
+                "observations_by_member": counts,
+            }
+    return {
+        "regimes": result,
+        "metadata": {
+            "method": "chronological_oos_brier_with_shrinkage",
+            "min_observations_per_member": min_observations,
+            "sparse_regime_fallback": "global" if global_weights is not None else "uniform",
+            "runtime_weighting_enabled": False,
         },
     }
