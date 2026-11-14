@@ -223,6 +223,19 @@ internal fun HopeLivingBrainPanel(context: Context, onIntervalChanged: (Int) -> 
             }
             val forecast = status.neuralForecast
             Text("آزمون مستقل ۱۰ شبکه عصبی • افق واقعی ۶ ساعت", color = Color.White, fontSize = 11.sp)
+            val drift = forecast.drift
+            Text(
+                if (drift.available) "پایش تغییر رفتار بازار: ${drift.status}" else "پایش تغییر رفتار بازار: ${drift.status}",
+                color = if (drift.driftDetected) Color(0xFFFF6B6B) else muted,
+                fontSize = 9.sp,
+                lineHeight = 13.sp
+            )
+            if (drift.available) {
+                Text(
+                    "Brier مرجع ${String.format(java.util.Locale.US, "%.3f", drift.referenceBrier)} ← اخیر ${String.format(java.util.Locale.US, "%.3f", drift.recentBrier)} • اختلاف ${String.format(java.util.Locale.US, "%+.3f", drift.brierIncrease)} • نمونه ${drift.referenceSamples}/${drift.recentSamples}",
+                    color = muted, fontSize = 9.sp
+                )
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("ارزیابی‌شده: ${forecast.evaluated}", color = muted, fontSize = 9.sp)
                 Text("در انتظار: ${forecast.pending}", color = muted, fontSize = 9.sp)
