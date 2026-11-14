@@ -42,21 +42,20 @@ class EnsembleMetaTests(unittest.TestCase):
     def test_regime_weights_require_sufficient_oos_history(self):
         good = [(0.9, 1), (0.1, 0)] * 25
         weak = [(0.9, 0), (0.1, 1)] * 25
-        regimes = {
-            "trend": {"good": good, "weak": weak},
-            "range": {"good": good[:4], "weak": weak[:4]},
-        }
+        members = {"best": good, **{f"weak_{i}": weak for i in range(5)}}
+        sparse = {name: rows[:4] for name, rows in members.items()}
+        global_weights = {"best": 0.3, **{f"weak_{i}": 0.14 for i in range(5)}}
+        regimes = {"trend": members, "range": sparse}
         result = estimate_regime_member_weights(
-            regimes, global_weights={"good": 0.7, "weak": 0.3},
-            min_observations=20,
+            regimes, global_weights=global_weights, min_observations=20,
         )
         self.assertEqual(result["regimes"]["trend"]["source"], "regime_oos")
         self.assertGreater(
-            result["regimes"]["trend"]["weights"]["good"],
-            result["regimes"]["trend"]["weights"]["weak"],
+            result["regimes"]["trend"]["weights"]["best"],
+            result["regimes"]["trend"]["weights"]["weak_0"],
         )
         self.assertEqual(result["regimes"]["range"]["source"], "global_fallback")
-        self.assertEqual(result["regimes"]["range"]["weights"], {"good": 0.7, "weak": 0.3})
+        self.assertEqual(result["regimes"]["range"]["weights"], global_weights)
         self.assertFalse(result["metadata"]["runtime_weighting_enabled"])
 
     def test_regime_weighting_rejects_mismatched_specialists(self):
