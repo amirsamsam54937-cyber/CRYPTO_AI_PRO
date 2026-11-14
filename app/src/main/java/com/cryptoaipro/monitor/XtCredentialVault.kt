@@ -190,7 +190,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 color = gold, fontSize = 10.sp, fontWeight = FontWeight.Bold
             )
             Text(
-                "مدیریت سرمایه ZORO موجودی آزاد را مبنای تخصیص می‌گیرد، نه کل Wallet. نرخ پایه محافظه‌کارانه کارمزد Futures برابر Maker=0.02% و Taker=0.06% است؛ نرخ واقعی VIP باید با کارمزد ثبت‌شده هر Fill تطبیق داده شود. کلید فعلاً فقط Read-only باشد؛ Trade و Withdrawal خاموش و IP whitelist روشن.",
+                "مدیریت سرمایه ZORO موجودی آزاد را مبنای تخصیص می‌گیرد، نه کل Wallet. نرخ پایه محافظه‌کارانه کارمزد Futures برابر Maker=0.04% و Taker=0.06% است؛ نرخ واقعی VIP باید با کارمزد ثبت‌شده هر Fill تطبیق داده شود. کلید فعلاً فقط Read-only باشد؛ Trade و Withdrawal خاموش و IP whitelist روشن.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
             )
             TextButton(
