@@ -1167,6 +1167,7 @@ private fun MetricCard(title: String, value: String, modifier: Modifier, valueCo
 @Composable
 private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
     var expanded by remember(item.symbol) { mutableStateOf(false) }
+    val structureAudit = remember(item.symbol, item.candles) { WolfMarketStructureAudit.analyze(item.candles) }
     val tint = when (item.direction) {
         "LONG_BIAS" -> Green
         "SHORT_BIAS" -> Red
@@ -1346,6 +1347,13 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                             SmallStat("مقاومت ساختاری", formatPrice(item.technical.resistance), Red)
                         }
                         Text("ساختار بازار: " + item.technical.marketStructure + " • رژیم: " + item.technical.regime, color = Muted, fontSize = 9.sp)
+                        Text("ممیزی ساختار Gen24: " + structureAudit.event, color = if (structureAudit.bias == "صعودی") Green else if (structureAudit.bias == "نزولی") Red else Gold, fontSize = 9.sp, lineHeight = 14.sp)
+                        if (structureAudit.available) {
+                            Text("سوگیری پیوت: ${structureAudit.bias} • سقف تأییدشده: ${formatPrice(structureAudit.lastSwingHigh)} • کف تأییدشده: ${formatPrice(structureAudit.lastSwingLow)}", color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
+                            Text("جاروب نقدینگی: " + structureAudit.liquiditySweep, color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
+                        } else {
+                            Text(structureAudit.explanation, color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
+                        }
                         Divider(color = Gold.copy(alpha = 0.25f))
                         Text("نقشه استخرهای نقدینگی • Liquidity Pools", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Black)
                         Text(item.technical.liquidityRead, color = Color.White, fontSize = 9.sp, lineHeight = 14.sp)
