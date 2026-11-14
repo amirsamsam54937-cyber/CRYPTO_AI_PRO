@@ -112,6 +112,7 @@ data class MarketSignal(
     val neuralCandles: List<DoubleArray> = emptyList(),
     val neuralMemberVotes: List<String> = emptyList(),
     val neuralMemberProbabilities: List<Double> = emptyList(),
+    val neuralUncertainty: WolfEnsembleUncertainty.Summary = WolfEnsembleUncertainty.analyze(emptyList()),
     // Internal XT microstructure features; deliberately not rendered in any UI or notification.
     val hiddenFlowScore: Int = 0,
     val hiddenFlowFresh: Boolean = false
@@ -156,6 +157,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             // Always expose the ten raw specialist outputs for transparency, but never
             // let an unvalidated ensemble affect the published direction or confidence.
             val research = WolfPretrainedEnsemble.predictResearch(candidate)
+            val uncertainty = WolfEnsembleUncertainty.analyze(research?.memberProbabilities.orEmpty())
             val memberVotes = research?.let { prediction ->
                 prediction.memberProbabilities.mapIndexed { index, p ->
                     val side = when { p >= 0.55 -> "LONG_BIAS"; p <= 0.45 -> "SHORT_BIAS"; else -> "NEUTRAL" }
@@ -179,7 +181,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     neuralDirection = research?.predictedDirection ?: rawPredictedSide,
                     neuralModelSource = "۱۰ شبکه عصبی • پیش‌بینی ۶ساعته • نظر کمکی تا اعتبارسنجی مستقل",
                     neuralMemberVotes = memberVotes,
-                    neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
+                    neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
+                    neuralUncertainty = uncertainty
                 )
             } else {
                 val probability = research?.upProbability
@@ -203,7 +206,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                         neuralDirection = predictedSide,
                         neuralModelSource = "۱۰ شبکه عصبی • پیش‌بینی ۶ساعته • نظر کمکی",
                         neuralMemberVotes = memberVotes,
-                        neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
+                        neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
+                        neuralUncertainty = uncertainty
                     )
                 }
             }
@@ -1247,6 +1251,15 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                         color = Muted, fontSize = 9.sp
                     )
                     if (item.neuralMemberVotes.isNotEmpty()) {
+                        val uncertainty = item.neuralUncertainty
+                        Text(
+                            "ممیزی توافق شبکه‌ها: ${uncertainty.upVotes} صعودی / ${uncertainty.downVotes} نزولی / ${uncertainty.neutralVotes} خنثی • توافق جهت‌دار ${String.format(Locale.US, "%.0f", uncertainty.agreementRatio * 100.0)}٪",
+                            color = if (uncertainty.highDisagreement) Gold else Muted, fontSize = 9.sp
+                        )
+                        Text(
+                            "پراکندگی ${String.format(Locale.US, "%.3f", uncertainty.standardDeviation)} • آنتروپی ${String.format(Locale.US, "%.0f", uncertainty.normalizedEntropy * 100.0)}٪ • ${uncertainty.assessment}",
+                            color = if (uncertainty.highDisagreement) Gold else Muted, fontSize = 9.sp
+                        )
                         Text("خروجی خام ده شبکه عصبی (امتیاز داخلی، نه احتمال برد):", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         Text(item.neuralMemberVotes.joinToString("  •  "), color = Muted, fontSize = 8.sp, lineHeight = 13.sp)
                     }
