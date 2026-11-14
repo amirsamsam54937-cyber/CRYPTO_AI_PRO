@@ -59,17 +59,8 @@ internal class XtAuthenticatedFuturesClient(
         return compact.dropLast(4) + "_usdt"
     }
 
-    private fun signature(secret: String, payload: String): String {
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(secret.toByteArray(StandardCharsets.UTF_8), "HmacSHA256"))
-        return mac.doFinal(payload.toByteArray(StandardCharsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
-    }
-
     private fun canonicalQuery(values: Map<String, String>): String =
-        values.toSortedMap().entries.joinToString("&") { (k, v) ->
-            java.net.URLEncoder.encode(k, "UTF-8") + "=" + java.net.URLEncoder.encode(v, "UTF-8")
-        }
+        XtRequestSigner.canonicalQuery(values)
 
     private suspend fun request(
         method: String,
@@ -84,9 +75,14 @@ internal class XtAuthenticatedFuturesClient(
         val queryString = canonicalQuery(query)
         val bodyText = body?.toString().orEmpty()
         val signedPart = if (method == "GET") queryString else bodyText
-        val fixedHeader = "validate-appkey=$appKey&validate-timestamp=$timestamp"
-        val signingText = "$fixedHeader#$path" + if (signedPart.isNotEmpty()) "#$signedPart" else ""
-        val sig = signature(secret, signingText)
+        val signingText = XtRequestSigner.signingPayload(
+            appKey = appKey,
+            timestampMs = timestamp,
+            endpoint = path,
+            queryString = if (method == "GET") queryString else "",
+            exactJsonBody = if (method == "GET") null else bodyText
+        )
+        val sig = XtRequestSigner.sign(secret, signingText)
         val urlText = baseUrl + path + if (method == "GET" && queryString.isNotEmpty()) "?$queryString" else ""
         val connection = (URL(urlText).openConnection() as HttpURLConnection)
         try {
@@ -98,6 +94,7 @@ internal class XtAuthenticatedFuturesClient(
             connection.setRequestProperty("validate-appkey", appKey)
             connection.setRequestProperty("validate-timestamp", timestamp)
             connection.setRequestProperty("validate-signature", sig)
+            connection.setRequestProperty("validate-recvwindow", "5000")
             if (method != "GET") {
                 connection.doOutput = true
                 connection.outputStream.use { it.write(bodyText.toByteArray(StandardCharsets.UTF_8)) }
@@ -110,7 +107,8 @@ internal class XtAuthenticatedFuturesClient(
                 throw IllegalStateException("XT HTTP $code" + if (message.isNotBlank()) ": ${message.take(120)}" else "")
             }
             val response = JSONObject(raw)
-            val returnCode = response.optInt("returnCode", 0)
+            require(response.has("returnCode")) { "پاسخ XT فاقد returnCode است؛ نتیجه درخواست قابل تأیید نیست." }
+            val returnCode = response.optInt("returnCode", Int.MIN_VALUE)
             if (returnCode != 0) {
                 val error = response.optJSONObject("error")
                 throw IllegalStateException("XT خطای API: " + (error?.optString("msg")?.take(140) ?: response.optString("msgInfo", "نامشخص")))
@@ -228,7 +226,7 @@ internal class XtAuthenticatedFuturesClient(
     suspend fun setLeverage(symbol: String, side: String, leverage: Int) {
         val normalizedSymbol = normalizeSymbol(symbol)
         require(side == "LONG" || side == "SHORT") { "جهت پوزیشن نامعتبر است." }
-        require(leverage in 1..5) { "اهرم خارج از محدوده محافظه‌کارانه ZORO است." }
+        require(leverage in 1..3) { "اهرم خارج از سقف محافظه‌کارانه ZORO است." }
         val body = JSONObject()
             .put("symbol", normalizedSymbol)
             .put("positionSide", side)
@@ -346,7 +344,7 @@ internal class XtAuthenticatedFuturesClient(
         val normalizedSymbol = symbol.trim().lowercase()
         require(normalizedSymbol.matches(Regex("[a-z0-9]+_usdt"))) { "نماد قرارداد USDT نامعتبر است." }
         require(side == "LONG" || side == "SHORT") { "جهت پوزیشن نامعتبر است." }
-        require(contracts > 0 && leverage in 1..5) { "حجم یا اهرم خارج از محدوده مجاز است." }
+        require(contracts > 0 && leverage in 1..3) { "حجم یا اهرم خارج از محدوده مجاز است." }
         require(entryPrice.isFinite() && entryPrice > 0.0) { "قیمت ورود نامعتبر است." }
         require(takeProfit.isFinite() && stopLoss.isFinite() && takeProfit > 0.0 && stopLoss > 0.0) {
             "حدسود و حدضرر معتبر و اجباری هستند."
