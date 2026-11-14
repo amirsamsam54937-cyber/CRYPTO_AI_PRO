@@ -144,6 +144,8 @@ data class TechnicalSnapshot(
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
     // The pretrained model can influence signals only after a chronological holdout validates it.
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
+    // Historical 6h outcomes calibrate member influence only after a minimum sample count.
+    val adaptiveMemberWeights = WolfNeuralForecastJournal.adaptiveMemberWeights(context)
     return signals.map { signal ->
         val candidate = when {
             signal.direction != "NEUTRAL" -> signal
@@ -156,7 +158,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         else {
             // Always expose the ten raw specialist outputs for transparency, but never
             // let an unvalidated ensemble affect the published direction or confidence.
-            val research = WolfPretrainedEnsemble.predictResearch(candidate)
+            val research = WolfPretrainedEnsemble.predictResearch(candidate, adaptiveMemberWeights)
             val uncertainty = WolfEnsembleUncertainty.analyze(research?.memberProbabilities.orEmpty())
             val memberVotes = research?.let { prediction ->
                 prediction.memberProbabilities.mapIndexed { index, p ->
