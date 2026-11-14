@@ -7,7 +7,7 @@ import kotlin.math.sqrt
  * Describes disagreement and uncertainty among the ten neural specialists.
  * These are diagnostics, not calibrated probabilities of profit or trade authorization.
  */
-internal object WolfEnsembleUncertainty {
+object WolfEnsembleUncertainty {
     private const val EXPECTED_MEMBERS = 10
     private const val LONG_THRESHOLD = 0.55
     private const val SHORT_THRESHOLD = 0.45
