@@ -36,7 +36,8 @@ internal object WolfNeuralForecastJournal {
         val ensembleAccuracy: Double,
         val ensembleBrier: Double,
         val members: List<MemberStats>,
-        val bestMember: MemberStats?
+        val bestMember: MemberStats?,
+        val drift: WolfConceptDriftDetector.Report
     )
 
     @Synchronized
@@ -149,7 +150,7 @@ internal object WolfNeuralForecastJournal {
         val evaluated = rows.filter {
             it.optBoolean("closed") && !it.optBoolean("neutral") && !it.optBoolean("stale") &&
                 (it.optInt("outcome", -1) == 0 || it.optInt("outcome", -1) == 1)
-        }
+        }.sortedBy { it.optLong("evaluated_at") }
         val neutral = rows.count { it.optBoolean("closed") && it.optBoolean("neutral") }
         val stale = rows.count { it.optBoolean("stale") }
         val pending = rows.count { !it.optBoolean("closed") }
@@ -165,10 +166,11 @@ internal object WolfNeuralForecastJournal {
         }
         val ensembleProbs = evaluated.map { it.optDouble("ensemble_probability", 0.5) }
         val ensemble = metrics(ensembleProbs, labels, 0)
+        val drift = WolfConceptDriftDetector.analyze(ensembleProbs, labels)
         return Snapshot(
             evaluated.size, neutral, pending, stale,
             ensemble.accuracy, ensemble.brier, memberStats,
-            memberStats.filter { it.samples >= 30 }.minByOrNull { it.brier }
+            memberStats.filter { it.samples >= 30 }.minByOrNull { it.brier }, drift
         )
     }
 }
