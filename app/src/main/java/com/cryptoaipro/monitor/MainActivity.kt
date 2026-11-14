@@ -398,6 +398,7 @@ fun CryptoMonitorScreen() {
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
+            WolfNeuralForecastJournal.processScan(context, rows)
             paperSnapshot = withContext(Dispatchers.Default) {
                 HopePaperTradingEngine.processScan(context, rows)
             }
