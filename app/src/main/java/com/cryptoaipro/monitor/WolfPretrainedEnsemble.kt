@@ -15,7 +15,8 @@ internal object WolfPretrainedEnsemble {
         val upProbability:Double,
         val memberProbabilities:List<Double>,
         val memberWeights:List<Double> = emptyList(),
-        val marketRegime:String = "unknown"
+        val marketRegime:String = "unknown",
+        val memberRoles:List<String> = emptyList()
     ) {
         val predictedDirection:String get() = when {
             upProbability >= 0.55 -> "LONG_BIAS"
@@ -204,6 +205,6 @@ internal object WolfPretrainedEnsemble {
         val weights = if(validWeights) members.map { candidateWeights[it.role]!! }
             else List(members.size) { 1.0/members.size }
         val combined = predictions.indices.sumOf { predictions[it]*weights[it] }
-        return ResearchPrediction(combined.coerceIn(.01,.99),predictions,weights,regime)
+        return ResearchPrediction(combined.coerceIn(.01,.99),predictions,weights,regime,members.map { it.role })
     }
 }
