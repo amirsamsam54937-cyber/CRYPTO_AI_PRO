@@ -98,8 +98,8 @@ internal object WolfPretrainedEnsemble {
             val baselineBrier=evaluation?.optDouble("prevalence_baseline_brier_score",Double.POSITIVE_INFINITY) ?: Double.POSITIVE_INFINITY
             val auc=evaluation?.optDouble("ensemble_roc_auc",0.0) ?: 0.0
             val ece=evaluation?.optDouble("ensemble_expected_calibration_error",Double.POSITIVE_INFINITY) ?: Double.POSITIVE_INFINITY
-            val testSamples=root.optInt("test_samples",0)
-            val chronological=evaluation?.optString("split","")=="chronological_purged"
+            val testSamples=root.optInt("test_samples",0)\n            val calibrationSamples=root.optInt("calibration_samples",0)\n            val signalPolicy=root.optJSONObject("signal_policy")\n            val signalPolicyWellFormed=signalPolicy!=null && signalPolicy.optInt("calibration_samples",0)>=100 &&\n                signalPolicy.optDouble("threshold",0.0).isFinite() &&\n                (signalPolicy.optBoolean("enabled",false) || signalPolicy.optDouble("threshold",0.0)>1.0)
+            val chronological=evaluation?.optString("split","")=="purged_train_calibration_final_test"
             val correctTarget=evaluation?.optString("target","")=="future_price_direction_up_vs_down"
             val walk=root.optJSONObject("walk_forward")
             val cross=root.optJSONObject("cross_symbol_holdout")
@@ -113,7 +113,7 @@ internal object WolfPretrainedEnsemble {
                 cross.optDouble("log_loss",Double.POSITIVE_INFINITY) <
                     cross.optDouble("baseline_log_loss",Double.NEGATIVE_INFINITY) &&
                 cross.optDouble("roc_auc",0.0)>=0.52
-            val validated=evaluation!=null && chronological && correctTarget && testSamples>=300 &&
+            val validated=evaluation!=null && chronological && correctTarget && calibrationSamples>=300 && testSamples>=300 && signalPolicyWellFormed &&
                 balanced.isFinite() && balanced>=0.52 && loss.isFinite() && baselineLoss.isFinite() && loss<baselineLoss &&
                 accuracy.isFinite() && accuracy>=baseline && brier.isFinite() && baselineBrier.isFinite() &&
                 brier<baselineBrier && auc.isFinite() && auc>=0.55 && ece.isFinite() && ece<=0.10 &&
