@@ -11,7 +11,7 @@ class WolfCandleHorizonTest {
 
     @Test fun excludesTheStillFormingHourlyCandle() {
         val now = 10L * WolfCandleHorizon.HOUR_MS + 30L * 60L * 1000L
-        val rows = listOf(candle(8L * WolfCandleHorizon.HOUR_MS), candle(9L * WolfCandleHorizon.HOUR_MS))
+        val rows = listOf(candle(8L * WolfCandleHorizon.HOUR_MS), candle(10L * WolfCandleHorizon.HOUR_MS))
         val closed = WolfCandleHorizon.closedHourlyCandles(rows, now)
         assertEquals(1, closed.size)
         assertEquals(8L * WolfCandleHorizon.HOUR_MS.toLong(), closed.single()[5].toLong())
