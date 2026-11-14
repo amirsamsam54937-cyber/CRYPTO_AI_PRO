@@ -90,8 +90,9 @@ jobs:
           d=json.loads(p.read_text())
           e=d["evaluation"]
           assert len(d["members"]) == 10, "Expected ten trained models"
-          assert e["split"] == "chronological_purged", "Missing chronological purged holdout"
-          assert d["test_samples"] >= 300, "Insufficient holdout samples"
+          assert e["split"] == "purged_train_calibration_final_test", "Missing chronological purged holdout"
+          assert d["calibration_samples"] >= 300, "Insufficient calibration samples"
+          assert d["test_samples"] >= 300, "Insufficient final-test samples"
           assert d["samples"] >= 10000, "Insufficient real labeled samples"
           wf=d["walk_forward"]
           cross=d["cross_symbol_holdout"]
@@ -215,7 +216,7 @@ jobs:
           assert cross.get("balanced_accuracy",0)>=0.50
           assert cross.get("log_loss",999)<cross.get("baseline_log_loss",0)
           assert cross.get("roc_auc",0)>=0.52
-          assert e["split"]=="chronological_purged" and model.get("test_samples",0)>=300
+          assert e["split"]=="purged_train_calibration_final_test" and model.get("calibration_samples",0)>=300 and model.get("test_samples",0)>=300
           assert e["ensemble_balanced_accuracy"]>=0.52
           assert e["ensemble_log_loss"]<e["prevalence_baseline_log_loss"]
           assert e["ensemble_accuracy"]>=e["majority_class_baseline_accuracy"]
