@@ -143,8 +143,10 @@ internal object WolfPretrainedEnsemble {
         if(members.size!=10) return null
         val technical=signal.neuralTechnical ?: return null
         val rsiValue=signal.neuralRsi?.takeIf{it.isFinite()} ?: return null
-        val candles=signal.neuralCandles
-        if(candles.size<7 || candles.takeLast(7).any{it.size<5 || !it[3].isFinite()}) return null
+        // The network was trained only on completed 1h candles. Never feed the
+        // still-forming exchange candle into inference; that would shift feature semantics.
+        val candles=WolfCandleHorizon.closedHourlyCandles(signal.neuralCandles,System.currentTimeMillis())
+        if(candles.size<7) return null
         val candle=candles.last()
         val trend=if(technical.ema20>=technical.ema50) 1.0 else -1.0
         val rsi=((rsiValue-50.0)/50.0).coerceIn(-1.0,1.0)
