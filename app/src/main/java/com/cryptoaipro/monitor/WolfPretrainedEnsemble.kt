@@ -12,7 +12,10 @@ import kotlin.math.tanh
  */
 internal object WolfPretrainedEnsemble {
     data class ResearchPrediction(
-        val upProbability:Double, val memberProbabilities:List<Double>
+        val upProbability:Double,
+        val memberProbabilities:List<Double>,
+        val memberWeights:List<Double> = emptyList(),
+        val marketRegime:String = "unknown"
     ) {
         val predictedDirection:String get() = when {
             upProbability >= 0.55 -> "LONG_BIAS"
@@ -36,6 +39,9 @@ internal object WolfPretrainedEnsemble {
     @Volatile private var mean=DoubleArray(7)
     @Volatile private var scale=DoubleArray(7){1.0}
     @Volatile private var trainingPriorLogOdds=0.0
+    @Volatile private var globalMemberWeights:Map<String,Double> = emptyMap()
+    @Volatile private var regimeMemberWeights:Map<String,Map<String,Double>> = emptyMap()
+    @Volatile private var runtimeRegimeWeightingEnabled=false
     @Volatile private var status=Status(false,0,0,"",0.0)
 
     @Synchronized fun initialize(context:Context):Status {
@@ -76,6 +82,27 @@ internal object WolfPretrainedEnsemble {
             scale=vector(root.getJSONArray("feature_scale")).map{if(it==0.0)1.0 else it}.toDoubleArray()
             trainingPriorLogOdds=root.optDouble("training_prior_log_odds",0.0)
             require(mean.size==7 && scale.size==7 && trainingPriorLogOdds.isFinite())
+            // Read calibration weights, but never activate them unless the exported
+            // bundle explicitly enables runtime weighting AND passes all validation gates.
+            val regimeAudit=root.optJSONObject("regime_diagnostics")
+            runtimeRegimeWeightingEnabled=regimeAudit?.optBoolean("runtime_weighting_enabled",false) ?: false
+            val globalCalibration=regimeAudit?.optJSONObject("global_weights")
+            val globalJson=globalCalibration?.optJSONObject("weights")
+            globalMemberWeights=if(globalJson==null) emptyMap() else
+                members.associate { member -> member.role to globalJson.optDouble(member.role,Double.NaN) }
+            val regimeCalibration=regimeAudit?.optJSONObject("regime_weights")?.optJSONObject("regimes")
+            val parsedRegimes=mutableMapOf<String,Map<String,Double>>()
+            if(regimeCalibration!=null) {
+                val keys=regimeCalibration.keys()
+                while(keys.hasNext()) {
+                    val regime=keys.next()
+                    val weights=regimeCalibration.optJSONObject(regime)?.optJSONObject("weights") ?: continue
+                    parsedRegimes[regime]=members.associate { member ->
+                        member.role to weights.optDouble(member.role,Double.NaN)
+                    }
+                }
+            }
+            regimeMemberWeights=parsedRegimes
             require(root.optString("data_source_policy")==corpus.optString("data_source_policy"))
             require(root.optString("asset_class_policy")==corpus.optString("asset_class_policy"))
             require(root.optString("corpus_sha256")==corpus.optString("sha256"))
@@ -162,6 +189,21 @@ internal object WolfPretrainedEnsemble {
             val pUp=1.0/(1.0+exp(-logit.coerceIn(-30.0,30.0)))
             pUp
         }
-        return ResearchPrediction(predictions.average().coerceIn(.01,.99),predictions)
+        val regime = when {
+            raw[5] >= 0.6 -> "high_volatility"
+            raw[5] <= -0.1 -> "low_volatility"
+            raw[2] >= 0.5 -> if(raw[0] > 0.0) "trend_up" else "trend_down"
+            else -> "range"
+        }
+        val useCalibratedWeights = runtimeRegimeWeightingEnabled && status.validatedForScoring
+        val candidateWeights = if(useCalibratedWeights)
+            (regimeMemberWeights[regime] ?: globalMemberWeights) else emptyMap()
+        val validWeights = candidateWeights.size==members.size &&
+            candidateWeights.values.all { it.isFinite() && it>=0.0 } &&
+            kotlin.math.abs(candidateWeights.values.sum()-1.0) <= 1e-5
+        val weights = if(validWeights) members.map { candidateWeights[it.role]!! }
+            else List(members.size) { 1.0/members.size }
+        val combined = predictions.indices.sumOf { predictions[it]*weights[it] }
+        return ResearchPrediction(combined.coerceIn(.01,.99),predictions,weights,regime)
     }
 }
