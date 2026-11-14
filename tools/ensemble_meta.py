@@ -301,3 +301,65 @@ def estimate_regime_member_weights(
             "runtime_weighting_enabled": False,
         },
     }
+
+
+def select_abstention_threshold(
+    outcomes: Iterable[int],
+    probabilities_up: Iterable[float],
+    *,
+    candidates: Iterable[float] = (0.55, 0.58, 0.60, 0.62, 0.65, 0.68, 0.70, 0.75, 0.80),
+    min_samples: int = 100,
+    minimum_balanced_accuracy: float = 0.52,
+) -> dict:
+    """Choose a confidence gate on calibration data only; never inspect final test.
+
+    A prediction is emitted only when max(P(up), P(down)) clears the threshold.
+    Among thresholds meeting minimum sample and balanced-accuracy requirements,
+    select the one with greatest coverage. If none qualifies, fail closed (WAIT).
+    """
+    ys = [int(value) for value in outcomes]
+    ps = [_probability(value, "probability_up") for value in probabilities_up]
+    if len(ys) != len(ps) or not ys:
+        raise ValueError("outcomes and probabilities must be nonempty and equal length")
+    if any(value not in (0, 1) for value in ys):
+        raise ValueError("outcomes must contain only binary labels")
+    if min_samples < 2 or not 0.5 <= minimum_balanced_accuracy <= 1.0:
+        raise ValueError("invalid abstention gate settings")
+    candidates = sorted({_probability(value, "candidate_threshold") for value in candidates})
+    if any(value <= 0.5 or value > 1.0 for value in candidates):
+        raise ValueError("candidate thresholds must be in (0.5, 1]")
+    scored = []
+    for threshold in candidates:
+        selected = [i for i, p in enumerate(ps) if max(p, 1.0 - p) >= threshold]
+        if len(selected) < min_samples:
+            continue
+        truth = [ys[i] for i in selected]
+        predicted = [1 if ps[i] >= 0.5 else 0 for i in selected]
+        recalls = []
+        for label in (0, 1):
+            indices = [i for i, value in enumerate(truth) if value == label]
+            if not indices:
+                break
+            recalls.append(sum(predicted[i] == label for i in indices) / len(indices))
+        if len(recalls) != 2:
+            continue
+        balanced = sum(recalls) / 2.0
+        scored.append({
+            "threshold": threshold,
+            "selected_samples": len(selected),
+            "coverage": len(selected) / len(ys),
+            "balanced_accuracy": balanced,
+        })
+    eligible = [item for item in scored if item["balanced_accuracy"] >= minimum_balanced_accuracy]
+    if not eligible:
+        return {
+            "enabled": False, "threshold": 1.01, "reason": "no_calibration_threshold_met_quality_gate",
+            "calibration_samples": len(ys), "candidates": scored,
+        }
+    best = max(eligible, key=lambda item: (item["coverage"], item["balanced_accuracy"], -item["threshold"]))
+    return {
+        "enabled": True, "threshold": best["threshold"], "reason": "calibration_quality_gate_passed",
+        "calibration_samples": len(ys), "selected_samples": best["selected_samples"],
+        "coverage": best["coverage"], "balanced_accuracy": best["balanced_accuracy"],
+        "candidates": scored,
+    }
