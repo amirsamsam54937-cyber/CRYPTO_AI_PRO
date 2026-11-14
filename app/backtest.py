@@ -157,15 +157,23 @@ def run_backtest(
             if side and atr_value > 0 and entry_raw > 0:
                 stop_raw = entry_raw - atr_multiple*atr_value if side == "LONG" else entry_raw + atr_multiple*atr_value
                 distance = abs(entry_raw-stop_raw)
+                # Size against the estimated net stop loss, not raw price distance:
+                # include adverse entry/stop fills and both sides' trading fees.
+                entry_price = adverse(entry_raw, side, entering=True)
+                stop_exit_price = adverse(stop_raw, side, entering=False)
+                direction = 1 if side == "LONG" else -1
+                stop_gross_loss_per_unit = (entry_price-stop_exit_price)*direction
+                stop_fees_per_unit = (abs(entry_price)+abs(stop_exit_price))*fee_rate
+                estimated_stop_loss_per_unit = stop_gross_loss_per_unit + stop_fees_per_unit
+                if not math.isfinite(estimated_stop_loss_per_unit) or estimated_stop_loss_per_unit <= 0:
+                    continue
                 risk_cash = equity*risk_per_trade
-                qty = risk_cash/distance
-                notional = qty*entry_raw
+                qty = risk_cash/estimated_stop_loss_per_unit
+                notional = qty*abs(entry_price)
                 max_notional = equity*max_leverage
                 if notional > max_notional:
-                    qty = max_notional/entry_raw
+                    qty = max_notional/abs(entry_price)
                     notional = max_notional
-                    risk_cash = qty*distance
-                entry_price = adverse(entry_raw, side, entering=True)
                 target = entry_raw + (1 if side == "LONG" else -1)*distance*reward_risk
                 entry_fee = abs(entry_price*qty)*fee_rate
                 entry_slip = abs(entry_price-entry_raw)*qty
