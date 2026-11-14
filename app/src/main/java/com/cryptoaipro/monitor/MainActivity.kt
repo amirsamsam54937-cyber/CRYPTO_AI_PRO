@@ -192,7 +192,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                         neuralDirection = "NEUTRAL",
                         neuralModelSource = "مدل معتبر در دسترس نیست",
                         neuralMemberVotes = memberVotes,
-                    neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
+                        neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
+                        neuralUncertainty = uncertainty
                     )
                 } else {
                     // This model is trained on 1h inputs with a 6h forecast horizon,
