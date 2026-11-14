@@ -112,6 +112,9 @@ data class MarketSignal(
     val neuralCandles: List<DoubleArray> = emptyList(),
     val neuralMemberVotes: List<String> = emptyList(),
     val neuralMemberProbabilities: List<Double> = emptyList(),
+    val neuralMemberRoles: List<String> = emptyList(),
+    val neuralMemberWeights: List<Double> = emptyList(),
+    val neuralMarketRegime: String = "نامشخص",
     // Internal XT microstructure features; deliberately not rendered in any UI or notification.
     val hiddenFlowScore: Int = 0,
     val hiddenFlowFresh: Boolean = false
@@ -179,7 +182,10 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     neuralDirection = research?.predictedDirection ?: rawPredictedSide,
                     neuralModelSource = "۱۰ شبکه عصبی • رأی پژوهشی مستقل • خارج از تصمیم نهایی تا اعتبارسنجی",
                     neuralMemberVotes = memberVotes,
-                    neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
+                    neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
+                    neuralMemberRoles = research?.memberRoles.orEmpty(),
+                    neuralMemberWeights = research?.memberWeights.orEmpty(),
+                    neuralMarketRegime = research?.marketRegime ?: "نامشخص"
                 )
             } else {
                 val probability = research?.upProbability
@@ -189,7 +195,10 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                         neuralDirection = "NEUTRAL",
                         neuralModelSource = "مدل معتبر در دسترس نیست",
                         neuralMemberVotes = memberVotes,
-                    neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
+                    neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
+                    neuralMemberRoles = research?.memberRoles.orEmpty(),
+                    neuralMemberWeights = research?.memberWeights.orEmpty(),
+                    neuralMarketRegime = research?.marketRegime ?: "نامشخص"
                     )
                 } else {
                     // The model predicts absolute future price direction. It only
@@ -205,7 +214,10 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                         neuralModelSource = "۱۰مدلی • اعتبارسنجی‌شده",
                         confidence = adjustedConfidence,
                         neuralMemberVotes = memberVotes,
-                    neuralMemberProbabilities = research?.memberProbabilities.orEmpty()
+                    neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
+                    neuralMemberRoles = research?.memberRoles.orEmpty(),
+                    neuralMemberWeights = research?.memberWeights.orEmpty(),
+                    neuralMarketRegime = research?.marketRegime ?: "نامشخص"
                     )
                 }
             }
