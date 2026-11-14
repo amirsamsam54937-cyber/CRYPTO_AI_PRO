@@ -52,4 +52,31 @@ class XtFuturesCapitalManagerTest {
         assertTrue(adverseFunding.estimatedFundingCostUsdt > noFunding.estimatedFundingCostUsdt)
         assertTrue(adverseFunding.estimatedNetTargetProfitUsdt < noFunding.estimatedNetTargetProfitUsdt)
     }
+    @Test fun dailyLossAndPeakDrawdownBreakersStopNewRisk() {
+        val dailyStop = XtFuturesCapitalManager.riskPolicy(
+            XtFuturesCapitalManager.PortfolioState(980.0, 1000.0, 1000.0, 0)
+        )
+        assertFalse(dailyStop.allowNewTrades)
+        val drawdownStop = XtFuturesCapitalManager.riskPolicy(
+            XtFuturesCapitalManager.PortfolioState(920.0, 1000.0, 1000.0, 0)
+        )
+        assertFalse(drawdownStop.allowNewTrades)
+    }
+
+    @Test fun riskScalesDownDuringDrawdownAndLossStreak() {
+        val normal = XtFuturesCapitalManager.riskPolicy(
+            XtFuturesCapitalManager.PortfolioState(1000.0, 1000.0, 1000.0, 0)
+        )
+        val reduced = XtFuturesCapitalManager.riskPolicy(
+            XtFuturesCapitalManager.PortfolioState(970.0, 1000.0, 1000.0, 3)
+        )
+        assertTrue(normal.allowNewTrades)
+        assertTrue(reduced.allowNewTrades)
+        assertTrue(reduced.riskFraction < normal.riskFraction)
+        val streakStop = XtFuturesCapitalManager.riskPolicy(
+            XtFuturesCapitalManager.PortfolioState(1000.0, 1000.0, 1000.0, 5)
+        )
+        assertFalse(streakStop.allowNewTrades)
+    }
+
 }
