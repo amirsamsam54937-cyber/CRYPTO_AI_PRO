@@ -1,7 +1,6 @@
 package com.cryptoaipro.monitor
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -42,6 +41,6 @@ class WolfCandleHorizonTest {
     @Test fun rejectsInvalidOutcomePrices() {
         var rejected = false
         try { WolfCandleHorizon.directionalOutcome(0.0, 100.0) } catch (_: IllegalArgumentException) { rejected = true }
-        assertFalse(!rejected)
+        assertTrue(rejected)
     }
 }
