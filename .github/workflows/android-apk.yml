@@ -166,7 +166,7 @@ jobs:
           assert model.get("asset_class_policy")==m.get("asset_class_policy")
           assert model.get("crypto_asset_registry_source")==m.get("crypto_asset_registry_source")
           assert model.get("crypto_asset_registry_sha256")==m.get("crypto_asset_registry_sha256")
-          assert report.get("validation_status")=="validated_for_scoring"
+          # The training report has no validation_status field; enforce the actual numerical gates below.
           with gzip.open(p/"market_seed.csv.gz","rt",encoding="utf-8") as f:
               header=f.readline().strip()
               assert header=="exchange,symbol,timeframe,timestamp,open,high,low,close,volume"
