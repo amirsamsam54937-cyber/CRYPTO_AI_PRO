@@ -16,3 +16,19 @@ def chronological_masks(timestamps, horizon_bars=6, interval_ms=60 * 60 * 1000, 
     if not train_mask.any() or not test_mask.any():
         raise ValueError("Purged chronological split produced an empty train or test partition")
     return train_mask, test_mask, int(purged_mask.sum()), int(cutoff)
+ 
+def chronological_train_calibration_masks(
+    timestamps, horizon_bars=6, interval_ms=60 * 60 * 1000, calibration_fraction=0.25
+):
+    """Split outer training data into fit and later calibration windows.
+
+    A purge of horizon_bars separates model fitting from calibration so forward
+    labels cannot overlap. The final test window must remain outside this helper.
+    """
+    fraction = float(calibration_fraction)
+    if not 0.05 <= fraction <= 0.5:
+        raise ValueError("calibration_fraction must be between 0.05 and 0.5")
+    return chronological_masks(
+        timestamps, horizon_bars=horizon_bars,
+        interval_ms=interval_ms, test_fraction=fraction,
+    )
