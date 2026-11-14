@@ -5,6 +5,7 @@ from tools.ensemble_meta import (
     estimate_member_weights,
     evaluate_consensus,
     expected_calibration_error,
+    estimate_regime_member_weights,
 )
 
 
@@ -30,6 +31,40 @@ class EnsembleMetaTests(unittest.TestCase):
         self.assertGreater(result["weights"]["good"], result["weights"]["weak"])
         self.assertLessEqual(max(result["weights"].values()), 0.8)
         self.assertAlmostEqual(sum(result["weights"].values()), 1.0)
+
+    def test_two_member_default_weight_cap_is_feasible(self):
+        good = [(0.9, 1), (0.1, 0)] * 30
+        weak = [(0.9, 0), (0.1, 1)] * 30
+        result = estimate_member_weights({"good": good, "weak": weak})
+        self.assertAlmostEqual(sum(result["weights"].values()), 1.0)
+        self.assertLessEqual(max(result["weights"].values()), 0.5 + 1e-12)
+
+    def test_regime_weights_require_sufficient_oos_history(self):
+        good = [(0.9, 1), (0.1, 0)] * 25
+        weak = [(0.9, 0), (0.1, 1)] * 25
+        regimes = {
+            "trend": {"good": good, "weak": weak},
+            "range": {"good": good[:4], "weak": weak[:4]},
+        }
+        result = estimate_regime_member_weights(
+            regimes, global_weights={"good": 0.7, "weak": 0.3},
+            min_observations=20,
+        )
+        self.assertEqual(result["regimes"]["trend"]["source"], "regime_oos")
+        self.assertGreater(
+            result["regimes"]["trend"]["weights"]["good"],
+            result["regimes"]["trend"]["weights"]["weak"],
+        )
+        self.assertEqual(result["regimes"]["range"]["source"], "global_fallback")
+        self.assertEqual(result["regimes"]["range"]["weights"], {"good": 0.7, "weak": 0.3})
+        self.assertFalse(result["metadata"]["runtime_weighting_enabled"])
+
+    def test_regime_weighting_rejects_mismatched_specialists(self):
+        with self.assertRaises(ValueError):
+            estimate_regime_member_weights({
+                "trend": {"a": [(0.8, 1)]},
+                "range": {"b": [(0.2, 0)]},
+            })
 
     def test_consensus_approves_agreement_and_exposes_member_votes(self):
         ps = {f"m{i}": 0.75 + i * 0.01 for i in range(10)}
