@@ -113,6 +113,26 @@ internal object WolfNeuralForecastJournal {
         return snapshot(bounded)
     }
 
+    /** Conservative online reliability weights; no member is promoted before 30 independent outcomes. */
+    internal fun adaptiveMemberWeights(context: Context): List<Double> = adaptiveMemberWeights(snapshot(context).members)
+
+    internal fun adaptiveMemberWeights(stats: List<MemberStats>): List<Double> {
+        if (stats.size != EXPERTS) return List(EXPERTS) { 1.0 }
+        val eligible = stats.filter { it.samples >= 30 && it.brier.isFinite() && it.brier in 0.0..1.0 }
+        if (eligible.size < 3) return List(EXPERTS) { 1.0 }
+        val baseline = eligible.map { it.brier }.average().coerceAtLeast(1e-6)
+        val raw = stats.map { member ->
+            if (member.samples < 30 || !member.brier.isFinite() || member.brier !in 0.0..1.0) 1.0
+            else {
+                val target = (baseline / member.brier.coerceAtLeast(1e-6)).coerceIn(0.75, 1.25)
+                val shrink = member.samples.toDouble() / (member.samples + 100.0)
+                1.0 + (target - 1.0) * shrink
+            }
+        }
+        val mean = raw.average().coerceAtLeast(1e-9)
+        return raw.map { (it / mean).coerceIn(0.75, 1.25) }
+    }
+
     fun snapshot(context: Context): Snapshot {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, "[]") ?: "[]"
         val rows = runCatching { JSONArray(raw) }.getOrDefault(JSONArray())
