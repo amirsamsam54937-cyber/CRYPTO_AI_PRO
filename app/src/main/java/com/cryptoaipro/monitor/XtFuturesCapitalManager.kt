@@ -30,6 +30,43 @@ internal object XtFuturesCapitalManager {
         }
     }
 
+    data class PortfolioState(
+        val currentEquity: Double,
+        val peakEquity: Double,
+        val dayStartEquity: Double,
+        val consecutiveLosses: Int
+    )
+
+    data class RiskPolicy(val allowNewTrades: Boolean, val riskFraction: Double, val reason: String)
+
+    /**
+     * Compounding-aware guard: risk is based on current equity, then stepped down
+     * as drawdown/loss streak grows. Daily and peak drawdown breakers fail closed.
+     */
+    fun riskPolicy(state: PortfolioState): RiskPolicy {
+        require(listOf(state.currentEquity, state.peakEquity, state.dayStartEquity)
+            .all { it.isFinite() && it > 0.0 })
+        require(state.consecutiveLosses >= 0)
+        val dailyLoss = ((state.dayStartEquity - state.currentEquity) / state.dayStartEquity).coerceAtLeast(0.0)
+        val drawdown = ((state.peakEquity - state.currentEquity) / state.peakEquity).coerceAtLeast(0.0)
+        if (dailyLoss >= 0.02) return RiskPolicy(false, 0.0, "ترمز زیان روزانه 2% فعال شد؛ معاملات جدید متوقف‌اند.")
+        if (drawdown >= 0.08) return RiskPolicy(false, 0.0, "ترمز افت سرمایه 8% فعال شد؛ معاملات جدید متوقف‌اند.")
+        if (state.consecutiveLosses >= 5) return RiskPolicy(false, 0.0, "پس از 5 زیان متوالی، سیستم وارد دوره توقف و بازبینی می‌شود.")
+        val drawdownRisk = when {
+            drawdown >= 0.06 -> 0.001
+            drawdown >= 0.04 -> 0.002
+            drawdown >= 0.02 -> 0.003
+            else -> 0.005
+        }
+        val streakRisk = when {
+            state.consecutiveLosses >= 3 -> 0.002
+            state.consecutiveLosses == 2 -> 0.003
+            else -> 0.005
+        }
+        val selected = min(drawdownRisk, streakRisk)
+        return RiskPolicy(true, selected, "ریسک پویا بر اساس Equity، افت سرمایه و زنجیره زیان تنظیم شد.")
+    }
+
     data class Fees(
         val makerRate: Double = 0.0004,
         val takerRate: Double = 0.0006,
