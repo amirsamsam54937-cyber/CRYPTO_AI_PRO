@@ -184,7 +184,8 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
             Text(
                 XtExecutionPolicy.label(
                     XtExecutionPolicy.State(
-                        readOnlyConnectionVerified = accountLine.isNotBlank()
+                        mode = XtExecutionPolicy.Mode.SHADOW_PAPER,
+                        credentialsVerified = accountLine.isNotBlank()
                     )
                 ),
                 color = gold, fontSize = 10.sp, fontWeight = FontWeight.Bold

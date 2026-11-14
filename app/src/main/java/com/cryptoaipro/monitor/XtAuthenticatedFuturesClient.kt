@@ -304,6 +304,103 @@ internal class XtAuthenticatedFuturesClient(
         return (0 until items.length()).mapNotNull { items.optJSONObject(it) }
     }
 
+    /**
+     * Change leverage only after the caller has passed the in-app LIVE gate.
+     * XT documents LONG/SHORT as required position sides.
+     */
+    suspend fun adjustLeverage(symbol: String, positionSide: String, leverage: Int): JSONObject {
+        require(positionSide in setOf("LONG", "SHORT"))
+        require(leverage in 1..3) { "ZORO safety cap: leverage must be between 1x and 3x." }
+        val body = JSONObject()
+            .put("symbol", normalizeSymbol(symbol))
+            .put("positionSide", positionSide)
+            .put("leverage", leverage)
+        return request("POST", "/future/user/v1/position/adjust-leverage", body = body)
+    }
+
+    data class MarketOrderReceipt(
+        val orderId: String,
+        val clientOrderId: String,
+        val raw: JSONObject
+    )
+
+    /**
+     * Sends a market entry. This method deliberately does not retry: after a timeout
+     * the exchange may have accepted the order, so the caller must reconcile by
+     * clientOrderId/order history before any further action.
+     */
+    suspend fun placeMarketEntry(
+        symbol: String,
+        side: String,
+        contracts: Long,
+        clientOrderId: String
+    ): MarketOrderReceipt {
+        require(side in setOf("LONG", "SHORT"))
+        require(contracts > 0L)
+        require(clientOrderId.matches(Regex("[A-Za-z0-9_-]{8,32}")))
+        val orderSide = if (side == "LONG") "BUY" else "SELL"
+        val body = JSONObject()
+            .put("clientOrderId", clientOrderId)
+            .put("symbol", normalizeSymbol(symbol))
+            .put("orderSide", orderSide)
+            .put("orderType", "MARKET")
+            .put("origQty", contracts)
+            .put("positionSide", side)
+        val response = request("POST", "/future/trade/v1/order/create", body = body)
+        val result = response.optJSONObject("result") ?: JSONObject()
+        val id = result.opt("orderId")?.toString().orEmpty()
+        require(id.isNotBlank()) {
+            "XT درخواست ورود را بدون orderId پاسخ داد؛ وضعیت سفارش باید از تاریخچه تطبیق داده شود."
+        }
+        return MarketOrderReceipt(id, clientOrderId, response)
+    }
+
+    data class TriggerPlanReceipt(
+        val planId: String,
+        val clientOrderId: String,
+        val kind: String,
+        val raw: JSONObject
+    )
+
+    /**
+     * Places an exchange-side protective STOP_MARKET or TAKE_PROFIT_MARKET plan.
+     * A successful HTTP response is not enough; the caller must verify the plan
+     * appears in activeTriggerPlans before declaring the position protected.
+     */
+    suspend fun placeProtectivePlan(
+        symbol: String,
+        positionSide: String,
+        kind: String,
+        contracts: Long,
+        triggerPrice: Double,
+        clientOrderId: String
+    ): TriggerPlanReceipt {
+        require(positionSide in setOf("LONG", "SHORT"))
+        require(kind in setOf("STOP_MARKET", "TAKE_PROFIT_MARKET"))
+        require(contracts > 0L && triggerPrice.isFinite() && triggerPrice > 0.0)
+        require(clientOrderId.matches(Regex("[A-Za-z0-9_-]{8,32}")))
+        val closeSide = if (positionSide == "LONG") "SELL" else "BUY"
+        val body = JSONObject()
+            .put("clientOrderId", clientOrderId)
+            .put("symbol", normalizeSymbol(symbol))
+            .put("orderSide", closeSide)
+            .put("entrustType", kind)
+            .put("origQty", contracts)
+            .put("stopPrice", BigDecimal.valueOf(triggerPrice).stripTrailingZeros().toPlainString())
+            .put("timeInForce", "IOC")
+            .put("triggerPriceType", "MARK_PRICE")
+            .put("positionSide", positionSide)
+        val response = request("POST", "/future/trade/v1/entrust/create-plan", body = body)
+        val result = response.optJSONObject("result") ?: JSONObject()
+        val id = result.opt("entrustId")?.toString()
+            ?: result.opt("planId")?.toString()
+            ?: result.opt("id")?.toString().orEmpty()
+        require(id.isNotBlank()) {
+            "XT پاسخ ثبت حدضرر/حدسود را بدون شناسه طرح برگرداند؛ باید فهرست طرح‌ها تطبیق داده شود."
+        }
+        return TriggerPlanReceipt(id, clientOrderId, kind, response)
+    }
+
     companion object {
         /** Floors quantity to XT's integer contract unit; never rounds risk upward. */
         fun floorContracts(rawContracts: Double): Long {

@@ -144,6 +144,8 @@ data class TechnicalSnapshot(
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
     // The pretrained model can influence signals only after a chronological holdout validates it.
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
+    // Historical 6h outcomes calibrate member influence only after a minimum sample count.
+    val adaptiveMemberWeights = WolfNeuralForecastJournal.adaptiveMemberWeights(context)
     return signals.map { signal ->
         val candidate = when {
             signal.direction != "NEUTRAL" -> signal
@@ -156,7 +158,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         else {
             // Always expose the ten raw specialist outputs for transparency, but never
             // let an unvalidated ensemble affect the published direction or confidence.
-            val research = WolfPretrainedEnsemble.predictResearch(candidate)
+            val research = WolfPretrainedEnsemble.predictResearch(candidate, adaptiveMemberWeights)
             val uncertainty = WolfEnsembleUncertainty.analyze(research?.memberProbabilities.orEmpty())
             val memberVotes = research?.let { prediction ->
                 prediction.memberProbabilities.mapIndexed { index, p ->
@@ -375,7 +377,7 @@ fun CryptoMonitorScreen() {
         try {
             val progress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { partial, completed, total, failed ->
                 val reviewedPartial = withContext(Dispatchers.Default) {
-                    applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial))
+                    ZoroSignalIntelligence.enrich(applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial)))
                 }
                 withContext(Dispatchers.Main) {
                     rows = reviewedPartial
@@ -388,7 +390,7 @@ fun CryptoMonitorScreen() {
             appSettings.edit().putString("market_exchange", selectedExchange).apply()
             val scanned = XtFuturesMonitor.scan(progress)
             researchStats = WolfMarketDataStore.recordLiveScan(context, selectedExchange, scanned)
-            val scoredRows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned))
+            val scoredRows = ZoroSignalIntelligence.enrich(applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned)))
             val publishedCount = scoredRows.count { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
             val blockedCount = scoredRows.size - publishedCount
             val blockReasons = scoredRows.filter { it.direction == "NEUTRAL" }
