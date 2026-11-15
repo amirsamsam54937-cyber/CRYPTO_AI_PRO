@@ -314,6 +314,32 @@ internal class XtAuthenticatedFuturesClient(
             .also { it.validate() }
     }
 
+    suspend fun activeTakeProfitStopOrders(symbol: String): List<JSONObject> {
+        val normalized = normalizeSymbol(symbol)
+        val byId = linkedMapOf<String, JSONObject>()
+        // XT stores attached position TP/SL orders in profit-list, separately from
+        // generic trigger plans. Only NOT_TRIGGERED/TRIGGERING are active protections.
+        for (state in listOf("NOT_TRIGGERED", "TRIGGERING")) {
+            val response = request(
+                "GET", "/future/trade/v1/entrust/profit-list",
+                mapOf("symbol" to normalized, "state" to state, "page" to "1", "size" to "100")
+            )
+            val result = response.optJSONObject("result")
+                ?: throw IllegalStateException("ساختار پاسخ TP/SL حساب XT نامعتبر است.")
+            val items = result.optJSONArray("items")
+                ?: throw IllegalStateException("فهرست TP/SL در XT فاقد items است.")
+            for (i in 0 until items.length()) {
+                val item = items.optJSONObject(i) ?: continue
+                val id = item.opt("profitId")?.toString().orEmpty()
+                val key = if (id.isNotBlank()) id else item.optString("symbol") + "|" +
+                    item.optString("positionSide") + "|" + item.optString("triggerStopPrice") + "|" +
+                    item.optString("triggerProfitPrice")
+                byId[key] = item
+            }
+        }
+        return byId.values.toList()
+    }
+
     suspend fun activeTriggerPlans(symbol: String): List<JSONObject> {
         val normalized = normalizeSymbol(symbol)
         val byId = linkedMapOf<String, JSONObject>()
