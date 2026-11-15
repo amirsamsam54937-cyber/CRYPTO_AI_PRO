@@ -24,6 +24,7 @@ internal object XtLiveTradingEngine {
     private const val KEY_ENABLED = "live_execution_enabled"
     private const val KEY_AUTO_ENABLED = "automatic_execution_enabled"
     private val autoScanMutex = Mutex()
+    private val executionMutex = Mutex()
     private const val KEY_EMERGENCY = "emergency_stop"
     private const val KEY_STATUS = "last_status"
     private const val KEY_MANAGED = "managed_symbols"
@@ -315,6 +316,14 @@ internal object XtLiveTradingEngine {
     }
 
     suspend fun executeManual(
+        context: Context,
+        signal: MarketSignal,
+        preview: ManualPreview
+    ): ExecutionResult = executionMutex.withLock {
+        executeManualLocked(context, signal, preview)
+    }
+
+    private suspend fun executeManualLocked(
         context: Context,
         signal: MarketSignal,
         preview: ManualPreview
