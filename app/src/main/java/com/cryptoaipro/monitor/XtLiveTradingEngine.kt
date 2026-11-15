@@ -10,6 +10,8 @@ import java.util.Locale
 import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.max
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Manual, user-confirmed XT USDT-M execution.
@@ -20,6 +22,8 @@ import kotlin.math.max
 internal object XtLiveTradingEngine {
     private const val PREFS = "zoro_live_trade_state"
     private const val KEY_ENABLED = "live_execution_enabled"
+    private const val KEY_AUTO_ENABLED = "automatic_execution_enabled"
+    private val autoScanMutex = Mutex()
     private const val KEY_EMERGENCY = "emergency_stop"
     private const val KEY_STATUS = "last_status"
     private const val KEY_MANAGED = "managed_symbols"
@@ -52,6 +56,30 @@ internal object XtLiveTradingEngine {
     fun isEnabled(context: Context): Boolean =
         prefs(context).getBoolean(KEY_ENABLED, false)
 
+    fun isAutoEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_AUTO_ENABLED, false) &&
+            isEnabled(context) && !isEmergencyStopped(context) &&
+            XtCredentialVault.hasCredentials(context) &&
+            WolfPretrainedEnsemble.status().validatedForScoring
+
+    fun canArmAutomatic(context: Context): Boolean =
+        isEnabled(context) && !isEmergencyStopped(context) &&
+            XtCredentialVault.hasCredentials(context) &&
+            WolfPretrainedEnsemble.status().validatedForScoring
+
+    fun setAutoEnabled(context: Context, enabled: Boolean) {
+        val allowed = enabled && canArmAutomatic(context)
+        prefs(context).edit()
+            .putBoolean(KEY_AUTO_ENABLED, allowed)
+            .putString(
+                KEY_STATUS,
+                if (allowed) "معامله‌گر خودکار مسلح شد؛ ورود فقط با عبور تمام کنترل‌های سیگنال، مدل، حساب و ریسک انجام می‌شود."
+                else if (enabled) "فعال‌سازی خودکار رد شد؛ LIVE، اعتبار مدل عصبی، کلید API و وضعیت توقف اضطراری را بررسی کن."
+                else "معامله‌گر خودکار خاموش شد؛ پایش و تحلیل ادامه دارد."
+            )
+            .apply()
+    }
+
     fun isEmergencyStopped(context: Context): Boolean =
         prefs(context).getBoolean(KEY_EMERGENCY, false)
 
@@ -73,12 +101,12 @@ internal object XtLiveTradingEngine {
     }
 
     fun setEnabled(context: Context, enabled: Boolean) {
-        prefs(context).edit()
-            .putBoolean(KEY_ENABLED, enabled)
-            .putString(KEY_STATUS, if (enabled)
-                "حالت LIVE مسلح شد؛ هیچ سفارش خودکاری ارسال نمی‌شود. برای هر سیگنال تأیید جداگانه لازم است."
-            else "حالت LIVE غیرفعال شد؛ سفارش جدید ارسال نمی‌شود.")
-            .apply()
+        val editor = prefs(context).edit().putBoolean(KEY_ENABLED, enabled)
+        if (!enabled) editor.putBoolean(KEY_AUTO_ENABLED, false)
+        editor.putString(KEY_STATUS, if (enabled)
+            "حالت LIVE مسلح شد؛ معامله‌گر خودکار فقط با فعال‌سازی جداگانه و عبور اعتبارسنجی مدل کار می‌کند."
+        else "حالت LIVE غیرفعال شد؛ معامله‌گر خودکار و سفارش‌های جدید متوقف شدند.")
+        editor.apply()
     }
 
     private fun prefs(context: Context) =
@@ -92,6 +120,7 @@ internal object XtLiveTradingEngine {
         prefs(context).edit()
             .putBoolean(KEY_EMERGENCY, true)
             .putBoolean(KEY_ENABLED, false)
+            .putBoolean(KEY_AUTO_ENABLED, false)
             .putString(KEY_STATUS, "توقف اضطراری: $message")
             .apply()
     }
@@ -477,6 +506,71 @@ internal object XtLiveTradingEngine {
         }
     }
 
-    /** Scans never open live positions automatically. */
-    suspend fun processScan(context: Context, signals: List<MarketSignal>) = Unit
+    /**
+     * Background auto mode evaluates one ranked candidate per scan. It reuses the
+     * same live preflight, fee-aware sizing, account checks, TP/SL verification,
+     * and emergency-stop path as manual execution. All gates fail closed.
+     */
+    suspend fun processScan(context: Context, signals: List<MarketSignal>): ExecutionResult? =
+        autoScanMutex.withLock {
+            val modelValidated = WolfPretrainedEnsemble.status().validatedForScoring
+            if (!XtAutomaticTradingPolicy.mayRun(
+                    liveArmed = isEnabled(context),
+                    automaticEnabled = prefs(context).getBoolean(KEY_AUTO_ENABLED, false),
+                    credentialsPresent = XtCredentialVault.hasCredentials(context),
+                    modelValidated = modelValidated,
+                    emergencyStop = isEmergencyStopped(context)
+                )
+            ) return@withLock null
+
+            val candidate = signals.asSequence()
+                .filter { signal ->
+                    val side = directionSide(signal.direction)
+                    side != null &&
+                        directionSide(signal.neuralDirection) == side &&
+                        signal.confidence >= 70 &&
+                        signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه" &&
+                        signal.neuralMemberProbabilities.size == 10 &&
+                        signal.neuralMemberProbabilities.all { it.isFinite() && it in 0.0..1.0 } &&
+                        signal.price.isFinite() && signal.price > 0.0
+                }
+                .sortedWith(
+                    compareByDescending<MarketSignal> { it.confidence }
+                        .thenByDescending { it.score }
+                        .thenByDescending { it.volume }
+                )
+                .firstOrNull()
+                ?: return@withLock null
+
+            val candleTime = candidate.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L
+            if (candleTime <= 0L) return@withLock null
+            val signalKey = listOf(
+                normalized(candidate.symbol),
+                candidate.direction,
+                candidate.tradeTimeframe,
+                candleTime.toString()
+            ).joinToString("|")
+            val p = prefs(context)
+            if (p.getString("last_auto_signal_key", "") == signalKey) return@withLock null
+
+            val preview = try {
+                prepareManual(context, candidate)
+            } catch (error: Exception) {
+                setStatus(context, "معامله‌گر خودکار: این فرصت از پیش‌بررسی عبور نکرد؛ " + (error.message ?: error.javaClass.simpleName))
+                return@withLock null
+            }
+
+            // Persist before order submission so restarts or ambiguous responses
+            // cannot submit the same candle twice.
+            p.edit().putString("last_auto_signal_key", signalKey).apply()
+            val result = executeManual(context, candidate, preview)
+            setStatus(
+                context,
+                if (result.success)
+                    "اجرای خودکار موفق: " + candidate.symbol + " " + preview.side + "؛ سفارش و حفاظت صرافی تأیید شد."
+                else
+                    "اجرای خودکار متوقف شد: " + result.message
+            )
+            result
+        }
 }
