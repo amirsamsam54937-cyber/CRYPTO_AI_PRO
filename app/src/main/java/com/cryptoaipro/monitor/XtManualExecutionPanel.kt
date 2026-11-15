@@ -46,6 +46,17 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
     val muted = Color(0xFFB8B0A0)
 
     LaunchedEffect(context) {
+        if (XtLiveTradingEngine.isEnabled(context) || XtLiveTradingEngine.hasManagedSymbols(context)) {
+            val serviceIntent = Intent(context, HopeHunterMonitorService::class.java).apply {
+                action = HopeHunterMonitorService.ACTION_START
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+            onMonitoringStarted()
+        }
         while (true) {
             enabled = XtLiveTradingEngine.isEnabled(context)
             emergency = XtLiveTradingEngine.isEmergencyStopped(context)
