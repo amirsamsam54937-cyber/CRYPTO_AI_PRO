@@ -37,6 +37,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
     val scope = rememberCoroutineScope()
     var enabled by remember { mutableStateOf(XtLiveTradingEngine.isEnabled(context)) }
     var autoEnabled by remember { mutableStateOf(XtLiveTradingEngine.isAutoEnabled(context)) }
+    var modelValidated by remember { mutableStateOf(WolfPretrainedEnsemble.status().validatedForScoring) }
     var emergency by remember { mutableStateOf(XtLiveTradingEngine.isEmergencyStopped(context)) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf(XtLiveTradingEngine.lastStatus(context)) }
@@ -62,10 +63,13 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
             val currentEnabled = XtLiveTradingEngine.isEnabled(context)
             val currentEmergency = XtLiveTradingEngine.isEmergencyStopped(context)
             val currentAuto = XtLiveTradingEngine.isAutoEnabled(context)
-            if (currentEnabled != enabled || currentEmergency != emergency || currentAuto != autoEnabled) {
+            val currentModelValidated = WolfPretrainedEnsemble.status().validatedForScoring
+            if (currentEnabled != enabled || currentEmergency != emergency ||
+                currentAuto != autoEnabled || currentModelValidated != modelValidated) {
                 enabled = currentEnabled
                 emergency = currentEmergency
                 autoEnabled = currentAuto
+                modelValidated = currentModelValidated
                 status = XtLiveTradingEngine.lastStatus(context)
             }
             delay(1500L)
@@ -117,7 +121,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                     Text(
                         when {
                             autoEnabled -> "فعال • یک فرصت برتر در هر اسکن، با کنترل کامل ریسک"
-                            !WolfPretrainedEnsemble.status().validatedForScoring -> "قفل ایمنی: مدل عصبی هنوز آزمون مستقل را پاس نکرده است"
+                            !modelValidated -> "قفل ایمنی: مدل عصبی هنوز آزمون مستقل را پاس نکرده است"
                             !enabled -> "ابتدا حالت LIVE را مسلح کن"
                             else -> "خاموش • فقط با روشن‌کردن این کلید سفارش خودکار مجاز می‌شود"
                         },
