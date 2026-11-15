@@ -61,7 +61,8 @@ internal object XtLiveTradingEngine {
 
     suspend fun canClearCredentials(context: Context): Boolean {
         if (hasManagedSymbols(context)) return false
-        return XtAuthenticatedFuturesClient(context).activePositions().isEmpty()
+        val client = XtAuthenticatedFuturesClient(context)
+        return client.activePositions().isEmpty() && client.activeOpenOrders().isEmpty()
     }
 
     fun setEnabled(context: Context, enabled: Boolean) {
@@ -90,8 +91,8 @@ internal object XtLiveTradingEngine {
 
     suspend fun resetEmergencyStopIfFlat(context: Context): Boolean {
         val client = XtAuthenticatedFuturesClient(context)
-        if (client.activePositions().isNotEmpty()) {
-            setStatus(context, "توقف اضطراری قابل بازنشانی نیست؛ ابتدا وضعیت تمام پوزیشن‌های XT را بررسی و بسته‌شدن آن‌ها را تأیید کن.")
+        if (client.activePositions().isNotEmpty() || client.activeOpenOrders().isNotEmpty()) {
+            setStatus(context, "توقف اضطراری قابل بازنشانی نیست؛ ابتدا تمام پوزیشن‌ها و سفارش‌های باز XT را تعیین تکلیف کن.")
             return false
         }
         prefs(context).edit()
