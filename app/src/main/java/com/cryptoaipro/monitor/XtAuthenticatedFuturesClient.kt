@@ -474,6 +474,10 @@ internal class XtAuthenticatedFuturesClient(
         val stop = order.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0
         val target = order.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0
         require(id.isNotBlank() && order.optString("clientOrderId") == clientOrderId &&
+            normalizeSymbol(order.optString("symbol")) == normalized &&
+            order.optString("orderSide").equals(if (side == "LONG") "BUY" else "SELL", true) &&
+            order.optString("positionSide").equals(side, true) &&
+            (order.optString("origQty").toDoubleOrNull() ?: Double.NaN) == contracts.toDouble() &&
             kotlin.math.abs(stop - stopLossPrice) <= maxOf(1e-8, stopLossPrice * 1e-8) &&
             kotlin.math.abs(target - takeProfitPrice) <= maxOf(1e-8, takeProfitPrice * 1e-8)) {
             "سفارش ثبت‌شده است اما حدضرر/حدسود متصل در پاسخ XT تأیید نشد؛ معامله را محافظت‌شده فرض نکن."
