@@ -196,11 +196,32 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
             )
             TextButton(
                 onClick = {
-                    XtLiveTradingEngine.setEnabled(context, false)
-                    XtCredentialVault.clear(context)
-                    accountLine = ""
-                    status = "کلیدهای ذخیره‌شده و کلید رمزنگاری دستگاه پاک شدند."
+                    if (!XtCredentialVault.hasCredentials(context)) {
+                        XtLiveTradingEngine.setEnabled(context, false)
+                        XtCredentialVault.clear(context)
+                        accountLine = ""
+                        status = "کلیدهای ذخیره‌شده پاک شدند."
+                    } else {
+                        busy = true
+                        scope.launch {
+                            try {
+                                if (!XtLiveTradingEngine.canClearCredentials(context)) {
+                                    status = "تا وقتی پوزیشن باز یا پوزیشن تحت نظارت ZORO وجود دارد، پاک‌کردن کلیدها مسدود است تا پایش حفاظت صرافی قطع نشود."
+                                } else {
+                                    XtLiveTradingEngine.setEnabled(context, false)
+                                    XtCredentialVault.clear(context)
+                                    accountLine = ""
+                                    status = "کلیدهای ذخیره‌شده و کلید رمزنگاری دستگاه پاک شدند."
+                                }
+                            } catch (error: Exception) {
+                                status = "پیش از پاک‌کردن کلیدها، وضعیت حساب XT قابل تأیید نبود: ${error.message ?: error.javaClass.simpleName}"
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    }
                 },
+                enabled = !busy,
                 modifier = Modifier.align(Alignment.End)
             ) { Text("پاک‌کردن کلیدهای ذخیره‌شده", color = gold, fontSize = 10.sp) }
             Text(
