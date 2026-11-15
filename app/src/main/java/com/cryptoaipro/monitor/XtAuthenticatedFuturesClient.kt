@@ -407,26 +407,22 @@ internal class XtAuthenticatedFuturesClient(
         symbol: String,
         side: String,
         contracts: Long,
+        referencePrice: Double,
         stopLossPrice: Double,
         takeProfitPrice: Double,
         clientOrderId: String
     ): MarketOrderReceipt {
         require(side in setOf("LONG", "SHORT"))
         require(contracts > 0L)
-        require(stopLossPrice.isFinite() && takeProfitPrice.isFinite() &&
+        require(referencePrice.isFinite() && referencePrice > 0.0 &&
+            stopLossPrice.isFinite() && takeProfitPrice.isFinite() &&
             stopLossPrice > 0.0 && takeProfitPrice > 0.0)
         require(clientOrderId.matches(Regex("[A-Za-z0-9_-]{8,32}")))
         val spec = contractSpec(symbol)
-        val mark = request("GET", "/future/market/v1/public/q/ticker", mapOf("symbol" to spec.symbol))
-        val quote = mark.optJSONObject("result") ?: JSONObject()
-        val marketPrice = quote.optString("c").toDoubleOrNull()
-            ?: quote.optString("lastPrice").toDoubleOrNull()
-            ?: quote.optString("price").toDoubleOrNull()
-            ?: throw IllegalStateException("قیمت لحظه‌ای XT برای کنترل جهت حدضرر/حدسود در دسترس نیست.")
         require(
-            if (side == "LONG") stopLossPrice < marketPrice && takeProfitPrice > marketPrice
-            else stopLossPrice > marketPrice && takeProfitPrice < marketPrice
-        ) { "جهت حدضرر و حدسود نسبت به قیمت جاری معتبر نیست." }
+            if (side == "LONG") stopLossPrice < referencePrice && takeProfitPrice > referencePrice
+            else stopLossPrice > referencePrice && takeProfitPrice < referencePrice
+        ) { "جهت حدضرر و حدسود نسبت به قیمت مرجع سیگنال معتبر نیست." }
         val body = JSONObject()
             .put("clientOrderId", clientOrderId)
             .put("symbol", spec.symbol)
@@ -435,8 +431,8 @@ internal class XtAuthenticatedFuturesClient(
             .put("timeInForce", "IOC")
             .put("origQty", contracts)
             .put("positionSide", side)
-            .put("triggerStopPrice", BigDecimal.valueOf(stopLossPrice).stripTrailingZeros().toPlainString())
-            .put("triggerProfitPrice", BigDecimal.valueOf(takeProfitPrice).stripTrailingZeros().toPlainString())
+            .put("triggerStopPrice", BigDecimal.valueOf(stopLossPrice))
+            .put("triggerProfitPrice", BigDecimal.valueOf(takeProfitPrice))
         request("POST", "/future/trade/v1/order/create", body = body)
         val order = findOrderByClientOrderId(symbol, clientOrderId)
             ?: throw IllegalStateException(
