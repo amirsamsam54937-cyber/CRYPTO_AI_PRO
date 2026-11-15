@@ -120,7 +120,10 @@ internal object WolfNeuralForecastJournal {
         if (stats.size != EXPERTS) return List(EXPERTS) { 1.0 }
         val eligible = stats.filter { it.samples >= 30 && it.brier.isFinite() && it.brier in 0.0..1.0 }
         if (eligible.size < 3) return List(EXPERTS) { 1.0 }
-        val baseline = eligible.map { it.brier }.average().coerceAtLeast(1e-6)
+        val sortedBrier = eligible.map { it.brier }.sorted()
+        // Median is robust to one unusually good/bad member and avoids floating drift
+        // promoting a low-sample member when the eligible specialists are tied.
+        val baseline = sortedBrier[sortedBrier.size / 2].coerceAtLeast(1e-6)
         val raw = stats.map { member ->
             if (member.samples < 30 || !member.brier.isFinite() || member.brier !in 0.0..1.0) 1.0
             else {
