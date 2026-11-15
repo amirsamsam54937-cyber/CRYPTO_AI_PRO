@@ -62,6 +62,8 @@ internal object XtLiveTradingEngine {
     suspend fun canClearCredentials(context: Context): Boolean {
         val client = XtAuthenticatedFuturesClient(context)
         if (client.activePositions().isNotEmpty() || client.activeOpenOrders().isNotEmpty()) return false
+        val managed = prefs(context).getStringSet(KEY_MANAGED, emptySet())?.toSet().orEmpty()
+        if (managed.any { client.activeTakeProfitStopOrders(it).isNotEmpty() }) return false
         prefs(context).edit().remove(KEY_MANAGED).putInt("last_position_count", 0).apply()
         return true
     }
@@ -94,6 +96,11 @@ internal object XtLiveTradingEngine {
         val client = XtAuthenticatedFuturesClient(context)
         if (client.activePositions().isNotEmpty() || client.activeOpenOrders().isNotEmpty()) {
             setStatus(context, "توقف اضطراری قابل بازنشانی نیست؛ ابتدا تمام پوزیشن‌ها و سفارش‌های باز XT را تعیین تکلیف کن.")
+            return false
+        }
+        val managed = prefs(context).getStringSet(KEY_MANAGED, emptySet())?.toSet().orEmpty()
+        if (managed.any { client.activeTakeProfitStopOrders(it).isNotEmpty() }) {
+            setStatus(context, "هنوز طرح TP/SL فعال یا یتیم در XT وجود دارد؛ ابتدا آن را در صرافی تعیین تکلیف کن.")
             return false
         }
         prefs(context).edit()
