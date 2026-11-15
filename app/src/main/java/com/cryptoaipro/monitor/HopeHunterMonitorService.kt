@@ -78,6 +78,18 @@ class HopeHunterMonitorService : Service() {
                     WolfFlowNewsRepository.refreshForEngine(this@HopeHunterMonitorService, signals, "XT")
                     val enrichedSignals = WolfFlowNewsRepository.enrichSignals(this@HopeHunterMonitorService, signals)
                     val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, enrichedSignals)
+                    runCatching {
+                        // Feed completed 6h outcomes into each specialist's journal during background scans.
+                        // Updated reliability weights are applied on the next scoring cycle.
+                        WolfNeuralForecastJournal.processScan(this@HopeHunterMonitorService, scoredSignals)
+                    }.onFailure { journalError ->
+                        ZoroDiagnostics.record(
+                            this@HopeHunterMonitorService,
+                            "یادگیری شبکه‌های عصبی",
+                            "ERROR",
+                            journalError.message ?: journalError.javaClass.simpleName
+                        )
+                    }
                     val paperSnapshot = HopePaperTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
                     runCatching {
                         XtLiveTradingEngine.monitorOpenPositions(this@HopeHunterMonitorService)
