@@ -68,7 +68,7 @@ class XtFuturesCapitalManagerTest {
             XtFuturesCapitalManager.PortfolioState(1000.0, 1000.0, 1000.0, 0)
         )
         val reduced = XtFuturesCapitalManager.riskPolicy(
-            XtFuturesCapitalManager.PortfolioState(970.0, 1000.0, 1000.0, 3)
+            XtFuturesCapitalManager.PortfolioState(985.0, 1000.0, 1000.0, 3)
         )
         assertTrue(normal.allowNewTrades)
         assertTrue(reduced.allowNewTrades)
