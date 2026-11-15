@@ -115,8 +115,9 @@ internal class XtAuthenticatedFuturesClient(
             is JSONObject -> result.optJSONArray("items")
                 ?: result.optJSONArray("list")
                 ?: result.optJSONArray("positions")
-                ?: JSONArray()
-            else -> JSONArray()
+                ?: result.optJSONArray("data")
+                ?: throw IllegalStateException("ساختار پاسخ پوزیشن‌های XT ناشناخته است؛ برای جلوگیری از ورود تکراری، سفارش جدید مسدود شد.")
+            else -> throw IllegalStateException("پاسخ پوزیشن‌های XT آرایه یا شیء معتبر نیست؛ سفارش جدید مسدود شد.")
         }
         return (0 until rows.length()).mapNotNull { i ->
             val row = rows.optJSONObject(i) ?: return@mapNotNull null
