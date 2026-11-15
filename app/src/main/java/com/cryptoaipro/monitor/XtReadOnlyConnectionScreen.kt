@@ -10,11 +10,11 @@ import androidx.compose.ui.unit.dp
 
 /** XT connection and explicitly confirmed manual execution surfaces. */
 @Composable
-internal fun XtConnectionAndExecutionScreen(context: Context, signals: List<MarketSignal>) {
+internal fun XtConnectionAndExecutionScreen(context: Context, signals: List<MarketSignal>, onMonitoringStarted: () -> Unit = {}) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
     ) {
         XtApiCredentialPanel(context)
-        XtManualExecutionPanel(context, signals)
+        XtManualExecutionPanel(context, signals, onMonitoringStarted)
     }
 }
