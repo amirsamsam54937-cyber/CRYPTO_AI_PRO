@@ -313,8 +313,8 @@ internal object XtLiveTradingEngine {
 
             val fillGeometryValid = averageFillPrice.isFinite() && averageFillPrice > 0.0 &&
                 abs(averageFillPrice - fresh.referencePrice) / fresh.referencePrice <= 0.0075 &&
-                if (fresh.side == "LONG") fresh.stop < averageFillPrice && fresh.target > averageFillPrice
-                else fresh.stop > averageFillPrice && fresh.target < averageFillPrice
+                (if (fresh.side == "LONG") fresh.stop < averageFillPrice && fresh.target > averageFillPrice
+                else fresh.stop > averageFillPrice && fresh.target < averageFillPrice)
             val entryNotional = averageFillPrice * executed * fresh.contractSize
             val stopNotional = fresh.stop * executed * fresh.contractSize
             val realizedStopCostEstimate = abs(averageFillPrice - fresh.stop) * executed * fresh.contractSize +
