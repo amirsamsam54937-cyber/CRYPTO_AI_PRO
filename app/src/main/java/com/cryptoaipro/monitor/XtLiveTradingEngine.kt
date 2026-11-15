@@ -218,8 +218,8 @@ internal object XtLiveTradingEngine {
                 extraSafetyBuffer = 0.20
             )
         )
-        require(decision.allowed && decision.plan != null) { decision.reason }
-        val plan = decision.plan
+        require(decision.allowed) { decision.reason }
+        val plan = decision.plan ?: throw IllegalStateException(decision.reason)
         val contracts = XtAuthenticatedFuturesClient.floorContracts(plan.contracts)
         require(contracts > 0L) { "حجم مجاز به حداقل یک قرارداد نمی‌رسد." }
         return ManualPreview(
