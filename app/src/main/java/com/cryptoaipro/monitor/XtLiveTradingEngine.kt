@@ -60,9 +60,10 @@ internal object XtLiveTradingEngine {
         prefs(context).getStringSet(KEY_MANAGED, emptySet())?.isNotEmpty() == true
 
     suspend fun canClearCredentials(context: Context): Boolean {
-        if (hasManagedSymbols(context)) return false
         val client = XtAuthenticatedFuturesClient(context)
-        return client.activePositions().isEmpty() && client.activeOpenOrders().isEmpty()
+        if (client.activePositions().isNotEmpty() || client.activeOpenOrders().isNotEmpty()) return false
+        prefs(context).edit().remove(KEY_MANAGED).putInt("last_position_count", 0).apply()
+        return true
     }
 
     fun setEnabled(context: Context, enabled: Boolean) {
