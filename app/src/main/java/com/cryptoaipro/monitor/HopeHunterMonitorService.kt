@@ -38,6 +38,10 @@ class HopeHunterMonitorService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                if (XtLiveTradingEngine.hasManagedSymbols(this)) {
+                    updateNotification("توقف سرویس مجاز نیست؛ ZORO تا تعیین تکلیف پوزیشن‌های ثبت‌شده باید حفاظت XT را پایش کند.")
+                    return START_STICKY
+                }
                 monitorJob?.cancel()
                 monitorJob = null
                 stopForeground(STOP_FOREGROUND_REMOVE)
