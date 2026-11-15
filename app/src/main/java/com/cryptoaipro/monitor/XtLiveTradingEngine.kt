@@ -117,11 +117,14 @@ internal object XtLiveTradingEngine {
         val day = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
         val savedDay = p.getString("risk_day", "")
         if (savedDay != day) p.edit().putInt("daily_entries", 0).apply()
-        val dayStart = if (savedDay == day) p.getFloat("day_start_equity", equity.toFloat()).toDouble() else equity
-        val peak = max(p.getFloat("peak_equity", equity.toFloat()).toDouble(), equity)
+        val dayStart = if (savedDay == day)
+            (p.getString("day_start_equity", null)?.toDoubleOrNull() ?: equity).takeIf { it.isFinite() && it > 0.0 } ?: equity
+        else equity
+        val peakStored = p.getString("peak_equity", null)?.toDoubleOrNull() ?: equity
+        val peak = max(peakStored.takeIf { it.isFinite() && it > 0.0 } ?: equity, equity)
         p.edit().putString("risk_day", day)
-            .putFloat("day_start_equity", dayStart.toFloat())
-            .putFloat("peak_equity", peak.toFloat()).apply()
+            .putString("day_start_equity", dayStart.toString())
+            .putString("peak_equity", peak.toString()).apply()
         return XtFuturesCapitalManager.PortfolioState(
             currentEquity = equity,
             peakEquity = peak,
