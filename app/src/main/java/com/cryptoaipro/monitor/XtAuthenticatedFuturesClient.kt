@@ -421,14 +421,14 @@ internal class XtAuthenticatedFuturesClient(
             stopLossPrice.isFinite() && takeProfitPrice.isFinite() &&
             stopLossPrice > 0.0 && takeProfitPrice > 0.0)
         require(clientOrderId.matches(Regex("[A-Za-z0-9_-]{8,32}")))
-        val spec = contractSpec(symbol)
+        val normalized = normalizeSymbol(symbol)
         require(
             if (side == "LONG") stopLossPrice < referencePrice && takeProfitPrice > referencePrice
             else stopLossPrice > referencePrice && takeProfitPrice < referencePrice
         ) { "جهت حدضرر و حدسود نسبت به قیمت مرجع سیگنال معتبر نیست." }
         val body = JSONObject()
             .put("clientOrderId", clientOrderId)
-            .put("symbol", spec.symbol)
+            .put("symbol", normalized)
             .put("orderSide", if (side == "LONG") "BUY" else "SELL")
             .put("orderType", "MARKET")
             .put("timeInForce", "IOC")
