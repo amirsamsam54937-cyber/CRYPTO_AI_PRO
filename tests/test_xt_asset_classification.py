@@ -56,3 +56,28 @@ def test_ambiguous_symbol_without_exact_name_is_unknown(xt_currencies, registry)
 def test_missing_registry_or_xt_metadata_is_unknown(xt_currencies):
     assert classify_xt_market({"base": "BTC"}, xt_currencies, {})[0] == "unknown"
     assert classify_xt_market({"base": "BTC"}, {}, {"BTC": [{"id": "bitcoin", "name": "Bitcoin"}]})[0] == "unknown"
+
+
+def test_xt_crypto_marker_does_not_admit_named_tokenized_equity():
+    currencies = {
+        "AAPLX": {
+            "type": "crypto", "name": "Apple xStock",
+            "info": {"type": "FT", "fullName": "Apple xStock"},
+        }
+    }
+    registry = build_registry_index([
+        {"id": "apple-xstock", "symbol": "aaplx", "name": "Apple xStock"}
+    ])
+    result, reason = classify_xt_market({"base": "AAPLX", "quote": "USDT"}, currencies, registry)
+    assert result == "non_crypto"
+    assert "tokenized_equity" in reason
+
+
+def test_unique_symbol_xstock_is_rejected_even_without_xt_name():
+    currencies = {"SNXX": {"type": "crypto", "info": {"type": "FT"}}}
+    registry = build_registry_index([
+        {"id": "td-synnex-xstock", "symbol": "snxx", "name": "TD Synnex xStock"}
+    ])
+    result, reason = classify_xt_market({"base": "SNXX", "quote": "USDT"}, currencies, registry)
+    assert result == "non_crypto"
+    assert "tokenized_equity" in reason

@@ -14,6 +14,25 @@ def _normalise_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
 
 
+def _is_tokenized_equity(coin):
+    """Recognize explicitly labeled tokenized equity products in the crypto registry.
+
+    Some XT spot records mark xStocks as crypto-like tokens. They are not
+    underlying cryptocurrencies and must not enter this crypto-only corpus.
+    This uses product identity metadata, never ticker/quote heuristics.
+    """
+    coin_id = str(coin.get("id") or "").strip().lower()
+    name = _normalise_name(coin.get("name"))
+    return (
+        coin_id.endswith("-xstock")
+        or "xstock" in name
+        or "tokenizedstock" in name
+        or "stocktoken" in name
+        or "equitytoken" in name
+        or "tokenizedequity" in name
+    )
+
+
 def build_registry_index(records):
     index = defaultdict(list)
     for item in records or []:
@@ -72,9 +91,17 @@ def classify_xt_market(market, spot_currencies, crypto_registry):
             named = [coin for coin in matches if _normalise_name(coin.get("name")) == xt_name]
             if len(named) == 1:
                 coin = named[0]
+                if _is_tokenized_equity(coin):
+                    return "non_crypto", f"CoinGecko_tokenized_equity:{candidate}:{coin['id']}:{coin['name']}"
                 return "crypto", f"XT_spot_currency:{candidate}:type=crypto;CoinGecko:{coin['id']}:{coin['name']}:exact_name_match"
+            if named and all(_is_tokenized_equity(coin) for coin in named):
+                ids = ",".join(str(coin.get("id") or "") for coin in named)
+                return "non_crypto", f"CoinGecko_tokenized_equity:{candidate}:{ids}"
             unresolved.append(f"ambiguous_or_mismatched_external_name:{candidate}:{xt_name}")
             continue
+        if matches and all(_is_tokenized_equity(coin) for coin in matches):
+            ids = ",".join(str(coin.get("id") or "") for coin in matches)
+            return "non_crypto", f"CoinGecko_tokenized_equity_only_matches:{candidate}:{ids}"
         if len(matches) == 1:
             coin = matches[0]
             return "crypto", f"XT_spot_currency:{candidate}:type=crypto;CoinGecko:{coin['id']}:{coin['name']}:unique_symbol"
