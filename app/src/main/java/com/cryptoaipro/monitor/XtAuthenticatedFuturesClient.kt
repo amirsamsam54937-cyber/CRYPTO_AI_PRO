@@ -289,7 +289,10 @@ internal class XtAuthenticatedFuturesClient(
         // XT defines available = wallet balance - position margin - order freeze.
         // Prefer the explicit available field when the account API returns it.
         val available = runCatching { requiredNumber("availableBalance", "availableAmount", "available") }
-            .getOrElse { (wallet - used - orderFrozen).coerceAtLeast(0.0) }
+            .getOrElse {
+                // XT's Futures order docs define sizing balance as walletBalance - openOrderMarginFrozen.
+                (wallet - orderFrozen).coerceAtLeast(0.0)
+            }
         val unrealized = row.optString("notProfit").toDoubleOrNull()
         val equity = unrealized?.let { wallet + it }
             ?: requiredNumber("totalAmount", "totalEquity", "equity")
