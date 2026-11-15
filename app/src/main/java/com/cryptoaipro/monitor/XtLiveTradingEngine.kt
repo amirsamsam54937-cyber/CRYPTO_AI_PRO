@@ -305,7 +305,11 @@ internal object XtLiveTradingEngine {
             client.adjustLeverage(fresh.symbol, fresh.side, fresh.leverage)
             val managedBeforeSubmit = prefs(context).getStringSet(KEY_MANAGED, emptySet())?.toMutableSet() ?: mutableSetOf()
             managedBeforeSubmit += normalized(fresh.symbol)
-            prefs(context).edit().putStringSet(KEY_MANAGED, managedBeforeSubmit).apply()
+            prefs(context).edit()
+                .putStringSet(KEY_MANAGED, managedBeforeSubmit)
+                // Count every submission attempt, including partial or ambiguous fills.
+                .putInt("daily_entries", prefs(context).getInt("daily_entries", 0) + 1)
+                .apply()
             orderSubmissionAttempted = true
             val receipt = client.placeMarketEntry(
                 symbol = fresh.symbol,
@@ -394,7 +398,6 @@ internal object XtLiveTradingEngine {
             managed += normalized(fresh.symbol)
             p.edit()
                 .putStringSet(KEY_MANAGED, managed)
-                .putInt("daily_entries", p.getInt("daily_entries", 0) + 1)
                 .putInt("last_position_count", positions.size)
                 .putString(KEY_STATUS,
                     "سفارش واقعی تأیید شد • ${fresh.symbol} ${fresh.side} • ${fresh.contracts} قرارداد • SL و TP در XT فعال تأیید شدند.")
