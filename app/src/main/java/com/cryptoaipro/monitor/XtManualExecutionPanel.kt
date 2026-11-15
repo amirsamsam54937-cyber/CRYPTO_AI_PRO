@@ -36,6 +36,7 @@ import java.util.Locale
 internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal>, onMonitoringStarted: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var enabled by remember { mutableStateOf(XtLiveTradingEngine.isEnabled(context)) }
+    var autoEnabled by remember { mutableStateOf(XtLiveTradingEngine.isAutoEnabled(context)) }
     var emergency by remember { mutableStateOf(XtLiveTradingEngine.isEmergencyStopped(context)) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf(XtLiveTradingEngine.lastStatus(context)) }
@@ -60,9 +61,11 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
         while (true) {
             val currentEnabled = XtLiveTradingEngine.isEnabled(context)
             val currentEmergency = XtLiveTradingEngine.isEmergencyStopped(context)
-            if (currentEnabled != enabled || currentEmergency != emergency) {
+            val currentAuto = XtLiveTradingEngine.isAutoEnabled(context)
+            if (currentEnabled != enabled || currentEmergency != emergency || currentAuto != autoEnabled) {
                 enabled = currentEnabled
                 emergency = currentEmergency
+                autoEnabled = currentAuto
                 status = XtLiveTradingEngine.lastStatus(context)
             }
             delay(1500L)
@@ -78,7 +81,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("معامله واقعی XT • اجرای دستی", color = ivory, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                    Text("معامله واقعی XT • دستی و خودکار", color = ivory, fontSize = 14.sp, fontWeight = FontWeight.Black)
                     Text(
                         if (enabled) "LIVE مسلح است • هر سفارش نیازمند تأیید جداگانه است"
                         else "خاموش • هیچ سفارش واقعی ارسال نمی‌شود",
@@ -92,6 +95,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                     onCheckedChange = {
                         XtLiveTradingEngine.setEnabled(context, it)
                         enabled = it
+                        if (!it) autoEnabled = false
                         if (it) {
                             val serviceIntent = Intent(context, HopeHunterMonitorService::class.java).apply {
                                 action = HopeHunterMonitorService.ACTION_START
@@ -107,8 +111,33 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                     }
                 )
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("معامله‌گر خودکار هوشمند", color = ivory, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        when {
+                            autoEnabled -> "فعال • یک فرصت برتر در هر اسکن، با کنترل کامل ریسک"
+                            !WolfPretrainedEnsemble.status().validatedForScoring -> "قفل ایمنی: مدل عصبی هنوز آزمون مستقل را پاس نکرده است"
+                            !enabled -> "ابتدا حالت LIVE را مسلح کن"
+                            else -> "خاموش • فقط با روشن‌کردن این کلید سفارش خودکار مجاز می‌شود"
+                        },
+                        color = if (autoEnabled) gold else muted,
+                        fontSize = 9.sp
+                    )
+                }
+                Switch(
+                    checked = autoEnabled,
+                    enabled = enabled && !emergency && !busy &&
+                        XtLiveTradingEngine.canArmAutomatic(context),
+                    onCheckedChange = {
+                        XtLiveTradingEngine.setAutoEnabled(context, it)
+                        autoEnabled = XtLiveTradingEngine.isAutoEnabled(context)
+                        status = XtLiveTradingEngine.lastStatus(context)
+                    }
+                )
+            }
             Text(
-                "این کلید فقط اجازه می‌دهد برای هر سیگنال، پیش‌نمایش ریسک و پنجره تأیید سفارش باز شود. اسکن بازار به‌تنهایی هیچ معامله‌ای باز نمی‌کند. سقف اولیه ریسک هر معامله ۰٫۲۵٪ Equity، مارجین حداکثر ۵٪ Equity، اهرم حداکثر ۳ برابر و حداکثر ۳ ورود در روز است.",
+                "سقف‌های حفاظتی: ریسک هر معامله ۰٫۲۵٪ Equity، مارجین حداکثر ۵٪، اهرم حداکثر ۳ برابر، حداکثر ۳ ورود روزانه، یک پوزیشن در کل حساب، توقف روزانه در زیان ۲٪ و توقف افت سرمایه ۸٪. اسکن فقط یک سیگنال برتر را بررسی می‌کند؛ تکرار یک کندل دوباره سفارش نمی‌فرستد.",
                 color = muted, fontSize = 10.sp, lineHeight = 15.sp
             )
             if (emergency) {
