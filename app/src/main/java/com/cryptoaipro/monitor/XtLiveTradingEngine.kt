@@ -357,39 +357,49 @@ internal object XtLiveTradingEngine {
         val p = prefs(context)
         val managed = p.getStringSet(KEY_MANAGED, emptySet())?.toSet().orEmpty()
         if (managed.isEmpty() || !XtCredentialVault.hasCredentials(context)) return
-        val client = XtAuthenticatedFuturesClient(context)
-        val positions = client.activePositions()
-        val openOrders = client.activeOpenOrders()
-        p.edit().putInt("last_position_count", positions.size).apply()
-        val remainingManaged = managed.toMutableSet()
-        for (symbol in managed) {
-            val position = positions.firstOrNull { normalized(it.symbol) == symbol }
-            if (position == null) {
-                val pendingOrder = openOrders.any {
-                    normalized(it.optString("symbol")) == symbol &&
-                        it.optString("state").uppercase(Locale.US) in setOf("NEW", "PARTIALLY_FILLED")
+        try {
+            val client = XtAuthenticatedFuturesClient(context)
+            val positions = client.activePositions()
+            val openOrders = client.activeOpenOrders()
+            p.edit().putInt("last_position_count", positions.size).apply()
+            val remainingManaged = managed.toMutableSet()
+            for (symbol in managed) {
+                val position = positions.firstOrNull { normalized(it.symbol) == symbol }
+                if (position == null) {
+                    val pendingOrder = openOrders.any {
+                        normalized(it.optString("symbol")) == symbol &&
+                            it.optString("state").uppercase(Locale.US) in setOf("NEW", "PARTIALLY_FILLED")
+                    }
+                    if (pendingOrder) {
+                        tripEmergencyStop(context, "برای $symbol هنوز سفارش باز یا نیمه‌پر وجود دارد؛ تا تعیین تکلیف آن، توقف اضطراری حفظ می‌شود.")
+                        return
+                    }
+                    remainingManaged.remove(symbol)
+                    continue
                 }
-                if (pendingOrder) {
-                    tripEmergencyStop(context, "برای $symbol هنوز سفارش باز یا نیمه‌پر وجود دارد؛ تا تعیین تکلیف آن، توقف اضطراری حفظ می‌شود.")
+                val protections = client.activeTakeProfitStopOrders(position.symbol)
+                val hasProtection = protections.any {
+                    it.optString("positionSide").equals(position.side, true) &&
+                        (it.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0) > 0.0 &&
+                        (it.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0) > 0.0 &&
+                        (it.optString("origQty").toDoubleOrNull() ?: 0.0) + 1e-8 >= position.quantity
+                }
+                if (!hasProtection) {
+                    tripEmergencyStop(context,
+                        "حفاظت TP/SL صرافی برای پوزیشن ${position.symbol} ناقص یا نامشخص است؛ ورود جدید متوقف شد. پوزیشن را فوراً در XT بررسی کن.")
                     return
                 }
-                remainingManaged.remove(symbol)
-                continue
             }
-            val protections = client.activeTakeProfitStopOrders(position.symbol)
-            val hasProtection = protections.any {
-                it.optString("positionSide").equals(position.side, true) &&
-                    (it.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0) > 0.0 &&
-                    (it.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0) > 0.0 &&
-                    (it.optString("origQty").toDoubleOrNull() ?: 0.0) + 1e-8 >= position.quantity
-            }
-            if (!hasProtection) {
-                tripEmergencyStop(context,
-                    "حفاظت TP/SL صرافی برای پوزیشن ${position.symbol} ناقص یا نامشخص است؛ ورود جدید متوقف شد. پوزیشن را فوراً در XT بررسی کن.")
-                return
-            }
+            p.edit().putStringSet(KEY_MANAGED, remainingManaged).apply()
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            tripEmergencyStop(
+                context,
+                "نظارت بر پوزیشن واقعی به خطا خورد: ${error.message ?: error.javaClass.simpleName}. ورود جدید متوقف شد تا وضعیت XT دوباره تأیید شود."
+            )
+            throw error
         }
-        p.edit().putStringSet(KEY_MANAGED, remainingManaged).apply()
     }
 
     /** Scans never open live positions automatically. */
