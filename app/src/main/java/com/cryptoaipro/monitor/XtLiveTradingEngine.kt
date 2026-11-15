@@ -116,11 +116,13 @@ internal object XtLiveTradingEngine {
         return true
     }
 
-    private fun signalSide(signal: MarketSignal): String = when (signal.direction) {
-        "LONG_BIAS" -> "LONG"
-        "SHORT_BIAS" -> "SHORT"
-        else -> ""
+    internal fun directionSide(value: String): String? = when (value.trim().uppercase(Locale.US)) {
+        "LONG", "LONG_BIAS" -> "LONG"
+        "SHORT", "SHORT_BIAS" -> "SHORT"
+        else -> null
     }
+
+    private fun signalSide(signal: MarketSignal): String = directionSide(signal.direction).orEmpty()
 
     private fun normalized(value: String): String =
         value.lowercase(Locale.US).filter(Char::isLetterOrDigit)
@@ -160,6 +162,9 @@ internal object XtLiveTradingEngine {
         require(side.isNotBlank()) { "این سیگنال جهت قطعی LONG یا SHORT ندارد." }
         require(signal.confidence >= 70 && signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه") {
             "قدرت یا رتبه سیگنال برای بررسی سفارش واقعی کافی نیست."
+        }
+        require(directionSide(signal.neuralDirection) == side) {
+            "جهت پیش‌بینی شبکه عصبی با جهت سیگنال هم‌سو نیست؛ ورود واقعی مسدود شد."
         }
         require(WolfPretrainedEnsemble.status().validatedForScoring) {
             "مدل عصبی هنوز اعتبارسنجی زمانی مستقل را نگذرانده است؛ سفارش واقعی مسدود شد."
