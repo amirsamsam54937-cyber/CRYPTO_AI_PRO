@@ -39,6 +39,8 @@ internal object XtLiveTradingEngine {
         val marginRequiredUsdt: Double,
         val estimatedNetTargetProfitUsdt: Double,
         val netRewardRisk: Double,
+        val contractSize: Double,
+        val takerFeeRate: Double,
         val expiresAt: Long,
         val clientOrderId: String
     )
@@ -259,6 +261,8 @@ internal object XtLiveTradingEngine {
             marginRequiredUsdt = plan.marginRequiredUsdt,
             estimatedNetTargetProfitUsdt = plan.estimatedNetTargetProfitUsdt,
             netRewardRisk = plan.netRewardRisk,
+            contractSize = contract.contractSize,
+            takerFeeRate = contract.takerFeeRate,
             expiresAt = System.currentTimeMillis() + PREVIEW_TTL_MS,
             clientOrderId = clientOrderId
         )
@@ -298,12 +302,28 @@ internal object XtLiveTradingEngine {
             val order = receipt.raw
             val state = order.optString("state").uppercase(Locale.US)
             val executed = order.optString("executedQty").toDoubleOrNull() ?: 0.0
+            val averageFillPrice = order.optString("avgPrice").toDoubleOrNull() ?: 0.0
             if (state != "FILLED" || executed != fresh.contracts.toDouble()) {
                 tripEmergencyStop(context,
                     "سفارش ${receipt.orderId} به‌طور کامل پر نشد (state=$state, fill=$executed). وضعیت پوزیشن و سفارش‌های محافظتی را فوراً در XT بررسی کن.")
                 return ExecutionResult(false,
                     "سفارش کامل پر نشد؛ توقف اضطراری فعال شد. برای جلوگیری از ایجاد پوزیشن ناخواسته، معامله دیگری ارسال نکن و وضعیت XT را بررسی کن.",
                     receipt.orderId)
+            }
+
+            val fillGeometryValid = averageFillPrice.isFinite() && averageFillPrice > 0.0 &&
+                abs(averageFillPrice - fresh.referencePrice) / fresh.referencePrice <= 0.0075 &&
+                if (fresh.side == "LONG") fresh.stop < averageFillPrice && fresh.target > averageFillPrice
+                else fresh.stop > averageFillPrice && fresh.target < averageFillPrice
+            val entryNotional = averageFillPrice * executed * fresh.contractSize
+            val stopNotional = fresh.stop * executed * fresh.contractSize
+            val realizedStopCostEstimate = abs(averageFillPrice - fresh.stop) * executed * fresh.contractSize +
+                (entryNotional + stopNotional) * fresh.takerFeeRate + stopNotional * 0.001
+            if (!fillGeometryValid || realizedStopCostEstimate > fresh.riskBudgetUsdt * 1.20) {
+                tripEmergencyStop(context,
+                    "قیمت Fill از محدوده ریسک پیش‌بینی‌شده خارج شد؛ قیمت میانگین=$averageFillPrice و زیان تخمینی تا SL=$realizedStopCostEstimate USDT. پوزیشن را فوراً بررسی کن.")
+                return ExecutionResult(false,
+                    "Fill با ریسک پیش‌بینی‌شده سازگار نیست؛ توقف اضطراری فعال شد. پوزیشن را در XT بررسی کن.", receipt.orderId)
             }
 
             val positions = client.activePositions()
