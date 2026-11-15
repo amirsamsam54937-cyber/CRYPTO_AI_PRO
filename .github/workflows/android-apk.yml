@@ -172,9 +172,12 @@ jobs:
           assert m.get("asset_class_policy")=="XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH"
           assert len(model.get("members",[]))==10
           assert report.get("validated_for_scoring") is True
-          assert set(model.get("symbols",[])).issubset(set(m.get("crypto_symbols",[])))
-          assert model.get("corpus_sha256")==m.get("sha256")
-          assert model.get("currency_metadata_sha256")==m.get("currency_metadata_sha256")
+          assert set(model.get("symbols",[])).issubset(set(manifest.get("crypto_symbols",[])))
+          assert model.get("corpus_sha256")==manifest.get("sha256")
+          assert model.get("currency_metadata_sha256")==manifest.get("currency_metadata_sha256")
+          assert model.get("crypto_asset_registry_sha256")==manifest.get("crypto_asset_registry_sha256")
+          assert report.get("corpus_sha256")==manifest.get("sha256")
+          assert report.get("crypto_asset_registry_sha256")==manifest.get("crypto_asset_registry_sha256")
           assert model.get("crypto_asset_registry_sha256")==m.get("crypto_asset_registry_sha256")
           assert report.get("crypto_asset_registry_sha256")==m.get("crypto_asset_registry_sha256")
           assert model.get("model_family")=="MLPClassifier" and model.get("architecture_diversity") is False
