@@ -1,6 +1,7 @@
 package com.cryptoaipro.monitor
 
 import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -65,6 +66,16 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                     onCheckedChange = {
                         XtLiveTradingEngine.setEnabled(context, it)
                         enabled = it
+                        if (it) {
+                            val serviceIntent = Intent(context, HopeHunterMonitorService::class.java).apply {
+                                action = HopeHunterMonitorService.ACTION_START
+                            }
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                context.startForegroundService(serviceIntent)
+                            } else {
+                                context.startService(serviceIntent)
+                            }
+                        }
                         status = XtLiveTradingEngine.lastStatus(context)
                     }
                 )
