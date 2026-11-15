@@ -58,9 +58,13 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
             onMonitoringStarted()
         }
         while (true) {
-            enabled = XtLiveTradingEngine.isEnabled(context)
-            emergency = XtLiveTradingEngine.isEmergencyStopped(context)
-            status = XtLiveTradingEngine.lastStatus(context)
+            val currentEnabled = XtLiveTradingEngine.isEnabled(context)
+            val currentEmergency = XtLiveTradingEngine.isEmergencyStopped(context)
+            if (currentEnabled != enabled || currentEmergency != emergency) {
+                enabled = currentEnabled
+                emergency = currentEmergency
+                status = XtLiveTradingEngine.lastStatus(context)
+            }
             delay(1500L)
         }
     }
