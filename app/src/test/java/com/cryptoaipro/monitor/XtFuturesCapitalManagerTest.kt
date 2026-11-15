@@ -24,7 +24,7 @@ class XtFuturesCapitalManagerTest {
         assertTrue(plan.contracts >= 1.0)
         assertTrue(plan.marginRequiredUsdt <= 100.0 + 1e-6)
         assertTrue(plan.worstCaseStopCostUsdt <= plan.riskBudgetUsdt * 1.1 + 1e-6)
-        assertTrue(plan.netTargetProfitUsdt > 0.0)
+        assertTrue(plan.estimatedNetTargetProfitUsdt > 0.0)
     }
 
     @Test fun rejectsWalletTooSmallForExchangeMinimum() {
