@@ -210,8 +210,8 @@ internal class XtAuthenticatedFuturesClient(
         fun value(key: String) = usdt.optString(key).toDoubleOrNull()
             ?: usdt.optDouble(key).takeIf { it.isFinite() } ?: 0.0
         val wallet = value("walletBalance")
-        val available = (wallet - value("openOrderMarginFrozen") - value("isolatedMargin") - value("crossedMargin"))
-            .coerceAtLeast(0.0)
+        // XT's order sizing reference uses walletBalance minus open-order margin freeze.
+        val available = (wallet - value("openOrderMarginFrozen")).coerceAtLeast(0.0)
         return AccountSnapshot(
             account.optBoolean("allowTrade", false),
             account.optBoolean("allowOpenPosition", false),
@@ -288,18 +288,25 @@ internal class XtAuthenticatedFuturesClient(
             }
             throw IllegalStateException("فیلد ضروری موجودی XT یافت نشد: " + keys.joinToString("/"))
         }
-        val wallet = requiredNumber("walletBalance")
-        val isolated = requiredNumber("isolatedMargin")
-        val crossed = requiredNumber("crossedMargin")
-        val used = isolated + crossed
-        val orderFrozen = requiredNumber("openOrderMarginFrozen")
-        // XT defines available = wallet balance - position margin - order freeze.
-        // Prefer the explicit available field when the account API returns it.
-        val available = runCatching { requiredNumber("availableBalance", "availableAmount", "available") }
-            .getOrElse {
-                // XT's Futures order docs define sizing balance as walletBalance - openOrderMarginFrozen.
-                (wallet - orderFrozen).coerceAtLeast(0.0)
+        fun optionalNumber(vararg keys: String): Double? {
+            for (key in keys) {
+                val parsed = row.optString(key).toDoubleOrNull()
+                if (parsed != null && parsed.isFinite()) return parsed
+                if (row.has(key) && row.opt(key) is Number) {
+                    val number = row.optDouble(key)
+                    if (number.isFinite()) return number
+                }
             }
+            return null
+        }
+        val wallet = requiredNumber("walletBalance")
+        val used = (optionalNumber("isolatedMargin") ?: 0.0) +
+            (optionalNumber("crossedMargin") ?: 0.0)
+        val orderFrozen = requiredNumber("openOrderMarginFrozen")
+        // Prefer XT's explicit available balance. Its documented order-sizing fallback is
+        // walletBalance minus openOrderMarginFrozen; position-margin fields are not subtracted twice.
+        val available = optionalNumber("availableBalance", "availableAmount", "available")
+            ?: (wallet - orderFrozen).coerceAtLeast(0.0)
         val unrealized = row.optString("notProfit").toDoubleOrNull()
         val equity = unrealized?.let { wallet + it }
             ?: requiredNumber("totalAmount", "totalEquity", "equity")
