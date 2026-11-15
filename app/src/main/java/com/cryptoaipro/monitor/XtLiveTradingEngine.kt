@@ -414,7 +414,8 @@ internal object XtLiveTradingEngine {
                 }
                 val protections = client.activeTakeProfitStopOrders(position.symbol)
                 val hasProtection = protections.any {
-                    it.optString("positionSide").equals(position.side, true) &&
+                    normalized(it.optString("symbol")) == symbol &&
+                        it.optString("positionSide").equals(position.side, true) &&
                         (it.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0) > 0.0 &&
                         (it.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0) > 0.0 &&
                         (it.optString("origQty").toDoubleOrNull() ?: 0.0) + 1e-8 >= position.quantity
