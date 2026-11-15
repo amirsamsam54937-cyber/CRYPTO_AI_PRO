@@ -21,7 +21,7 @@ _TOKENIZED_STOCK_BASES = {
     "AAPLX", "TSLAX", "AMZNX", "GOOGLX", "GOOGX", "MSFTX", "NVDAX", "METAX",
     "MSTRX", "COINX", "HOODX", "NFLXX", "PLTRX", "ORCLX", "BABAX", "JPMX",
     "BRKX", "WMTX", "DISX", "INTCX", "AVGOX", "AMDX", "QQQX", "SPYX",
-    "IWMX", "DIAX", "GLDX", "SLVX", "TLTX", "ARKKX", "COSTX", "CRM X".replace(" ", "")
+    "IWMX", "DIAX", "GLDX", "SLVX", "TLTX", "ARKKX", "COSTX", "CRMX"
 }
 _NON_CRYPTO_REGISTRY_MARKERS = (
     "xstock", "tokenizedstock", "tokenizedequity", "stocktoken",
