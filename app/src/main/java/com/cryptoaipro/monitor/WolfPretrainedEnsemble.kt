@@ -139,7 +139,7 @@ internal object WolfPretrainedEnsemble {
     }
 
     /** Research-only inference; probabilities are converted to P(correct relative to the technical reference side). */
-    fun predictResearch(signal:MarketSignal):ResearchPrediction? {
+    fun predictResearch(signal:MarketSignal, memberWeights: List<Double> = emptyList()):ResearchPrediction? {
         if(members.size!=10) return null
         val technical=signal.neuralTechnical ?: return null
         val rsiValue=signal.neuralRsi?.takeIf{it.isFinite()} ?: return null
@@ -169,6 +169,10 @@ internal object WolfPretrainedEnsemble {
             val pUp=1.0/(1.0+exp(-logit.coerceIn(-30.0,30.0)))
             pUp
         }
-        return ResearchPrediction(predictions.average().coerceIn(.01,.99),predictions)
+        val weights = if (memberWeights.size == 10 && memberWeights.all { it.isFinite() && it in 0.5..2.0 })
+            memberWeights else List(10) { 1.0 }
+        val weightTotal = weights.sum().coerceAtLeast(1e-9)
+        val weightedProbability = predictions.indices.sumOf { predictions[it] * weights[it] } / weightTotal
+        return ResearchPrediction(weightedProbability.coerceIn(.01,.99),predictions)
     }
 }

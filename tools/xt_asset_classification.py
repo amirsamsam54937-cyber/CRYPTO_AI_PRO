@@ -15,8 +15,26 @@ def _normalise_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
 
 
+# XT lists some tokenized equities/ETFs as FT-like currencies. They are not
+# cryptocurrency underlyings and must never enter a crypto-futures training set.
+_TOKENIZED_STOCK_BASES = {
+    "AAPLX", "TSLAX", "AMZNX", "GOOGLX", "GOOGX", "MSFTX", "NVDAX", "METAX",
+    "MSTRX", "COINX", "HOODX", "NFLXX", "PLTRX", "ORCLX", "BABAX", "JPMX",
+    "BRKX", "WMTX", "DISX", "INTCX", "AVGOX", "AMDX", "QQQX", "SPYX",
+    "IWMX", "DIAX", "GLDX", "SLVX", "TLTX", "ARKKX", "COSTX", "CRMX"
+}
+_NON_CRYPTO_REGISTRY_MARKERS = (
+    "xstock", "tokenizedstock", "tokenizedequity", "stocktoken",
+    "equitytoken", "forex", "etf", "index-token"
+)
+
+
 def build_registry_index(records):
-    """Index CoinGecko coins by symbol, preserving ambiguity instead of guessing."""
+    """Index CoinGecko coins by symbol, preserving ambiguity instead of guessing.
+
+    Tokenized securities and other non-crypto underlyings are deliberately
+    excluded even if an aggregator lists them in its broad coin registry.
+    """
     index = defaultdict(list)
     for item in records or []:
         if not isinstance(item, dict):
@@ -24,6 +42,9 @@ def build_registry_index(records):
         symbol = str(item.get("symbol") or "").strip().upper()
         coin_id = str(item.get("id") or "").strip()
         name = str(item.get("name") or "").strip()
+        identity = _normalise_name(coin_id + " " + name)
+        if any(marker in identity for marker in _NON_CRYPTO_REGISTRY_MARKERS):
+            continue
         if symbol and coin_id and name:
             index[symbol].append({"id": coin_id, "name": name})
     return dict(index)
@@ -56,6 +77,8 @@ def classify_xt_market(market, spot_currencies, crypto_registry):
     base = str(market.get("base") or "").upper()
     if not base:
         return "unknown", "futures_base_currency_missing"
+    if base in _TOKENIZED_STOCK_BASES:
+        return "non_crypto", f"tokenized_security_underlying:{base}"
 
     candidates = [base]
     multiplier = re.match(r"^([0-9]+)([A-Z][A-Z0-9]*)$", base)

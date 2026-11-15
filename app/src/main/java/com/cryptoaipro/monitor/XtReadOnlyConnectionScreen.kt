@@ -8,12 +8,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-/** Separate read-only connection surface; it has no order or live-mode controls. */
+/** XT connection and explicitly confirmed manual execution surfaces. */
 @Composable
-internal fun XtReadOnlyConnectionScreen(context: Context) {
+internal fun XtConnectionAndExecutionScreen(context: Context, signals: List<MarketSignal>, onMonitoringStarted: () -> Unit = {}) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
     ) {
         XtApiCredentialPanel(context)
+        XtManualExecutionPanel(context, signals, onMonitoringStarted)
     }
 }

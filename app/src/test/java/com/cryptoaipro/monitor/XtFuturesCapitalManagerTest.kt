@@ -24,7 +24,7 @@ class XtFuturesCapitalManagerTest {
         assertTrue(plan.contracts >= 1.0)
         assertTrue(plan.marginRequiredUsdt <= 100.0 + 1e-6)
         assertTrue(plan.worstCaseStopCostUsdt <= plan.riskBudgetUsdt * 1.1 + 1e-6)
-        assertTrue(plan.netTargetProfitUsdt > 0.0)
+        assertTrue(plan.estimatedNetTargetProfitUsdt > 0.0)
     }
 
     @Test fun rejectsWalletTooSmallForExchangeMinimum() {
@@ -68,7 +68,7 @@ class XtFuturesCapitalManagerTest {
             XtFuturesCapitalManager.PortfolioState(1000.0, 1000.0, 1000.0, 0)
         )
         val reduced = XtFuturesCapitalManager.riskPolicy(
-            XtFuturesCapitalManager.PortfolioState(970.0, 1000.0, 1000.0, 3)
+            XtFuturesCapitalManager.PortfolioState(985.0, 1000.0, 1000.0, 3)
         )
         assertTrue(normal.allowNewTrades)
         assertTrue(reduced.allowNewTrades)

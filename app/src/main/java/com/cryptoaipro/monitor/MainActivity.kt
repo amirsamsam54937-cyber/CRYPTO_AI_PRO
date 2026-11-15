@@ -144,6 +144,8 @@ data class TechnicalSnapshot(
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
     // The pretrained model can influence signals only after a chronological holdout validates it.
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
+    // Historical 6h outcomes calibrate member influence only after a minimum sample count.
+    val adaptiveMemberWeights = WolfNeuralForecastJournal.adaptiveMemberWeights(context)
     return signals.map { signal ->
         val candidate = when {
             signal.direction != "NEUTRAL" -> signal
@@ -156,7 +158,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         else {
             // Always expose the ten raw specialist outputs for transparency, but never
             // let an unvalidated ensemble affect the published direction or confidence.
-            val research = WolfPretrainedEnsemble.predictResearch(candidate)
+            val research = WolfPretrainedEnsemble.predictResearch(candidate, adaptiveMemberWeights)
             val uncertainty = WolfEnsembleUncertainty.analyze(research?.memberProbabilities.orEmpty())
             val memberVotes = research?.let { prediction ->
                 prediction.memberProbabilities.mapIndexed { index, p ->
@@ -375,7 +377,7 @@ fun CryptoMonitorScreen() {
         try {
             val progress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { partial, completed, total, failed ->
                 val reviewedPartial = withContext(Dispatchers.Default) {
-                    applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial))
+                    ZoroSignalIntelligence.enrich(applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial)))
                 }
                 withContext(Dispatchers.Main) {
                     rows = reviewedPartial
@@ -388,7 +390,7 @@ fun CryptoMonitorScreen() {
             appSettings.edit().putString("market_exchange", selectedExchange).apply()
             val scanned = XtFuturesMonitor.scan(progress)
             researchStats = WolfMarketDataStore.recordLiveScan(context, selectedExchange, scanned)
-            val scoredRows = applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned))
+            val scoredRows = ZoroSignalIntelligence.enrich(applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned)))
             val publishedCount = scoredRows.count { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
             val blockedCount = scoredRows.size - publishedCount
             val blockReasons = scoredRows.filter { it.direction == "NEUTRAL" }
@@ -553,21 +555,25 @@ fun CryptoMonitorScreen() {
                             onRescan = { scope.launch { performScan() } },
                             onToggleBackground = {
                                 val enabled = !backgroundMonitoring
-                                val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
-                                if (enabled) {
-                                    if (Build.VERSION.SDK_INT >= 33 &&
-                                        context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                                        (context as? ComponentActivity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 501)
-                                    }
-                                    serviceIntent.action = HopeHunterMonitorService.ACTION_START
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent)
-                                    else context.startService(serviceIntent)
+                                if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
+                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط ZORO متوقف نمی‌شود."
                                 } else {
-                                    serviceIntent.action = HopeHunterMonitorService.ACTION_STOP
-                                    context.startService(serviceIntent)
+                                    val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
+                                    if (enabled) {
+                                        if (Build.VERSION.SDK_INT >= 33 &&
+                                            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                            (context as? ComponentActivity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 501)
+                                        }
+                                        serviceIntent.action = HopeHunterMonitorService.ACTION_START
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent)
+                                        else context.startService(serviceIntent)
+                                    } else {
+                                        serviceIntent.action = HopeHunterMonitorService.ACTION_STOP
+                                        context.startService(serviceIntent)
+                                    }
+                                    backgroundMonitoring = enabled
+                                    appSettings.edit().putBoolean("background_monitoring", enabled).apply()
                                 }
-                                backgroundMonitoring = enabled
-                                appSettings.edit().putBoolean("background_monitoring", enabled).apply()
                             }
                         )
                     }
@@ -586,21 +592,25 @@ fun CryptoMonitorScreen() {
                             onRescan = { scope.launch { performScan() } },
                             onToggleBackground = {
                                 val enabled = !backgroundMonitoring
-                                val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
-                                if (enabled) {
-                                    if (Build.VERSION.SDK_INT >= 33 &&
-                                        context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                                        (context as? ComponentActivity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 501)
-                                    }
-                                    serviceIntent.action = HopeHunterMonitorService.ACTION_START
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent)
-                                    else context.startService(serviceIntent)
+                                if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
+                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط ZORO متوقف نمی‌شود."
                                 } else {
-                                    serviceIntent.action = HopeHunterMonitorService.ACTION_STOP
-                                    context.startService(serviceIntent)
+                                    val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
+                                    if (enabled) {
+                                        if (Build.VERSION.SDK_INT >= 33 &&
+                                            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                            (context as? ComponentActivity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 501)
+                                        }
+                                        serviceIntent.action = HopeHunterMonitorService.ACTION_START
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent)
+                                        else context.startService(serviceIntent)
+                                    } else {
+                                        serviceIntent.action = HopeHunterMonitorService.ACTION_STOP
+                                        context.startService(serviceIntent)
+                                    }
+                                    backgroundMonitoring = enabled
+                                    appSettings.edit().putBoolean("background_monitoring", enabled).apply()
                                 }
-                                backgroundMonitoring = enabled
-                                appSettings.edit().putBoolean("background_monitoring", enabled).apply()
                             }
                         )
                     }
@@ -720,7 +730,7 @@ fun CryptoMonitorScreen() {
                             Text("تنظیمات و پایش پس‌زمینه", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
                             OutlinedButton(onClick = { selectedTab = "عیب‌یابی" }, modifier = Modifier.fillMaxWidth()) { Text("مرکز عیب‌یابی و گزارش خطاهای ZORO", color = Blue) }
                             HopeAnimatedBrainBanner()
-                            XtReadOnlyConnectionScreen(context)
+                            XtConnectionAndExecutionScreen(context, rows) { backgroundMonitoring = true; appSettings.edit().putBoolean("background_monitoring", true).apply() }
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -731,20 +741,24 @@ fun CryptoMonitorScreen() {
                                         Switch(
                                             checked = backgroundMonitoring,
                                             onCheckedChange = { enabled ->
-                                                val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
-                                                if (enabled) {
-                                                    if (Build.VERSION.SDK_INT >= 33 &&
-                                                        context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                                                        (context as? ComponentActivity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 501)
-                                                    }
-                                                    serviceIntent.action = HopeHunterMonitorService.ACTION_START
-                                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent) else context.startService(serviceIntent)
+                                                if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
+                                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط ZORO متوقف نمی‌شود."
                                                 } else {
-                                                    serviceIntent.action = HopeHunterMonitorService.ACTION_STOP
-                                                    context.startService(serviceIntent)
+                                                    val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
+                                                    if (enabled) {
+                                                        if (Build.VERSION.SDK_INT >= 33 &&
+                                                            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                                            (context as? ComponentActivity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 501)
+                                                        }
+                                                        serviceIntent.action = HopeHunterMonitorService.ACTION_START
+                                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent) else context.startService(serviceIntent)
+                                                    } else {
+                                                        serviceIntent.action = HopeHunterMonitorService.ACTION_STOP
+                                                        context.startService(serviceIntent)
+                                                    }
+                                                    backgroundMonitoring = enabled
+                                                    appSettings.edit().putBoolean("background_monitoring", enabled).apply()
                                                 }
-                                                backgroundMonitoring = enabled
-                                                appSettings.edit().putBoolean("background_monitoring", enabled).apply()
                                             }
                                         )
                                     }
@@ -773,7 +787,7 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.61.0 • XT USDT-M • ده متخصص عصبی مستقل + اعتبارسنجی زمانی + تحلیل چندلایه", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخه: 2.75.0 • XT USDT-M • ده متخصص عصبی مستقل + اعتبارسنجی زمانی + تحلیل چندلایه", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }

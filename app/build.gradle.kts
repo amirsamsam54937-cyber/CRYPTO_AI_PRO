@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 95
-  versionName = "2.74.0"
-  // Release 2.71.0: adaptive ZORO launcher icon with monochrome themed-icon support.
+  versionCode = 96
+  versionName = "2.75.0"
+  // Release 2.75.0: guarded manual XT Futures execution with exchange-side TP/SL verification.
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.

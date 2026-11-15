@@ -25,7 +25,8 @@ class WolfMarketStructureAuditTest {
     }
 
     @Test fun malformedCandlesAreIgnored() {
-        val input = candles(List(20) { if (it % 2 == 0) 10.0 else 12.0 }).toMutableList()
+        val series = listOf(10.0, 11.0, 12.0, 11.0, 10.0, 9.0, 10.0, 11.0, 12.0, 13.0, 12.0, 11.0, 10.0, 9.0, 10.0, 11.0, 12.0, 13.0, 12.0, 11.0)
+        val input = candles(series).toMutableList()
         input.add(doubleArrayOf(Double.NaN, 1.0, 1.0, 1.0, 1.0, 21.0))
         val report = WolfMarketStructureAudit.analyze(input, leftBars = 1, rightBars = 1, maxBars = 30)
         assertTrue(report.available)

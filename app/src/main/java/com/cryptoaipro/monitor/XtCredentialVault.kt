@@ -110,8 +110,8 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
     var status by remember {
         mutableStateOf(
             if (XtCredentialVault.hasCredentials(context))
-                "کلید ذخیره‌شده وجود دارد؛ برای بررسی، اتصال خواندنی را آزمایش کن."
-            else "برای اتصال خواندنی، کلید API با مجوز Read-only بساز."
+                "کلید ذخیره‌شده وجود دارد؛ برای بررسی حساب و مجوزهای Futures اتصال را آزمایش کن."
+            else "برای اتصال XT، کلید API با مجوز Futures Trade و بدون Withdrawal استفاده کن."
         )
     }
     var accountLine by remember { mutableStateOf("") }
@@ -127,10 +127,10 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("اتصال رسمی XT Futures • مرحله خواندنی", color = ivory,
+            Text("اتصال امن XT Futures • حساب و مجوزها", color = ivory,
                 fontSize = 14.sp, fontWeight = FontWeight.Black)
             Text(
-                "این مرحله فقط امضای درخواست و اطلاعات حساب USDT-M Futures را می‌خواند: Wallet، Equity، Free Margin، مارجین مصرف‌شده و سفارش‌های فریزکننده. هیچ Spot، سفارش، تغییر اهرم یا انتقال وجهی در این نسخه اجرا نمی‌شود.",
+                "آزمایش اتصال فقط وضعیت حساب USDT-M Futures، موجودی، Equity، مارجین آزاد و مجوزهای حساب را می‌خواند و هیچ سفارشی ارسال نمی‌کند. سفارش واقعی فقط از پنل اجرای دستی، پس از پیش‌نمایش ریسک و تأیید نهایی جداگانه قابل ارسال است.",
                 color = muted, fontSize = 10.sp, lineHeight = 15.sp
             )
             OutlinedTextField(
@@ -146,21 +146,45 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
             )
             Button(
                 onClick = {
-                    runCatching { XtCredentialVault.save(context, appKey, secret) }
-                        .onSuccess {
-                            appKey = ""
-                            secret = ""
-                            status = "کلیدها با AES-GCM و Android Keystore روی همین گوشی ذخیره شدند."
+                    if (!XtCredentialVault.hasCredentials(context)) {
+                        XtLiveTradingEngine.setEnabled(context, false)
+                        runCatching { XtCredentialVault.save(context, appKey, secret) }
+                            .onSuccess {
+                                appKey = ""
+                                secret = ""
+                                status = "کلیدها با AES-GCM و Android Keystore روی همین گوشی ذخیره شدند."
+                            }
+                            .onFailure { status = "ذخیره امن انجام نشد: ${it.message ?: "خطای رمزنگاری"}" }
+                    } else {
+                        busy = true
+                        status = "در حال بررسی پوزیشن‌ها و سفارش‌های باز پیش از تعویض کلید..."
+                        scope.launch {
+                            try {
+                                if (!XtLiveTradingEngine.canClearCredentials(context)) {
+                                    status = "تعویض کلید مسدود شد؛ ابتدا تمام پوزیشن‌ها، سفارش‌ها و طرح‌های TP/SL فعال را در XT تعیین تکلیف کن."
+                                } else {
+                                    XtLiveTradingEngine.setEnabled(context, false)
+                                    XtCredentialVault.save(context, appKey, secret)
+                                    appKey = ""
+                                    secret = ""
+                                    accountLine = ""
+                                    status = "کلید جدید با AES-GCM و Android Keystore روی همین گوشی ذخیره شد؛ حالت LIVE خاموش است."
+                                }
+                            } catch (error: Exception) {
+                                status = "تعویض کلید انجام نشد: ${error.message ?: error.javaClass.simpleName}"
+                            } finally {
+                                busy = false
+                            }
                         }
-                        .onFailure { status = "ذخیره امن انجام نشد: ${it.message ?: "خطای رمزنگاری"}" }
+                    }
                 },
                 enabled = !busy && appKey.isNotBlank() && secret.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("ذخیره امن کلید فقط‌خواندنی Futures") }
+            ) { Text("ذخیره امن کلید API فیوچرز") }
             Button(
                 onClick = {
                     busy = true
-                    status = "در حال بررسی امضای XT و دسترسی فقط‌خواندنی حساب..."
+                    status = "در حال بررسی امضای XT، موجودی و مجوزهای حساب..."
                     scope.launch {
                         try {
                             val client = XtAuthenticatedFuturesClient(context)
@@ -178,32 +202,54 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 },
                 enabled = !busy && XtCredentialVault.hasCredentials(context),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text(if (busy) "در حال بررسی..." else "آزمایش اتصال خواندنی XT") }
+            ) { Text(if (busy) "در حال بررسی..." else "آزمایش اتصال و مجوزهای XT") }
             if (accountLine.isNotBlank()) Text(accountLine, color = ivory, fontSize = 10.sp)
             Text(status, color = gold, fontSize = 9.sp, lineHeight = 14.sp)
             Text(
                 XtExecutionPolicy.label(
                     XtExecutionPolicy.State(
-                        readOnlyConnectionVerified = accountLine.isNotBlank()
+                        mode = XtExecutionPolicy.Mode.SHADOW_PAPER,
+                        credentialsVerified = accountLine.isNotBlank()
                     )
                 ),
                 color = gold, fontSize = 10.sp, fontWeight = FontWeight.Bold
             )
             Text(
-                "مدیریت سرمایه ZORO موجودی آزاد را مبنای تخصیص می‌گیرد، نه کل Wallet. نرخ پایه محافظه‌کارانه کارمزد Futures برابر Maker=0.04% و Taker=0.06% است؛ نرخ واقعی VIP باید با کارمزد ثبت‌شده هر Fill تطبیق داده شود. کلید فعلاً فقط Read-only باشد؛ Trade و Withdrawal خاموش و IP whitelist روشن.",
+                "مدیریت سرمایه ZORO موجودی آزاد را مبنای تخصیص می‌گیرد، نه کل Wallet. نرخ پایه محافظه‌کارانه کارمزد Futures برابر Maker=0.04% و Taker=0.06% است؛ نرخ واقعی VIP باید با کارمزد ثبت‌شده هر Fill تطبیق داده شود. مجوز Futures Trade برای سفارش‌گذاری لازم است؛ Withdrawal باید خاموش بماند و IP whitelist فعال باشد.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
             )
             TextButton(
                 onClick = {
-                    XtLiveTradingEngine.setEnabled(context, false)
-                    XtCredentialVault.clear(context)
-                    accountLine = ""
-                    status = "کلیدهای ذخیره‌شده و کلید رمزنگاری دستگاه پاک شدند."
+                    if (!XtCredentialVault.hasCredentials(context)) {
+                        XtLiveTradingEngine.setEnabled(context, false)
+                        XtCredentialVault.clear(context)
+                        accountLine = ""
+                        status = "کلیدهای ذخیره‌شده پاک شدند."
+                    } else {
+                        busy = true
+                        scope.launch {
+                            try {
+                                if (!XtLiveTradingEngine.canClearCredentials(context)) {
+                                    status = "تا وقتی پوزیشن باز یا پوزیشن تحت نظارت ZORO وجود دارد، پاک‌کردن کلیدها مسدود است تا پایش حفاظت صرافی قطع نشود."
+                                } else {
+                                    XtLiveTradingEngine.setEnabled(context, false)
+                                    XtCredentialVault.clear(context)
+                                    accountLine = ""
+                                    status = "کلیدهای ذخیره‌شده و کلید رمزنگاری دستگاه پاک شدند."
+                                }
+                            } catch (error: Exception) {
+                                status = "پیش از پاک‌کردن کلیدها، وضعیت حساب XT قابل تأیید نبود: ${error.message ?: error.javaClass.simpleName}"
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    }
                 },
+                enabled = !busy,
                 modifier = Modifier.align(Alignment.End)
             ) { Text("پاک‌کردن کلیدهای ذخیره‌شده", color = gold, fontSize = 10.sp) }
             Text(
-                "وضعیت اجرای واقعی: قفل سخت‌افزاری/نرم‌افزاری فعال؛ تا زمان فراهم‌شدن محیط آزمون معتبر و بازبینی مستقل، هیچ سفارش واقعی ارسال نمی‌شود.",
+                "اتصال یا ذخیره کلید به‌تنهایی سفارش نمی‌فرستد. اجرای واقعی فقط با فعال‌سازی دستی LIVE و تأیید جداگانه هر سفارش انجام می‌شود؛ معامله خودکار با هر اسکن غیرفعال است.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
             )
         }
