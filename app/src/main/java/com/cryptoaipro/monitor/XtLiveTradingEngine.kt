@@ -108,6 +108,7 @@ internal object XtLiveTradingEngine {
         val p = prefs(context)
         val day = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
         val savedDay = p.getString("risk_day", "")
+        if (savedDay != day) p.edit().putInt("daily_entries", 0).apply()
         val dayStart = if (savedDay == day) p.getFloat("day_start_equity", equity.toFloat()).toDouble() else equity
         val peak = max(p.getFloat("peak_equity", equity.toFloat()).toDouble(), equity)
         p.edit().putString("risk_day", day)
@@ -244,6 +245,7 @@ internal object XtLiveTradingEngine {
         signal: MarketSignal,
         preview: ManualPreview
     ): ExecutionResult {
+        var orderSubmissionAttempted = false
         try {
             require(System.currentTimeMillis() <= preview.expiresAt) {
                 "پیش‌نمایش سفارش منقضی شده است؛ دوباره محاسبه کن."
@@ -256,6 +258,7 @@ internal object XtLiveTradingEngine {
             }
             val client = XtAuthenticatedFuturesClient(context)
             client.adjustLeverage(fresh.symbol, fresh.side, fresh.leverage)
+            orderSubmissionAttempted = true
             val receipt = client.placeProtectedMarketEntry(
                 symbol = fresh.symbol,
                 side = fresh.side,
@@ -265,6 +268,9 @@ internal object XtLiveTradingEngine {
                 takeProfitPrice = fresh.target,
                 clientOrderId = fresh.clientOrderId
             )
+            val managedBeforeVerify = prefs(context).getStringSet(KEY_MANAGED, emptySet())?.toMutableSet() ?: mutableSetOf()
+            managedBeforeVerify += normalized(fresh.symbol)
+            prefs(context).edit().putStringSet(KEY_MANAGED, managedBeforeVerify).apply()
             val order = receipt.raw
             val state = order.optString("state").uppercase(Locale.US)
             val executed = order.optString("executedQty").toDoubleOrNull() ?: 0.0
@@ -318,8 +324,13 @@ internal object XtLiveTradingEngine {
                 "معامله واقعی ثبت و Fill تأیید شد؛ هر دو طرح حدضرر و حدسود نیز در XT فعال مشاهده شدند.",
                 receipt.orderId)
         } catch (error: Exception) {
-            setStatus(context, "سفارش ارسال نشد یا وضعیت آن مبهم است: ${error.message ?: error.javaClass.simpleName}")
-            return ExecutionResult(false, error.message ?: "اجرای سفارش کامل نشد.")
+            val message = error.message ?: error.javaClass.simpleName
+            if (orderSubmissionAttempted) {
+                tripEmergencyStop(context, "پس از ارسال درخواست، وضعیت سفارش به‌طور کامل تأیید نشد: $message. ارسال مجدد ممنوع؛ تاریخچه و پوزیشن XT را فوراً بررسی کن.")
+                return ExecutionResult(false, "وضعیت سفارش پس از ارسال مبهم است؛ توقف اضطراری فعال شد. سفارش را دوباره نفرست و فوراً XT را بررسی کن.")
+            }
+            setStatus(context, "سفارش ارسال نشد: $message")
+            return ExecutionResult(false, message)
         }
     }
 
