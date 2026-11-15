@@ -202,7 +202,7 @@ internal object XtLiveTradingEngine {
         require(drawdown < MAX_PEAK_DRAWDOWN) { "ترمز افت سرمایه از اوج ۸٪ فعال است." }
 
         val leverage = signal.leverage.coerceIn(1, 3)
-        val decision = XtFuturesCapitalManager.plan(
+        val decision = XtFuturesCapitalManager.planAdaptive(
             wallet = wallet,
             fees = XtFuturesCapitalManager.Fees(
                 makerRate = contract.makerFeeRate,
@@ -227,7 +227,8 @@ internal object XtLiveTradingEngine {
                 expectedHoldingHours = 6.0,
                 slippageRatePerSide = 0.001,
                 extraSafetyBuffer = 0.20
-            )
+            ),
+            portfolio = portfolio
         )
         require(decision.allowed) { decision.reason }
         val plan = decision.plan ?: throw IllegalStateException(decision.reason)
