@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Foreground market scanner for ZORO.
- * Analysis, signal publication, validated paper autopilot and outcome learning. Live order execution remains locked.
+ * Analysis, signal publication, paper simulation and outcome learning. Live orders require a separate manual confirmation in the app.
  */
 class HopeHunterMonitorService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -75,6 +75,16 @@ class HopeHunterMonitorService : Service() {
                     val enrichedSignals = WolfFlowNewsRepository.enrichSignals(this@HopeHunterMonitorService, signals)
                     val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, enrichedSignals)
                     val paperSnapshot = HopePaperTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
+                    runCatching {
+                        XtLiveTradingEngine.monitorOpenPositions(this@HopeHunterMonitorService)
+                    }.onFailure { monitorError ->
+                        ZoroDiagnostics.record(
+                            this@HopeHunterMonitorService,
+                            "نظارت پوزیشن واقعی",
+                            "ERROR",
+                            monitorError.message ?: monitorError.javaClass.simpleName
+                        )
+                    }
                     notifyNewPublishedSignals(scoredSignals)
                     withContext(Dispatchers.Default) {
                         HopeScenarioLab.recordAndEvaluate(this@HopeHunterMonitorService, scoredSignals)
@@ -82,7 +92,7 @@ class HopeHunterMonitorService : Service() {
                     val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, scoredSignals)
                     val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records)
                     HopeLivingBrain.runCycle(this@HopeHunterMonitorService, scoredSignals, learningStats, outcomeSnapshot.records)
-                    updateNotification("پایش کامل • " + scoredSignals.size + " تحلیل • معاملات آزمایشی: " + paperSnapshot.positions.size + " موقعیت • اجرای واقعی قفل است")
+                    updateNotification("پایش کامل • " + scoredSignals.size + " تحلیل • شبیه‌سازی: " + paperSnapshot.positions.size + " • پوزیشن واقعی تحت نظارت: " + XtLiveTradingEngine.positionCount(this@HopeHunterMonitorService) + " • سفارش واقعی فقط با تأیید دستی")
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
