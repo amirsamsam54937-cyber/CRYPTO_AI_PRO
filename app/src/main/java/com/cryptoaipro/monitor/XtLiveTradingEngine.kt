@@ -177,6 +177,9 @@ internal object XtLiveTradingEngine {
         require(client.activePositions().isEmpty()) {
             "برای جلوگیری از تداخل با پوزیشن‌های دستی یا قبلی، تا وقتی حساب XT پوزیشن باز دارد سفارش جدید مسدود است."
         }
+        require(client.activeOpenOrders().isEmpty()) {
+            "در حساب XT سفارش باز یا نیمه‌تمام وجود دارد؛ تا تعیین تکلیف آن سفارش‌ها، ورود جدید مسدود است."
+        }
 
         val wallet = client.futuresWallet()
         val contract = client.contractSpec(signal.symbol)
