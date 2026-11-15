@@ -356,7 +356,11 @@ internal object XtLiveTradingEngine {
     suspend fun monitorOpenPositions(context: Context) {
         val p = prefs(context)
         val managed = p.getStringSet(KEY_MANAGED, emptySet())?.toSet().orEmpty()
-        if (managed.isEmpty() || !XtCredentialVault.hasCredentials(context)) return
+        if (managed.isEmpty()) return
+        if (!XtCredentialVault.hasCredentials(context)) {
+            tripEmergencyStop(context, "کلید API برای پایش پوزیشن‌های ثبت‌شده در دسترس نیست؛ وضعیت صرافی را دستی بررسی کن.")
+            return
+        }
         try {
             val client = XtAuthenticatedFuturesClient(context)
             val positions = client.activePositions()
@@ -372,6 +376,10 @@ internal object XtLiveTradingEngine {
                     }
                     if (pendingOrder) {
                         tripEmergencyStop(context, "برای $symbol هنوز سفارش باز یا نیمه‌پر وجود دارد؛ تا تعیین تکلیف آن، توقف اضطراری حفظ می‌شود.")
+                        return
+                    }
+                    if (client.activeTakeProfitStopOrders(symbol).isNotEmpty()) {
+                        tripEmergencyStop(context, "برای $symbol پوزیشن فعالی دیده نمی‌شود اما طرح TP/SL هنوز در XT فعال است؛ وضعیت آن را دستی بررسی کن.")
                         return
                     }
                     remainingManaged.remove(symbol)
