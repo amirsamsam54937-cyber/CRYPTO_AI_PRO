@@ -256,7 +256,10 @@ jobs:
           assert "XtLiveTradingEngine.processScan" not in service
           assert "suspend fun processScan(context: Context, signals: List<MarketSignal>) = Unit" in engine
           assert "XtExecutionPolicy.maySendOrder(policyState)" in engine
-          assert "placeProtectedMarketEntry" in engine
+          assert "placeMarketEntry" in engine
+          assert "createTakeProfitStopMarket" in engine
+          assert "profitDelegateOrderType" in client
+          assert "stopDelegateOrderType" in client
           assert "activeTakeProfitStopOrders" in engine
           assert "tripEmergencyStop" in engine
           assert "XtAuthenticatedFuturesClient" in engine
