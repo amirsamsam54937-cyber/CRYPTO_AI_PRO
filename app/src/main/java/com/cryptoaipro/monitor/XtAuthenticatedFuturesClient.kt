@@ -60,15 +60,17 @@ internal class XtAuthenticatedFuturesClient(
         method: String,
         path: String,
         query: Map<String, String> = emptyMap(),
-        body: JSONObject? = null
+        body: JSONObject? = null,
+        formBody: Map<String, String>? = null
     ): JSONObject = withContext(Dispatchers.IO) {
+        require(body == null || formBody == null) { "XT request cannot contain both JSON and form bodies." }
+        require(method == "POST" || formBody == null) { "Form body is only valid for POST." }
         val (appKey, secret) = XtCredentialVault.load(context)
             ?: throw IllegalStateException("اتصال امن XT تنظیم نشده است.")
         require(path.startsWith("/future/") && !path.contains("..")) { "XT endpoint نامعتبر است." }
         val timestamp = System.currentTimeMillis().toString()
         val queryString = canonicalQuery(query)
-        val bodyText = body?.toString().orEmpty()
-        val signedPart = if (method == "GET") queryString else bodyText
+        val bodyText = formBody?.let { XtRequestSigner.canonicalQuery(it) } ?: body?.toString().orEmpty()
         val signingText = XtRequestSigner.signingPayload(
             appKey = appKey,
             timestampMs = timestamp,
@@ -84,7 +86,10 @@ internal class XtAuthenticatedFuturesClient(
             connection.connectTimeout = 7000
             connection.readTimeout = 9000
             connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("Content-Type", if (method == "GET") "application/x-www-form-urlencoded" else "application/json")
+            connection.setRequestProperty(
+                "Content-Type",
+                if (method == "GET" || formBody != null) "application/x-www-form-urlencoded" else "application/json"
+            )
             connection.setRequestProperty("validate-appkey", appKey)
             connection.setRequestProperty("validate-timestamp", timestamp)
             connection.setRequestProperty("validate-signature", sig)
@@ -429,32 +434,18 @@ internal class XtAuthenticatedFuturesClient(
         val raw: JSONObject
     )
 
-    /**
-     * Market entry with exchange-attached stop and take-profit triggers.
-     * The returned order is looked up by clientOrderId because XT's create-order
-     * response may contain an empty result object.
-     */
-    suspend fun placeProtectedMarketEntry(
+    /** Market entry only; exchange TP/SL is attached immediately after fill with MARKET delegates. */
+    suspend fun placeMarketEntry(
         symbol: String,
         side: String,
         contracts: Long,
-        referencePrice: Double,
-        stopLossPrice: Double,
-        takeProfitPrice: Double,
         clientOrderId: String
     ): MarketOrderReceipt {
         requireLiveArmed()
         require(side in setOf("LONG", "SHORT"))
         require(contracts > 0L)
-        require(referencePrice.isFinite() && referencePrice > 0.0 &&
-            stopLossPrice.isFinite() && takeProfitPrice.isFinite() &&
-            stopLossPrice > 0.0 && takeProfitPrice > 0.0)
         require(clientOrderId.matches(Regex("[A-Za-z0-9_-]{8,32}")))
         val normalized = normalizeSymbol(symbol)
-        require(
-            if (side == "LONG") stopLossPrice < referencePrice && takeProfitPrice > referencePrice
-            else stopLossPrice > referencePrice && takeProfitPrice < referencePrice
-        ) { "جهت حدضرر و حدسود نسبت به قیمت مرجع سیگنال معتبر نیست." }
         val body = JSONObject()
             .put("clientOrderId", clientOrderId)
             .put("symbol", normalized)
@@ -463,26 +454,79 @@ internal class XtAuthenticatedFuturesClient(
             .put("timeInForce", "IOC")
             .put("origQty", contracts)
             .put("positionSide", side)
-            .put("triggerStopPrice", BigDecimal.valueOf(stopLossPrice))
-            .put("triggerProfitPrice", BigDecimal.valueOf(takeProfitPrice))
         request("POST", "/future/trade/v1/order/create", body = body)
         val order = findOrderByClientOrderId(symbol, clientOrderId)
             ?: throw IllegalStateException(
-                "وضعیت سفارش پس از ارسال قابل تطبیق نیست؛ احتمال ثبت سفارش وجود دارد. ارسال مجدد ممنوع است و باید تاریخچه XT بررسی شود."
+                "XT درخواست ورود را پذیرفت اما سفارش با clientOrderId قابل تطبیق نیست؛ ممکن است ثبت شده باشد. از ارسال مجدد خودداری کن و تاریخچه XT را بررسی کن."
             )
         val id = order.opt("orderId")?.toString().orEmpty()
-        val stop = order.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0
-        val target = order.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0
         require(id.isNotBlank() && order.optString("clientOrderId") == clientOrderId &&
             normalizeSymbol(order.optString("symbol")) == normalized &&
             order.optString("orderSide").equals(if (side == "LONG") "BUY" else "SELL", true) &&
             order.optString("positionSide").equals(side, true) &&
-            (order.optString("origQty").toDoubleOrNull() ?: Double.NaN) == contracts.toDouble() &&
-            kotlin.math.abs(stop - stopLossPrice) <= maxOf(1e-8, stopLossPrice * 1e-8) &&
-            kotlin.math.abs(target - takeProfitPrice) <= maxOf(1e-8, takeProfitPrice * 1e-8)) {
-            "سفارش ثبت‌شده است اما حدضرر/حدسود متصل در پاسخ XT تأیید نشد؛ معامله را محافظت‌شده فرض نکن."
+            (order.optString("origQty").toDoubleOrNull() ?: Double.NaN) == contracts.toDouble()) {
+            "سفارش پیدا شد اما نماد، جهت، حجم یا clientOrderId آن قابل تأیید نیست؛ ارسال مجدد ممنوع است."
         }
         return MarketOrderReceipt(id, clientOrderId, order)
+    }
+
+    data class TakeProfitStopReceipt(
+        val profitId: String,
+        val symbol: String,
+        val positionSide: String,
+        val contracts: Long,
+        val raw: JSONObject
+    )
+
+    /** Attach exchange-native MARKET TP and SL delegates to an already-filled position. */
+    suspend fun createTakeProfitStopMarket(
+        symbol: String,
+        positionSide: String,
+        contracts: Long,
+        triggerStopPrice: Double,
+        triggerProfitPrice: Double
+    ): TakeProfitStopReceipt {
+        requireLiveArmed()
+        require(positionSide in setOf("LONG", "SHORT") && contracts > 0L)
+        require(triggerStopPrice.isFinite() && triggerStopPrice > 0.0 &&
+            triggerProfitPrice.isFinite() && triggerProfitPrice > 0.0)
+        val normalized = normalizeSymbol(symbol)
+        val form = mapOf(
+            "symbol" to normalized,
+            "origQty" to contracts.toString(),
+            "triggerProfitPrice" to BigDecimal.valueOf(triggerProfitPrice).stripTrailingZeros().toPlainString(),
+            "triggerStopPrice" to BigDecimal.valueOf(triggerStopPrice).stripTrailingZeros().toPlainString(),
+            "expireTime" to (System.currentTimeMillis() + 30L * 24L * 60L * 60L * 1000L).toString(),
+            "positionSide" to positionSide,
+            "profitDelegateOrderType" to "MARKET",
+            "profitDelegateTimeInForce" to "IOC",
+            "stopDelegateOrderType" to "MARKET",
+            "stopDelegateTimeInForce" to "IOC"
+        )
+        request("POST", "/future/trade/v1/entrust/create-profit", formBody = form)
+        var verified: JSONObject? = null
+        repeat(3) { attempt ->
+            if (verified == null) {
+                verified = activeTakeProfitStopOrders(symbol).firstOrNull { item ->
+                    normalizeSymbol(item.optString("symbol")) == normalized &&
+                        item.optString("positionSide").equals(positionSide, true) &&
+                        (item.optString("origQty").toDoubleOrNull() ?: Double.NaN) == contracts.toDouble() &&
+                        kotlin.math.abs((item.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0) - triggerStopPrice) <=
+                            maxOf(1e-8, triggerStopPrice * 1e-8) &&
+                        kotlin.math.abs((item.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0) - triggerProfitPrice) <=
+                            maxOf(1e-8, triggerProfitPrice * 1e-8) &&
+                        item.optString("profitDelegateOrderType").equals("MARKET", true) &&
+                        item.optString("stopDelegateOrderType").equals("MARKET", true)
+                }
+                if (verified == null && attempt < 2) delay(250L)
+            }
+        }
+        val plan = verified ?: throw IllegalStateException(
+            "درخواست ثبت TP/SL بازار ارسال شد اما طرح با نوع MARKET و حجم دقیق در XT تأیید نشد؛ پوزیشن را فوراً دستی بررسی کن."
+        )
+        val id = plan.opt("profitId")?.toString().orEmpty()
+        require(id.isNotBlank()) { "طرح TP/SL پیدا شد اما profitId آن قابل تأیید نیست." }
+        return TakeProfitStopReceipt(id, normalized, positionSide, contracts, plan)
     }
 
     data class TriggerPlanReceipt(
