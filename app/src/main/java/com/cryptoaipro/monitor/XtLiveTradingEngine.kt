@@ -154,7 +154,7 @@ internal object XtLiveTradingEngine {
 
         val side = signalSide(signal)
         require(side.isNotBlank()) { "این سیگنال جهت قطعی LONG یا SHORT ندارد." }
-        require(signal.confidence >= 70 && signal.signalTier != "بدون رتبه") {
+        require(signal.confidence >= 70 && signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه") {
             "قدرت یا رتبه سیگنال برای بررسی سفارش واقعی کافی نیست."
         }
         require(WolfPretrainedEnsemble.status().validatedForScoring) {
