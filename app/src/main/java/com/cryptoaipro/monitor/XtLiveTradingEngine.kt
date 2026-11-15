@@ -3,6 +3,8 @@ package com.cryptoaipro.monitor
 import android.content.Context
 import org.json.JSONObject
 import java.text.SimpleDateFormat
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
@@ -205,6 +207,16 @@ internal object XtLiveTradingEngine {
 
         val wallet = client.futuresWallet()
         val contract = client.contractSpec(signal.symbol)
+        require(client.activeTakeProfitStopOrders(signal.symbol).isEmpty()) {
+            "برای این نماد طرح TP/SL فعال یا باقی‌مانده در XT وجود دارد؛ ابتدا آن را تعیین تکلیف کن."
+        }
+        val priceScale = contract.pricePrecision.coerceIn(0, 12)
+        val stopPrice = BigDecimal.valueOf(signal.stop).setScale(priceScale, RoundingMode.HALF_UP).toDouble()
+        val targetPrice = BigDecimal.valueOf(signal.tp1).setScale(priceScale, RoundingMode.HALF_UP).toDouble()
+        require(if (side == "LONG") stopPrice < signal.price && targetPrice > signal.price
+            else stopPrice > signal.price && targetPrice < signal.price) {
+            "پس از گردکردن به دقت مجاز قرارداد، حدضرر یا هدف در سمت معتبر قیمت بازار قرار ندارد."
+        }
         val portfolio = portfolioState(context, wallet.equity)
         val dailyEntries = prefs(context).getInt("daily_entries", 0)
         require(dailyEntries < MAX_DAILY_ENTRIES) { "سقف سه ورود واقعی در روز تکمیل شده است." }
@@ -232,8 +244,8 @@ internal object XtLiveTradingEngine {
             ),
             request = XtFuturesCapitalManager.Request(
                 entry = signal.price,
-                stop = signal.stop,
-                takeProfit = signal.tp1,
+                stop = stopPrice,
+                takeProfit = targetPrice,
                 leverage = leverage,
                 riskFraction = 0.0025,
                 maxMarginFraction = 0.05,
@@ -252,8 +264,8 @@ internal object XtLiveTradingEngine {
             symbol = signal.symbol,
             side = side,
             referencePrice = signal.price,
-            stop = signal.stop,
-            target = signal.tp1,
+            stop = stopPrice,
+            target = targetPrice,
             contracts = contracts,
             leverage = leverage,
             riskBudgetUsdt = plan.riskBudgetUsdt,
@@ -290,26 +302,41 @@ internal object XtLiveTradingEngine {
             managedBeforeSubmit += normalized(fresh.symbol)
             prefs(context).edit().putStringSet(KEY_MANAGED, managedBeforeSubmit).apply()
             orderSubmissionAttempted = true
-            val receipt = client.placeProtectedMarketEntry(
+            val receipt = client.placeMarketEntry(
                 symbol = fresh.symbol,
                 side = fresh.side,
                 contracts = fresh.contracts,
-                referencePrice = fresh.referencePrice,
-                stopLossPrice = fresh.stop,
-                takeProfitPrice = fresh.target,
                 clientOrderId = fresh.clientOrderId
             )
             val order = receipt.raw
             val state = order.optString("state").uppercase(Locale.US)
             val executed = order.optString("executedQty").toDoubleOrNull() ?: 0.0
             val averageFillPrice = order.optString("avgPrice").toDoubleOrNull() ?: 0.0
+
             if (state != "FILLED" || executed != fresh.contracts.toDouble()) {
+                var partialProtected = false
+                if (executed.isFinite() && executed > 0.0 && executed <= fresh.contracts.toDouble() &&
+                    executed == executed.toLong().toDouble()) {
+                    partialProtected = runCatching {
+                        client.createTakeProfitStopMarket(
+                            fresh.symbol, fresh.side, executed.toLong(), fresh.stop, fresh.target
+                        )
+                    }.isSuccess
+                }
                 tripEmergencyStop(context,
-                    "سفارش ${receipt.orderId} به‌طور کامل پر نشد (state=$state, fill=$executed). وضعیت پوزیشن و سفارش‌های محافظتی را فوراً در XT بررسی کن.")
+                    "سفارش ${receipt.orderId} کامل پر نشد (state=$state, fill=$executed). طرح بازار TP/SL برای Fill جزئی ${if (partialProtected) "ثبت و تأیید شد" else "تأیید نشد"}؛ بررسی دستی XT لازم است.")
                 return ExecutionResult(false,
-                    "سفارش کامل پر نشد؛ توقف اضطراری فعال شد. برای جلوگیری از ایجاد پوزیشن ناخواسته، معامله دیگری ارسال نکن و وضعیت XT را بررسی کن.",
+                    if (partialProtected)
+                        "سفارش نیمه‌پر شد؛ طرح‌های MARKET برای حجم پرشده ثبت شد اما توقف اضطراری فعال است. وضعیت پوزیشن را در XT بررسی کن."
+                    else
+                        "سفارش نیمه‌پر یا مبهم است و حفاظت کامل تأیید نشد؛ توقف اضطراری فعال شد. فوراً XT را بررسی کن.",
                     receipt.orderId)
             }
+
+            // Attach exchange-native MARKET delegates immediately after the confirmed fill.
+            client.createTakeProfitStopMarket(
+                fresh.symbol, fresh.side, executed.toLong(), fresh.stop, fresh.target
+            )
 
             val fillGeometryValid = averageFillPrice.isFinite() && averageFillPrice > 0.0 &&
                 abs(averageFillPrice - fresh.referencePrice) / fresh.referencePrice <= 0.0075 &&
@@ -345,7 +372,9 @@ internal object XtLiveTradingEngine {
                         maxOf(1e-8, fresh.stop * 1e-8) &&
                     abs((protection.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0) - fresh.target) <=
                         maxOf(1e-8, fresh.target * 1e-8) &&
-                    (protection.optString("origQty").toDoubleOrNull() ?: Double.NaN) == executed
+                    (protection.optString("origQty").toDoubleOrNull() ?: Double.NaN) == executed &&
+                    protection.optString("profitDelegateOrderType").equals("MARKET", true) &&
+                    protection.optString("stopDelegateOrderType").equals("MARKET", true)
             }
             if (!protectionVerified) {
                 tripEmergencyStop(context,
@@ -418,6 +447,8 @@ internal object XtLiveTradingEngine {
                         it.optString("positionSide").equals(position.side, true) &&
                         (it.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0) > 0.0 &&
                         (it.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0) > 0.0 &&
+                        it.optString("profitDelegateOrderType").equals("MARKET", true) &&
+                        it.optString("stopDelegateOrderType").equals("MARKET", true) &&
                         (it.optString("origQty").toDoubleOrNull() ?: 0.0) + 1e-8 >= position.quantity
                 }
                 if (!hasProtection) {
