@@ -336,6 +336,27 @@ internal class XtAuthenticatedFuturesClient(
         return byId.values.toList()
     }
 
+    suspend fun activeOpenOrders(): List<JSONObject> {
+        val byId = linkedMapOf<String, JSONObject>()
+        for (state in listOf("NEW", "UNFINISHED")) {
+            val response = request(
+                "GET", "/future/trade/v1/order/list",
+                mapOf("state" to state, "page" to "1", "size" to "100")
+            )
+            val result = response.optJSONObject("result")
+                ?: throw IllegalStateException("ساختار فهرست سفارش‌های باز XT نامعتبر است؛ ورود جدید مسدود شد.")
+            val items = result.optJSONArray("items")
+                ?: throw IllegalStateException("فهرست سفارش‌های XT فاقد items است؛ ورود جدید مسدود شد.")
+            for (i in 0 until items.length()) {
+                val order = items.optJSONObject(i) ?: continue
+                val id = order.opt("orderId")?.toString().orEmpty()
+                val key = if (id.isNotBlank()) id else order.optString("clientOrderId")
+                if (key.isNotBlank()) byId[key] = order
+            }
+        }
+        return byId.values.toList()
+    }
+
     private suspend fun findOrderByClientOrderId(symbol: String, clientOrderId: String): JSONObject? {
         val normalized = normalizeSymbol(symbol)
         // Read-only reconciliation only: never resubmit an order after an ambiguous POST.
