@@ -42,6 +42,35 @@ def fetch_crypto_asset_registry():
 def normalized_symbol(market):
     return (market.get("base", "") + market.get("quote", "")).upper()
 
+def summarize_candle_timestamps(timestamps, interval_ms=3_600_000):
+    """Report duplicate/order/gap integrity without treating missing hours as rows."""
+    values = [int(value) for value in timestamps]
+    unique = sorted(set(values))
+    missing = 0
+    irregular = 0
+    segments = 0
+    previous = None
+    for current in unique:
+        if previous is None:
+            segments += 1
+        else:
+            delta = current - previous
+            if delta != interval_ms:
+                segments += 1
+            if delta > interval_ms and delta % interval_ms == 0:
+                missing += delta // interval_ms - 1
+            elif delta % interval_ms != 0:
+                irregular += 1
+        previous = current
+    return {
+        "duplicate_timestamps": len(values) - len(unique),
+        "out_of_order_candles": sum(1 for left, right in zip(values, values[1:]) if right <= left),
+        "missing_1h_candles": int(missing),
+        "irregular_gap_transitions": int(irregular),
+        "contiguous_segments": int(segments),
+    }
+
+
 def collect(exchange_id):
     import ccxt
     if exchange_id != "xt":
@@ -94,19 +123,64 @@ def collect(exchange_id):
                 f"non_crypto={len(excluded_non_crypto)}, unknown={len(excluded_unknown)}. "
                 "Failing closed rather than guessing asset class."
             )
-        # Over-collect per market so newly listed or thin-history contracts do not
-        # leave the corpus just below the requested training size.
-        # The final corpus is capped at exactly TARGET real, closed XT candles.
+        # TARGET is a minimum, not an early-stop limit. Visit every eligible
+        # market and retain its real closed candles up to a deterministic per-symbol
+        # cap; never let alphabetically earlier markets consume the whole corpus.
         per_symbol = max(1, math.ceil((TARGET * 1.6) / len(markets)))
         rows, errors, coverage = [], [], []
         now = ex.milliseconds()
         for market_index, market in enumerate(markets, 1):
             symbol = market["symbol"]
-            # Paginate real 1h candles. A single 1,000-row response per symbol
-            # cannot guarantee a million-row corpus on a smaller exchange universe.
+            # Paginate each eligible market independently. Do not stop after the
+            # global row threshold: doing so silently omits the tail of the universe.
             cursor = max(START, now - (per_symbol + 96) * 3_600_000)
             local = {}
             pages = 0
+            invalid_candles = 0
+            unclosed_candles = 0
+            before_cursor_candles = 0
+            duplicate_candles = 0
+            out_of_order_candles = 0
+            accepted_timestamps = []
+            last_raw_timestamp = None
+            market_error = None
+
+            def add_candle(candle, minimum_timestamp=None):
+                nonlocal invalid_candles, unclosed_candles, before_cursor_candles
+                nonlocal duplicate_candles, out_of_order_candles, last_raw_timestamp
+                try:
+                    if len(candle) < 6:
+                        invalid_candles += 1
+                        return None
+                    raw_ts = float(candle[0])
+                    if not math.isfinite(raw_ts) or not raw_ts.is_integer():
+                        invalid_candles += 1
+                        return None
+                    ts = int(raw_ts)
+                    if last_raw_timestamp is not None and ts <= last_raw_timestamp:
+                        out_of_order_candles += 1
+                    last_raw_timestamp = ts
+                    if minimum_timestamp is not None and ts < minimum_timestamp:
+                        before_cursor_candles += 1
+                        return None
+                    if ts + 3_600_000 > now:
+                        unclosed_candles += 1
+                        return None
+                    op, hi, lo, cl, vol = [float(value) for value in candle[1:6]]
+                    if (not all(math.isfinite(value) for value in (op, hi, lo, cl, vol))
+                            or min(op, hi, lo, cl) <= 0 or vol < 0
+                            or hi < max(op, cl) or lo > min(op, cl) or hi < lo):
+                        invalid_candles += 1
+                        return None
+                    if ts in local:
+                        duplicate_candles += 1
+                    local[ts] = (ts, op, hi, lo, cl, vol)
+                    accepted_timestamps.append(ts)
+                    return ts
+                except (TypeError, ValueError, OverflowError, IndexError):
+                    invalid_candles += 1
+                    return None
+
             try:
                 while len(local) < per_symbol and pages < 40:
                     page = ex.fetch_ohlcv(symbol, TIMEFRAME, since=cursor, limit=1000)
@@ -115,15 +189,9 @@ def collect(exchange_id):
                         break
                     accepted = []
                     for candle in page:
-                        ts, op, hi, lo, cl, vol = candle
-                        if ts < cursor or ts + 3_600_000 > ex.milliseconds():
-                            continue
-                        if not all(math.isfinite(float(x)) for x in candle):
-                            continue
-                        if min(op,hi,lo,cl) <= 0 or vol < 0 or hi < max(op,cl) or lo > min(op,cl):
-                            continue
-                        local[int(ts)] = (int(ts),float(op),float(hi),float(lo),float(cl),float(vol))
-                        accepted.append(int(ts))
+                        accepted_ts = add_candle(candle, minimum_timestamp=cursor)
+                        if accepted_ts is not None:
+                            accepted.append(accepted_ts)
                     if not accepted:
                         break
                     next_cursor = max(accepted) + 3_600_000
@@ -134,32 +202,61 @@ def collect(exchange_id):
                         break
                 if not local and pages == 1:
                     # Some XT endpoint variants ignore a very old since value.
+                    # Retry the latest page while retaining the same validation rules.
                     page = ex.fetch_ohlcv(symbol, TIMEFRAME, since=None, limit=1000)
+                    pages += 1
+                    last_raw_timestamp = None
                     for candle in page or []:
-                        ts, op, hi, lo, cl, vol = candle
-                        if ts + 3_600_000 > ex.milliseconds():
-                            continue
-                        if not all(math.isfinite(float(x)) for x in candle):
-                            continue
-                        if min(op,hi,lo,cl) <= 0 or vol < 0 or hi < max(op,cl) or lo > min(op,cl):
-                            continue
-                        local[int(ts)] = (int(ts),float(op),float(hi),float(lo),float(cl),float(vol))
+                        add_candle(candle)
             except Exception as exc:
-                errors.append(f"{symbol}: {type(exc).__name__}: {exc}")
-            candles = [local[k] for k in sorted(local)]
-            if candles:
-                normalized = normalized_symbol(market)
-                rows.extend((exchange_id.upper(), normalized, TIMEFRAME, *r)
-                            for r in candles[-per_symbol:])
-                coverage.append({"symbol": normalized, "candles": min(len(candles),per_symbol),
-                                 "pages": pages})
-            print(f"{exchange_id}: {symbol}: {len(candles)} real closed candles "
-                  f"({pages} pages); total={len(rows)}; market={market_index}/{len(markets)}",
-                  flush=True)
-            if len(rows) >= TARGET:
-                break
+                market_error = f"{type(exc).__name__}: {exc}"
+                errors.append(f"{symbol}: {market_error}")
 
-        rows.sort(key=lambda r: (r[1], r[3]))
+            candles = [local[key] for key in sorted(local)]
+            selected_candles = candles[-per_symbol:]
+            normalized = normalized_symbol(market)
+            rows.extend((exchange_id.upper(), normalized, TIMEFRAME, *item)
+                        for item in selected_candles)
+            integrity = summarize_candle_timestamps([item[0] for item in selected_candles])
+            coverage.append({
+                "symbol": normalized,
+                "valid_closed_candles_available": len(candles),
+                "candles_selected": len(selected_candles),
+                "pages": pages,
+                "first_timestamp_ms": selected_candles[0][0] if selected_candles else None,
+                "last_timestamp_ms": selected_candles[-1][0] if selected_candles else None,
+                "duplicate_timestamps": duplicate_candles,
+                "out_of_order_candles": out_of_order_candles,
+                "invalid_candles": invalid_candles,
+                "unclosed_candles": unclosed_candles,
+                "before_cursor_candles": before_cursor_candles,
+                "missing_1h_candles": integrity["missing_1h_candles"],
+                "irregular_gap_transitions": integrity["irregular_gap_transitions"],
+                "contiguous_segments": integrity["contiguous_segments"],
+                "error": market_error,
+            })
+            print(f"{exchange_id}: {symbol}: {len(selected_candles)} selected from "
+                  f"{len(candles)} valid closed candles ({pages} pages); "
+                  f"total={len(rows)}; market={market_index}/{len(markets)}",
+                  flush=True)
+
+        rows.sort(key=lambda row: (row[1], row[3]))
+        coverage_summary = {
+            "eligible_perpetuals": len(markets),
+            "symbols_with_data": sum(1 for item in coverage if item["valid_closed_candles_available"] > 0),
+            "symbols_without_data": sum(1 for item in coverage if item["valid_closed_candles_available"] == 0),
+            "symbols_with_api_errors": sum(1 for item in coverage if item["error"] is not None),
+            "valid_closed_candles_available": sum(item["valid_closed_candles_available"] for item in coverage),
+            "selected_candles": len(rows),
+            "duplicate_timestamps": sum(item["duplicate_timestamps"] for item in coverage),
+            "out_of_order_candles": sum(item["out_of_order_candles"] for item in coverage),
+            "invalid_candles": sum(item["invalid_candles"] for item in coverage),
+            "unclosed_candles": sum(item["unclosed_candles"] for item in coverage),
+            "before_cursor_candles": sum(item["before_cursor_candles"] for item in coverage),
+            "missing_1h_candles": sum(item["missing_1h_candles"] for item in coverage),
+            "irregular_gap_transitions": sum(item["irregular_gap_transitions"] for item in coverage),
+            "contiguous_segments": sum(item["contiguous_segments"] for item in coverage),
+        }
         if len(rows) < TARGET:
             raise RuntimeError(
                 f"{exchange_id}: collected {len(rows):,} real candles; "
@@ -181,7 +278,10 @@ def collect(exchange_id):
             "excluded_unknown_symbols": excluded_unknown,
             "asset_classification": classification_by_symbol,
         }
-        return rows[:TARGET], provenance
+        provenance["market_coverage"] = coverage
+        provenance["coverage_summary"] = coverage_summary
+        provenance["collection_policy"] = "ALL_ELIGIBLE_MARKETS_UP_TO_PER_SYMBOL_CAP_NO_EARLY_STOP"
+        return rows, provenance
     finally:
         ex.close()
 
