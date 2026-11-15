@@ -33,7 +33,7 @@ import kotlinx.coroutines.delay
 import java.util.Locale
 
 @Composable
-internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal>) {
+internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal>, onMonitoringStarted: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var enabled by remember { mutableStateOf(XtLiveTradingEngine.isEnabled(context)) }
     var emergency by remember { mutableStateOf(XtLiveTradingEngine.isEmergencyStopped(context)) }
@@ -86,6 +86,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                             } else {
                                 context.startService(serviceIntent)
                             }
+                            onMonitoringStarted()
                         }
                         status = XtLiveTradingEngine.lastStatus(context)
                     }
