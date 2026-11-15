@@ -56,6 +56,14 @@ internal object XtLiveTradingEngine {
 
     fun positionCount(context: Context): Int = prefs(context).getInt("last_position_count", 0)
 
+    fun hasManagedSymbols(context: Context): Boolean =
+        prefs(context).getStringSet(KEY_MANAGED, emptySet())?.isNotEmpty() == true
+
+    suspend fun canClearCredentials(context: Context): Boolean {
+        if (hasManagedSymbols(context)) return false
+        return XtAuthenticatedFuturesClient(context).activePositions().isEmpty()
+    }
+
     fun setEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit()
             .putBoolean(KEY_ENABLED, enabled)
