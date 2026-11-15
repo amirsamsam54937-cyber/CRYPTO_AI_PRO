@@ -146,13 +146,37 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
             )
             Button(
                 onClick = {
-                    runCatching { XtCredentialVault.save(context, appKey, secret) }
-                        .onSuccess {
-                            appKey = ""
-                            secret = ""
-                            status = "کلیدها با AES-GCM و Android Keystore روی همین گوشی ذخیره شدند."
+                    if (!XtCredentialVault.hasCredentials(context)) {
+                        XtLiveTradingEngine.setEnabled(context, false)
+                        runCatching { XtCredentialVault.save(context, appKey, secret) }
+                            .onSuccess {
+                                appKey = ""
+                                secret = ""
+                                status = "کلیدها با AES-GCM و Android Keystore روی همین گوشی ذخیره شدند."
+                            }
+                            .onFailure { status = "ذخیره امن انجام نشد: ${it.message ?: "خطای رمزنگاری"}" }
+                    } else {
+                        busy = true
+                        status = "در حال بررسی پوزیشن‌ها و سفارش‌های باز پیش از تعویض کلید..."
+                        scope.launch {
+                            try {
+                                if (!XtLiveTradingEngine.canClearCredentials(context)) {
+                                    status = "تعویض کلید مسدود شد؛ ابتدا تمام پوزیشن‌ها، سفارش‌ها و طرح‌های TP/SL فعال را در XT تعیین تکلیف کن."
+                                } else {
+                                    XtLiveTradingEngine.setEnabled(context, false)
+                                    XtCredentialVault.save(context, appKey, secret)
+                                    appKey = ""
+                                    secret = ""
+                                    accountLine = ""
+                                    status = "کلید جدید با AES-GCM و Android Keystore روی همین گوشی ذخیره شد؛ حالت LIVE خاموش است."
+                                }
+                            } catch (error: Exception) {
+                                status = "تعویض کلید انجام نشد: ${error.message ?: error.javaClass.simpleName}"
+                            } finally {
+                                busy = false
+                            }
                         }
-                        .onFailure { status = "ذخیره امن انجام نشد: ${it.message ?: "خطای رمزنگاری"}" }
+                    }
                 },
                 enabled = !busy && appKey.isNotBlank() && secret.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
