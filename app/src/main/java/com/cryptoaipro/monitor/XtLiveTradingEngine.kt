@@ -359,11 +359,20 @@ internal object XtLiveTradingEngine {
         if (managed.isEmpty() || !XtCredentialVault.hasCredentials(context)) return
         val client = XtAuthenticatedFuturesClient(context)
         val positions = client.activePositions()
+        val openOrders = client.activeOpenOrders()
         p.edit().putInt("last_position_count", positions.size).apply()
         val remainingManaged = managed.toMutableSet()
         for (symbol in managed) {
             val position = positions.firstOrNull { normalized(it.symbol) == symbol }
             if (position == null) {
+                val pendingOrder = openOrders.any {
+                    normalized(it.optString("symbol")) == symbol &&
+                        it.optString("state").uppercase(Locale.US) in setOf("NEW", "PARTIALLY_FILLED")
+                }
+                if (pendingOrder) {
+                    tripEmergencyStop(context, "برای $symbol هنوز سفارش باز یا نیمه‌پر وجود دارد؛ تا تعیین تکلیف آن، توقف اضطراری حفظ می‌شود.")
+                    return
+                }
                 remainingManaged.remove(symbol)
                 continue
             }
