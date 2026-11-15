@@ -96,7 +96,10 @@ class HopeHunterMonitorService : Service() {
                     val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, scoredSignals)
                     val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records)
                     HopeLivingBrain.runCycle(this@HopeHunterMonitorService, scoredSignals, learningStats, outcomeSnapshot.records)
-                    updateNotification("پایش کامل • " + scoredSignals.size + " تحلیل • شبیه‌سازی: " + paperSnapshot.positions.size + " • پوزیشن واقعی تحت نظارت: " + XtLiveTradingEngine.positionCount(this@HopeHunterMonitorService) + " • سفارش واقعی فقط با تأیید دستی")
+                    val liveStatus = if (XtLiveTradingEngine.isEmergencyStopped(this@HopeHunterMonitorService))
+                        " • هشدار توقف اضطراری: " + XtLiveTradingEngine.lastStatus(this@HopeHunterMonitorService)
+                    else " • سفارش واقعی فقط با تأیید دستی"
+                    updateNotification("پایش کامل • " + scoredSignals.size + " تحلیل • شبیه‌سازی: " + paperSnapshot.positions.size + " • پوزیشن واقعی تحت نظارت: " + XtLiveTradingEngine.positionCount(this@HopeHunterMonitorService) + liveStatus)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
