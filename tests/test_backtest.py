@@ -215,3 +215,21 @@ def test_position_size_caps_net_stop_loss_after_round_trip_fees_and_slippage(mon
     assert result["final_equity"] == pytest.approx(990.0, abs=1e-8)
     assert trade["fees"] > 0
     assert trade["slippage_cost"] > 0
+
+@pytest.mark.parametrize(
+    "parameter",
+    [
+        "initial_equity", "risk_per_trade", "max_leverage", "fee_rate",
+        "slippage_rate", "funding_rate_8h", "atr_multiple", "reward_risk",
+    ],
+)
+@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf])
+def test_backtest_rejects_non_finite_execution_and_risk_parameters(parameter, bad_value):
+    with pytest.raises(ValueError, match="finite number"):
+        run_backtest(sample_frame(), **{parameter: bad_value})
+
+
+@pytest.mark.parametrize("bad_warmup", [-1, 1.5, True])
+def test_backtest_rejects_invalid_warmup_type_or_range(bad_warmup):
+    with pytest.raises(ValueError, match="warmup"):
+        run_backtest(sample_frame(), warmup=bad_warmup)
