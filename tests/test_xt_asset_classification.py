@@ -33,11 +33,26 @@ def test_xt_crypto_currency_must_also_match_external_crypto_registry(base, xt_cu
     assert "CoinGecko:" in reason
 
 
-@pytest.mark.parametrize("base", ["AAPLX", "AUD", "NAS100"])
+@pytest.mark.parametrize("base", ["AUD", "NAS100"])
 def test_xt_crypto_type_alone_does_not_admit_synthetic_tradfi_assets(base, xt_currencies, registry):
     result, reason = classify_xt_market({"base": base}, xt_currencies, registry)
     assert result == "non_crypto"
     assert "not_in_external_crypto_registry" in reason
+
+
+def test_tokenized_stock_underlyings_are_explicitly_excluded(xt_currencies, registry):
+    result, reason = classify_xt_market({"base": "AAPLX"}, xt_currencies, registry)
+    assert result == "non_crypto"
+    assert "tokenized_security_underlying" in reason
+
+
+def test_tokenized_stock_registry_entries_are_filtered():
+    filtered = build_registry_index([
+        {"id": "apple-xstock", "symbol": "AAPLX", "name": "Apple xStock"},
+        {"id": "bitcoin", "symbol": "BTC", "name": "Bitcoin"},
+    ])
+    assert "AAPLX" not in filtered
+    assert "BTC" in filtered
 
 
 def test_numeric_contract_multiplier_resolves_underlying_crypto(xt_currencies, registry):
