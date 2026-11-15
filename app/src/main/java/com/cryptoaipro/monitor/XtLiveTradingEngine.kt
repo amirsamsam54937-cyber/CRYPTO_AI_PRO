@@ -269,6 +269,9 @@ internal object XtLiveTradingEngine {
             }
             val client = XtAuthenticatedFuturesClient(context)
             client.adjustLeverage(fresh.symbol, fresh.side, fresh.leverage)
+            val managedBeforeSubmit = prefs(context).getStringSet(KEY_MANAGED, emptySet())?.toMutableSet() ?: mutableSetOf()
+            managedBeforeSubmit += normalized(fresh.symbol)
+            prefs(context).edit().putStringSet(KEY_MANAGED, managedBeforeSubmit).apply()
             orderSubmissionAttempted = true
             val receipt = client.placeProtectedMarketEntry(
                 symbol = fresh.symbol,
@@ -279,9 +282,6 @@ internal object XtLiveTradingEngine {
                 takeProfitPrice = fresh.target,
                 clientOrderId = fresh.clientOrderId
             )
-            val managedBeforeVerify = prefs(context).getStringSet(KEY_MANAGED, emptySet())?.toMutableSet() ?: mutableSetOf()
-            managedBeforeVerify += normalized(fresh.symbol)
-            prefs(context).edit().putStringSet(KEY_MANAGED, managedBeforeVerify).apply()
             val order = receipt.raw
             val state = order.optString("state").uppercase(Locale.US)
             val executed = order.optString("executedQty").toDoubleOrNull() ?: 0.0
