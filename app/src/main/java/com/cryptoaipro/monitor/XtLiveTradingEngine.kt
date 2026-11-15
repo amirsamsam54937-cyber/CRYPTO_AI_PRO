@@ -296,20 +296,21 @@ internal object XtLiveTradingEngine {
                     "Fill انجام شد اما پوزیشن با سفارش تطبیق ندارد؛ توقف اضطراری فعال شد.", receipt.orderId)
             }
 
-            val plans = client.activeTriggerPlans(fresh.symbol)
-            fun protected(kind: String, price: Double): Boolean = plans.any { plan ->
-                normalized(plan.optString("symbol")) == normalized(fresh.symbol) &&
-                    plan.optString("positionSide").equals(fresh.side, true) &&
-                    plan.optString("entrustType").equals(kind, true) &&
-                    abs((plan.optString("stopPrice").toDoubleOrNull() ?: 0.0) - price) <=
-                        maxOf(1e-8, price * 1e-8) &&
-                    (plan.optString("origQty").toDoubleOrNull() ?: Double.NaN) == executed
+            val protections = client.activeTakeProfitStopOrders(fresh.symbol)
+            val protectionVerified = protections.any { protection ->
+                normalized(protection.optString("symbol")) == normalized(fresh.symbol) &&
+                    protection.optString("positionSide").equals(fresh.side, true) &&
+                    abs((protection.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0) - fresh.stop) <=
+                        maxOf(1e-8, fresh.stop * 1e-8) &&
+                    abs((protection.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0) - fresh.target) <=
+                        maxOf(1e-8, fresh.target * 1e-8) &&
+                    (protection.optString("origQty").toDoubleOrNull() ?: Double.NaN) == executed
             }
-            if (!protected("STOP_MARKET", fresh.stop) || !protected("TAKE_PROFIT_MARKET", fresh.target)) {
+            if (!protectionVerified) {
                 tripEmergencyStop(context,
-                    "پوزیشن ${fresh.symbol} باز شد اما هر دو طرح حدضرر و حدسود در XT تأیید نشدند؛ فوراً پوزیشن را در صرافی بررسی کن.")
+                    "پوزیشن ${fresh.symbol} باز شد اما طرح ترکیبی TP/SL در فهرست فعال profit-list صرافی تأیید نشد؛ فوراً پوزیشن را در XT بررسی کن.")
                 return ExecutionResult(false,
-                    "پوزیشن باز شده اما حفاظت کامل صرافی تأیید نشد؛ توقف اضطراری فعال شد. فوراً در XT حدضرر/حدسود را بررسی کن.",
+                    "پوزیشن باز شده اما حفاظت TP/SL در XT تأیید نشد؛ توقف اضطراری فعال شد. فوراً در XT حدضرر/حدسود را بررسی کن.",
                     receipt.orderId)
             }
 
@@ -352,18 +353,16 @@ internal object XtLiveTradingEngine {
                 remainingManaged.remove(symbol)
                 continue
             }
-            val plans = client.activeTriggerPlans(position.symbol)
-            val hasStop = plans.any {
+            val protections = client.activeTakeProfitStopOrders(position.symbol)
+            val hasProtection = protections.any {
                 it.optString("positionSide").equals(position.side, true) &&
-                    it.optString("entrustType").equals("STOP_MARKET", true)
+                    (it.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0) > 0.0 &&
+                    (it.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0) > 0.0 &&
+                    (it.optString("origQty").toDoubleOrNull() ?: 0.0) + 1e-8 >= position.quantity
             }
-            val hasTarget = plans.any {
-                it.optString("positionSide").equals(position.side, true) &&
-                    it.optString("entrustType").equals("TAKE_PROFIT_MARKET", true)
-            }
-            if (!hasStop || !hasTarget) {
+            if (!hasProtection) {
                 tripEmergencyStop(context,
-                    "حفاظت صرافی برای پوزیشن ${position.symbol} ناقص یا نامشخص است؛ ورود جدید متوقف شد. پوزیشن را فوراً در XT بررسی کن.")
+                    "حفاظت TP/SL صرافی برای پوزیشن ${position.symbol} ناقص یا نامشخص است؛ ورود جدید متوقف شد. پوزیشن را فوراً در XT بررسی کن.")
                 return
             }
         }
