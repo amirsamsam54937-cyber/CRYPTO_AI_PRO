@@ -391,7 +391,7 @@ internal class XtAuthenticatedFuturesClient(
     private suspend fun findOrderByClientOrderId(symbol: String, clientOrderId: String): JSONObject? {
         val normalized = normalizeSymbol(symbol)
         // Read-only reconciliation only: never resubmit an order after an ambiguous POST.
-        for (state in listOf("UNFINISHED", "HISTORY")) {
+        for (state in listOf("HISTORY", "UNFINISHED")) {
             repeat(3) { attempt ->
                 val response = request(
                     "GET", "/future/trade/v1/order/list",
