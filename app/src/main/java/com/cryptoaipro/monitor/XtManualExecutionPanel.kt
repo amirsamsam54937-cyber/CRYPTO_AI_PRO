@@ -87,8 +87,11 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("معامله واقعی XT • دستی و خودکار", color = ivory, fontSize = 14.sp, fontWeight = FontWeight.Black)
                     Text(
-                        if (enabled) "LIVE مسلح است • هر سفارش نیازمند تأیید جداگانه است"
-                        else "خاموش • هیچ سفارش واقعی ارسال نمی‌شود",
+                        when {
+                            !enabled -> "خاموش • هیچ سفارش واقعی ارسال نمی‌شود"
+                            autoEnabled -> "LIVE + خودکار مسلح است • اجرای سفارش طبق شروط ریسک"
+                            else -> "LIVE مسلح است • سفارش‌ها دستی و با تأیید جداگانه"
+                        },
                         color = if (enabled) gold else muted,
                         fontSize = 10.sp
                     )
@@ -131,7 +134,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                 }
                 Switch(
                     checked = autoEnabled,
-                    enabled = enabled && !emergency && !busy &&
+                    enabled = enabled && !emergency && !busy && preview == null &&
                         XtLiveTradingEngine.canArmAutomatic(context),
                     onCheckedChange = {
                         XtLiveTradingEngine.setAutoEnabled(context, it)
@@ -199,7 +202,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                             color = muted, fontSize = 9.sp
                         )
                         Button(
-                            enabled = enabled && !emergency && !busy,
+                            enabled = enabled && !autoEnabled && !emergency && !busy,
                             onClick = {
                                 selectedSignal = signal
                                 busy = true
