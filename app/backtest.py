@@ -49,6 +49,26 @@ def run_backtest(
     warmup: int = 100,
 ) -> dict:
     """Backtest one position at a time with fixed fractional risk sizing."""
+    numeric_parameters = {
+        "initial_equity": initial_equity,
+        "risk_per_trade": risk_per_trade,
+        "max_leverage": max_leverage,
+        "fee_rate": fee_rate,
+        "slippage_rate": slippage_rate,
+        "funding_rate_8h": funding_rate_8h,
+        "atr_multiple": atr_multiple,
+        "reward_risk": reward_risk,
+    }
+    for name, value in numeric_parameters.items():
+        try:
+            is_finite = math.isfinite(float(value))
+        except (TypeError, ValueError, OverflowError):
+            is_finite = False
+        if not is_finite:
+            raise ValueError(f"{name} must be a finite number")
+    if isinstance(warmup, bool) or not isinstance(warmup, (int, np.integer)) or warmup < 0:
+        raise ValueError("warmup must be a non-negative integer")
+
     required = {"open", "high", "low", "close", "volume"}
     if not required.issubset(frame.columns):
         raise ValueError("OHLCV columns are required")
