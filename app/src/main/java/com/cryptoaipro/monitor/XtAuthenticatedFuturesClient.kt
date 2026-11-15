@@ -386,22 +386,69 @@ internal class XtAuthenticatedFuturesClient(
             .put("orderType", "MARKET")
             .put("origQty", contracts)
             .put("positionSide", side)
-        val response = request("POST", "/future/trade/v1/order/create", body = body)
-        val result = response.optJSONObject("result") ?: JSONObject()
-        val immediateId = result.opt("orderId")?.toString().orEmpty()
-        val reconciled = if (immediateId.isNotBlank()) {
-            runCatching {
-                request("GET", "/future/trade/v1/order/detail", mapOf("orderId" to immediateId))
-                    .optJSONObject("result")
-            }.getOrNull()
-        } else null
-        val order = reconciled ?: findOrderByClientOrderId(symbol, clientOrderId)
+        request("POST", "/future/trade/v1/order/create", body = body)
+        val order = findOrderByClientOrderId(symbol, clientOrderId)
             ?: throw IllegalStateException(
-                "پاسخ ثبت سفارش XT شناسه قطعی نداشت و تطبیق clientOrderId نیز نتیجه‌ای نداد؛ سفارش ممکن است ثبت شده باشد. از ارسال مجدد خودداری کن و تاریخچه XT را بررسی کن."
+                "XT درخواست را پذیرفت اما سفارش با clientOrderId قابل تطبیق نیست؛ ممکن است ثبت شده باشد. از ارسال مجدد خودداری کن و تاریخچه XT را بررسی کن."
             )
         val id = order.opt("orderId")?.toString().orEmpty()
         require(id.isNotBlank() && order.optString("clientOrderId") == clientOrderId) {
             "سفارش پیدا شد اما شناسه یا clientOrderId آن قابل تأیید نیست؛ ارسال مجدد ممنوع است."
+        }
+        return MarketOrderReceipt(id, clientOrderId, order)
+    }
+
+    /**
+     * Market entry with exchange-attached stop and take-profit triggers.
+     * The returned order is looked up by clientOrderId because XT's create-order
+     * response may contain an empty result object.
+     */
+    suspend fun placeProtectedMarketEntry(
+        symbol: String,
+        side: String,
+        contracts: Long,
+        stopLossPrice: Double,
+        takeProfitPrice: Double,
+        clientOrderId: String
+    ): MarketOrderReceipt {
+        require(side in setOf("LONG", "SHORT"))
+        require(contracts > 0L)
+        require(stopLossPrice.isFinite() && takeProfitPrice.isFinite() &&
+            stopLossPrice > 0.0 && takeProfitPrice > 0.0)
+        require(clientOrderId.matches(Regex("[A-Za-z0-9_-]{8,32}")))
+        val spec = contractSpec(symbol)
+        val mark = request("GET", "/future/market/v1/public/q/ticker", mapOf("symbol" to spec.symbol))
+        val quote = mark.optJSONObject("result") ?: JSONObject()
+        val marketPrice = quote.optString("c").toDoubleOrNull()
+            ?: quote.optString("lastPrice").toDoubleOrNull()
+            ?: quote.optString("price").toDoubleOrNull()
+            ?: throw IllegalStateException("قیمت لحظه‌ای XT برای کنترل جهت حدضرر/حدسود در دسترس نیست.")
+        require(
+            if (side == "LONG") stopLossPrice < marketPrice && takeProfitPrice > marketPrice
+            else stopLossPrice > marketPrice && takeProfitPrice < marketPrice
+        ) { "جهت حدضرر و حدسود نسبت به قیمت جاری معتبر نیست." }
+        val body = JSONObject()
+            .put("clientOrderId", clientOrderId)
+            .put("symbol", spec.symbol)
+            .put("orderSide", if (side == "LONG") "BUY" else "SELL")
+            .put("orderType", "MARKET")
+            .put("timeInForce", "IOC")
+            .put("origQty", contracts)
+            .put("positionSide", side)
+            .put("triggerStopPrice", BigDecimal.valueOf(stopLossPrice).stripTrailingZeros().toPlainString())
+            .put("triggerProfitPrice", BigDecimal.valueOf(takeProfitPrice).stripTrailingZeros().toPlainString())
+        request("POST", "/future/trade/v1/order/create", body = body)
+        val order = findOrderByClientOrderId(symbol, clientOrderId)
+            ?: throw IllegalStateException(
+                "وضعیت سفارش پس از ارسال قابل تطبیق نیست؛ احتمال ثبت سفارش وجود دارد. ارسال مجدد ممنوع است و باید تاریخچه XT بررسی شود."
+            )
+        val id = order.opt("orderId")?.toString().orEmpty()
+        val stop = order.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0
+        val target = order.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0
+        require(id.isNotBlank() && order.optString("clientOrderId") == clientOrderId &&
+            kotlin.math.abs(stop - stopLossPrice) <= maxOf(1e-8, stopLossPrice * 1e-8) &&
+            kotlin.math.abs(target - takeProfitPrice) <= maxOf(1e-8, takeProfitPrice * 1e-8)) {
+            "سفارش ثبت‌شده است اما حدضرر/حدسود متصل در پاسخ XT تأیید نشد؛ معامله را محافظت‌شده فرض نکن."
         }
         return MarketOrderReceipt(id, clientOrderId, order)
     }
