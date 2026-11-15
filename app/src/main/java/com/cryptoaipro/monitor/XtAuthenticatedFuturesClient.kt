@@ -47,6 +47,12 @@ internal class XtAuthenticatedFuturesClient(
         return compact.dropLast(4) + "_usdt"
     }
 
+    private fun requireLiveArmed() {
+        check(XtLiveTradingEngine.isEnabled(context) && !XtLiveTradingEngine.isEmergencyStopped(context)) {
+            "ارسال سفارش یا تغییر اهرم فقط در حالت LIVE مسلح و بدون توقف اضطراری مجاز است."
+        }
+    }
+
     private fun canonicalQuery(values: Map<String, String>): String =
         XtRequestSigner.canonicalQuery(values)
 
@@ -353,6 +359,7 @@ internal class XtAuthenticatedFuturesClient(
      * XT documents LONG/SHORT as required position sides.
      */
     suspend fun adjustLeverage(symbol: String, positionSide: String, leverage: Int): JSONObject {
+        requireLiveArmed()
         require(positionSide in setOf("LONG", "SHORT"))
         require(leverage in 1..3) { "ZORO safety cap: leverage must be between 1x and 3x." }
         val body = JSONObject()
@@ -369,40 +376,6 @@ internal class XtAuthenticatedFuturesClient(
     )
 
     /**
-     * Sends a market entry. This method deliberately does not retry: after a timeout
-     * the exchange may have accepted the order, so the caller must reconcile by
-     * clientOrderId/order history before any further action.
-     */
-    suspend fun placeMarketEntry(
-        symbol: String,
-        side: String,
-        contracts: Long,
-        clientOrderId: String
-    ): MarketOrderReceipt {
-        require(side in setOf("LONG", "SHORT"))
-        require(contracts > 0L)
-        require(clientOrderId.matches(Regex("[A-Za-z0-9_-]{8,32}")))
-        val orderSide = if (side == "LONG") "BUY" else "SELL"
-        val body = JSONObject()
-            .put("clientOrderId", clientOrderId)
-            .put("symbol", normalizeSymbol(symbol))
-            .put("orderSide", orderSide)
-            .put("orderType", "MARKET")
-            .put("origQty", contracts)
-            .put("positionSide", side)
-        request("POST", "/future/trade/v1/order/create", body = body)
-        val order = findOrderByClientOrderId(symbol, clientOrderId)
-            ?: throw IllegalStateException(
-                "XT درخواست را پذیرفت اما سفارش با clientOrderId قابل تطبیق نیست؛ ممکن است ثبت شده باشد. از ارسال مجدد خودداری کن و تاریخچه XT را بررسی کن."
-            )
-        val id = order.opt("orderId")?.toString().orEmpty()
-        require(id.isNotBlank() && order.optString("clientOrderId") == clientOrderId) {
-            "سفارش پیدا شد اما شناسه یا clientOrderId آن قابل تأیید نیست؛ ارسال مجدد ممنوع است."
-        }
-        return MarketOrderReceipt(id, clientOrderId, order)
-    }
-
-    /**
      * Market entry with exchange-attached stop and take-profit triggers.
      * The returned order is looked up by clientOrderId because XT's create-order
      * response may contain an empty result object.
@@ -416,6 +389,7 @@ internal class XtAuthenticatedFuturesClient(
         takeProfitPrice: Double,
         clientOrderId: String
     ): MarketOrderReceipt {
+        requireLiveArmed()
         require(side in setOf("LONG", "SHORT"))
         require(contracts > 0L)
         require(referencePrice.isFinite() && referencePrice > 0.0 &&
@@ -473,6 +447,7 @@ internal class XtAuthenticatedFuturesClient(
         triggerPrice: Double,
         clientOrderId: String
     ): TriggerPlanReceipt {
+        requireLiveArmed()
         require(positionSide in setOf("LONG", "SHORT"))
         require(kind in setOf("STOP_MARKET", "TAKE_PROFIT_MARKET"))
         require(contracts > 0L && triggerPrice.isFinite() && triggerPrice > 0.0)
