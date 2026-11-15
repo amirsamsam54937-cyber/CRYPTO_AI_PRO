@@ -3,6 +3,7 @@ package com.cryptoaipro.monitor
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 import java.math.BigDecimal
@@ -26,7 +27,7 @@ import java.nio.charset.StandardCharsets
 internal data class XtLivePosition(
     val symbol: String,
     val side: String,
-    /** XT positionSize is base-asset quantity; convert by contractSize for order lots. */
+    /** XT positionSize is already expressed in contract lots. */
     val quantity: Double,
     val availableCloseQuantity: Double,
     val entryPrice: Double,
@@ -111,7 +112,10 @@ internal class XtAuthenticatedFuturesClient(
         val result = response.opt("result")
         val rows = when (result) {
             is JSONArray -> result
-            is JSONObject -> result.optJSONArray("items") ?: result.optJSONArray("list") ?: JSONArray()
+            is JSONObject -> result.optJSONArray("items")
+                ?: result.optJSONArray("list")
+                ?: result.optJSONArray("positions")
+                ?: JSONArray()
             else -> JSONArray()
         }
         return (0 until rows.length()).mapNotNull { i ->
@@ -295,13 +299,49 @@ internal class XtAuthenticatedFuturesClient(
 
     suspend fun activeTriggerPlans(symbol: String): List<JSONObject> {
         val normalized = normalizeSymbol(symbol)
-        val response = request(
-            "GET", "/future/trade/v1/entrust/plan-list",
-            mapOf("symbol" to normalized, "state" to "TRIGGERING", "page" to "1", "size" to "100")
-        )
-        val result = response.optJSONObject("result")
-        val items = result?.optJSONArray("items") ?: JSONArray()
-        return (0 until items.length()).mapNotNull { items.optJSONObject(it) }
+        val byId = linkedMapOf<String, JSONObject>()
+        // XT distinguishes a newly placed plan (NOT_TRIGGERED) from one currently
+        // being triggered (TRIGGERING). Both are active protection states.
+        for (state in listOf("NOT_TRIGGERED", "TRIGGERING")) {
+            val response = request(
+                "GET", "/future/trade/v1/entrust/plan-list",
+                mapOf("symbol" to normalized, "state" to state, "page" to "1", "size" to "100")
+            )
+            val result = response.optJSONObject("result")
+            val items = result?.optJSONArray("items") ?: JSONArray()
+            for (i in 0 until items.length()) {
+                val item = items.optJSONObject(i) ?: continue
+                val id = item.opt("entrustId")?.toString().orEmpty()
+                val key = if (id.isNotBlank()) id else item.optString("clientOrderId") + "|" + item.optString("entrustType")
+                byId[key] = item
+            }
+        }
+        return byId.values.toList()
+    }
+
+    private suspend fun findOrderByClientOrderId(symbol: String, clientOrderId: String): JSONObject? {
+        val normalized = normalizeSymbol(symbol)
+        // Read-only reconciliation only: never resubmit an order after an ambiguous POST.
+        for (state in listOf("UNFINISHED", "HISTORY")) {
+            repeat(3) { attempt ->
+                val response = request(
+                    "GET", "/future/trade/v1/order/list",
+                    mapOf(
+                        "symbol" to normalized,
+                        "clientOrderId" to clientOrderId,
+                        "state" to state,
+                        "page" to "1",
+                        "size" to "10"
+                    )
+                )
+                val items = response.optJSONObject("result")?.optJSONArray("items") ?: JSONArray()
+                val match = (0 until items.length()).mapNotNull { items.optJSONObject(it) }
+                    .firstOrNull { it.optString("clientOrderId") == clientOrderId }
+                if (match != null) return match
+                if (attempt < 2) delay(250L)
+            }
+        }
+        return null
     }
 
     /**
@@ -348,11 +388,22 @@ internal class XtAuthenticatedFuturesClient(
             .put("positionSide", side)
         val response = request("POST", "/future/trade/v1/order/create", body = body)
         val result = response.optJSONObject("result") ?: JSONObject()
-        val id = result.opt("orderId")?.toString().orEmpty()
-        require(id.isNotBlank()) {
-            "XT درخواست ورود را بدون orderId پاسخ داد؛ وضعیت سفارش باید از تاریخچه تطبیق داده شود."
+        val immediateId = result.opt("orderId")?.toString().orEmpty()
+        val reconciled = if (immediateId.isNotBlank()) {
+            runCatching {
+                request("GET", "/future/trade/v1/order/detail", mapOf("orderId" to immediateId))
+                    .optJSONObject("result")
+            }.getOrNull()
+        } else null
+        val order = reconciled ?: findOrderByClientOrderId(symbol, clientOrderId)
+            ?: throw IllegalStateException(
+                "پاسخ ثبت سفارش XT شناسه قطعی نداشت و تطبیق clientOrderId نیز نتیجه‌ای نداد؛ سفارش ممکن است ثبت شده باشد. از ارسال مجدد خودداری کن و تاریخچه XT را بررسی کن."
+            )
+        val id = order.opt("orderId")?.toString().orEmpty()
+        require(id.isNotBlank() && order.optString("clientOrderId") == clientOrderId) {
+            "سفارش پیدا شد اما شناسه یا clientOrderId آن قابل تأیید نیست؛ ارسال مجدد ممنوع است."
         }
-        return MarketOrderReceipt(id, clientOrderId, response)
+        return MarketOrderReceipt(id, clientOrderId, order)
     }
 
     data class TriggerPlanReceipt(
@@ -392,13 +443,36 @@ internal class XtAuthenticatedFuturesClient(
             .put("positionSide", positionSide)
         val response = request("POST", "/future/trade/v1/entrust/create-plan", body = body)
         val result = response.optJSONObject("result") ?: JSONObject()
-        val id = result.opt("entrustId")?.toString()
+        val immediateId = result.opt("entrustId")?.toString()
             ?: result.opt("planId")?.toString()
             ?: result.opt("id")?.toString().orEmpty()
-        require(id.isNotBlank()) {
-            "XT پاسخ ثبت حدضرر/حدسود را بدون شناسه طرح برگرداند؛ باید فهرست طرح‌ها تطبیق داده شود."
-        }
-        return TriggerPlanReceipt(id, clientOrderId, kind, response)
+        val verified = if (immediateId.isNotBlank()) {
+            runCatching {
+                activeTriggerPlans(symbol).firstOrNull { it.opt("entrustId")?.toString() == immediateId }
+            }.getOrNull()
+        } else null
+        val plan = verified ?: run {
+            var found: JSONObject? = null
+            repeat(3) { attempt ->
+                if (found == null) {
+                    found = activeTriggerPlans(symbol).firstOrNull {
+                        it.optString("clientOrderId") == clientOrderId &&
+                            it.optString("entrustType") == kind &&
+                            it.optString("positionSide") == positionSide &&
+                            kotlin.math.abs((it.optString("stopPrice").toDoubleOrNull() ?: 0.0) - triggerPrice) <=
+                                maxOf(1e-8, triggerPrice * 1e-8) &&
+                            (it.optString("origQty").toDoubleOrNull() ?: Double.NaN) == contracts.toDouble()
+                    }
+                    if (found == null && attempt < 2) delay(250L)
+                }
+            }
+            found
+        } ?: throw IllegalStateException(
+            "XT پاسخ ثبت طرح محافظتی را داد، اما طرح با clientOrderId قابل تأیید نیست؛ از ایجاد طرح تکراری خودداری کن و وضعیت پوزیشن را در XT بررسی کن."
+        )
+        val id = plan.opt("entrustId")?.toString().orEmpty()
+        require(id.isNotBlank()) { "طرح محافظتی پیدا شد اما entrustId آن قابل تأیید نیست." }
+        return TriggerPlanReceipt(id, clientOrderId, kind, plan)
     }
 
     companion object {
