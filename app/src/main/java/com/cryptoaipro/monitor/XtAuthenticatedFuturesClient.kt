@@ -459,7 +459,7 @@ internal class XtAuthenticatedFuturesClient(
             .put("orderSide", closeSide)
             .put("entrustType", kind)
             .put("origQty", contracts)
-            .put("stopPrice", BigDecimal.valueOf(triggerPrice).stripTrailingZeros().toPlainString())
+            .put("stopPrice", BigDecimal.valueOf(triggerPrice))
             .put("timeInForce", "IOC")
             .put("triggerPriceType", "MARK_PRICE")
             .put("positionSide", positionSide)
