@@ -64,7 +64,7 @@ def run_backtest(
         raise ValueError("Insufficient or invalid OHLCV history")
     if initial_equity <= 0 or not 0 < risk_per_trade <= 0.02:
         raise ValueError("Invalid equity or risk fraction")
-    if not 1 <= max_leverage <= 5 or fee_rate < 0 or slippage_rate < 0 or funding_rate_8h < 0:
+    if not 1 <= max_leverage <= 5 or fee_rate < 0 or slippage_rate < 0 or abs(funding_rate_8h) > 0.02:
         raise ValueError("Invalid execution cost or leverage settings")
     if atr_multiple <= 0 or reward_risk < 1:
         raise ValueError("Invalid stop or reward/risk parameters")
@@ -104,7 +104,8 @@ def run_backtest(
                 gross = (exit_price - position["entry"]) * position["quantity"] * direction
                 exit_fee = abs(exit_price * position["quantity"]) * fee_rate
                 elapsed_hours = max(0.0, (i - position["entry_index"]) * position["bar_hours"])
-                funding = position["notional"] * funding_rate_8h * (elapsed_hours / 8.0)
+                funding_direction = 1 if side == "LONG" else -1
+                funding = position["notional"] * funding_rate_8h * funding_direction * (elapsed_hours / 8.0)
                 fees = position["entry_fee"] + exit_fee
                 slip_cost = position["entry_slip_cost"] + abs(raw_exit-exit_price)*position["quantity"]
                 net = gross - fees - funding
@@ -189,7 +190,8 @@ def run_backtest(
         gross = (exit_price-position["entry"])*position["quantity"]*direction
         exit_fee = abs(exit_price*position["quantity"])*fee_rate
         elapsed_hours = max(0.0, (len(data)-1-position["entry_index"])*position["bar_hours"])
-        funding = position["notional"]*funding_rate_8h*(elapsed_hours/8.0)
+        funding_direction = 1 if side == "LONG" else -1
+        funding = position["notional"]*funding_rate_8h*funding_direction*(elapsed_hours/8.0)
         fees = position["entry_fee"]+exit_fee
         slip_cost = position["entry_slip_cost"]+abs(raw_exit-exit_price)*position["quantity"]
         net = gross-exit_fee-funding  # entry fee was already deducted from equity
@@ -202,6 +204,12 @@ def run_backtest(
             fees=fees, slippage_cost=slip_cost, funding_estimate=funding,
             net_pnl=net, exit_reason="END_OF_DATA", equity_after=equity,
         ))
+
+    # Include the final liquidation mark in peak-to-trough drawdown and curve.
+    peak = max(peak, equity)
+    max_dd = max(max_dd, (peak-equity)/peak if peak > 0 else 1.0)
+    if equity_curve:
+        equity_curve[-1] = {"bar": len(data)-1, "equity": equity}
 
     pnls = [t.net_pnl for t in trades]
     wins = [p for p in pnls if p > 0]
@@ -220,7 +228,8 @@ def run_backtest(
         "estimated_slippage_cost": round(sum(t.slippage_cost for t in trades), 8),
         "estimated_funding": round(sum(t.funding_estimate for t in trades), 8),
         "assumptions": {"fee_rate_per_side": fee_rate, "slippage_rate_per_side": slippage_rate,
-                        "funding_rate_per_8h_estimate": funding_rate_8h,
+                        "funding_rate_per_8h_estimate_signed": funding_rate_8h,
+                        "funding_convention": "positive rate: longs pay, shorts receive; negative rate: inverse",
                         "signal_uses_only_prior_closed_candles": True,
                         "intrabar_rule": "stop-first if stop and target both touched",
                         "max_leverage": max_leverage, "risk_per_trade": risk_per_trade,
