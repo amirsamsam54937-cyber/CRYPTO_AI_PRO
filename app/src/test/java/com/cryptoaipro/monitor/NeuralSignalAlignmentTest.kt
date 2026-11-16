@@ -28,4 +28,21 @@ class NeuralSignalAlignmentTest {
         assertEquals("NEUTRAL", NeuralSignalAlignment.predictedDirection(0.54))
         assertEquals("NEUTRAL", NeuralSignalAlignment.predictedDirection(0.46))
     }
+
+    @Test fun unvalidatedTenMemberPanelGetsOnlySmallResearchWeight() {
+        assertEquals(0.08, NeuralSignalAlignment.influenceWeight(false, 10, false), 0.0001)
+        assertEquals(0.0, NeuralSignalAlignment.influenceWeight(false, 10, true), 0.0001)
+        assertEquals(0.0, NeuralSignalAlignment.influenceWeight(false, 9, false), 0.0001)
+    }
+
+    @Test fun validatedPanelGetsMoreWeightButDisagreementReducesIt() {
+        assertEquals(0.25, NeuralSignalAlignment.influenceWeight(true, 10, false), 0.0001)
+        assertEquals(0.10, NeuralSignalAlignment.influenceWeight(true, 10, true), 0.0001)
+    }
+
+    @Test fun unvalidatedNeuralConfidenceEffectIsCappedAtTwoPoints() {
+        assertEquals(2, NeuralSignalAlignment.experimentalConfidenceAdjustment(false, 9, 1, 70))
+        assertEquals(-2, NeuralSignalAlignment.experimentalConfidenceAdjustment(false, 1, 9, 70))
+        assertEquals(0, NeuralSignalAlignment.experimentalConfidenceAdjustment(false, 9, 1, 54))
+    }
 }
