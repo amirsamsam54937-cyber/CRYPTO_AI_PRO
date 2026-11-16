@@ -138,7 +138,14 @@ def run_backtest(
             target_hit = row["high"] >= position["target"] if side == "LONG" else row["low"] <= position["target"]
             exit_reason = "STOP_LOSS" if stop_hit else ("TAKE_PROFIT" if target_hit else None)
             if exit_reason:
-                raw_exit = position["stop"] if stop_hit else position["target"]
+                if stop_hit:
+                    # A stop-market order can gap through its trigger. Use the
+                    # worse of the stop level and this candle's open before slippage.
+                    stop_level = float(position["stop"])
+                    bar_open = float(row["open"])
+                    raw_exit = min(stop_level, bar_open) if side == "LONG" else max(stop_level, bar_open)
+                else:
+                    raw_exit = float(position["target"])
                 exit_price = adverse(float(raw_exit), side, entering=False)
                 direction = 1 if side == "LONG" else -1
                 gross = (exit_price - position["entry"]) * position["quantity"] * direction
@@ -296,6 +303,7 @@ def run_backtest(
                         "funding_rate_per_8h_estimate": funding_rate_8h,
                         "signal_uses_only_prior_closed_candles": True,
                         "intrabar_rule": "stop-first if stop and target both touched",
+                        "stop_gap_rule": "use opening price when worse than stop level",
                         "drawdown_marking": "close-to-market including estimated exit fee and accrued funding",
                         "max_leverage": max_leverage, "risk_per_trade": risk_per_trade},
         "trades": [asdict(t) for t in trades],

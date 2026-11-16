@@ -233,3 +233,34 @@ def test_backtest_rejects_non_finite_execution_and_risk_parameters(parameter, ba
 def test_backtest_rejects_invalid_warmup_type_or_range(bad_warmup):
     with pytest.raises(ValueError, match="warmup"):
         run_backtest(sample_frame(), warmup=bad_warmup)
+
+def test_stop_market_exit_uses_worse_open_when_price_gaps_through_stop(monkeypatch):
+    frame = sample_frame(103)
+    frame.loc[101, ["open", "high", "low", "close"]] = [100.0, 100.5, 99.5, 100.0]
+    # The planned LONG stop is 98.5, but the next candle opens at 97.0.
+    # A stop-market fill cannot be assumed at the unavailable 98.5 price.
+    frame.loc[102, ["open", "high", "low", "close"]] = [97.0, 97.5, 96.5, 97.0]
+    monkeypatch.setattr(
+        "app.backtest.analyze_ohlcv",
+        lambda history: {"direction": "LONG_BIAS", "atr": 1.0},
+    )
+
+    result = run_backtest(
+        frame,
+        initial_equity=1000.0,
+        risk_per_trade=0.01,
+        max_leverage=3.0,
+        fee_rate=0.0,
+        slippage_rate=0.0,
+        funding_rate_8h=0.0,
+        warmup=100,
+    )
+
+    assert result["trade_count"] == 1
+    trade = result["trades"][0]
+    assert trade["exit_reason"] == "STOP_LOSS"
+    assert trade["stop"] == pytest.approx(98.5)
+    assert trade["exit"] == pytest.approx(97.0)
+    assert trade["net_pnl"] == pytest.approx(-20.0)
+    assert result["final_equity"] == pytest.approx(980.0)
+    assert result["assumptions"]["stop_gap_rule"].startswith("use opening price")
