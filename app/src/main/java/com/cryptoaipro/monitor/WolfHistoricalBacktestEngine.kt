@@ -229,11 +229,16 @@ internal object WolfHistoricalBacktestEngine {
                             else (entryFill / exitFill - 1.0) * 100.0
                         // XT VIP0 reference taker fee is 0.06% on each fill. Slippage is
                         // already reflected in entryFill/exitFill and is reported separately.
-                        val safeLeverage = leverage.coerceIn(1, 5)
+                        val maxLeverage = leverage.coerceIn(1, 5).toDouble()
+                        // Position sizing targets 0.5% equity risk at the stop, capped by leverage.
+                        val stopDistancePct = riskDistance / rawEntry
+                        if (!stopDistancePct.isFinite() || stopDistancePct <= 0.0) return null
+                        val exposure = minOf(maxLeverage, 0.005 / stopDistancePct)
+                        if (!exposure.isFinite() || exposure <= 0.0) return null
                         val roundTripFeePct = TAKER_FEE_PCT_PER_SIDE * 2.0
                         return ReplayResult(
-                            gross * safeLeverage - roundTripFeePct * safeLeverage,
-                            roundTripFeePct, SLIPPAGE_PCT_PER_SIDE * 2.0, safeLeverage
+                            gross * exposure - roundTripFeePct * exposure,
+                            roundTripFeePct, SLIPPAGE_PCT_PER_SIDE * 2.0, exposure
                         )
                     }
 
