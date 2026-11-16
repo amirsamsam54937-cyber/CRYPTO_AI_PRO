@@ -228,7 +228,7 @@ internal object WolfHistoricalBacktestEngine {
                         if (entryFill <= 0.0 || exitFill <= 0.0) return null
                         val gross = if (long) (exitFill / entryFill - 1.0) * 100.0
                             else (entryFill / exitFill - 1.0) * 100.0
-                        // Fee assumption is round-trip 0.10% notional; funding remains unmodelled.
+                        // XT VIP-0 taker assumption: 0.06% per side (0.12% round trip) on leveraged notional. Estimated funding is charged separately for elapsed holding time; exact historical funding is not available in this replay.
                         val lev = leverage.coerceIn(1, 5)
                         val heldHours = (exitIndex - entryIndex).coerceAtLeast(0) * 5.0 / 60.0
                         val fundingPct = (heldHours / 8.0) * ESTIMATED_FUNDING_PER_8H_PCT
