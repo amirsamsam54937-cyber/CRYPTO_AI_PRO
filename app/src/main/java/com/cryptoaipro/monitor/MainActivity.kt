@@ -1077,7 +1077,7 @@ private fun SignalJournalScreen(
                         Text("بازه کندل‌های دریافت‌شده: ${if (backtest.sampleWindowStart > 0L) WolfHistoricalBacktestEngine.formatTime(backtest.sampleWindowStart) else "—"} تا ${if (backtest.sampleWindowEnd > 0L) WolfHistoricalBacktestEngine.formatTime(backtest.sampleWindowEnd) else "—"}", color = Muted, fontSize = 9.sp)
                         if (backtest.errors.isNotEmpty()) Text("خطاهای دریافت: ${backtest.errors.joinToString(" | ")}", color = Red, fontSize = 9.sp)
                     }
-                    Text("بک‌تست پژوهشی است، نه تضمین سود. نمونه‌ها در طول زمان پخش شده‌اند و مقایسه سه روش فقط وقتی معتبر تلقی می‌شود که هر موتور دست‌کم ۳۰ معامله داشته باشد. کارمزد و لغزش با فرض ۰٫۱۰٪ رفت‌وبرگشت روی ارزش اسمی لحاظ شده است؛ فاندینگ و اجرای واقعی سفارش شبیه‌سازی نمی‌شود. شبکه عصبی در این بخش مستقل ارزیابی می‌شود، اما تا عبور از اعتبارسنجی زمانی همچنان از سیگنال زنده کنار گذاشته می‌ماند.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                    Text("بک‌تست پژوهشی است، نه تضمین سود. نمونه‌ها در طول زمان پخش شده‌اند و مقایسه سه روش فقط وقتی معتبر تلقی می‌شود که هر موتور دست‌کم ۳۰ معامله داشته باشد. هر موتور با سرمایه اولیه ۱۰ USDT و ترکیب سود/زیان روی ۱۰٪ موجودی به‌عنوان مارجین هر معامله شبیه‌سازی می‌شود. ورود و خروج بازار با کارمزد Taker استاندارد XT در سطح VIP 0 (هر سمت ۰٫۰۶٪، رفت‌وبرگشت ۰٫۱۲٪ ارزش اسمی)، لغزش فرضی ۰٫۰۲٪ در هر سمت و فاندینگ تخمینی ۰٫۰۱٪ به‌ازای هر ۸ ساعت لحاظ شده است؛ نرخ واقعی فاندینگ و سطح VIP حساب متغیر است و باید جداگانه با داده تاریخی دقیق جایگزین شود. شبکه عصبی در این بخش مستقل ارزیابی می‌شود، اما تا عبور از اعتبارسنجی زمانی همچنان از سیگنال زنده کنار گذاشته می‌ماند.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
                 }
             }
         }
@@ -1171,9 +1171,15 @@ private fun BacktestStrategyRow(title: String, stats: WolfHistoricalBacktestEngi
                 Text("نرخ برد: ${String.format(Locale.US, "%.1f", stats.winRate)}٪", color = Color.White, fontSize = 9.sp)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("بازده خالص: ${String.format(Locale.US, "%+.2f", stats.netReturnPct)}٪", color = if (stats.netReturnPct >= 0) Green else Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("موجودی نهایی از ۱۰$: ${String.format(Locale.US, "%.4f", stats.endingBalanceUsdt)} USDT", color = if (stats.endingBalanceUsdt >= 10.0) Green else Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("بازده: ${String.format(Locale.US, "%+.2f", stats.netReturnPct)}٪", color = if (stats.netReturnPct >= 0) Green else Red, fontSize = 9.sp)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("کارمزد پرداختی: ${String.format(Locale.US, "%.4f", stats.feesPaidUsdt)} USDT", color = Gold, fontSize = 9.sp)
+                Text("فاندینگ تخمینی: ${String.format(Locale.US, "%.4f", stats.estimatedFundingUsdt)} USDT", color = Muted, fontSize = 9.sp)
                 Text("PF: ${String.format(Locale.US, "%.2f", stats.profitFactor)}", color = Muted, fontSize = 9.sp)
-                Text("افت سرمایه: ${String.format(Locale.US, "%.1f", stats.maxDrawdownPct)}٪", color = Red, fontSize = 9.sp)
+            }
+            Text("افت سرمایه: ${String.format(Locale.US, "%.1f", stats.maxDrawdownPct)}٪", color = Red, fontSize = 9.sp)
             }
         }
     }
