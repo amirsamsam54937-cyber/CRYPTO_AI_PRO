@@ -1180,7 +1180,6 @@ private fun BacktestStrategyRow(title: String, stats: WolfHistoricalBacktestEngi
                 Text("PF: ${String.format(Locale.US, "%.2f", stats.profitFactor)}", color = Muted, fontSize = 9.sp)
             }
             Text("افت سرمایه: ${String.format(Locale.US, "%.1f", stats.maxDrawdownPct)}٪", color = Red, fontSize = 9.sp)
-            }
         }
     }
 }
