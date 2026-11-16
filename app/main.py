@@ -82,7 +82,7 @@ async function runBacktest(){const b=document.getElementById('run'),s=document.g
 try{const symbol=encodeURIComponent(document.getElementById('symbol').value.trim()),tf=document.getElementById('tf').value;
 const q=new URLSearchParams({timeframe:tf,candles:document.getElementById('candles').value,initial_equity:'10',
 risk_per_trade:(Number(document.getElementById('risk').value)/100).toString(),
-taker_fee_rate:(Number(document.getElementById('fee').value)/100).toString(),
+fee_rate:(Number(document.getElementById('fee').value)/100).toString(),
 slippage_rate:(Number(document.getElementById('slip').value)/100).toString(),
 funding_rate_8h:(Number(document.getElementById('funding').value)/100).toString()});
 const r=await fetch('/api/backtest/'+symbol+'?'+q),j=await r.json();if(!r.ok)throw Error(j.detail||'خطای دریافت اطلاعات');
@@ -95,7 +95,7 @@ metric('fees',fmt(z.estimated_fees,6)+' USDT');metric('slippage',fmt(z.estimated
 metric('fundingCost',fmt(z.estimated_funding,6)+' USDT');metric('sharpe',fmt(z.trade_return_sharpe,3));
 drawCurve(z.equity_curve||[]);const body=document.getElementById('trades');body.innerHTML='';
 (z.trades||[]).slice().reverse().forEach((t,i)=>{const tr=document.createElement('tr');const vals=[i+1,t.side,fmt(t.entry,6),fmt(t.exit,6),(t.net_pnl>=0?'+':'')+fmt(t.net_pnl,6),fmt(t.fees,6),t.exit_reason,fmt(t.equity_after,4)];vals.forEach((v,k)=>{const td=document.createElement('td');td.textContent=v;if(k===4)td.className=t.net_pnl>=0?'good':'bad';tr.appendChild(td)});body.appendChild(tr)});
-document.getElementById('assumptions').textContent='XT USDT-M • '+j.symbol+' • '+j.timeframe+' • کارمزد '+(Number(q.get('taker_fee_rate'))*100).toFixed(3)+'٪ هر سمت • لغزش '+(Number(q.get('slippage_rate'))*100).toFixed(3)+'٪ هر سمت • فاندینگ '+(Number(q.get('funding_rate_8h'))*100).toFixed(3)+'٪ هر ۸ ساعت. اگر حدضرر و حدسود در یک کندل لمس شوند، حدضرر اول فرض شده است.';
+document.getElementById('assumptions').textContent='XT USDT-M • '+j.symbol+' • '+j.timeframe+' • کارمزد '+(Number(q.get('fee_rate'))*100).toFixed(3)+'٪ هر سمت • لغزش '+(Number(q.get('slippage_rate'))*100).toFixed(3)+'٪ هر سمت • فاندینگ '+(Number(q.get('funding_rate_8h'))*100).toFixed(3)+'٪ هر ۸ ساعت. اگر حدضرر و حدسود در یک کندل لمس شوند، حدضرر اول فرض شده است.';
 s.textContent='بک‌تست کامل شد — '+z.trade_count+' معامله';}
 catch(e){s.textContent='خطا: '+e.message;}finally{b.disabled=false;}}
 </script></body></html>"""
@@ -140,7 +140,7 @@ def backtest(symbol: str,
     candles: int = Query(default=1000,ge=150,le=1000),
     initial_equity: float = Query(default=10.0,gt=0,le=1000000),
     risk_per_trade: float = Query(default=0.005,gt=0,le=0.02),
-    taker_fee_rate: float = Query(default=0.0006,ge=0,le=0.02),
+    fee_rate: float = Query(default=0.0006,ge=0,le=0.02),
     slippage_rate: float = Query(default=0.0005,ge=0,le=0.02),
     funding_rate_8h: float = Query(default=0.0001,ge=-0.02,le=0.02)):
     if timeframe not in {"5m","15m","30m","1h","2h","4h","1d"}:
@@ -149,9 +149,9 @@ def backtest(symbol: str,
         frame=fetch_ohlcv(symbol=symbol,timeframe=timeframe,limit=candles,exchange_id=settings.exchange_id)
         if len(frame)>1: frame=frame.iloc[:-1].reset_index(drop=True)
         result=run_backtest(frame,initial_equity=initial_equity,risk_per_trade=risk_per_trade,
-            fee_rate=taker_fee_rate,slippage_rate=slippage_rate,funding_rate_8h=funding_rate_8h)
+            fee_rate=fee_rate,slippage_rate=slippage_rate,funding_rate_8h=funding_rate_8h)
         return {"symbol":symbol,"timeframe":timeframe,"exchange":"XT",
-            "mode":"historical-research-only","fee_model":"XT VIP0 reference rates: maker 0.02%, taker 0.06% per side; user can override",
+            "mode":"historical-research-only","fee_model":"XT VIP0 reference rates: maker 0.02%, taker 0.06% per side; configured fee rate applied on entry and exit"",
             "results":result}
     except ValueError as exc:
         raise HTTPException(status_code=400,detail=str(exc))
