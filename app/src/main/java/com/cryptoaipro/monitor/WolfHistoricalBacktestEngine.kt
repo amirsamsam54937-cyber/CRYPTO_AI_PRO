@@ -48,11 +48,11 @@ internal object WolfHistoricalBacktestEngine {
 
     private data class PaperTrade(
         val pnlPct: Double, val entryTime: Long,
-        val feePctNotional: Double, val slippagePctNotional: Double, val leverage: Int
+        val feePctNotional: Double, val slippagePctNotional: Double, val exposureMultiplier: Double
     )
     private data class ReplayResult(
         val netReturnPct: Double, val feePctNotional: Double,
-        val slippagePctNotional: Double, val leverage: Int
+        val slippagePctNotional: Double, val exposureMultiplier: Double
     )
     private class Tally {
         val trades = mutableListOf<PaperTrade>()
@@ -68,8 +68,8 @@ internal object WolfHistoricalBacktestEngine {
             var feesPaid = 0.0
             var slippagePaid = 0.0
             trades.sortedBy { it.entryTime }.forEach {
-                feesPaid += equity * it.feePctNotional / 100.0 * it.leverage
-                slippagePaid += equity * it.slippagePctNotional / 100.0 * it.leverage
+                feesPaid += equity * it.feePctNotional / 100.0 * it.exposureMultiplier
+                slippagePaid += equity * it.slippagePctNotional / 100.0 * it.exposureMultiplier
                 equity *= (1.0 + it.pnlPct / 100.0).coerceAtLeast(0.0)
                 peak = max(peak, equity)
                 if (peak > 0.0) drawdown = max(drawdown, (peak - equity) / peak * 100.0)
@@ -238,10 +238,10 @@ internal object WolfHistoricalBacktestEngine {
                     }
 
                     if (isTech) replay(technicalSide, technicalRisk, technicalReward, technicalLeverage, holdBarsFor(technical.tradeTimeframe))
-                        ?.let { technicalTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.leverage)) }
+                        ?.let { technicalTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.exposureMultiplier)) }
                     if (isNeural && neuralRisk != null && neuralReward != null) {
                         replay(neuralSide, neuralRisk, neuralReward, neuralLeverage, holdBarsFor("1h"))
-                            ?.let { neuralTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.leverage)) }
+                            ?.let { neuralTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.exposureMultiplier)) }
                     }
                     // Agreement is evaluated on the same entry timestamp with conservative shared
                     // risk: wider of the two stops, nearer of the two targets, lower leverage.
@@ -251,7 +251,7 @@ internal object WolfHistoricalBacktestEngine {
                         val sharedRisk = max(technicalRisk, neuralRisk)
                         val sharedReward = minOf(technicalReward, neuralReward)
                         replay(technicalSide, sharedRisk, sharedReward, minOf(technicalLeverage, neuralLeverage), maxOf(holdBarsFor(technical.tradeTimeframe), holdBarsFor("1h")))
-                            ?.let { agreementTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.leverage)) }
+                            ?.let { agreementTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.exposureMultiplier)) }
                     }
                 }
                 earliest = minOf(earliest, micro.firstOrNull()?.get(5)?.toLong() ?: anchor)
