@@ -250,7 +250,11 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         // ZORO is an analysis-and-signals app; it never authorizes or submits exchange orders.
         val publishThreshold = if (reviewed.tradeTimeframe.startsWith("5m")) 56 else 62
         val commanderQualified = commander.direction != "NEUTRAL" && commander.confidence >= publishThreshold
-        val neuralAgreement = neuralValidated && bothDirectional && tech == neural && neuralStrength >= 55
+        val neuralAgreement = neuralValidated && bothDirectional && tech == neural && neuralStrength >= 55 &&
+            !reviewed.neuralUncertainty.highDisagreement
+        val neuralExperimentalAgreement = !neuralValidated && bothDirectional && tech == neural &&
+            neuralStrength >= 55 && !reviewed.neuralUncertainty.highDisagreement &&
+            (if (tech == "LONG_BIAS") reviewed.neuralUncertainty.upVotes else reviewed.neuralUncertainty.downVotes) >= 7
         val technicalOnlyQualified = !neuralValidated &&
             (tech == "LONG_BIAS" || tech == "SHORT_BIAS") &&
             reviewed.confidence >= 58 &&
@@ -262,6 +266,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             neuralAgreement && commander.confidence >= 82 && neuralStrength >= 70 -> "نوع ۱ • ممتاز"
             neuralAgreement && commander.confidence >= 72 && neuralStrength >= 62 -> "نوع ۲ • تأییدشده"
             commanderQualified && neuralValidated -> "نوع ۳ • فرمانده تکنیکال + عصبی"
+            commanderQualified && technicalOnlyQualified && neuralExperimentalAgreement ->
+                "آزمایشی • تکنیکال + ۱۰ شبکه عصبی"
             commanderQualified && technicalOnlyQualified -> "نوع ۳ • فرمانده تکنیکال مستقل"
             else -> "بدون رتبه"
         }
@@ -274,7 +280,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             signalTier = if (promoted) tier else "بدون رتبه",
             agreementStatus = if (promoted) commander.explanation else when {
                 commander.status == "ABSTAIN_NEURAL_CONFLICT" -> commander.explanation
-                !neuralValidated -> "مدل عصبی هنوز از آزمون مستقل عبور نکرده؛ فرمانده اجازه انتشار بر اساس آن را نمی‌دهد"
+                !neuralValidated && neuralExperimentalAgreement -> "سیگنال آزمایشی: ۱۰ شبکه عصبی با جهت تکنیکال همسو هستند؛ مدل هنوز اعتبارسنجی مستقل را پاس نکرده است"
+                !neuralValidated -> "مدل عصبی هنوز از آزمون مستقل عبور نکرده؛ فقط اثر کمکی محدود دارد"
                 tech != neural -> "اختلاف تحلیل تکنیکال و شبکه عصبی • فرمانده سیگنال را متوقف کرد"
                 else -> commander.explanation
             }
