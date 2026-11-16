@@ -1011,7 +1011,7 @@ private fun SignalJournalScreen(
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Text("آزمایشگاه بک‌تست تاریخی", color = Gold, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("تایم‌فریم را موتور تحلیل انتخاب می‌کند. شبکه عصبی مستقل از شرط تأیید سیگنال زنده در داده تاریخی ارزیابی می‌شود؛ تا زمان عبور از اعتبارسنجی، نتیجه آن فقط پژوهشی است و اجازه صدور سیگنال زنده ندارد. نمونه‌گیری زمانی به‌صورت یکنواخت و قابل تکرار انجام می‌شود.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    Text("هر یک از سه روش بک‌تست با ۱۰ USDT سرمایه مجازی جداگانه شروع می‌کند و سود/زیان به‌صورت مرکب روی موجودی همان روش محاسبه می‌شود. شبکه عصبی مستقل از شرط تأیید سیگنال زنده در داده تاریخی ارزیابی می‌شود؛ نمونه‌گیری زمانی یکنواخت و قابل تکرار است.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(if (backtestEnabled) "بک‌تست فعال" else "بک‌تست خاموش", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -1048,7 +1048,7 @@ private fun SignalJournalScreen(
                         Text("بازه کندل‌های دریافت‌شده: ${if (backtest.sampleWindowStart > 0L) WolfHistoricalBacktestEngine.formatTime(backtest.sampleWindowStart) else "—"} تا ${if (backtest.sampleWindowEnd > 0L) WolfHistoricalBacktestEngine.formatTime(backtest.sampleWindowEnd) else "—"}", color = Muted, fontSize = 9.sp)
                         if (backtest.errors.isNotEmpty()) Text("خطاهای دریافت: ${backtest.errors.joinToString(" | ")}", color = Red, fontSize = 9.sp)
                     }
-                    Text("بک‌تست پژوهشی است، نه تضمین سود. نمونه‌ها در طول زمان پخش شده‌اند و مقایسه سه روش فقط وقتی معتبر تلقی می‌شود که هر موتور دست‌کم ۳۰ معامله داشته باشد. کارمزد و لغزش با فرض ۰٫۱۰٪ رفت‌وبرگشت روی ارزش اسمی لحاظ شده است؛ فاندینگ و اجرای واقعی سفارش شبیه‌سازی نمی‌شود. شبکه عصبی در این بخش مستقل ارزیابی می‌شود، اما تا عبور از اعتبارسنجی زمانی همچنان از سیگنال زنده کنار گذاشته می‌ماند.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                    Text("بک‌تست پژوهشی است، نه تضمین سود. هر موتور با ۱۰ USDT شروع می‌کند. کارمزد مرجع XT VIP0 برای سفارش Taker برابر ۰٫۰۶٪ در هر سمت (۰٫۱۲٪ رفت‌وبرگشت) است؛ لغزش ۰٫۰۲٪ هر سمت در قیمت پرشدن ورود و خروج اعمال می‌شود. فاندینگ تاریخی هنوز در این نسخه محاسبه نمی‌شود. حداقل ۳۰ معامله برای هر موتور جهت مقایسه لازم است. شبکه عصبی تا عبور از اعتبارسنجی زمانی از سیگنال زنده کنار گذاشته می‌ماند.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
                 }
             }
         }
@@ -1145,6 +1145,14 @@ private fun BacktestStrategyRow(title: String, stats: WolfHistoricalBacktestEngi
                 Text("بازده خالص: ${String.format(Locale.US, "%+.2f", stats.netReturnPct)}٪", color = if (stats.netReturnPct >= 0) Green else Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 Text("PF: ${String.format(Locale.US, "%.2f", stats.profitFactor)}", color = Muted, fontSize = 9.sp)
                 Text("افت سرمایه: ${String.format(Locale.US, "%.1f", stats.maxDrawdownPct)}٪", color = Red, fontSize = 9.sp)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("موجودی نهایی: ${String.format(Locale.US, "%.4f", stats.finalEquityUsdt)} USDT", color = if (stats.finalEquityUsdt >= 10.0) Green else Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("سود خالص: ${String.format(Locale.US, "%+.4f", stats.netPnlUsdt)} USDT", color = if (stats.netPnlUsdt >= 0.0) Green else Red, fontSize = 9.sp)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("کارمزد ورود و خروج: ${String.format(Locale.US, "%.5f", stats.estimatedFeesUsdt)} USDT", color = Gold, fontSize = 9.sp)
+                Text("لغزش تخمینی: ${String.format(Locale.US, "%.5f", stats.estimatedSlippageUsdt)} USDT", color = Muted, fontSize = 9.sp)
             }
         }
     }
