@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 96
-  versionName = "2.75.0"
-  // Release 2.75.0: guarded manual XT Futures execution with exchange-side TP/SL verification.
+  versionCode = 97
+  versionName = "2.76.0"
+  // Release 2.76.0: XT Futures research backtest with $10 compounding equity, taker fees, slippage and estimated funding.
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
