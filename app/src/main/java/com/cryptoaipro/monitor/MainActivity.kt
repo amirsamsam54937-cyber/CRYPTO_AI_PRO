@@ -115,7 +115,9 @@ data class MarketSignal(
     val neuralUncertainty: WolfEnsembleUncertainty.Summary = WolfEnsembleUncertainty.analyze(emptyList()),
     // Internal XT microstructure features; deliberately not rendered in any UI or notification.
     val hiddenFlowScore: Int = 0,
-    val hiddenFlowFresh: Boolean = false
+    val hiddenFlowFresh: Boolean = false,
+    // Scenario evidence scores for 1h/4h/6h/24h; never a calibrated win probability.
+    val multiHorizonOutlook: ZoroMultiHorizonEngine.Outlook? = null
 )
 
 data class TechnicalSnapshot(
@@ -287,7 +289,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                 !neuralValidated -> "مدل عصبی هنوز از آزمون مستقل عبور نکرده؛ فقط اثر کمکی محدود دارد"
                 tech != neural -> "اختلاف تحلیل تکنیکال و شبکه عصبی • فرمانده سیگنال را متوقف کرد"
                 else -> commander.explanation
-            }
+            },
+            multiHorizonOutlook = ZoroMultiHorizonEngine.analyze(reviewed)
         )
     }.sortedWith(compareByDescending<MarketSignal> {
         if (it.direction == "NEUTRAL") it.score.toDouble() else it.confidence.toDouble()
