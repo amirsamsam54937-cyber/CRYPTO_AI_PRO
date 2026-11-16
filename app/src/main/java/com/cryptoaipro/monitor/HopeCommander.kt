@@ -97,9 +97,10 @@ internal object HopeCommander {
             return Decision("NEUTRAL", 0, minOf(signal.confidence, 45), neuralStrength,
                 "ABSTAIN_DIRECTION_CONFLICT", "فرمانده: جهت ترکیبی با تکنیکال همسو نیست")
         val neuralImpact = if (neuralWeight > 0.0) (combined - technicalEvidence).roundToInt() else 0
-        val neuralAdjustment = NeuralSignalAlignment.experimentalConfidenceAdjustment(
-            neuralValidated, neuralAligned, neuralOpposed, neuralStrength
-        )
+        val neuralAdjustment = if (neuralWeight == 0.0) 0 else
+            NeuralSignalAlignment.experimentalConfidenceAdjustment(
+                neuralValidated, neuralAligned, neuralOpposed, neuralStrength
+            )
         val voteAdjustment = when {
             technicalAgreement >= 0.85 -> 3
             technicalAgreement < 0.60 -> -5
