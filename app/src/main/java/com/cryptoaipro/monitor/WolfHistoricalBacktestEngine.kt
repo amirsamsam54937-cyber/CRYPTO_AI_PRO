@@ -211,6 +211,7 @@ internal object WolfHistoricalBacktestEngine {
                         val entryFill = rawEntry * (1.0 + (if (long) 1.0 else -1.0) * slippagePctPerSide / 100.0)
                         val end = minOf(micro.lastIndex, entryIndex + holdBars)
                         var rawExit = micro[end][3]
+                        var exitIndex = end
                         for (j in entryIndex..end) {
                             val bar = micro[j]
                             val stopHit = if (long) bar[2] <= stop else bar[1] >= stop
@@ -218,9 +219,10 @@ internal object WolfHistoricalBacktestEngine {
                             // Conservative OHLC ambiguity: if both levels hit, stop is assumed first.
                             if (stopHit) {
                                 rawExit = if ((long && bar[0] < stop) || (!long && bar[0] > stop)) bar[0] else stop
+                                exitIndex = j
                                 break
                             }
-                            if (targetHit) { rawExit = target; break }
+                            if (targetHit) { rawExit = target; exitIndex = j; break }
                         }
                         val exitFill = rawExit * (1.0 + (if (long) -1.0 else 1.0) * slippagePctPerSide / 100.0)
                         if (entryFill <= 0.0 || exitFill <= 0.0) return null
@@ -228,7 +230,7 @@ internal object WolfHistoricalBacktestEngine {
                             else (entryFill / exitFill - 1.0) * 100.0
                         // Fee assumption is round-trip 0.10% notional; funding remains unmodelled.
                         val lev = leverage.coerceIn(1, 5)
-                        val heldHours = (end - entryIndex).coerceAtLeast(0) * 5.0 / 60.0
+                        val heldHours = (exitIndex - entryIndex).coerceAtLeast(0) * 5.0 / 60.0
                         val fundingPct = (heldHours / 8.0) * ESTIMATED_FUNDING_PER_8H_PCT
                         return (gross * lev - ROUND_TRIP_TAKER_FEE_PCT * lev - fundingPct * lev) to fundingPct
                     }
