@@ -76,7 +76,7 @@ internal object WolfHistoricalBacktestEngine {
             return StrategyStats(
                 trades.size, wins, losses, flats,
                 if (trades.isEmpty()) 0.0 else wins.toDouble() / trades.size * 100.0,
-                trades.fold(1.0) { acc, t -> acc * (1.0 + t.pnlPct / 100.0) }.let { (it - 1.0) * 100.0 },
+                (equity / STARTING_CAPITAL_USDT - 1.0) * 100.0,
                 if (grossLoss <= 1e-9) if (grossWin > 0.0) 99.0 else 0.0 else grossWin / grossLoss,
                 drawdown, equity, feesPaid, fundingPaid
             )
@@ -196,7 +196,7 @@ internal object WolfHistoricalBacktestEngine {
                         rewardDistance: Double,
                         leverage: Int,
                         holdBars: Int
-                    ): Double? {
+                    ): Pair<Double, Double>? {
                         if (side != "LONG_BIAS" && side != "SHORT_BIAS") return null
                         if (!riskDistance.isFinite() || !rewardDistance.isFinite() ||
                             riskDistance <= 0.0 || rewardDistance <= 0.0 ||
@@ -230,14 +230,14 @@ internal object WolfHistoricalBacktestEngine {
                         val lev = leverage.coerceIn(1, 5)
                         val heldHours = (end - entryIndex).coerceAtLeast(0) * 5.0 / 60.0
                         val fundingPct = (heldHours / 8.0) * ESTIMATED_FUNDING_PER_8H_PCT
-                        return gross * lev - ROUND_TRIP_TAKER_FEE_PCT * lev - fundingPct * lev
+                        return (gross * lev - ROUND_TRIP_TAKER_FEE_PCT * lev - fundingPct * lev) to fundingPct
                     }
 
                     if (isTech) replay(technicalSide, technicalRisk, technicalReward, technicalLeverage, holdBarsFor(technical.tradeTimeframe))
-                        ?.let { technicalTally.trades.add(PaperTrade(it, entryBar[5].toLong(), technicalLeverage, ((holdBarsFor(technical.tradeTimeframe).coerceAtLeast(0) * 5.0 / 60.0) / 8.0) * ESTIMATED_FUNDING_PER_8H_PCT)) }
+                        ?.let { result -> technicalTally.trades.add(PaperTrade(result.first, entryBar[5].toLong(), technicalLeverage, result.second)) }
                     if (isNeural && neuralRisk != null && neuralReward != null) {
                         replay(neuralSide, neuralRisk, neuralReward, neuralLeverage, holdBarsFor("1h"))
-                            ?.let { neuralTally.trades.add(PaperTrade(it, entryBar[5].toLong(), neuralLeverage, ((holdBarsFor("1h").coerceAtLeast(0) * 5.0 / 60.0) / 8.0) * ESTIMATED_FUNDING_PER_8H_PCT)) }
+                            ?.let { result -> neuralTally.trades.add(PaperTrade(result.first, entryBar[5].toLong(), neuralLeverage, result.second)) }
                     }
                     // Agreement is evaluated on the same entry timestamp with conservative shared
                     // risk: wider of the two stops, nearer of the two targets, lower leverage.
@@ -247,7 +247,7 @@ internal object WolfHistoricalBacktestEngine {
                         val sharedRisk = max(technicalRisk, neuralRisk)
                         val sharedReward = minOf(technicalReward, neuralReward)
                         replay(technicalSide, sharedRisk, sharedReward, minOf(technicalLeverage, neuralLeverage), maxOf(holdBarsFor(technical.tradeTimeframe), holdBarsFor("1h")))
-                            ?.let { agreementTally.trades.add(PaperTrade(it, entryBar[5].toLong(), minOf(technicalLeverage, neuralLeverage), ((maxOf(holdBarsFor(technical.tradeTimeframe), holdBarsFor("1h")).coerceAtLeast(0) * 5.0 / 60.0) / 8.0) * ESTIMATED_FUNDING_PER_8H_PCT)) }
+                            ?.let { result -> agreementTally.trades.add(PaperTrade(result.first, entryBar[5].toLong(), minOf(technicalLeverage, neuralLeverage), result.second)) }
                     }
                 }
                 earliest = minOf(earliest, micro.firstOrNull()?.get(5)?.toLong() ?: anchor)
