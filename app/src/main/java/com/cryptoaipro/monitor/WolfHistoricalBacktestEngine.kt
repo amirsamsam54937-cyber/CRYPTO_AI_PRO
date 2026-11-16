@@ -20,7 +20,11 @@ import kotlin.math.max
 internal object WolfHistoricalBacktestEngine {
     private const val PREFS = "hope_hunter_historical_backtest"
     private const val KEY = "latest_v2"
-    private const val COST_PCT_NOTIONAL_ROUND_TRIP = 0.10
+    private const val TAKER_FEE_PER_SIDE = 0.0006
+    private const val ROUND_TRIP_TAKER_FEE_PCT = 0.12
+    private const val ESTIMATED_FUNDING_PER_8H_PCT = 0.01
+    private const val STARTING_CAPITAL_USDT = 10.0
+    private const val MARGIN_ALLOCATION_PER_TRADE = 0.10
     private const val SYMBOL_LIMIT = 8
     private const val SAMPLES_PER_SYMBOL = 72
     private const val WARMUP_BARS = 230
@@ -29,7 +33,9 @@ internal object WolfHistoricalBacktestEngine {
     data class StrategyStats(
         val trades: Int = 0, val wins: Int = 0, val losses: Int = 0, val flats: Int = 0,
         val winRate: Double = 0.0, val netReturnPct: Double = 0.0,
-        val profitFactor: Double = 0.0, val maxDrawdownPct: Double = 0.0
+        val profitFactor: Double = 0.0, val maxDrawdownPct: Double = 0.0,
+        val endingBalanceUsdt: Double = STARTING_CAPITAL_USDT,
+        val feesPaidUsdt: Double = 0.0, val estimatedFundingUsdt: Double = 0.0
     )
     data class Snapshot(
         val completedAt: Long, val durationMs: Long, val symbols: List<String>,
@@ -44,7 +50,7 @@ internal object WolfHistoricalBacktestEngine {
         }
     }
 
-    private data class PaperTrade(val pnlPct: Double, val entryTime: Long)
+    private data class PaperTrade(val pnlPct: Double, val entryTime: Long, val leverage: Int, val fundingPct: Double)
     private class Tally {
         val trades = mutableListOf<PaperTrade>()
         fun stats(): StrategyStats {
@@ -53,11 +59,17 @@ internal object WolfHistoricalBacktestEngine {
             val flats = trades.size - wins - losses
             val grossWin = trades.filter { it.pnlPct > 0.0 }.sumOf { it.pnlPct }
             val grossLoss = abs(trades.filter { it.pnlPct < 0.0 }.sumOf { it.pnlPct })
-            var equity = 100.0
-            var peak = 100.0
+            var equity = STARTING_CAPITAL_USDT
+            var peak = STARTING_CAPITAL_USDT
             var drawdown = 0.0
+            var feesPaid = 0.0
+            var fundingPaid = 0.0
             trades.sortedBy { it.entryTime }.forEach {
-                equity *= (1.0 + it.pnlPct / 100.0).coerceAtLeast(0.0)
+                val margin = equity * MARGIN_ALLOCATION_PER_TRADE
+                val notional = margin * it.leverage.coerceIn(1, 5)
+                feesPaid += notional * (TAKER_FEE_PER_SIDE * 2.0)
+                fundingPaid += notional * (it.fundingPct / 100.0)
+                equity = (equity + margin * it.pnlPct / 100.0).coerceAtLeast(0.0)
                 peak = max(peak, equity)
                 if (peak > 0.0) drawdown = max(drawdown, (peak - equity) / peak * 100.0)
             }
@@ -66,7 +78,7 @@ internal object WolfHistoricalBacktestEngine {
                 if (trades.isEmpty()) 0.0 else wins.toDouble() / trades.size * 100.0,
                 trades.fold(1.0) { acc, t -> acc * (1.0 + t.pnlPct / 100.0) }.let { (it - 1.0) * 100.0 },
                 if (grossLoss <= 1e-9) if (grossWin > 0.0) 99.0 else 0.0 else grossWin / grossLoss,
-                drawdown
+                drawdown, equity, feesPaid, fundingPaid
             )
         }
     }
@@ -215,14 +227,17 @@ internal object WolfHistoricalBacktestEngine {
                         val gross = if (long) (exitFill / entryFill - 1.0) * 100.0
                             else (entryFill / exitFill - 1.0) * 100.0
                         // Fee assumption is round-trip 0.10% notional; funding remains unmodelled.
-                        return gross * leverage.coerceIn(1, 5) - COST_PCT_NOTIONAL_ROUND_TRIP * leverage.coerceIn(1, 5)
+                        val lev = leverage.coerceIn(1, 5)
+                        val heldHours = (end - entryIndex).coerceAtLeast(0) * 5.0 / 60.0
+                        val fundingPct = (heldHours / 8.0) * ESTIMATED_FUNDING_PER_8H_PCT
+                        return gross * lev - ROUND_TRIP_TAKER_FEE_PCT * lev - fundingPct * lev
                     }
 
                     if (isTech) replay(technicalSide, technicalRisk, technicalReward, technicalLeverage, holdBarsFor(technical.tradeTimeframe))
-                        ?.let { technicalTally.trades.add(PaperTrade(it, entryBar[5].toLong())) }
+                        ?.let { technicalTally.trades.add(PaperTrade(it, entryBar[5].toLong(), technicalLeverage, ((holdBarsFor(technical.tradeTimeframe).coerceAtLeast(0) * 5.0 / 60.0) / 8.0) * ESTIMATED_FUNDING_PER_8H_PCT)) }
                     if (isNeural && neuralRisk != null && neuralReward != null) {
                         replay(neuralSide, neuralRisk, neuralReward, neuralLeverage, holdBarsFor("1h"))
-                            ?.let { neuralTally.trades.add(PaperTrade(it, entryBar[5].toLong())) }
+                            ?.let { neuralTally.trades.add(PaperTrade(it, entryBar[5].toLong(), neuralLeverage, ((holdBarsFor("1h").coerceAtLeast(0) * 5.0 / 60.0) / 8.0) * ESTIMATED_FUNDING_PER_8H_PCT)) }
                     }
                     // Agreement is evaluated on the same entry timestamp with conservative shared
                     // risk: wider of the two stops, nearer of the two targets, lower leverage.
@@ -232,7 +247,7 @@ internal object WolfHistoricalBacktestEngine {
                         val sharedRisk = max(technicalRisk, neuralRisk)
                         val sharedReward = minOf(technicalReward, neuralReward)
                         replay(technicalSide, sharedRisk, sharedReward, minOf(technicalLeverage, neuralLeverage), maxOf(holdBarsFor(technical.tradeTimeframe), holdBarsFor("1h")))
-                            ?.let { agreementTally.trades.add(PaperTrade(it, entryBar[5].toLong())) }
+                            ?.let { agreementTally.trades.add(PaperTrade(it, entryBar[5].toLong(), minOf(technicalLeverage, neuralLeverage), ((maxOf(holdBarsFor(technical.tradeTimeframe), holdBarsFor("1h")).coerceAtLeast(0) * 5.0 / 60.0) / 8.0) * ESTIMATED_FUNDING_PER_8H_PCT)) }
                     }
                 }
                 earliest = minOf(earliest, micro.firstOrNull()?.get(5)?.toLong() ?: anchor)
@@ -287,7 +302,8 @@ internal object WolfHistoricalBacktestEngine {
                 val v = o.optJSONObject(key) ?: JSONObject()
                 return StrategyStats(v.optInt("trades"), v.optInt("wins"), v.optInt("losses"),
                     v.optInt("flats"), v.optDouble("winRate"), v.optDouble("netReturnPct"),
-                    v.optDouble("profitFactor"), v.optDouble("maxDrawdownPct"))
+                    v.optDouble("profitFactor"), v.optDouble("maxDrawdownPct"),
+                    v.optDouble("endingBalanceUsdt", STARTING_CAPITAL_USDT), v.optDouble("feesPaidUsdt"), v.optDouble("estimatedFundingUsdt"))
             }
             val syms = o.optJSONArray("symbols") ?: JSONArray()
             val errs = o.optJSONArray("errors") ?: JSONArray()
@@ -305,6 +321,8 @@ internal object WolfHistoricalBacktestEngine {
             put("trades", v.trades); put("wins", v.wins); put("losses", v.losses); put("flats", v.flats)
             put("winRate", v.winRate); put("netReturnPct", v.netReturnPct)
             put("profitFactor", v.profitFactor); put("maxDrawdownPct", v.maxDrawdownPct)
+            put("endingBalanceUsdt", v.endingBalanceUsdt); put("feesPaidUsdt", v.feesPaidUsdt)
+            put("estimatedFundingUsdt", v.estimatedFundingUsdt)
         }
         val o = JSONObject().apply {
             put("completedAt", s.completedAt); put("durationMs", s.durationMs)
