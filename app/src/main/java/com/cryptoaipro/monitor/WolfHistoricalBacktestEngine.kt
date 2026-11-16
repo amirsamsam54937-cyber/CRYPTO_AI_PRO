@@ -20,7 +20,7 @@ import kotlin.math.max
 internal object WolfHistoricalBacktestEngine {
     private const val PREFS = "hope_hunter_historical_backtest"
     private const val KEY = "latest_v2"
-    private const val COST_PCT_NOTIONAL_ROUND_TRIP = 0.10
+    private const val TAKER_FEE_PCT_PER_SIDE = 0.06\n    private const val SLIPPAGE_PCT_PER_SIDE = 0.02\n    private const val BACKTEST_START_USDT = 10.0
     private const val SYMBOL_LIMIT = 8
     private const val SAMPLES_PER_SYMBOL = 72
     private const val WARMUP_BARS = 230
@@ -29,7 +29,9 @@ internal object WolfHistoricalBacktestEngine {
     data class StrategyStats(
         val trades: Int = 0, val wins: Int = 0, val losses: Int = 0, val flats: Int = 0,
         val winRate: Double = 0.0, val netReturnPct: Double = 0.0,
-        val profitFactor: Double = 0.0, val maxDrawdownPct: Double = 0.0
+        val profitFactor: Double = 0.0, val maxDrawdownPct: Double = 0.0,
+        val finalEquityUsdt: Double = BACKTEST_START_USDT, val netPnlUsdt: Double = 0.0,
+        val estimatedFeesUsdt: Double = 0.0, val estimatedSlippageUsdt: Double = 0.0
     )
     data class Snapshot(
         val completedAt: Long, val durationMs: Long, val symbols: List<String>,
@@ -44,7 +46,14 @@ internal object WolfHistoricalBacktestEngine {
         }
     }
 
-    private data class PaperTrade(val pnlPct: Double, val entryTime: Long)
+    private data class PaperTrade(
+        val pnlPct: Double, val entryTime: Long,
+        val feePctNotional: Double, val slippagePctNotional: Double, val leverage: Int
+    )
+    private data class ReplayResult(
+        val netReturnPct: Double, val feePctNotional: Double,
+        val slippagePctNotional: Double, val leverage: Int
+    )
     private class Tally {
         val trades = mutableListOf<PaperTrade>()
         fun stats(): StrategyStats {
@@ -53,10 +62,14 @@ internal object WolfHistoricalBacktestEngine {
             val flats = trades.size - wins - losses
             val grossWin = trades.filter { it.pnlPct > 0.0 }.sumOf { it.pnlPct }
             val grossLoss = abs(trades.filter { it.pnlPct < 0.0 }.sumOf { it.pnlPct })
-            var equity = 100.0
-            var peak = 100.0
+            var equity = BACKTEST_START_USDT
+            var peak = BACKTEST_START_USDT
             var drawdown = 0.0
+            var feesPaid = 0.0
+            var slippagePaid = 0.0
             trades.sortedBy { it.entryTime }.forEach {
+                feesPaid += equity * it.feePctNotional / 100.0 * it.leverage
+                slippagePaid += equity * it.slippagePctNotional / 100.0 * it.leverage
                 equity *= (1.0 + it.pnlPct / 100.0).coerceAtLeast(0.0)
                 peak = max(peak, equity)
                 if (peak > 0.0) drawdown = max(drawdown, (peak - equity) / peak * 100.0)
@@ -64,9 +77,9 @@ internal object WolfHistoricalBacktestEngine {
             return StrategyStats(
                 trades.size, wins, losses, flats,
                 if (trades.isEmpty()) 0.0 else wins.toDouble() / trades.size * 100.0,
-                trades.fold(1.0) { acc, t -> acc * (1.0 + t.pnlPct / 100.0) }.let { (it - 1.0) * 100.0 },
+                if (BACKTEST_START_USDT > 0.0) (equity / BACKTEST_START_USDT - 1.0) * 100.0 else 0.0,
                 if (grossLoss <= 1e-9) if (grossWin > 0.0) 99.0 else 0.0 else grossWin / grossLoss,
-                drawdown
+                drawdown, equity, equity - BACKTEST_START_USDT, feesPaid, slippagePaid
             )
         }
     }
@@ -177,7 +190,7 @@ internal object WolfHistoricalBacktestEngine {
                         else -> 4
                     }
 
-                    val slippagePctPerSide = 0.02
+                    val slippagePctPerSide = SLIPPAGE_PCT_PER_SIDE
                     fun replay(
                         side: String,
                         riskDistance: Double,
@@ -214,15 +227,21 @@ internal object WolfHistoricalBacktestEngine {
                         if (entryFill <= 0.0 || exitFill <= 0.0) return null
                         val gross = if (long) (exitFill / entryFill - 1.0) * 100.0
                             else (entryFill / exitFill - 1.0) * 100.0
-                        // Fee assumption is round-trip 0.10% notional; funding remains unmodelled.
-                        return gross * leverage.coerceIn(1, 5) - COST_PCT_NOTIONAL_ROUND_TRIP * leverage.coerceIn(1, 5)
+                        // XT VIP0 reference taker fee is 0.06% on each fill. Slippage is
+                        // already reflected in entryFill/exitFill and is reported separately.
+                        val safeLeverage = leverage.coerceIn(1, 5)
+                        val roundTripFeePct = TAKER_FEE_PCT_PER_SIDE * 2.0
+                        return ReplayResult(
+                            gross * safeLeverage - roundTripFeePct * safeLeverage,
+                            roundTripFeePct, SLIPPAGE_PCT_PER_SIDE * 2.0, safeLeverage
+                        )
                     }
 
                     if (isTech) replay(technicalSide, technicalRisk, technicalReward, technicalLeverage, holdBarsFor(technical.tradeTimeframe))
-                        ?.let { technicalTally.trades.add(PaperTrade(it, entryBar[5].toLong())) }
+                        ?.let { technicalTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.leverage)) }
                     if (isNeural && neuralRisk != null && neuralReward != null) {
                         replay(neuralSide, neuralRisk, neuralReward, neuralLeverage, holdBarsFor("1h"))
-                            ?.let { neuralTally.trades.add(PaperTrade(it, entryBar[5].toLong())) }
+                            ?.let { neuralTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.leverage)) }
                     }
                     // Agreement is evaluated on the same entry timestamp with conservative shared
                     // risk: wider of the two stops, nearer of the two targets, lower leverage.
@@ -232,7 +251,7 @@ internal object WolfHistoricalBacktestEngine {
                         val sharedRisk = max(technicalRisk, neuralRisk)
                         val sharedReward = minOf(technicalReward, neuralReward)
                         replay(technicalSide, sharedRisk, sharedReward, minOf(technicalLeverage, neuralLeverage), maxOf(holdBarsFor(technical.tradeTimeframe), holdBarsFor("1h")))
-                            ?.let { agreementTally.trades.add(PaperTrade(it, entryBar[5].toLong())) }
+                            ?.let { agreementTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.leverage)) }
                     }
                 }
                 earliest = minOf(earliest, micro.firstOrNull()?.get(5)?.toLong() ?: anchor)
@@ -287,7 +306,10 @@ internal object WolfHistoricalBacktestEngine {
                 val v = o.optJSONObject(key) ?: JSONObject()
                 return StrategyStats(v.optInt("trades"), v.optInt("wins"), v.optInt("losses"),
                     v.optInt("flats"), v.optDouble("winRate"), v.optDouble("netReturnPct"),
-                    v.optDouble("profitFactor"), v.optDouble("maxDrawdownPct"))
+                    v.optDouble("profitFactor"), v.optDouble("maxDrawdownPct"),
+                    v.optDouble("finalEquityUsdt", BACKTEST_START_USDT),
+                    v.optDouble("netPnlUsdt", 0.0), v.optDouble("estimatedFeesUsdt", 0.0),
+                    v.optDouble("estimatedSlippageUsdt", 0.0))
             }
             val syms = o.optJSONArray("symbols") ?: JSONArray()
             val errs = o.optJSONArray("errors") ?: JSONArray()
@@ -305,6 +327,8 @@ internal object WolfHistoricalBacktestEngine {
             put("trades", v.trades); put("wins", v.wins); put("losses", v.losses); put("flats", v.flats)
             put("winRate", v.winRate); put("netReturnPct", v.netReturnPct)
             put("profitFactor", v.profitFactor); put("maxDrawdownPct", v.maxDrawdownPct)
+            put("finalEquityUsdt", v.finalEquityUsdt); put("netPnlUsdt", v.netPnlUsdt)
+            put("estimatedFeesUsdt", v.estimatedFeesUsdt); put("estimatedSlippageUsdt", v.estimatedSlippageUsdt)
         }
         val o = JSONObject().apply {
             put("completedAt", s.completedAt); put("durationMs", s.durationMs)
