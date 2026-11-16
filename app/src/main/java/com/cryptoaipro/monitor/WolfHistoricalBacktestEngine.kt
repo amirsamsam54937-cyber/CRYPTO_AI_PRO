@@ -1,26 +1,11 @@
-package com.cryptoaipro.monitor
-
-import android.content.Context
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import kotlin.math.abs
-import kotlin.math.max
 
 /** Evenly sampled chronological replay across a paginated ~90-day XT history window. */
 internal object WolfHistoricalBacktestEngine {
     private const val PREFS = "hope_hunter_historical_backtest"
     private const val KEY = "latest_v2"
-    private const val TAKER_FEE_PCT_PER_SIDE = 0.06\n    private const val SLIPPAGE_PCT_PER_SIDE = 0.02\n    private const val BACKTEST_START_USDT = 10.0
+    private const val TAKER_FEE_PCT_PER_SIDE = 0.06
+    private const val SLIPPAGE_PCT_PER_SIDE = 0.02
+    private const val BACKTEST_START_USDT = 10.0
     private const val SYMBOL_LIMIT = 8
     private const val SAMPLES_PER_SYMBOL = 72
     private const val WARMUP_BARS = 230
@@ -248,105 +233,3 @@ internal object WolfHistoricalBacktestEngine {
                         replay(neuralSide, neuralRisk, neuralReward, neuralLeverage, holdBarsFor("1h"))
                             ?.let { neuralTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.exposureMultiplier)) }
                     }
-                    // Agreement is evaluated on the same entry timestamp with conservative shared
-                    // risk: wider of the two stops, nearer of the two targets, lower leverage.
-                    if (isTech && isNeural && technicalSide == neuralSide &&
-                        (researchPrediction?.strength ?: 0) >= 55 &&
-                        neuralRisk != null && neuralReward != null) {
-                        val sharedRisk = max(technicalRisk, neuralRisk)
-                        val sharedReward = minOf(technicalReward, neuralReward)
-                        replay(technicalSide, sharedRisk, sharedReward, minOf(technicalLeverage, neuralLeverage), maxOf(holdBarsFor(technical.tradeTimeframe), holdBarsFor("1h")))
-                            ?.let { agreementTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.exposureMultiplier)) }
-                    }
-                }
-                earliest = minOf(earliest, micro.firstOrNull()?.get(5)?.toLong() ?: anchor)
-                latest = maxOf(latest, micro.lastOrNull()?.get(5)?.toLong() ?: anchor)
-            } catch (e: Exception) {
-                errors.add("$symbol: " + (e.message ?: e.javaClass.simpleName).take(180))
-            }
-        }
-        val techStats = technicalTally.stats()
-        val neuralStats = neuralTally.stats()
-        val agreementStats = agreementTally.stats()
-        if (neuralEvaluated == 0) {
-            errors.add("شبکه عصبی در هیچ نمونه‌ای پیش‌بینی مستقل نداد؛ وزن‌ها یا ورودی ۱ساعته در دسترس نیست.")
-        } else {
-            errors.add("پیش‌بینی‌های مستقل شبکه عصبی: $neuralEvaluated از $sampleCount نقطه ارزیابی شدند؛ حداقل قدرت رأی برای ورود به آزمایش ۵۵ از ۱۰۰ است.")
-        }
-        if (neuralEvaluated > 0 && !WolfPretrainedEnsemble.status().validatedForScoring) {
-            errors.add("نتایج شبکه عصبی صرفاً پژوهشی و آزمایشی هستند؛ مدل هنوز مجوز اثرگذاری بر سیگنال زنده را ندارد.")
-        }
-        if (neuralUnavailable > 0) errors.add("$neuralUnavailable نمونه به‌دلیل نبود داده/وزن معتبر شبکه عصبی ارزیابی نشد.")
-        val snapshot = Snapshot(
-            System.currentTimeMillis(), System.currentTimeMillis() - started, symbols, sampleCount,
-            techStats, neuralStats, agreementStats, agreements, disagreements,
-            when {
-                neuralStats.netReturnPct > techStats.netReturnPct -> 1
-                neuralStats.netReturnPct < techStats.netReturnPct -> 0
-                else -> -1
-            },
-            when {
-                techStats.netReturnPct > neuralStats.netReturnPct -> 1
-                techStats.netReturnPct < neuralStats.netReturnPct -> 0
-                else -> -1
-            },
-            if (earliest == Long.MAX_VALUE) 0L else earliest, latest, errors
-        )
-        save(context, snapshot)
-        snapshot
-    }
-
-    private fun holdBarsFor(timeframe: String): Int = when (timeframe) {
-        "4h" -> 12 * 48
-        "1h" -> 12 * 12
-        "15m" -> 12 * 3
-        else -> 12
-    }
-
-    fun load(context: Context): Snapshot {
-        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null) ?: return Snapshot.empty()
-        return runCatching {
-            val o = JSONObject(raw)
-            fun readStats(key: String): StrategyStats {
-                val v = o.optJSONObject(key) ?: JSONObject()
-                return StrategyStats(v.optInt("trades"), v.optInt("wins"), v.optInt("losses"),
-                    v.optInt("flats"), v.optDouble("winRate"), v.optDouble("netReturnPct"),
-                    v.optDouble("profitFactor"), v.optDouble("maxDrawdownPct"),
-                    v.optDouble("finalEquityUsdt", BACKTEST_START_USDT),
-                    v.optDouble("netPnlUsdt", 0.0), v.optDouble("estimatedFeesUsdt", 0.0),
-                    v.optDouble("estimatedSlippageUsdt", 0.0))
-            }
-            val syms = o.optJSONArray("symbols") ?: JSONArray()
-            val errs = o.optJSONArray("errors") ?: JSONArray()
-            Snapshot(o.optLong("completedAt"), o.optLong("durationMs"),
-                (0 until syms.length()).map { syms.optString(it) }, o.optInt("samples"),
-                readStats("technical"), readStats("neural"), readStats("agreement"),
-                o.optInt("agreements"), o.optInt("disagreements"), o.optInt("neuralWins"),
-                o.optInt("technicalWins"), o.optLong("sampleWindowStart"), o.optLong("sampleWindowEnd"),
-                (0 until errs.length()).map { errs.optString(it) })
-        }.getOrDefault(Snapshot.empty())
-    }
-
-    private fun save(context: Context, s: Snapshot) {
-        fun stats(v: StrategyStats) = JSONObject().apply {
-            put("trades", v.trades); put("wins", v.wins); put("losses", v.losses); put("flats", v.flats)
-            put("winRate", v.winRate); put("netReturnPct", v.netReturnPct)
-            put("profitFactor", v.profitFactor); put("maxDrawdownPct", v.maxDrawdownPct)
-            put("finalEquityUsdt", v.finalEquityUsdt); put("netPnlUsdt", v.netPnlUsdt)
-            put("estimatedFeesUsdt", v.estimatedFeesUsdt); put("estimatedSlippageUsdt", v.estimatedSlippageUsdt)
-        }
-        val o = JSONObject().apply {
-            put("completedAt", s.completedAt); put("durationMs", s.durationMs)
-            put("symbols", JSONArray(s.symbols)); put("samples", s.samples)
-            put("technical", stats(s.technical)); put("neural", stats(s.neural)); put("agreement", stats(s.agreement))
-            put("agreements", s.agreements); put("disagreements", s.disagreements)
-            put("neuralWins", s.neuralWins); put("technicalWins", s.technicalWins)
-            put("sampleWindowStart", s.sampleWindowStart); put("sampleWindowEnd", s.sampleWindowEnd)
-            put("errors", JSONArray(s.errors))
-        }
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, o.toString()).apply()
-    }
-
-    fun formatTime(timestamp: Long): String =
-        SimpleDateFormat("yyyy/MM/dd HH:mm", Locale("fa", "IR")).format(Date(timestamp))
-}
