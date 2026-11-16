@@ -14,10 +14,11 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * Manual, user-confirmed XT USDT-M execution.
- * Scanning never submits orders. A user must arm LIVE mode, select a current signal,
- * review the exchange-sized risk preview, and confirm the specific order.
- * All gates fail closed. Ambiguous order POSTs are never retried.
+ * XT USDT-M execution with separate manual-confirmed and explicitly armed automatic paths.
+ * Automatic scans may submit at most one qualified candidate per scan only when LIVE,
+ * auto mode, credentials, validated neural bundle, account checks and every risk gate pass.
+ * Manual execution still requires a reviewed preview and explicit confirmation.
+ * All gates fail closed. Ambiguous order POSTs are reconciled, never blindly retried.
  */
 internal object XtLiveTradingEngine {
     private const val PREFS = "zoro_live_trade_state"
