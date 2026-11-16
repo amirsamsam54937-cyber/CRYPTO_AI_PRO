@@ -38,7 +38,7 @@ class Trade:
 
 def run_backtest(
     frame: pd.DataFrame,
-    initial_equity: float = 1000.0,
+    initial_equity: float = 10.0,
     risk_per_trade: float = 0.005,
     max_leverage: float = 3.0,
     fee_rate: float = 0.0006,
