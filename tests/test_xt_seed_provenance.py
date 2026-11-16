@@ -45,7 +45,9 @@ def test_collector_returns_auditable_crypto_provenance(monkeypatch):
 
     rows, provenance = collector.collect("xt")
 
-    assert len(rows) == 2
+    # TARGET is a global minimum; the collector allocates a deterministic
+    # per-market cap and must retain all four valid candles in this fixture.
+    assert len(rows) == 4
     assert all(row[1] == "BTCUSDT" for row in rows)
     assert provenance["spot_currency_universe_count"] == 2
     assert provenance["xt_crypto_type_currency_count"] == 2
@@ -55,6 +57,7 @@ def test_collector_returns_auditable_crypto_provenance(monkeypatch):
     assert provenance["crypto_symbols"] == ["BTCUSDT"]
     assert provenance["asset_classification"]["BTCUSDT"]["asset_class"] == "crypto"
     assert "AAPLX" not in provenance["crypto_symbols"]
+    assert provenance["collection_policy"] == "ALL_ELIGIBLE_MARKETS_UP_TO_PER_SYMBOL_CAP_NO_EARLY_STOP"
 
 
 def test_collector_refuses_non_xt_source():
