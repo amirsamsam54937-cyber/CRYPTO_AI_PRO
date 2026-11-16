@@ -12,7 +12,7 @@ import kotlin.math.tanh
  *
  * Primary candles use [open, high, low, close, baseVolume, openTimeMs] and are 15m bars.
  */
-internal object ZoroMultiHorizonEngine {
+object ZoroMultiHorizonEngine {
     data class Horizon(
         val label: String,
         val bars: Int,
