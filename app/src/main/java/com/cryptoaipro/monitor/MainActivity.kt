@@ -142,7 +142,9 @@ data class TechnicalSnapshot(
 )
 
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
-    // The pretrained model can influence signals only after a chronological holdout validates it.
+    // The ten-expert model reads completed 1h OHLCV candles plus chart-derived technical features.
+    // Until strict chronological holdout validation passes, HopeCommander caps its coherent-panel
+    // research contribution at 8%; technical quality gates still control signal publication.
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
     // Historical 6h outcomes calibrate member influence only after a minimum sample count.
     val adaptiveMemberWeights = WolfNeuralForecastJournal.adaptiveMemberWeights(context)
@@ -154,10 +156,11 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             else -> null
         }
         if (candidate == null) signal.copy(neuralScore = 50, neuralDirection = "NEUTRAL",
-            neuralModelSource = if (pretrainedStatus.validatedForScoring) "۱۰مدلی • معتبر" else "مدل در انتظار اعتبارسنجی")
+            neuralModelSource = if (pretrainedStatus.validatedForScoring) "۱۰ مدل • چارت ۱ساعته OHLCV + اندیکاتورها • افق ۶ساعت • معتبر" else "۱۰ مدل • در انتظار اعتبارسنجی")
         else {
-            // Always expose the ten raw specialist outputs for transparency, but never
-            // let an unvalidated ensemble affect the published direction or confidence.
+            // Always expose all ten chart-conditioned specialist outputs. Unvalidated outputs
+            // remain experimental: HopeCommander may apply only its bounded 8% research blend
+            // when the full panel is coherent; they cannot independently flip technical direction.
             val research = WolfPretrainedEnsemble.predictResearch(candidate, adaptiveMemberWeights)
             val uncertainty = WolfEnsembleUncertainty.analyze(research?.memberProbabilities.orEmpty())
             val memberVotes = research?.let { prediction ->
@@ -181,7 +184,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                 signal.copy(
                     neuralScore = rawDirectionScore,
                     neuralDirection = research?.predictedDirection ?: rawPredictedSide,
-                    neuralModelSource = "۱۰ شبکه عصبی • پیش‌بینی ۶ساعته • نظر کمکی تا اعتبارسنجی مستقل",
+                    neuralModelSource = "۱۰ شبکه عصبی • تحلیل کندل‌های بسته ۱ساعته و اندیکاتورهای چارت • افق ۶ساعت • آزمایشی تا اعتبارسنجی",
                     neuralMemberVotes = memberVotes,
                     neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
                     neuralUncertainty = uncertainty
@@ -207,7 +210,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     signal.copy(
                         neuralScore = directionalScore,
                         neuralDirection = predictedSide,
-                        neuralModelSource = "۱۰ شبکه عصبی • پیش‌بینی ۶ساعته • نظر کمکی",
+                        neuralModelSource = "۱۰ شبکه عصبی • تحلیل کندل‌های بسته ۱ساعته و اندیکاتورهای چارت • افق ۶ساعت • معتبر",
                         neuralMemberVotes = memberVotes,
                         neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
                         neuralUncertainty = uncertainty
@@ -250,7 +253,11 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         // ZORO is an analysis-and-signals app; it never authorizes or submits exchange orders.
         val publishThreshold = if (reviewed.tradeTimeframe.startsWith("5m")) 56 else 62
         val commanderQualified = commander.direction != "NEUTRAL" && commander.confidence >= publishThreshold
-        val neuralAgreement = neuralValidated && bothDirectional && tech == neural && neuralStrength >= 55
+        val neuralAgreement = neuralValidated && bothDirectional && tech == neural && neuralStrength >= 55 &&
+            !reviewed.neuralUncertainty.highDisagreement
+        val neuralExperimentalAgreement = !neuralValidated && bothDirectional && tech == neural &&
+            neuralStrength >= 55 && !reviewed.neuralUncertainty.highDisagreement &&
+            (if (tech == "LONG_BIAS") reviewed.neuralUncertainty.upVotes else reviewed.neuralUncertainty.downVotes) >= 7
         val technicalOnlyQualified = !neuralValidated &&
             (tech == "LONG_BIAS" || tech == "SHORT_BIAS") &&
             reviewed.confidence >= 58 &&
@@ -262,6 +269,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             neuralAgreement && commander.confidence >= 82 && neuralStrength >= 70 -> "نوع ۱ • ممتاز"
             neuralAgreement && commander.confidence >= 72 && neuralStrength >= 62 -> "نوع ۲ • تأییدشده"
             commanderQualified && neuralValidated -> "نوع ۳ • فرمانده تکنیکال + عصبی"
+            commanderQualified && technicalOnlyQualified && neuralExperimentalAgreement ->
+                "آزمایشی • تکنیکال + ۱۰ شبکه عصبی"
             commanderQualified && technicalOnlyQualified -> "نوع ۳ • فرمانده تکنیکال مستقل"
             else -> "بدون رتبه"
         }
@@ -274,7 +283,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             signalTier = if (promoted) tier else "بدون رتبه",
             agreementStatus = if (promoted) commander.explanation else when {
                 commander.status == "ABSTAIN_NEURAL_CONFLICT" -> commander.explanation
-                !neuralValidated -> "مدل عصبی هنوز از آزمون مستقل عبور نکرده؛ فرمانده اجازه انتشار بر اساس آن را نمی‌دهد"
+                !neuralValidated && neuralExperimentalAgreement -> "سیگنال آزمایشی: ۱۰ شبکه عصبی با جهت تکنیکال همسو هستند؛ مدل هنوز اعتبارسنجی مستقل را پاس نکرده است"
+                !neuralValidated -> "مدل عصبی هنوز از آزمون مستقل عبور نکرده؛ فقط اثر کمکی محدود دارد"
                 tech != neural -> "اختلاف تحلیل تکنیکال و شبکه عصبی • فرمانده سیگنال را متوقف کرد"
                 else -> commander.explanation
             }
@@ -1067,7 +1077,7 @@ private fun SignalJournalScreen(
                         Text("بازه کندل‌های دریافت‌شده: ${if (backtest.sampleWindowStart > 0L) WolfHistoricalBacktestEngine.formatTime(backtest.sampleWindowStart) else "—"} تا ${if (backtest.sampleWindowEnd > 0L) WolfHistoricalBacktestEngine.formatTime(backtest.sampleWindowEnd) else "—"}", color = Muted, fontSize = 9.sp)
                         if (backtest.errors.isNotEmpty()) Text("خطاهای دریافت: ${backtest.errors.joinToString(" | ")}", color = Red, fontSize = 9.sp)
                     }
-                    Text("بک‌تست پژوهشی است، نه تضمین سود. نمونه‌ها در طول زمان پخش شده‌اند و مقایسه سه روش فقط وقتی معتبر تلقی می‌شود که هر موتور دست‌کم ۳۰ معامله داشته باشد. کارمزد و لغزش با فرض ۰٫۱۰٪ رفت‌وبرگشت روی ارزش اسمی لحاظ شده است؛ فاندینگ و اجرای واقعی سفارش شبیه‌سازی نمی‌شود. شبکه عصبی در این بخش مستقل ارزیابی می‌شود، اما تا عبور از اعتبارسنجی زمانی همچنان از سیگنال زنده کنار گذاشته می‌ماند.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                    Text("بک‌تست پژوهشی است، نه تضمین سود. نمونه‌ها در طول زمان پخش شده‌اند و مقایسه سه روش فقط وقتی معتبر تلقی می‌شود که هر موتور دست‌کم ۳۰ معامله داشته باشد. هر موتور با سرمایه اولیه ۱۰ USDT و ترکیب سود/زیان روی ۱۰٪ موجودی به‌عنوان مارجین هر معامله شبیه‌سازی می‌شود. ورود و خروج بازار با کارمزد Taker استاندارد XT در سطح VIP 0 (هر سمت ۰٫۰۶٪، رفت‌وبرگشت ۰٫۱۲٪ ارزش اسمی)، لغزش فرضی ۰٫۰۲٪ در هر سمت و فاندینگ تخمینی ۰٫۰۱٪ به‌ازای هر ۸ ساعت لحاظ شده است؛ نرخ واقعی فاندینگ و سطح VIP حساب متغیر است و باید جداگانه با داده تاریخی دقیق جایگزین شود. شبکه عصبی در این بخش مستقل ارزیابی می‌شود، اما تا عبور از اعتبارسنجی زمانی همچنان از سیگنال زنده کنار گذاشته می‌ماند.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
                 }
             }
         }
@@ -1161,10 +1171,15 @@ private fun BacktestStrategyRow(title: String, stats: WolfHistoricalBacktestEngi
                 Text("نرخ برد: ${String.format(Locale.US, "%.1f", stats.winRate)}٪", color = Color.White, fontSize = 9.sp)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("بازده خالص: ${String.format(Locale.US, "%+.2f", stats.netReturnPct)}٪", color = if (stats.netReturnPct >= 0) Green else Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                Text("PF: ${String.format(Locale.US, "%.2f", stats.profitFactor)}", color = Muted, fontSize = 9.sp)
-                Text("افت سرمایه: ${String.format(Locale.US, "%.1f", stats.maxDrawdownPct)}٪", color = Red, fontSize = 9.sp)
+                Text("موجودی نهایی از ۱۰$: ${String.format(Locale.US, "%.4f", stats.endingBalanceUsdt)} USDT", color = if (stats.endingBalanceUsdt >= 10.0) Green else Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("بازده: ${String.format(Locale.US, "%+.2f", stats.netReturnPct)}٪", color = if (stats.netReturnPct >= 0) Green else Red, fontSize = 9.sp)
             }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("کارمزد پرداختی: ${String.format(Locale.US, "%.4f", stats.feesPaidUsdt)} USDT", color = Gold, fontSize = 9.sp)
+                Text("فاندینگ تخمینی: ${String.format(Locale.US, "%.4f", stats.estimatedFundingUsdt)} USDT", color = Muted, fontSize = 9.sp)
+                Text("PF: ${String.format(Locale.US, "%.2f", stats.profitFactor)}", color = Muted, fontSize = 9.sp)
+            }
+            Text("افت سرمایه: ${String.format(Locale.US, "%.1f", stats.maxDrawdownPct)}٪", color = Red, fontSize = 9.sp)
         }
     }
 }

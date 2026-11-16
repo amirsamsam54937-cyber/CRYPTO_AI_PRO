@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Foreground market scanner for ZORO.
- * Analysis, signal publication, paper simulation and outcome learning. Live orders require a separate manual confirmation in the app.
+ * Analysis, signal publication, paper simulation, outcome learning and explicitly armed automatic execution.
  */
 class HopeHunterMonitorService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -101,6 +101,16 @@ class HopeHunterMonitorService : Service() {
                             monitorError.message ?: monitorError.javaClass.simpleName
                         )
                     }
+                    val automaticExecution = runCatching {
+                        XtLiveTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
+                    }.onFailure { autoError ->
+                        ZoroDiagnostics.record(
+                            this@HopeHunterMonitorService,
+                            "معامله‌گر خودکار",
+                            "ERROR",
+                            autoError.message ?: autoError.javaClass.simpleName
+                        )
+                    }.getOrNull()
                     notifyNewPublishedSignals(scoredSignals)
                     withContext(Dispatchers.Default) {
                         HopeScenarioLab.recordAndEvaluate(this@HopeHunterMonitorService, scoredSignals)
@@ -108,9 +118,15 @@ class HopeHunterMonitorService : Service() {
                     val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, scoredSignals)
                     val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records)
                     HopeLivingBrain.runCycle(this@HopeHunterMonitorService, scoredSignals, learningStats, outcomeSnapshot.records)
-                    val liveStatus = if (XtLiveTradingEngine.isEmergencyStopped(this@HopeHunterMonitorService))
-                        " • هشدار توقف اضطراری: " + XtLiveTradingEngine.lastStatus(this@HopeHunterMonitorService)
-                    else " • سفارش واقعی فقط با تأیید دستی"
+                    val liveStatus = when {
+                        XtLiveTradingEngine.isEmergencyStopped(this@HopeHunterMonitorService) ->
+                            " • توقف اضطراری: " + XtLiveTradingEngine.lastStatus(this@HopeHunterMonitorService)
+                        XtLiveTradingEngine.isAutoEnabled(this@HopeHunterMonitorService) ->
+                            " • معامله‌گر خودکار فعال" + (automaticExecution?.let { " • " + it.message } ?: "")
+                        XtLiveTradingEngine.isEnabled(this@HopeHunterMonitorService) ->
+                            " • LIVE مسلح؛ اجرای خودکار خاموش"
+                        else -> " • فقط تحلیل و شبیه‌سازی"
+                    }
                     updateNotification("پایش کامل • " + scoredSignals.size + " تحلیل • شبیه‌سازی: " + paperSnapshot.positions.size + " • پوزیشن واقعی تحت نظارت: " + XtLiveTradingEngine.positionCount(this@HopeHunterMonitorService) + liveStatus)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
