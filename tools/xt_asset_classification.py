@@ -15,6 +15,23 @@ def _normalise_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
 
 
+def _is_tokenized_security(record):
+    """Recognize registry entries that represent tokenized equities, not coins."""
+    identity = _normalise_name(
+        f"{record.get('id', '')} {record.get('name', '')}"
+    )
+    markers = (
+        "xstock",
+        "tokenizedstock",
+        "stocktoken",
+        "tokenizedequity",
+        "equitytoken",
+        "tokenizedshare",
+        "sharetoken",
+    )
+    return any(marker in identity for marker in markers)
+
+
 def build_registry_index(records):
     """Index CoinGecko coins by symbol, preserving ambiguity instead of guessing."""
     index = defaultdict(list)
@@ -83,6 +100,11 @@ def classify_xt_market(market, spot_currencies, crypto_registry):
             named = [coin for coin in registry_matches if _normalise_name(coin.get("name")) == xt_name]
             if len(named) == 1:
                 coin = named[0]
+                if _is_tokenized_security(coin):
+                    return "non_crypto", (
+                        f"tokenized_security_registry_match:{candidate}:"
+                        f"CoinGecko:{coin['id']}:{coin['name']}"
+                    )
                 return "crypto", (
                     f"XT_spot_currency:{candidate}:type=crypto;"
                     f"CoinGecko:{coin['id']}:{coin['name']}:exact_name_match"
@@ -93,6 +115,11 @@ def classify_xt_market(market, spot_currencies, crypto_registry):
 
         if len(registry_matches) == 1:
             coin = registry_matches[0]
+            if _is_tokenized_security(coin):
+                return "non_crypto", (
+                    f"tokenized_security_registry_match:{candidate}:"
+                    f"CoinGecko:{coin['id']}:{coin['name']}"
+                )
             return "crypto", (
                 f"XT_spot_currency:{candidate}:type=crypto;"
                 f"CoinGecko:{coin['id']}:{coin['name']}:unique_symbol"

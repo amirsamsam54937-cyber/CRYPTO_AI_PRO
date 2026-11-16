@@ -40,6 +40,37 @@ def test_xt_crypto_type_alone_does_not_admit_synthetic_tradfi_assets(base, xt_cu
     assert "not_in_external_crypto_registry" in reason
 
 
+
+@pytest.mark.parametrize(
+    ("base", "currency_name", "coin_id", "coin_name"),
+    [
+        ("AAPLX", "Apple xStock", "apple-xstock", "Apple xStock"),
+        (
+            "SOFI",
+            "SoFi Technologies • Robinhood Token",
+            "sofi-technologies-robinhood-tokenized-stock",
+            "SoFi Technologies • Robinhood Token",
+        ),
+    ],
+)
+def test_tokenized_equity_products_are_excluded_even_when_coin_registry_matches(
+    base, currency_name, coin_id, coin_name
+):
+    currencies = {
+        base: {
+            "type": "crypto",
+            "name": currency_name,
+            "info": {"type": "FT", "fullName": currency_name},
+        }
+    }
+    coins = build_registry_index([
+        {"id": coin_id, "symbol": base.lower(), "name": coin_name}
+    ])
+    result, reason = classify_xt_market({"base": base}, currencies, coins)
+    assert result == "non_crypto"
+    assert "tokenized_security_registry_match" in reason
+
+
 def test_numeric_contract_multiplier_resolves_underlying_crypto(xt_currencies, registry):
     result, reason = classify_xt_market({"base": "1000PEPE"}, xt_currencies, registry)
     assert result == "crypto"
