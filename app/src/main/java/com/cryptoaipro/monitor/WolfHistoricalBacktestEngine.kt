@@ -197,7 +197,7 @@ internal object WolfHistoricalBacktestEngine {
                         rewardDistance: Double,
                         leverage: Int,
                         holdBars: Int
-                    ): Double? {
+                    ): ReplayResult? {
                         if (side != "LONG_BIAS" && side != "SHORT_BIAS") return null
                         if (!riskDistance.isFinite() || !rewardDistance.isFinite() ||
                             riskDistance <= 0.0 || rewardDistance <= 0.0 ||
