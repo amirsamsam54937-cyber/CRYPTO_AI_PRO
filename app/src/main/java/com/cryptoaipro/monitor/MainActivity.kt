@@ -142,7 +142,9 @@ data class TechnicalSnapshot(
 )
 
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
-    // The pretrained model can influence signals only after a chronological holdout validates it.
+    // The ten-expert model reads completed 1h OHLCV candles plus chart-derived technical features.
+    // Until strict chronological holdout validation passes, HopeCommander caps its coherent-panel
+    // research contribution at 8%; technical quality gates still control signal publication.
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
     // Historical 6h outcomes calibrate member influence only after a minimum sample count.
     val adaptiveMemberWeights = WolfNeuralForecastJournal.adaptiveMemberWeights(context)
@@ -154,10 +156,11 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             else -> null
         }
         if (candidate == null) signal.copy(neuralScore = 50, neuralDirection = "NEUTRAL",
-            neuralModelSource = if (pretrainedStatus.validatedForScoring) "۱۰مدلی • معتبر" else "مدل در انتظار اعتبارسنجی")
+            neuralModelSource = if (pretrainedStatus.validatedForScoring) "۱۰ مدل • چارت ۱ساعته OHLCV + اندیکاتورها • افق ۶ساعت • معتبر" else "۱۰ مدل • در انتظار اعتبارسنجی")
         else {
-            // Always expose the ten raw specialist outputs for transparency, but never
-            // let an unvalidated ensemble affect the published direction or confidence.
+            // Always expose all ten chart-conditioned specialist outputs. Unvalidated outputs
+            // remain experimental: HopeCommander may apply only its bounded 8% research blend
+            // when the full panel is coherent; they cannot independently flip technical direction.
             val research = WolfPretrainedEnsemble.predictResearch(candidate, adaptiveMemberWeights)
             val uncertainty = WolfEnsembleUncertainty.analyze(research?.memberProbabilities.orEmpty())
             val memberVotes = research?.let { prediction ->
@@ -181,7 +184,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                 signal.copy(
                     neuralScore = rawDirectionScore,
                     neuralDirection = research?.predictedDirection ?: rawPredictedSide,
-                    neuralModelSource = "۱۰ شبکه عصبی • پیش‌بینی ۶ساعته • نظر کمکی تا اعتبارسنجی مستقل",
+                    neuralModelSource = "۱۰ شبکه عصبی • تحلیل کندل‌های بسته ۱ساعته و اندیکاتورهای چارت • افق ۶ساعت • آزمایشی تا اعتبارسنجی",
                     neuralMemberVotes = memberVotes,
                     neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
                     neuralUncertainty = uncertainty
@@ -207,7 +210,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     signal.copy(
                         neuralScore = directionalScore,
                         neuralDirection = predictedSide,
-                        neuralModelSource = "۱۰ شبکه عصبی • پیش‌بینی ۶ساعته • نظر کمکی",
+                        neuralModelSource = "۱۰ شبکه عصبی • تحلیل کندل‌های بسته ۱ساعته و اندیکاتورهای چارت • افق ۶ساعت • معتبر",
                         neuralMemberVotes = memberVotes,
                         neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
                         neuralUncertainty = uncertainty
