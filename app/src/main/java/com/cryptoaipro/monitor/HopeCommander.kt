@@ -74,7 +74,9 @@ internal object HopeCommander {
             return Decision("NEUTRAL", 0, minOf(signal.confidence, 45), 0,
                 "ABSTAIN_NO_TECHNICAL_DIRECTION", "فرمانده: جهت تکنیکال شواهد کافی ندارد")
 
-        val neuralWeight = if (neuralValidated && memberProbabilities.size == 10) 0.25 else 0.0
+        val neuralWeight = NeuralSignalAlignment.influenceWeight(
+            neuralValidated, memberProbabilities.size, signal.neuralUncertainty.highDisagreement
+        )
         val combined = technicalEvidence * (1.0 - neuralWeight) + neuralEvidence * neuralWeight
         val technicalConflict = technicalEvidence * technicalSign < -8.0
         val neuralConflict = neuralValidated && neuralSign != 0.0 && neuralSign != technicalSign
@@ -95,13 +97,9 @@ internal object HopeCommander {
             return Decision("NEUTRAL", 0, minOf(signal.confidence, 45), neuralStrength,
                 "ABSTAIN_DIRECTION_CONFLICT", "فرمانده: جهت ترکیبی با تکنیکال همسو نیست")
         val neuralImpact = if (neuralWeight > 0.0) (combined - technicalEvidence).roundToInt() else 0
-        val neuralAdjustment = when {
-            neuralWeight == 0.0 -> 0
-            neuralAligned >= 8 && neuralStrength >= 25 -> 4
-            neuralOpposed >= 7 -> -6
-            neuralAligned >= 6 -> 2
-            else -> -2
-        }
+        val neuralAdjustment = NeuralSignalAlignment.experimentalConfidenceAdjustment(
+            neuralValidated, neuralAligned, neuralOpposed, neuralStrength
+        )
         val voteAdjustment = when {
             technicalAgreement >= 0.85 -> 3
             technicalAgreement < 0.60 -> -5
@@ -110,11 +108,16 @@ internal object HopeCommander {
         val finalConfidence = (signal.confidence + neuralAdjustment + voteAdjustment).coerceIn(0, 95)
         val finalScore = combined.roundToInt().coerceIn(-100, 100)
         val explanation = "فرمانده: امتیاز نهایی " + finalScore +
-            "/100؛ تکنیکال ۷۵٪" + (if (neuralWeight > 0.0) " + شبکه عصبی ۲۵٪" else "؛ عصبی فقط نمایشی تا اعتبارسنجی") +
+            "/100؛ تکنیکال " + (100 - (neuralWeight * 100.0).roundToInt()) + "% + شبکه عصبی " +
+            (neuralWeight * 100.0).roundToInt() + "% " + (if (neuralValidated) "معتبر" else "آزمایشی") +
             "؛ متخصصان تکنیکال همسو " + (technicalAgreement * 100.0).roundToInt() +
             "٪؛ رأی عصبی صعود " + neuralLong + "، نزول " + neuralShort +
             "، خنثی " + neuralNeutral + "؛ اثر خالص عصبی " + neuralImpact
-        val status = if (neuralWeight > 0.0) "COMMANDER_FULL_PANEL_REVIEW" else "COMMANDER_TECH_ONLY_AI_UNVALIDATED"
+        val status = when {
+            neuralWeight == 0.0 -> "COMMANDER_TECH_ONLY_AI_UNVALIDATED"
+            neuralValidated -> "COMMANDER_FULL_PANEL_REVIEW"
+            else -> "COMMANDER_EXPERIMENTAL_NEURAL_ASSIST"
+        }
         return Decision(chosen, finalScore, finalConfidence, neuralImpact, status, explanation)
     }
 }
