@@ -20,7 +20,9 @@ import kotlin.math.max
 internal object WolfHistoricalBacktestEngine {
     private const val PREFS = "hope_hunter_historical_backtest"
     private const val KEY = "latest_v2"
-    private const val TAKER_FEE_PCT_PER_SIDE = 0.06\n    private const val SLIPPAGE_PCT_PER_SIDE = 0.02\n    private const val BACKTEST_START_USDT = 10.0
+    private const val TAKER_FEE_PCT_PER_SIDE = 0.06
+    private const val SLIPPAGE_PCT_PER_SIDE = 0.02
+    private const val BACKTEST_START_USDT = 10.0
     private const val SYMBOL_LIMIT = 8
     private const val SAMPLES_PER_SYMBOL = 72
     private const val WARMUP_BARS = 230
@@ -48,11 +50,11 @@ internal object WolfHistoricalBacktestEngine {
 
     private data class PaperTrade(
         val pnlPct: Double, val entryTime: Long,
-        val feePctNotional: Double, val slippagePctNotional: Double, val leverage: Int
+        val feePctNotional: Double, val slippagePctNotional: Double, val exposureMultiplier: Double
     )
     private data class ReplayResult(
         val netReturnPct: Double, val feePctNotional: Double,
-        val slippagePctNotional: Double, val leverage: Int
+        val slippagePctNotional: Double, val exposureMultiplier: Double
     )
     private class Tally {
         val trades = mutableListOf<PaperTrade>()
@@ -68,8 +70,8 @@ internal object WolfHistoricalBacktestEngine {
             var feesPaid = 0.0
             var slippagePaid = 0.0
             trades.sortedBy { it.entryTime }.forEach {
-                feesPaid += equity * it.feePctNotional / 100.0 * it.leverage
-                slippagePaid += equity * it.slippagePctNotional / 100.0 * it.leverage
+                feesPaid += equity * it.feePctNotional / 100.0 * it.exposureMultiplier
+                slippagePaid += equity * it.slippagePctNotional / 100.0 * it.exposureMultiplier
                 equity *= (1.0 + it.pnlPct / 100.0).coerceAtLeast(0.0)
                 peak = max(peak, equity)
                 if (peak > 0.0) drawdown = max(drawdown, (peak - equity) / peak * 100.0)
@@ -227,21 +229,25 @@ internal object WolfHistoricalBacktestEngine {
                         if (entryFill <= 0.0 || exitFill <= 0.0) return null
                         val gross = if (long) (exitFill / entryFill - 1.0) * 100.0
                             else (entryFill / exitFill - 1.0) * 100.0
-                        // XT VIP0 reference taker fee is 0.06% on each fill. Slippage is
-                        // already reflected in entryFill/exitFill and is reported separately.
-                        val safeLeverage = leverage.coerceIn(1, 5)
+                        // XT VIP0 taker fee is 0.06% per fill. Slippage is reflected in fill prices.
+                        val maxLeverage = leverage.coerceIn(1, 5).toDouble()
+                        // Target 0.5% equity risk at the stop; cap notional exposure by leverage.
+                        val stopDistancePct = riskDistance / rawEntry
+                        if (!stopDistancePct.isFinite() || stopDistancePct <= 0.0) return null
+                        val exposure = minOf(maxLeverage, 0.005 / stopDistancePct)
+                        if (!exposure.isFinite() || exposure <= 0.0) return null
                         val roundTripFeePct = TAKER_FEE_PCT_PER_SIDE * 2.0
                         return ReplayResult(
-                            gross * safeLeverage - roundTripFeePct * safeLeverage,
-                            roundTripFeePct, SLIPPAGE_PCT_PER_SIDE * 2.0, safeLeverage
+                            gross * exposure - roundTripFeePct * exposure,
+                            roundTripFeePct, SLIPPAGE_PCT_PER_SIDE * 2.0, exposure
                         )
                     }
 
                     if (isTech) replay(technicalSide, technicalRisk, technicalReward, technicalLeverage, holdBarsFor(technical.tradeTimeframe))
-                        ?.let { technicalTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.leverage)) }
+                        ?.let { technicalTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.exposureMultiplier)) }
                     if (isNeural && neuralRisk != null && neuralReward != null) {
                         replay(neuralSide, neuralRisk, neuralReward, neuralLeverage, holdBarsFor("1h"))
-                            ?.let { neuralTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.leverage)) }
+                            ?.let { neuralTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.exposureMultiplier)) }
                     }
                     // Agreement is evaluated on the same entry timestamp with conservative shared
                     // risk: wider of the two stops, nearer of the two targets, lower leverage.
@@ -251,7 +257,7 @@ internal object WolfHistoricalBacktestEngine {
                         val sharedRisk = max(technicalRisk, neuralRisk)
                         val sharedReward = minOf(technicalReward, neuralReward)
                         replay(technicalSide, sharedRisk, sharedReward, minOf(technicalLeverage, neuralLeverage), maxOf(holdBarsFor(technical.tradeTimeframe), holdBarsFor("1h")))
-                            ?.let { agreementTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.leverage)) }
+                            ?.let { agreementTally.trades.add(PaperTrade(it.netReturnPct, entryBar[5].toLong(), it.feePctNotional, it.slippagePctNotional, it.exposureMultiplier)) }
                     }
                 }
                 earliest = minOf(earliest, micro.firstOrNull()?.get(5)?.toLong() ?: anchor)
@@ -327,8 +333,6 @@ internal object WolfHistoricalBacktestEngine {
             put("trades", v.trades); put("wins", v.wins); put("losses", v.losses); put("flats", v.flats)
             put("winRate", v.winRate); put("netReturnPct", v.netReturnPct)
             put("profitFactor", v.profitFactor); put("maxDrawdownPct", v.maxDrawdownPct)
-            put("finalEquityUsdt", v.finalEquityUsdt); put("netPnlUsdt", v.netPnlUsdt)
-            put("estimatedFeesUsdt", v.estimatedFeesUsdt); put("estimatedSlippageUsdt", v.estimatedSlippageUsdt)
             put("finalEquityUsdt", v.finalEquityUsdt); put("netPnlUsdt", v.netPnlUsdt)
             put("estimatedFeesUsdt", v.estimatedFeesUsdt); put("estimatedSlippageUsdt", v.estimatedSlippageUsdt)
         }
