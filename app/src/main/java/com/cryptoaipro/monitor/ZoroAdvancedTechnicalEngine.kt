@@ -86,7 +86,7 @@ internal object ZoroAdvancedTechnicalEngine {
         val psar = parabolicSar(h,l,c)
         val cmf = chaikinMoneyFlow(h,l,c,v,20)
         val aroon = aroonOscillator(h,l,25)
-        val donchian = channelPosition(h,l,20)
+        val donchian = channelPosition(h,l,c,20)
         val keltner = keltnerPosition(h,l,c,20,2.0)
 
         val pivots = pivots(h,l,2,2).takeLast(30)
@@ -289,12 +289,11 @@ internal object ZoroAdvancedTechnicalEngine {
         val down=(lowIndex+1).toDouble()/period*100.0
         return up-down
     }
-    private fun channelPosition(h: List<Double>,l: List<Double>,period: Int): Double {
+    private fun channelPosition(h: List<Double>,l: List<Double>,c: List<Double>,period: Int): Double {
         val hi=h.takeLast(period).maxOrNull() ?: return 50.0
         val lo=l.takeLast(period).minOrNull() ?: return 50.0
-        return if(hi-lo<=1e-12) 50.0 else ((cSafeLast(h,l)-lo)/(hi-lo)*100.0).coerceIn(0.0,100.0)
+        return if(hi-lo<=1e-12) 50.0 else ((c.last()-lo)/(hi-lo)*100.0).coerceIn(0.0,100.0)
     }
-    private fun cSafeLast(h: List<Double>,l: List<Double>): Double = (h.last()+l.last())/2.0
     private fun keltnerPosition(h: List<Double>,l: List<Double>,c: List<Double>,period: Int,multiplier: Double): Double {
         val middle=ema(c,period); val width=atr(h,l,c,period)*multiplier
         return if(width<=1e-12) 50.0 else ((c.last()-(middle-width))/(2.0*width)*100.0).coerceIn(0.0,100.0)
