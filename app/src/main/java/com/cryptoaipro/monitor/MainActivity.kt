@@ -117,7 +117,9 @@ data class MarketSignal(
     val hiddenFlowScore: Int = 0,
     val hiddenFlowFresh: Boolean = false,
     // Scenario evidence scores for 1h/4h/6h/24h; never a calibrated win probability.
-    val multiHorizonOutlook: ZoroMultiHorizonEngine.Outlook? = null
+    val multiHorizonOutlook: ZoroMultiHorizonEngine.Outlook? = null,
+    // Full OHLCV chart interpretation: indicators, patterns, structure and liquidity concepts.
+    val advancedTechnical: ZoroAdvancedTechnicalEngine.Report? = null
 )
 
 data class TechnicalSnapshot(
@@ -290,7 +292,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                 tech != neural -> "اختلاف تحلیل تکنیکال و شبکه عصبی • فرمانده سیگنال را متوقف کرد"
                 else -> commander.explanation
             },
-            multiHorizonOutlook = ZoroMultiHorizonEngine.analyze(reviewed)
+            multiHorizonOutlook = ZoroMultiHorizonEngine.analyze(reviewed),
+            advancedTechnical = ZoroAdvancedTechnicalEngine.analyze(reviewed.candles, reviewed.price, reviewed.neuralCandles)
         )
     }.sortedWith(compareByDescending<MarketSignal> {
         if (it.direction == "NEUTRAL") it.score.toDouble() else it.confidence.toDouble()
