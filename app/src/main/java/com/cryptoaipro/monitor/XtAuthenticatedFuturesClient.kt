@@ -230,8 +230,9 @@ internal class XtAuthenticatedFuturesClient(
         fun value(key: String) = usdt.optString(key).toDoubleOrNull()
             ?: usdt.optDouble(key).takeIf { it.isFinite() } ?: 0.0
         val wallet = value("walletBalance")
-        // XT's order sizing reference uses walletBalance minus open-order margin freeze.
-        val available = (wallet - value("openOrderMarginFrozen")).coerceAtLeast(0.0)
+        // XT exposes availableBalance directly; subtracting only open-order freeze
+        // ignores margin already reserved by open positions and can overstate free funds.
+        val available = value("availableBalance").coerceAtLeast(0.0)
         return AccountSnapshot(
             account.optBoolean("allowTrade", false),
             account.optBoolean("allowOpenPosition", false),
