@@ -183,6 +183,55 @@ internal fun HopeCommanderScreen(
             }
         }
         item {
+            HPanelCard(Modifier.fillMaxWidth(), "مغز تحلیل تکنیکال چندلایه • چارت و ساختار بازار") {
+                val ta = best?.advancedTechnical
+                if (ta == null || !ta.available) {
+                    Text(ta?.warnings?.firstOrNull() ?: "پس از دریافت کندل‌های معتبر، تحلیل جامع چارت ساخته می‌شود",
+                        color = HMuted, fontSize = 9.sp)
+                } else {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(ta.bias, color = if (ta.evidenceScore > 0) HMint else if (ta.evidenceScore < 0) HRed else HGold,
+                            fontSize = 12.sp, fontWeight = FontWeight.Black)
+                        Text("قدرت شواهد " + ta.evidenceScore + "/100", color = HGoldBright, fontSize = 10.sp)
+                    }
+                    Text(ta.trend + " • " + ta.regime + " • " + ta.momentum, color = HMuted, fontSize = 9.sp)
+                    Text(ta.structure + " • " + ta.higherTimeframe, color = Color.White, fontSize = 9.sp)
+                    Text("حجم: " + ta.volumeState, color = HMuted, fontSize = 9.sp)
+                    Divider(color = Color(0xFF303632))
+                    Text("الگوهای کندلی: " + ta.candlePatterns.joinToString(" • ").ifBlank { "الگوی قوی تأیید نشد" },
+                        color = HGoldBright, fontSize = 9.sp)
+                    Text("الگوهای نموداری: " + ta.chartPatterns.joinToString(" • "),
+                        color = HGoldBright, fontSize = 9.sp, lineHeight = 13.sp)
+                    Text("ساختار نقدینگی: " + ta.smartMoney, color = Color.White, fontSize = 9.sp, lineHeight = 13.sp)
+                    Divider(color = Color(0xFF303632))
+                    Text("پنل اندیکاتورها", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    ta.indicators.forEach { metric ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(metric.name, color = HMuted, fontSize = 8.sp, modifier = Modifier.weight(1f))
+                            Text(metric.value, color = HGoldBright, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(8.dp))
+                            Text(metric.interpretation, color = HMuted, fontSize = 8.sp, modifier = Modifier.weight(1.35f))
+                        }
+                    }
+                    Divider(color = Color(0xFF303632))
+                    Text("سطوح و نواحی مهم", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    ta.levels.take(7).forEach { level ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(level.name, color = HMuted, fontSize = 8.sp)
+                            Text(String.format(java.util.Locale.US, "%.6f", level.price), color = HGoldBright, fontSize = 8.sp)
+                        }
+                    }
+                    if (ta.warnings.isNotEmpty()) {
+                        Text("هشدارها: " + ta.warnings.take(4).joinToString(" • "), color = HGold, fontSize = 8.sp, lineHeight = 12.sp)
+                    }
+                    Text("راهنمای تحلیل", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    ta.education.forEach { Text("• " + it, color = HMuted, fontSize = 8.sp, lineHeight = 12.sp) }
+                    Text("امتیاز این بخش شاخص قدرت شواهد است، نه احتمال برد. اصطلاح کوانتومی در ZORO به سناریوسازی چندحالته اشاره دارد؛ ادعای استفاده از سخت‌افزار کوانتومی نمی‌شود.",
+                        color = HMuted, fontSize = 8.sp, lineHeight = 12.sp)
+                }
+            }
+        }
+        item {
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 MetricTile("نمادهای اسکن‌شده", signals.size.toString(), HGold, Modifier.weight(1f))
                 MetricTile("تمایل صعودی", longCount.toString(), HMint, Modifier.weight(1f))
