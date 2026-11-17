@@ -1,7 +1,8 @@
 package com.cryptoaipro.monitor
 
-/** Fail-closed gates for background automatic execution. */
+/** Fail-closed gates for background automatic execution. Neural validation is advisory, not an execution lock. */
 internal object XtAutomaticTradingPolicy {
+    @Suppress("UNUSED_PARAMETER")
     fun mayRun(
         liveArmed: Boolean,
         automaticEnabled: Boolean,
@@ -12,6 +13,5 @@ internal object XtAutomaticTradingPolicy {
         liveArmed &&
             automaticEnabled &&
             credentialsPresent &&
-            modelValidated &&
             !emergencyStop
 }
