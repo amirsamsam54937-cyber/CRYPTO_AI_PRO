@@ -74,9 +74,11 @@ internal object HopeCommander {
             return Decision("NEUTRAL", 0, minOf(signal.confidence, 45), 0,
                 "ABSTAIN_NO_TECHNICAL_DIRECTION", "فرمانده: جهت تکنیکال شواهد کافی ندارد")
 
-        val neuralWeight = NeuralSignalAlignment.influenceWeight(
-            neuralValidated, memberProbabilities.size, signal.neuralUncertainty.highDisagreement
-        )
+        // Unvalidated neural outputs stay visible for research, but have zero authority over
+        // directional scoring or live eligibility until chronological holdout validation passes.
+        val neuralWeight = if (neuralValidated) NeuralSignalAlignment.influenceWeight(
+            true, memberProbabilities.size, signal.neuralUncertainty.highDisagreement
+        ) else 0.0
         val combined = technicalEvidence * (1.0 - neuralWeight) + neuralEvidence * neuralWeight
         val technicalConflict = technicalEvidence * technicalSign < -8.0
         val neuralConflict = neuralValidated && neuralSign != 0.0 && neuralSign != technicalSign

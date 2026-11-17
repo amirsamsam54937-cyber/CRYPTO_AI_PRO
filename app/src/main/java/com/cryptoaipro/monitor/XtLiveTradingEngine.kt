@@ -15,8 +15,8 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * XT USDT-M execution with separate manual-confirmed and explicitly armed automatic paths.
- * Automatic scans may submit at most one qualified candidate per scan only when LIVE,
- * auto mode, credentials, validated neural bundle, account checks and every risk gate pass.
+ * Automatic scans may submit at most one qualified technical candidate per scan only when LIVE,
+ * auto mode, credentials, account checks and every risk gate pass. Neural validation is advisory.
  * Manual execution still requires a reviewed preview and explicit confirmation.
  * All gates fail closed. Ambiguous order POSTs are reconciled, never blindly retried.
  */
@@ -61,13 +61,11 @@ internal object XtLiveTradingEngine {
     fun isAutoEnabled(context: Context): Boolean =
         prefs(context).getBoolean(KEY_AUTO_ENABLED, false) &&
             isEnabled(context) && !isEmergencyStopped(context) &&
-            XtCredentialVault.hasCredentials(context) &&
-            WolfPretrainedEnsemble.status().validatedForScoring
+            XtCredentialVault.hasCredentials(context)
 
     fun canArmAutomatic(context: Context): Boolean =
         isEnabled(context) && !isEmergencyStopped(context) &&
-            XtCredentialVault.hasCredentials(context) &&
-            WolfPretrainedEnsemble.status().validatedForScoring
+            XtCredentialVault.hasCredentials(context)
 
     fun setAutoEnabled(context: Context, enabled: Boolean) {
         val allowed = enabled && canArmAutomatic(context)
@@ -75,8 +73,8 @@ internal object XtLiveTradingEngine {
             .putBoolean(KEY_AUTO_ENABLED, allowed)
             .putString(
                 KEY_STATUS,
-                if (allowed) "معامله‌گر خودکار مسلح شد؛ ورود فقط با عبور تمام کنترل‌های سیگنال، مدل، حساب و ریسک انجام می‌شود."
-                else if (enabled) "فعال‌سازی خودکار رد شد؛ LIVE، اعتبار مدل عصبی، کلید API و وضعیت توقف اضطراری را بررسی کن."
+                if (allowed) "معامله‌گر خودکار مسلح شد؛ رأی عصبی در صورت اعتبارسنجی‌نشدن صرفاً نمایشی است و ورود با کنترل‌های مستقل تکنیکال، حساب و ریسک انجام می‌شود."
+                else if (enabled) "فعال‌سازی خودکار رد شد؛ LIVE، کلید API و وضعیت توقف اضطراری را بررسی کن."
                 else "معامله‌گر خودکار خاموش شد؛ پایش و تحلیل ادامه دارد."
             )
             .apply()
@@ -106,7 +104,7 @@ internal object XtLiveTradingEngine {
         val editor = prefs(context).edit().putBoolean(KEY_ENABLED, enabled)
         if (!enabled) editor.putBoolean(KEY_AUTO_ENABLED, false)
         editor.putString(KEY_STATUS, if (enabled)
-            "حالت LIVE مسلح شد؛ معامله‌گر خودکار فقط با فعال‌سازی جداگانه و عبور اعتبارسنجی مدل کار می‌کند."
+            "حالت LIVE مسلح شد؛ فعال‌سازی خودکار جداگانه است و به اعتبارسنجی مدل عصبی وابسته نیست؛ کنترل‌های ریسک اجباری‌اند."
         else "حالت LIVE غیرفعال شد؛ معامله‌گر خودکار و سفارش‌های جدید متوقف شدند.")
         editor.apply()
     }
@@ -194,15 +192,12 @@ internal object XtLiveTradingEngine {
         require(signal.confidence >= 70 && signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه") {
             "قدرت یا رتبه سیگنال برای بررسی سفارش واقعی کافی نیست."
         }
-        require(directionSide(signal.neuralDirection) == side) {
-            "جهت پیش‌بینی شبکه عصبی با جهت سیگنال هم‌سو نیست؛ ورود واقعی مسدود شد."
+        require(directionSide(signal.technicalDirection) == side) {
+            "جهت سیگنال باید با تحلیل تکنیکال مستقل همسو باشد؛ رأی مدل عصبی به‌تنهایی مجوز ورود نیست."
         }
-        require(WolfPretrainedEnsemble.status().validatedForScoring) {
-            "مدل عصبی هنوز اعتبارسنجی زمانی مستقل را نگذرانده است؛ سفارش واقعی مسدود شد."
-        }
-        require(signal.neuralMemberProbabilities.size == 10 &&
-            signal.neuralMemberProbabilities.all { it.isFinite() && it in 0.0..1.0 }) {
-            "رأی معتبر هر ۱۰ متخصص عصبی در این سیگنال موجود نیست."
+        require(signal.technical.adx >= 16.0 && signal.technical.relativeVolume >= 0.65 &&
+            (signal.consensus?.agreement ?: 0) >= 58) {
+            "قدرت روند، حجم نسبی یا اجماع تکنیکال برای ورود واقعی کافی نیست."
         }
         require(signal.price.isFinite() && signal.price > 0.0 &&
             signal.entry.isFinite() && signal.entry > 0.0 &&
@@ -537,11 +532,11 @@ internal object XtLiveTradingEngine {
                 .filter { signal ->
                     val side = directionSide(signal.direction)
                     side != null &&
-                        directionSide(signal.neuralDirection) == side &&
+                        directionSide(signal.technicalDirection) == side &&
                         signal.confidence >= 70 &&
                         signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه" &&
-                        signal.neuralMemberProbabilities.size == 10 &&
-                        signal.neuralMemberProbabilities.all { it.isFinite() && it in 0.0..1.0 } &&
+                        signal.technical.adx >= 16.0 && signal.technical.relativeVolume >= 0.65 &&
+                        (signal.consensus?.agreement ?: 0) >= 58 &&
                         signal.price.isFinite() && signal.price > 0.0
                 }
                 .sortedWith(

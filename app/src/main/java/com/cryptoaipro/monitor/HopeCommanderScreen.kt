@@ -183,6 +183,55 @@ internal fun HopeCommanderScreen(
             }
         }
         item {
+            HPanelCard(Modifier.fillMaxWidth(), "مغز تحلیل تکنیکال چندلایه • چارت و ساختار بازار") {
+                val ta = best?.advancedTechnical
+                if (ta == null || !ta.available) {
+                    Text(ta?.warnings?.firstOrNull() ?: "پس از دریافت کندل‌های معتبر، تحلیل جامع چارت ساخته می‌شود",
+                        color = HMuted, fontSize = 9.sp)
+                } else {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(ta.bias, color = if (ta.evidenceScore > 0) HMint else if (ta.evidenceScore < 0) HRed else HGold,
+                            fontSize = 12.sp, fontWeight = FontWeight.Black)
+                        Text("قدرت شواهد " + ta.evidenceScore + "/100", color = HGoldBright, fontSize = 10.sp)
+                    }
+                    Text(ta.trend + " • " + ta.regime + " • " + ta.momentum, color = HMuted, fontSize = 9.sp)
+                    Text(ta.structure + " • " + ta.higherTimeframe, color = Color.White, fontSize = 9.sp)
+                    Text("حجم: " + ta.volumeState, color = HMuted, fontSize = 9.sp)
+                    Divider(color = Color(0xFF303632))
+                    Text("الگوهای کندلی: " + ta.candlePatterns.joinToString(" • ").ifBlank { "الگوی قوی تأیید نشد" },
+                        color = HGoldBright, fontSize = 9.sp)
+                    Text("الگوهای نموداری: " + ta.chartPatterns.joinToString(" • "),
+                        color = HGoldBright, fontSize = 9.sp, lineHeight = 13.sp)
+                    Text("ساختار نقدینگی: " + ta.smartMoney, color = Color.White, fontSize = 9.sp, lineHeight = 13.sp)
+                    Divider(color = Color(0xFF303632))
+                    Text("پنل اندیکاتورها", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    ta.indicators.forEach { metric ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(metric.name, color = HMuted, fontSize = 8.sp, modifier = Modifier.weight(1f))
+                            Text(metric.value, color = HGoldBright, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(8.dp))
+                            Text(metric.interpretation, color = HMuted, fontSize = 8.sp, modifier = Modifier.weight(1.35f))
+                        }
+                    }
+                    Divider(color = Color(0xFF303632))
+                    Text("سطوح و نواحی مهم", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    ta.levels.take(7).forEach { level ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(level.name, color = HMuted, fontSize = 8.sp)
+                            Text(String.format(java.util.Locale.US, "%.6f", level.price), color = HGoldBright, fontSize = 8.sp)
+                        }
+                    }
+                    if (ta.warnings.isNotEmpty()) {
+                        Text("هشدارها: " + ta.warnings.take(4).joinToString(" • "), color = HGold, fontSize = 8.sp, lineHeight = 12.sp)
+                    }
+                    Text("راهنمای تحلیل", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    ta.education.forEach { Text("• " + it, color = HMuted, fontSize = 8.sp, lineHeight = 12.sp) }
+                    Text("امتیاز این بخش شاخص قدرت شواهد است، نه احتمال برد. اصطلاح کوانتومی در ZORO به سناریوسازی چندحالته اشاره دارد؛ ادعای استفاده از سخت‌افزار کوانتومی نمی‌شود.",
+                        color = HMuted, fontSize = 8.sp, lineHeight = 12.sp)
+                }
+            }
+        }
+        item {
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 MetricTile("نمادهای اسکن‌شده", signals.size.toString(), HGold, Modifier.weight(1f))
                 MetricTile("تمایل صعودی", longCount.toString(), HMint, Modifier.weight(1f))
@@ -270,6 +319,47 @@ internal fun HopeCommanderScreen(
                         PriceTag("TP2", it.tp2, HMint, Modifier.weight(1f))
                         PriceTag("TP3", it.tp3, HMint, Modifier.weight(1f))
                     }
+                }
+            }
+        }
+        item {
+            HPanelCard(Modifier.fillMaxWidth(), "پیش‌بینی چندافقی • Truth Engine") {
+                val outlook = best?.multiHorizonOutlook
+                if (outlook == null || !outlook.available) {
+                    Text(outlook?.truthStatus ?: "پس از دریافت کندل‌های معتبر، سناریوها محاسبه می‌شوند",
+                        color = HMuted, fontSize = 9.sp)
+                } else {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("کیفیت داده: ${outlook.dataQuality}/100", color = if (outlook.dataQuality >= 80) HMint else HGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(outlook.trendState, color = HGoldBright, fontSize = 9.sp)
+                    }
+                    Text("رژیم: ${outlook.regime} • ${outlook.flowState}", color = HMuted, fontSize = 8.sp)
+                    outlook.horizons.forEach { horizon ->
+                        val tint = when (horizon.direction) {
+                            "LONG_BIAS" -> HMint
+                            "SHORT_BIAS" -> HRed
+                            else -> HGold
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().background(Color(0xFF090B0A), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(horizon.label, color = Color.White, fontSize = 9.sp, modifier = Modifier.weight(1f))
+                            Text(sideFa(horizon.direction), color = tint, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(10.dp))
+                            Text("امتیاز ${horizon.evidenceScore}", color = HGold, fontSize = 8.sp)
+                            Spacer(Modifier.width(10.dp))
+                            Text("دامنه ±${String.format(java.util.Locale.US, "%.2f", horizon.volatilityBandPct)}٪",
+                                color = HMuted, fontSize = 8.sp)
+                        }
+                        Text(horizon.explanation, color = HMuted, fontSize = 8.sp)
+                    }
+                    Text(outlook.truthStatus, color = HGoldBright, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                    if (outlook.warnings.isNotEmpty()) {
+                        Text(outlook.warnings.take(4).joinToString(" • "), color = HMuted, fontSize = 8.sp, lineHeight = 12.sp)
+                    }
+                    Text("امتیازها قدرت شواهد سناریو هستند، نه درصد احتمال برد یا تضمین حرکت قیمت. ${if (outlook.neuralSixHourUsed) "نظر عصبی معتبر در افق ۶ساعته لحاظ شده" else "نظر عصبی تا اعتبارسنجی مستقل در امتیازها دخالت ندارد"}.",
+                        color = HMuted, fontSize = 8.sp, lineHeight = 12.sp)
                 }
             }
         }
@@ -400,7 +490,7 @@ private fun CommanderCandlestickChart(signal: MarketSignal) {
         }
         return
     }
-    val levels = listOf(signal.entry, signal.stop, signal.tp1, signal.tp2, signal.tp3).filter { it.isFinite() && it > 0 }
+    val levels = (listOf(signal.entry, signal.stop, signal.tp1, signal.tp2, signal.tp3) + signal.advancedTechnical?.levels.orEmpty().map { it.price }).filter { it.isFinite() && it > 0 }
     val low = min(candles.minOf { it[2] }, levels.minOrNull() ?: candles.minOf { it[2] })
     val high = max(candles.maxOf { it[1] }, levels.maxOrNull() ?: candles.maxOf { it[1] })
     val span = (high-low).takeIf { it > 0 } ?: 1.0
@@ -424,7 +514,8 @@ private fun CommanderCandlestickChart(signal: MarketSignal) {
             val bodyBottom = max(y(c[0]),y(c[3]))
             drawRect(color, Offset(x-step*.29f,bodyTop), androidx.compose.ui.geometry.Size(max(1.dp.toPx(),step*.58f), max(1.dp.toPx(),bodyBottom-bodyTop)))
         }
-        val lineLevels = listOf(signal.entry to HGold, signal.stop to HRed, signal.tp1 to HMint)
+        val lineLevels = listOf(signal.entry to HGold, signal.stop to HRed, signal.tp1 to HMint) +
+            signal.advancedTechnical?.levels.orEmpty().take(4).map { it.price to Color(0xFF78877D) }
         lineLevels.forEach { (price,color) ->
             if (price.isFinite() && price in low..high) {
                 val yy = y(price)

@@ -115,7 +115,11 @@ data class MarketSignal(
     val neuralUncertainty: WolfEnsembleUncertainty.Summary = WolfEnsembleUncertainty.analyze(emptyList()),
     // Internal XT microstructure features; deliberately not rendered in any UI or notification.
     val hiddenFlowScore: Int = 0,
-    val hiddenFlowFresh: Boolean = false
+    val hiddenFlowFresh: Boolean = false,
+    // Scenario evidence scores for 1h/4h/6h/24h; never a calibrated win probability.
+    val multiHorizonOutlook: ZoroMultiHorizonEngine.Outlook? = null,
+    // Full OHLCV chart interpretation: indicators, patterns, structure and liquidity concepts.
+    val advancedTechnical: ZoroAdvancedTechnicalEngine.Report? = null
 )
 
 data class TechnicalSnapshot(
@@ -143,8 +147,8 @@ data class TechnicalSnapshot(
 
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
     // The ten-expert model reads completed 1h OHLCV candles plus chart-derived technical features.
-    // Until strict chronological holdout validation passes, HopeCommander caps its coherent-panel
-    // research contribution at 8%; technical quality gates still control signal publication.
+    // Until strict chronological holdout validation passes, neural outputs remain visible as
+    // research context only; the commander uses independent technical evidence for direction.
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
     // Historical 6h outcomes calibrate member influence only after a minimum sample count.
     val adaptiveMemberWeights = WolfNeuralForecastJournal.adaptiveMemberWeights(context)
@@ -159,8 +163,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             neuralModelSource = if (pretrainedStatus.validatedForScoring) "۱۰ مدل • چارت ۱ساعته OHLCV + اندیکاتورها • افق ۶ساعت • معتبر" else "۱۰ مدل • در انتظار اعتبارسنجی")
         else {
             // Always expose all ten chart-conditioned specialist outputs. Unvalidated outputs
-            // remain experimental: HopeCommander may apply only its bounded 8% research blend
-            // when the full panel is coherent; they cannot independently flip technical direction.
+            // are advisory-only and have zero directional-score influence until strict validation.
             val research = WolfPretrainedEnsemble.predictResearch(candidate, adaptiveMemberWeights)
             val uncertainty = WolfEnsembleUncertainty.analyze(research?.memberProbabilities.orEmpty())
             val memberVotes = research?.let { prediction ->
@@ -287,7 +290,9 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                 !neuralValidated -> "مدل عصبی هنوز از آزمون مستقل عبور نکرده؛ فقط اثر کمکی محدود دارد"
                 tech != neural -> "اختلاف تحلیل تکنیکال و شبکه عصبی • فرمانده سیگنال را متوقف کرد"
                 else -> commander.explanation
-            }
+            },
+            multiHorizonOutlook = ZoroMultiHorizonEngine.analyze(reviewed),
+            advancedTechnical = ZoroAdvancedTechnicalEngine.analyze(reviewed.candles, reviewed.price, reviewed.neuralCandles)
         )
     }.sortedWith(compareByDescending<MarketSignal> {
         if (it.direction == "NEUTRAL") it.score.toDouble() else it.confidence.toDouble()

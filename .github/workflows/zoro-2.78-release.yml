@@ -1,0 +1,105 @@
+name: ZORO 2.78.0 APK
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - zoro-gen29-auto-execution
+  push:
+    branches:
+      - zoro-gen30-multihorizon-truth
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Download the verified XT-only neural bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: ZORO-745K-XT-TRAINING-DATA
+          path: /tmp/zoro-training
+          run-id: 43953114027
+          repository: ${{ github.repository }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install and verify trained XT assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/main/assets
+          cp /tmp/zoro-training/market_seed.csv.gz app/src/main/assets/
+          cp /tmp/zoro-training/wolf_corpus_manifest.json app/src/main/assets/
+          cp /tmp/zoro-training/wolf_pretrained_ensemble.json app/src/main/assets/
+          cp /tmp/zoro-training/wolf_model_training_report.json app/src/main/assets/
+          python - <<'PY'
+          import json, pathlib
+          root = pathlib.Path("app/src/main/assets")
+          model = json.loads((root / "wolf_pretrained_ensemble.json").read_text())
+          manifest = json.loads((root / "wolf_corpus_manifest.json").read_text())
+          report = json.loads((root / "wolf_model_training_report.json").read_text())
+          assert len(model.get("members", [])) == 10, "Expected ten trained neural specialists"
+          assert manifest.get("rows", 0) >= 898920, "XT candle corpus is incomplete"
+          assert manifest.get("source_exchanges") == ["XT"], "Training corpus is not XT-only"
+          assert report.get("validation_status") in ("validated_for_scoring", "trained_but_not_validated")
+          print("Verified 10 neural models; XT-only corpus rows:", manifest["rows"])
+          print("Neural validation:", report["validation_status"])
+          PY
+
+      - name: Run Android unit tests and assemble installable APK
+        run: gradle testDebugUnitTest assembleDebug --no-daemon
+
+      - name: Verify APK package, version and embedded model assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          echo "$BADGING" | grep -F "package: name='com.cryptoaipro.monitor' versionCode='99' versionName='2.78.0'"
+          python - "$APK" <<'PY'
+          import json, sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as apk:
+              names = set(apk.namelist())
+              required = [
+                  "assets/wolf_pretrained_ensemble.json",
+                  "assets/wolf_corpus_manifest.json",
+                  "assets/wolf_model_training_report.json",
+              ]
+              for name in required:
+                  assert name in names, "APK missing " + name
+              model = json.loads(apk.read(required[0]))
+              manifest = json.loads(apk.read(required[1]))
+              assert len(model.get("members", [])) == 10
+              assert manifest.get("rows", 0) >= 898920
+          print("APK integrity and all ten XT-trained model assets verified.")
+          PY
+          sha256sum "$APK"
+
+      - name: Upload ZORO 2.78.0 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZORO-2.78.0-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
