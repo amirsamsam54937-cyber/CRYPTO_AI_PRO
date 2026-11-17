@@ -1,8 +1,8 @@
 """Leakage-aware single-position OHLCV backtest for research.
 
 Signals use only candles strictly before the execution candle. Intrabar ambiguity
-is handled conservatively: stop is checked before target. Funding is an estimate,
-not exchange historical funding data.
+is handled conservatively: stop is checked before target. Funding is a signed,
+side-aware estimate, not exchange historical funding data.
 """
 from __future__ import annotations
 
@@ -96,7 +96,7 @@ def run_backtest(
             raise ValueError("Candle timestamps must be valid, unique and strictly increasing")
     if initial_equity <= 0 or not 0 < risk_per_trade <= 0.02:
         raise ValueError("Invalid equity or risk fraction")
-    if not 1 <= max_leverage <= 5 or fee_rate < 0 or slippage_rate < 0 or funding_rate_8h < 0:
+    if not 1 <= max_leverage <= 5 or fee_rate < 0 or slippage_rate < 0:
         raise ValueError("Invalid execution cost or leverage settings")
     if atr_multiple <= 0 or reward_risk < 1:
         raise ValueError("Invalid stop or reward/risk parameters")
@@ -108,6 +108,14 @@ def run_backtest(
             elapsed = (timestamps.iloc[current_index] - timestamps.iloc[entry_index]).total_seconds() / 3600.0
             return max(0.0, elapsed)
         return max(0.0, (current_index - entry_index) * position["bar_hours"])
+
+    def funding_cost(position: dict, elapsed_hours: float) -> float:
+        """Signed funding cashflow: positive is paid, negative is received."""
+        side_sign = 1.0 if position["side"] == "LONG" else -1.0
+        return (
+            position["notional"] * funding_rate_8h
+            * max(0.0, elapsed_hours) / 8.0 * side_sign
+        )
 
     equity = float(initial_equity)
     peak = equity
@@ -151,7 +159,7 @@ def run_backtest(
                 gross = (exit_price - position["entry"]) * position["quantity"] * direction
                 exit_fee = abs(exit_price * position["quantity"]) * fee_rate
                 elapsed_hours = holding_hours(position, i)
-                funding = position["notional"] * funding_rate_8h * (elapsed_hours / 8.0)
+                funding = funding_cost(position, elapsed_hours)
                 fees = position["entry_fee"] + exit_fee
                 slip_cost = position["entry_slip_cost"] + abs(raw_exit-exit_price)*position["quantity"]
                 net = gross - fees - funding
@@ -236,9 +244,7 @@ def run_backtest(
             )
             mark_exit_fee = abs(mark_exit * position["quantity"]) * fee_rate
             elapsed_hours = holding_hours(position, i)
-            accrued_funding = (
-                position["notional"] * funding_rate_8h * (elapsed_hours / 8.0)
-            )
+            accrued_funding = funding_cost(position, elapsed_hours)
             # Entry fee is already reflected in cash equity; include the
             # estimated cost of liquidating the open position at this close.
             marked_equity = equity + unrealized_gross - mark_exit_fee - accrued_funding
@@ -259,7 +265,7 @@ def run_backtest(
         gross = (exit_price-position["entry"])*position["quantity"]*direction
         exit_fee = abs(exit_price*position["quantity"])*fee_rate
         elapsed_hours = holding_hours(position, len(data)-1)
-        funding = position["notional"]*funding_rate_8h*(elapsed_hours/8.0)
+        funding = funding_cost(position, elapsed_hours)
         fees = position["entry_fee"]+exit_fee
         slip_cost = position["entry_slip_cost"]+abs(raw_exit-exit_price)*position["quantity"]
         # Entry fee is already deducted from equity; include it here only in
@@ -301,6 +307,7 @@ def run_backtest(
         "estimated_funding": round(sum(t.funding_estimate for t in trades), 8),
         "assumptions": {"fee_rate_per_side": fee_rate, "slippage_rate_per_side": slippage_rate,
                         "funding_rate_per_8h_estimate": funding_rate_8h,
+                        "funding_cashflow_convention": "positive rates charge LONG and credit SHORT; negative rates do the reverse; positive amount is paid",
                         "signal_uses_only_prior_closed_candles": True,
                         "intrabar_rule": "stop-first if stop and target both touched",
                         "stop_gap_rule": "use opening price when worse than stop level",
