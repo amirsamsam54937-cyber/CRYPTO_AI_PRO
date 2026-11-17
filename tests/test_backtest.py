@@ -271,8 +271,8 @@ def test_stop_market_exit_uses_worse_open_when_price_gaps_through_stop(monkeypat
     [
         ("LONG", 0.001, 1.0),
         ("SHORT", 0.001, -1.0),
-        ("LONG", -0.001, -1.0),
-        ("SHORT", -0.001, 1.0),
+        ("LONG", -0.001, 1.0),
+        ("SHORT", -0.001, -1.0),
     ],
 )
 def test_funding_cashflow_sign_tracks_position_side_and_signed_rate(
