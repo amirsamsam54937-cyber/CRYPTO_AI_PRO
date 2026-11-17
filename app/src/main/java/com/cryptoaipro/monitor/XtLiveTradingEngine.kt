@@ -192,6 +192,11 @@ internal object XtLiveTradingEngine {
         require(signal.confidence >= 70 && signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه") {
             "قدرت یا رتبه سیگنال برای بررسی سفارش واقعی کافی نیست."
         }
+        val qualityReview = ZoroSignalIntelligence.assess(signal)
+        require(qualityReview.quality >= 65) {
+            "امتیاز کیفیت شواهد برای معامله واقعی کافی نیست (" + qualityReview.quality + "/100): " +
+                qualityReview.warnings.take(3).joinToString("، ")
+        }
         require(directionSide(signal.technicalDirection) == side) {
             "جهت سیگنال باید با تحلیل تکنیکال مستقل همسو باشد؛ رأی مدل عصبی به‌تنهایی مجوز ورود نیست."
         }
