@@ -102,8 +102,15 @@ internal class XtAuthenticatedFuturesClient(
             val raw = (if (code in 200..299) connection.inputStream else connection.errorStream)
                 ?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
-                val message = runCatching { JSONObject(raw).optString("msgInfo") }.getOrDefault("")
-                throw IllegalStateException("XT HTTP $code" + if (message.isNotBlank()) ": ${message.take(120)}" else "")
+                val message = runCatching {
+                    val root = JSONObject(raw)
+                    val nested = root.optJSONObject("error")
+                    listOf(root.optString("msgInfo"), nested?.optString("msg").orEmpty(),
+                        nested?.optString("code").orEmpty())
+                        .firstOrNull { it.isNotBlank() && it != "null" }.orEmpty()
+                }.getOrDefault("")
+                val detail = message.ifBlank { raw.take(120) }
+                throw IllegalStateException("XT HTTP $code: ${detail.take(160)}")
             }
             val response = JSONObject(raw)
             require(response.has("returnCode")) { "پاسخ XT فاقد returnCode است؛ نتیجه درخواست قابل تأیید نیست." }
@@ -207,7 +214,15 @@ internal class XtAuthenticatedFuturesClient(
     suspend fun accountSnapshot(): AccountSnapshot {
         val account = request("GET", "/future/user/v1/account/info").optJSONObject("result")
             ?: throw IllegalStateException("پاسخ اطلاعات حساب XT ناقص است.")
-        val balances = request("GET", "/future/user/v1/compat/balance/list").optJSONArray("result")
+        // XT requires the accountId returned by /account/info as queryAccountId.
+        // Calling compat/balance/list without it is rejected with HTTP 400.
+        val accountId = account.opt("accountId")?.toString()?.takeIf { it.isNotBlank() && it != "0" }
+            ?: throw IllegalStateException("شناسه حساب Futures از XT دریافت نشد؛ دریافت موجودی متوقف شد.")
+        val balances = request(
+            "GET",
+            "/future/user/v1/compat/balance/list",
+            query = mapOf("queryAccountId" to accountId)
+        ).optJSONArray("result")
             ?: throw IllegalStateException("پاسخ موجودی فیوچرز XT ناقص است.")
         val usdt = (0 until balances.length()).mapNotNull { balances.optJSONObject(it) }
             .firstOrNull { it.optString("coin").equals("usdt", true) }
