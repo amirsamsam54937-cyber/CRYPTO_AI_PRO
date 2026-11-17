@@ -291,9 +291,21 @@ internal class XtAuthenticatedFuturesClient(
      * caller must stop and request schema verification rather than oversize.
      */
     suspend fun futuresWallet(): XtFuturesCapitalManager.Wallet {
-        val response = request("GET", "/future/user/v1/compat/balance/list")
+        // XT Futures requires queryAccountId on the private balance endpoint.
+        // Resolve it from the authenticated account-info endpoint; never guess an ID.
+        val account = request("GET", "/future/user/v1/account/info")
+            .optJSONObject("result")
+            ?: throw IllegalStateException("پاسخ اطلاعات حساب XT ناقص است؛ شناسه حساب برای دریافت موجودی موجود نیست.")
+        val accountId = account.opt("accountId")?.toString()
+            ?.takeIf { it.isNotBlank() && it != "0" }
+            ?: throw IllegalStateException("XT شناسه accountId معتبر برنگرداند؛ دریافت موجودی متوقف شد.")
+        val response = request(
+            "GET",
+            "/future/user/v1/compat/balance/list",
+            query = mapOf("queryAccountId" to accountId)
+        )
         val rows = response.optJSONArray("result")
-            ?: throw IllegalStateException("پاسخ موجودی فیوچرز XT آرایه نیست.")
+            ?: throw IllegalStateException("پاسخ موجودی فیوچرز XT آرایه نیست؛ ساختار result تغییر کرده یا حساب در دسترس نیست.")
         val row = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
             .firstOrNull { it.optString("coin").equals("USDT", true) }
             ?: throw IllegalStateException("دارایی USDT در کیف پول Futures پیدا نشد.")
