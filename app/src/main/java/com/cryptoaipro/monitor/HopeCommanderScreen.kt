@@ -105,6 +105,17 @@ internal fun HopeCommanderScreen(
     }
     val best = signals.firstOrNull { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
         ?: signals.firstOrNull()
+    val liquidityMap = remember(best?.symbol, best?.candles?.size, best?.price) {
+        val rows = best?.candles.orEmpty().mapNotNull { row ->
+            if (row.size < 6) null else runCatching {
+                ZoroLiquidityMapEngine.Candle(
+                    time = row[5].toLong(), open = row[0], high = row[1], low = row[2],
+                    close = row[3], volume = row[4]
+                )
+            }.getOrNull()
+        }
+        ZoroLiquidityMapEngine.analyze(rows)
+    }
     val validated = best?.neuralModelSource?.contains("اعتبارسنجی‌شده") == true
     val votes = best?.neuralMemberVotes.orEmpty()
     val neuralActive = validated && votes.size == 10
@@ -203,6 +214,26 @@ internal fun HopeCommanderScreen(
                     Text("الگوهای نموداری: " + ta.chartPatterns.joinToString(" • "),
                         color = HGoldBright, fontSize = 9.sp, lineHeight = 13.sp)
                     Text("ساختار نقدینگی: " + ta.smartMoney, color = Color.White, fontSize = 9.sp, lineHeight = 13.sp)
+                    Divider(color = Color(0xFF303632))
+                    Text("نقشه نقدینگی پویا • Liquidity Pools", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text(liquidityMap.summary, color = Color.White, fontSize = 9.sp, lineHeight = 13.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Buy-side / استاپ‌های احتمالی بالای سقف", color = HMuted, fontSize = 8.sp)
+                            Text(liquidityMap.nearestBuySide?.let { String.format(java.util.Locale.US, "%.6f", it.price) + " • قدرت " + it.strength + "/100" } ?: "خوشه‌ای یافت نشد",
+                                color = HGoldBright, fontSize = 9.sp)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("Sell-side / استاپ‌های احتمالی زیر کف", color = HMuted, fontSize = 8.sp)
+                            Text(liquidityMap.nearestSellSide?.let { String.format(java.util.Locale.US, "%.6f", it.price) + " • قدرت " + it.strength + "/100" } ?: "خوشه‌ای یافت نشد",
+                                color = HGoldBright, fontSize = 9.sp)
+                        }
+                    }
+                    Text("جاروب سقف‌ها: " + (if (liquidityMap.sweptBuySide) "تأیید ساختاری" else "مشاهده نشد") +
+                        " • جاروب کف‌ها: " + (if (liquidityMap.sweptSellSide) "تأیید ساختاری" else "مشاهده نشد"),
+                        color = if (liquidityMap.sweptBuySide || liquidityMap.sweptSellSide) HGold else HMuted, fontSize = 8.sp)
+                    Text("این سطوح تخمین خوشه‌های حدضرر از کندل‌ها هستند، نه مشاهده سفارش‌های مخفی یا داده قطعی لیکوییدیشن.",
+                        color = HMuted, fontSize = 8.sp, lineHeight = 12.sp)
                     Divider(color = Color(0xFF303632))
                     Text("پنل اندیکاتورها", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     ta.indicators.forEach { metric ->
