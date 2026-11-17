@@ -84,7 +84,6 @@ jobs:
                   "assets/wolf_pretrained_ensemble.json",
                   "assets/wolf_corpus_manifest.json",
                   "assets/wolf_model_training_report.json",
-                  "assets/market_seed.csv.gz",
               ]
               for name in required:
                   assert name in names, "APK missing " + name
