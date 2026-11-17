@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Foreground market scanner for ZORO.
+ * Foreground XT futures intelligence loop for ZORO APEX.
  * Analysis, signal publication, paper simulation, outcome learning and explicitly armed automatic execution.
  */
 class HopeHunterMonitorService : Service() {
@@ -32,7 +32,7 @@ class HopeHunterMonitorService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        startForeground(notificationId, notification("در حال آماده‌سازی موتور تحلیل بازار ZORO"))
+        startForeground(notificationId, notification("در حال آماده‌سازی موتور تحلیل بازار ZORO APEX"))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -163,7 +163,7 @@ class HopeHunterMonitorService : Service() {
                 Notification.Builder(this, signalChannelId) else Notification.Builder(this)
             val notification = builder
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
-                .setContentTitle("ZORO • سیگنال جدید " + signal.symbol + " • " + side)
+                .setContentTitle("ZORO APEX • سیگنال جدید " + signal.symbol + " • " + side)
                 .setContentText(details)
                 .setStyle(Notification.BigTextStyle().bigText(details + " • قدرت: " + signal.confidence + "٪ • تایم‌فریم: " + signal.tradeTimeframe))
                 .setAutoCancel(true)
@@ -178,13 +178,13 @@ class HopeHunterMonitorService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(
-                NotificationChannel(channelId, "پایش بازار ZORO", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "وضعیت اسکن و تحلیل عمومی بازار قراردادهای XT"
+                NotificationChannel(channelId, "پایش بازار ZORO APEX", NotificationManager.IMPORTANCE_LOW).apply {
+                    description = "وضعیت پایش پیوسته و تحلیل قراردادهای XT"
                     setShowBadge(false)
                 }
             )
             manager.createNotificationChannel(
-                NotificationChannel(signalChannelId, "سیگنال‌های جدید ZORO", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                NotificationChannel(signalChannelId, "سیگنال‌های جدید ZORO APEX", NotificationManager.IMPORTANCE_DEFAULT).apply {
                     description = "اعلان فرصت‌های تازه و تأییدشده تحلیل بازار XT"
                     setShowBadge(true)
                 }
@@ -196,7 +196,7 @@ class HopeHunterMonitorService : Service() {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             Notification.Builder(this, channelId) else Notification.Builder(this)
         return builder.setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setContentTitle("ZORO • XT Futures Analysis")
+            .setContentTitle("ZORO APEX • XT Futures Intelligence")
             .setContentText(message)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

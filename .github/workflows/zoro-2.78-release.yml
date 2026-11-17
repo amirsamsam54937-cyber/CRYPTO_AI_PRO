@@ -1,4 +1,4 @@
-name: ZORO 2.78.0 APK
+name: ZORO APEX 2.79.0 APK
 
 on:
   workflow_dispatch:
@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - zoro-gen30-multihorizon-truth
+      - apex-zoro-xt-connection-redesign
 
 permissions:
   contents: read
@@ -75,7 +76,7 @@ jobs:
           test -s "$APK"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
           BADGING="$("$AAPT" dump badging "$APK")"
-          echo "$BADGING" | grep -F "package: name='com.cryptoaipro.monitor' versionCode='99' versionName='2.78.0'"
+          echo "$BADGING" | grep -F "package: name='com.cryptoaipro.monitor' versionCode='100' versionName='2.79.0'"
           python - "$APK" <<'PY'
           import json, sys, zipfile
           with zipfile.ZipFile(sys.argv[1]) as apk:
@@ -95,10 +96,10 @@ jobs:
           PY
           sha256sum "$APK"
 
-      - name: Upload ZORO 2.78.0 APK
+      - name: Upload ZORO APEX 2.79.0 APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZORO-2.78.0-APK
+          name: ZORO-APEX-2.79.0-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
