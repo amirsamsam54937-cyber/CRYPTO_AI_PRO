@@ -25,8 +25,8 @@ import kotlin.math.max
 /** Persistent simulated execution engine. It has no exchange account or order API access. */
 internal object HopePaperTradingEngine {
     private const val PREFS = "hope_paper_ledger"
-    private const val KEY = "ledger_v1"
-    private const val STARTING_EQUITY = 1000.0
+    // A fresh v2 ledger deliberately starts at $10. The previous $1,000 research ledger is left untouched for audit/history.\n    private const val KEY = "ledger_v2"
+    private const val STARTING_EQUITY = 10.0
     private const val FEE_PER_SIDE = 0.0006
     private const val SLIPPAGE_PER_SIDE = 0.0005
     private const val ESTIMATED_FUNDING_PER_8H = 0.0001
