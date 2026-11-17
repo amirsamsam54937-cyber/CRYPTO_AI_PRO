@@ -11,7 +11,7 @@ import kotlin.math.sqrt
  * Explainable OHLCV technical-analysis stack. Scores are evidence indices, never win probabilities.
  * Input rows are [open, high, low, close, volume, timestamp].
  */
-internal object ZoroAdvancedTechnicalEngine {
+object ZoroAdvancedTechnicalEngine {
     data class Metric(val name: String, val value: String, val interpretation: String)
     data class Level(val name: String, val price: Double)
     data class Report(
