@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Train ten compact MLPs on historical Binance USD-M Futures candles."""
-import json, os, time, urllib.request
+import csv, json, os, time, urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 from sklearn.neural_network import MLPClassifier
@@ -80,7 +80,7 @@ def make_rows(raw):
         np.clip((rv-1.0)/2.0,-1.0,1.0),
         np.where(body>.25,1.0,np.where(body<-.25,-1.0,0.0))*direction,
         np.clip((atr_pct-2.0)/5.0,-1.0,1.0),
-        np.abs(raw_score)/100.0
+        raw_score/100.0
     ])
     future = np.roll(c,-HORIZON)/c-1.0
     y = (future*direction > .0025).astype(int)
@@ -93,19 +93,44 @@ def fetch_symbol_samples(symbol):
     x,y,t=make_rows(raw)
     return symbol,x,y,t
 
+def load_seed_samples():
+    path="app/src/main/assets/market_seed.csv"
+    if not os.path.exists(path):
+        return None
+    grouped={}
+    with open(path,newline="",encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("timeframe") != "1h":
+                continue
+            symbol=row["symbol"].upper()
+            grouped.setdefault(symbol,[]).append([
+                float(row["timestamp"]),float(row["open"]),float(row["high"]),
+                float(row["low"]),float(row["close"]),float(row["volume"]),0.0
+            ])
+    return grouped
+
 def main():
     chunks=[]
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        futures={pool.submit(fetch_symbol_samples,symbol):symbol for symbol in SYMBOLS}
-        for future in as_completed(futures):
-            symbol=futures[future]
-            try:
-                _,x,y,t=future.result()
-                if len(x)>100:
-                    chunks.append((x,y,t))
-                print(f"{symbol}: {len(x)} labeled samples",flush=True)
-            except Exception as exc:
-                print(f"SKIP {symbol}: {exc}",flush=True)
+    seeded=load_seed_samples()
+    if seeded:
+        for symbol,raw in seeded.items():
+            raw=sorted(raw,key=lambda row:row[0])
+            x,y,t=make_rows(raw)
+            if len(x)>100:
+                chunks.append((x,y,t))
+            print(f"REAL SEED {symbol}: {len(x)} labeled samples",flush=True)
+    else:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures={pool.submit(fetch_symbol_samples,symbol):symbol for symbol in SYMBOLS}
+            for future in as_completed(futures):
+                symbol=futures[future]
+                try:
+                    _,x,y,t=future.result()
+                    if len(x)>100:
+                        chunks.append((x,y,t))
+                    print(f"{symbol}: {len(x)} labeled samples",flush=True)
+                except Exception as exc:
+                    print(f"SKIP {symbol}: {exc}",flush=True)
     if not chunks:
         raise SystemExit("No real historical data received; refusing to create fake pretrained weights.")
     X=np.vstack([item[0] for item in chunks])

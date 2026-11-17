@@ -1,10 +1,15 @@
-name: Build AMIR ARSALAN TRADER WOLF 2.16 Android APK
+name: Build AMIR ARSALAN TRADER WOLF 2.18 Android APK
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * 1' # Weekly public-market refresh and model retraining
   push:
     paths:
+      - "README.md"
       - "app/**"
-      - "tools/train_wolf_ensemble.py"
+      - "tools/**"
+      - "knowledge/**"
+      - "docs/**"
       - "*.gradle.kts"
       - "settings.gradle.kts"
       - "gradle.properties"
@@ -12,7 +17,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -22,34 +27,57 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install research test dependencies
-        run: python -m pip install --upgrade pip numpy scikit-learn pytest
+      - name: Install real-data collection and neural training dependencies
+        run: python -m pip install --upgrade pip numpy scikit-learn pytest ccxt
       - name: Test chronological training split
         run: PYTHONPATH=. pytest -q tests/test_wolf_training.py
-      - name: Train ten neural networks when canonical Binance data is available
-        run: |
-          set +e
-          python tools/train_wolf_ensemble.py 2>&1 | tee wolf_training.log
-          train_status=${PIPESTATUS[0]}
-          set -e
-          if [ "$train_status" -ne 0 ]; then
-            if grep -q "HTTP Error 451" wolf_training.log && grep -q "No real historical data received" wolf_training.log; then
-              echo "::warning::Binance returned HTTP 451. Respecting the denial; packaging the analysis app without fabricated or mirror-trained neural weights."
-              printf '%s\n' '{"status":"not_trained","validatedForScoring":false,"reason":"Canonical Binance public endpoint returned HTTP 451; no alternate host or mirror was used."}' > wolf_model_training_report.json
-            else
-              exit "$train_status"
-            fi
-          fi
+      - name: Collect up to 200,000 real closed futures candles
+        run: python tools/build_real_market_seed.py
+      - name: Train ten deep neural networks on collected real candles
+        run: python tools/train_wolf_ensemble.py
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
       - name: Build Android APK
         run: gradle assembleDebug
+      - name: Verify real data, ten trained networks and APK contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          SIZE=$(stat -c%s "$APK")
+          echo "APK size: $SIZE bytes"
+          unzip -l "$APK" | grep -q "assets/market_seed.csv"
+          unzip -l "$APK" | grep -q "assets/wolf_pretrained_ensemble.json"
+          unzip -l "$APK" | grep -q "wolf_poster.jpg"
+          python - <<'PY'
+          import csv, json, os
+          with open("market_seed_manifest.json", encoding="utf-8") as f:
+              manifest=json.load(f)
+          assert manifest["status"] == "verified_real_exchange_data"
+          assert 150000 <= manifest["rows"] <= 500000
+          assert manifest["synthetic_rows"] == 0
+          assert manifest["source_exchanges"]
+          with open("app/src/main/assets/market_seed.csv", newline="", encoding="utf-8") as f:
+              assert sum(1 for _ in csv.reader(f)) == manifest["rows"] + 1
+          with open("wolf_model_training_report.json", encoding="utf-8") as f:
+              model=json.load(f)
+          assert model["samples"] >= 500
+          assert len(model["metrics"]) == 10
+          assert model["evaluation"]["split"] == "chronological_purged"
+          print("Verified real candle rows:", manifest["rows"])
+          print("Verified symbols:", manifest["symbols"])
+          print("Source exchanges:", manifest["source_exchanges"])
+          print("Neural training samples:", model["samples"])
+          print("APK bytes:", os.path.getsize("app/build/outputs/apk/debug/app-debug.apk"))
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: AMIR-ARSALAN-TRADER-WOLF-v2.16.0
+          name: AMIR-ARSALAN-TRADER-WOLF-v2.18.0
           path: |
             app/build/outputs/apk/debug/app-debug.apk
+            market_seed_manifest.json
             wolf_model_training_report.json
           if-no-files-found: error
           retention-days: 30

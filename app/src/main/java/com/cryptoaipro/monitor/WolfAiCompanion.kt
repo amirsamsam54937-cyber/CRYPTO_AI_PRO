@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -116,6 +117,12 @@ internal object WolfKnowledgeSearch {
 
 @Composable
 internal fun WolfAiCompanionScreen() {
+    val context = LocalContext.current
+    val learningPrefs = remember { context.getSharedPreferences("wolf_learning_memory", android.content.Context.MODE_PRIVATE) }
+    val replayCount = remember {
+        runCatching { JSONArray(learningPrefs.getString("wolf_dnn_replay_v1", "[]")).length() }.getOrDefault(0)
+    }
+    val learnedCount = remember { learningPrefs.getInt("samples", 0) }
     val messages = remember {
         mutableStateListOf(
             WolfChatMessage(
@@ -137,7 +144,10 @@ internal fun WolfAiCompanionScreen() {
             Column(Modifier.padding(14.dp)) {
                 Text("WOLF AI • مغز دانشی", color = Color.White, fontSize = 18.sp)
                 Text("دانشنامه آفلاین: ${WolfCryptoKnowledgeBase.entryCount() + WolfMarketKnowledge.count()} مدخل تخصصی + جست‌وجوی وب", color = muted, fontSize = 10.sp)
-                Text("بدون اتصال به حساب صرافی یا امکان ثبت سفارش", color = Color(0xFF27D6A0), fontSize = 10.sp)
+                Text("۱۰ تحلیلگر تخصصی • شبکه عصبی عمیق • یادگیری آنلاین با حافظه بازپخش", color = Color(0xFF55B8FF), fontSize = 10.sp)
+                Text("نمونه‌های ارزیابی‌شده: $learnedCount  |  حافظه بازپخش: $replayCount / 256", color = muted, fontSize = 10.sp)
+                Text("ابزارها: EMA/SMA، RSI، MACD، ADX، ATR، VWAP، باند بولینگر، حجم، ساختار بازار، BOS/CHOCH، FVG، نقدینگی و چندتایم‌فریمی", color = muted, fontSize = 9.sp, lineHeight = 14.sp)
+                Text("بدون اتصال به حساب صرافی یا امکان ثبت سفارش؛ یادگیری وزن‌های مدل با نتایج سیگنال‌های ثبت‌شده انجام می‌شود.", color = Color(0xFF27D6A0), fontSize = 10.sp)
             }
         }
         Spacer(Modifier.height(10.dp))

@@ -17,6 +17,8 @@ internal object WolfDeepNeuralNetwork {
     private const val H2 = 8
     private const val KEY = "wolf_dnn_v1"
     private const val LEGACY_KEY = "wolf_model_weights"
+    private const val REPLAY_KEY = "wolf_dnn_replay_v1"
+    private const val MAX_REPLAY = 256
 
     private data class Model(
         val w1: Array<DoubleArray>, val b1: DoubleArray,
@@ -110,33 +112,87 @@ internal object WolfDeepNeuralNetwork {
     fun predict(prefs: SharedPreferences, signal: MarketSignal): Double =
         forward(load(prefs), features(signal)).output.coerceIn(0.01, 0.99)
 
+    /**
+     * Online replay learning: every confirmed paper outcome is retained in a bounded,
+     * local replay buffer. Small balanced batches reduce catastrophic forgetting from
+     * training only on the newest result. This updates the on-device scorer, not the
+     * ten pretrained ensemble and never changes APK code.
+     */
     @Synchronized
     fun learn(prefs: SharedPreferences, signal: MarketSignal, outcome: Double) {
-        val m = load(prefs)
+        if (!outcome.isFinite()) return
         val x = features(signal)
+        if (x.any { !it.isFinite() }) return
         val target = outcome.coerceIn(0.0, 1.0)
-        // A few conservative passes over the newly reviewed example.
-        repeat(4) {
-            val f = forward(m, x)
-            val d3 = (f.output - target)
-            val gradW3 = DoubleArray(H2) { j -> d3 * f.h2[j] }
-            val delta2 = DoubleArray(H2) { j -> d3 * m.w3[j] * (1.0 - f.h2[j] * f.h2[j]) }
-            val delta1 = DoubleArray(H1) { j ->
-                val back = (0 until H2).sumOf { k -> m.w2[k][j] * delta2[k] }
-                back * (1.0 - f.h1[j] * f.h1[j])
-            }
-            val rate = 0.008
-            for (j in 0 until H2) {
-                m.w3[j] = (m.w3[j] - rate * (gradW3[j] + 0.0005 * m.w3[j])).coerceIn(-5.0, 5.0)
-                for (k in 0 until H1) m.w2[j][k] = (m.w2[j][k] - rate * (delta2[j] * f.h1[k] + 0.0005 * m.w2[j][k])).coerceIn(-5.0, 5.0)
-                m.b2[j] = (m.b2[j] - rate * delta2[j]).coerceIn(-5.0, 5.0)
-            }
-            m.b3 = (m.b3 - rate * d3).coerceIn(-5.0, 5.0)
-            for (j in 0 until H1) {
-                for (k in 0 until INPUTS) m.w1[j][k] = (m.w1[j][k] - rate * (delta1[j] * x[k] + 0.0005 * m.w1[j][k])).coerceIn(-5.0, 5.0)
-                m.b1[j] = (m.b1[j] - rate * delta1[j]).coerceIn(-5.0, 5.0)
-            }
+        val replay = runCatching {
+            JSONArray(prefs.getString(REPLAY_KEY, "[]") ?: "[]")
+        }.getOrDefault(JSONArray())
+
+        replay.put(JSONObject().apply {
+            put("x", JSONArray().also { values -> x.forEach { values.put(it) } })
+            put("y", target)
+            put("time", System.currentTimeMillis())
+        })
+        while (replay.length() > MAX_REPLAY) replay.remove(0)
+
+        val examples = (0 until replay.length()).mapNotNull { index ->
+            val row = replay.optJSONObject(index) ?: return@mapNotNull null
+            val values = row.optJSONArray("x") ?: return@mapNotNull null
+            if (values.length() != INPUTS) return@mapNotNull null
+            val features = DoubleArray(INPUTS) { values.optDouble(it, Double.NaN) }
+            val label = row.optDouble("y", Double.NaN)
+            if (features.any { !it.isFinite() } || !label.isFinite()) null
+            else features to label.coerceIn(0.0, 1.0)
         }
-        prefs.edit().putString(KEY, encode(m)).apply()
+        if (examples.isEmpty()) return
+
+        // Use up to 12 examples from each class when available; keep the newest examples.
+        val positives = examples.filter { it.second >= 0.5 }.takeLast(12)
+        val negatives = examples.filter { it.second < 0.5 }.takeLast(12)
+        // Do not adapt weights from a one-sided sample stream. Keep collecting until
+        // both outcomes have enough observations to form a minimally balanced batch.
+        if (positives.size < 4 || negatives.size < 4) {
+            prefs.edit()
+                .putString(REPLAY_KEY, replay.toString())
+                .putInt("wolf_replay_examples", examples.size)
+                .apply()
+            return
+        }
+        val batch = positives + negatives
+        val model = load(prefs)
+        repeat(2) {
+            batch.forEach { (features, label) -> trainStep(model, features, label, 0.003) }
+        }
+
+        prefs.edit()
+            .putString(KEY, encode(model))
+            .putString(REPLAY_KEY, replay.toString())
+            .putInt("wolf_replay_examples", examples.size)
+            .putLong("wolf_last_replay_training", System.currentTimeMillis())
+            .apply()
     }
-}
+
+    private fun trainStep(m: Model, x: DoubleArray, target: Double, rate: Double) {
+        val f = forward(m, x)
+        val d3 = f.output - target
+        val gradW3 = DoubleArray(H2) { j -> d3 * f.h2[j] }
+        val delta2 = DoubleArray(H2) { j -> d3 * m.w3[j] * (1.0 - f.h2[j] * f.h2[j]) }
+        val delta1 = DoubleArray(H1) { j ->
+            val back = (0 until H2).sumOf { k -> m.w2[k][j] * delta2[k] }
+            back * (1.0 - f.h1[j] * f.h1[j])
+        }
+        for (j in 0 until H2) {
+            m.w3[j] = (m.w3[j] - rate * (gradW3[j] + 0.0005 * m.w3[j])).coerceIn(-5.0, 5.0)
+            for (k in 0 until H1) {
+                m.w2[j][k] = (m.w2[j][k] - rate * (delta2[j] * f.h1[k] + 0.0005 * m.w2[j][k])).coerceIn(-5.0, 5.0)
+            }
+            m.b2[j] = (m.b2[j] - rate * delta2[j]).coerceIn(-5.0, 5.0)
+        }
+        m.b3 = (m.b3 - rate * d3).coerceIn(-5.0, 5.0)
+        for (j in 0 until H1) {
+            for (k in 0 until INPUTS) {
+                m.w1[j][k] = (m.w1[j][k] - rate * (delta1[j] * x[k] + 0.0005 * m.w1[j][k])).coerceIn(-5.0, 5.0)
+            }
+            m.b1[j] = (m.b1[j] - rate * delta1[j]).coerceIn(-5.0, 5.0)
+        }
+    }
