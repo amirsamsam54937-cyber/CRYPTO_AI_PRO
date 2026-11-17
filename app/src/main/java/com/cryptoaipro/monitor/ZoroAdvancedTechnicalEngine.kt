@@ -82,12 +82,12 @@ internal object ZoroAdvancedTechnicalEngine {
         val ichiKijun = midpoint(h.takeLast(26), l.takeLast(26))
         val ichiSpanA = (ichiTenkan+ichiKijun)/2.0
         val ichiSpanB = midpoint(h.takeLast(52), l.takeLast(52))
-        val supertrend = when {
-            last > (midpoint(h.takeLast(10),l.takeLast(10)) + 3.0*atr) -> "صعودی"
-            last < (midpoint(h.takeLast(10),l.takeLast(10)) - 3.0*atr) -> "نزولی"
-            last >= midpoint(h.takeLast(10),l.takeLast(10)) -> "مایل به صعود"
-            else -> "مایل به نزول"
-        }
+        val supertrend = supertrendDirection(h,l,c,10,3.0)
+        val psar = parabolicSar(h,l,c)
+        val cmf = chaikinMoneyFlow(h,l,c,v,20)
+        val aroon = aroonOscillator(h,l,25)
+        val donchian = channelPosition(h,l,20)
+        val keltner = keltnerPosition(h,l,c,20,2.0)
 
         val pivots = pivots(h,l,2,2).takeLast(30)
         val highs = pivots.filter { it.high }
@@ -117,6 +117,13 @@ internal object ZoroAdvancedTechnicalEngine {
             if (resistance != null) add(Level("مقاومت ساختاری",resistance))
             addAll(fib)
             add(Level("VWAP",vwap))
+            val previousHigh=h.getOrElse(h.lastIndex-1){h.last()}
+            val previousLow=l.getOrElse(l.lastIndex-1){l.last()}
+            val previousClose=c.getOrElse(c.lastIndex-1){c.last()}
+            val pivot=(previousHigh+previousLow+previousClose)/3.0
+            add(Level("Pivot کلاسیک",pivot))
+            add(Level("Pivot R1",2.0*pivot-previousLow))
+            add(Level("Pivot S1",2.0*pivot-previousHigh))
             add(Level("ابر ایچیموکو A",ichiSpanA))
             add(Level("ابر ایچیموکو B",ichiSpanB))
         }.filter { it.price.isFinite() && it.price > 0.0 }.distinctBy { (it.price*1e8).toLong() }
@@ -206,7 +213,12 @@ internal object ZoroAdvancedTechnicalEngine {
             Metric("Relative Volume",fmt(relativeVolume)+"x",volumeState),
             Metric("OBV trend",fmt(obvTrend),"شیب حجم تجمعی"),
             Metric("Ichimoku",if(last>=ichiSpanA && last>=ichiSpanB) "بالای ابر" else if(last<ichiSpanA && last<ichiSpanB) "زیر ابر" else "داخل ابر","تنکان "+fmt(ichiTenkan)+" • کیجون "+fmt(ichiKijun)),
-            Metric("Supertrend proxy",supertrend,"تقریب مبتنی بر ATR؛ نه جایگزین پیاده‌سازی مرجع"),
+            Metric("Supertrend 10,3",supertrend,"جهت روند با باندهای ATR و بازگشت روند"),
+            Metric("Parabolic SAR",fmt(psar),if(last>psar) "قیمت بالای SAR" else "قیمت زیر SAR"),
+            Metric("Chaikin Money Flow",fmt(cmf),if(cmf>0.05) "انباشت پول" else if(cmf< -0.05) "توزیع پول" else "جریان پول خنثی"),
+            Metric("Aroon Oscillator",fmt(aroon),if(aroon>50) "روند صعودی تازه‌تر" else if(aroon< -50) "روند نزولی تازه‌تر" else "قدرت روند متعادل"),
+            Metric("Donchian 20",fmt(donchian)+"٪","موقعیت قیمت در کانال ۲۰ دوره"),
+            Metric("Keltner 20,2",fmt(keltner)+"٪","موقعیت قیمت در کانال EMA/ATR"),
             Metric("Fibonacci",fib.joinToString(" / ") { fmt(it.price) },"سطوح بازگشتی از دامنه ۱۲۰ کندل")
         )
         return Report(
@@ -220,6 +232,72 @@ internal object ZoroAdvancedTechnicalEngine {
                 "الگوهای کلاسیک و کندلی احتمالی‌اند؛ شکست خط گردن/سطح و حجم تأیید لازم دارند."
             )
         )
+    }
+
+    private fun supertrendDirection(h: List<Double>,l: List<Double>,c: List<Double>,period: Int,multiplier: Double): String {
+        if(c.size<period+3) return "نامشخص"
+        val ranges=(1 until c.size).map { i -> max(h[i]-l[i],max(abs(h[i]-c[i-1]),abs(l[i]-c[i-1]))) }
+        var atrValue=avg(ranges.take(period))
+        var upper=(h[period]+l[period])/2.0+multiplier*atrValue
+        var lower=(h[period]+l[period])/2.0-multiplier*atrValue
+        var directionUp=c[period]>=((h[period]+l[period])/2.0)
+        for(i in period+1 until c.size) {
+            atrValue=avg(ranges.subList(max(0,i-period),i))
+            val mid=(h[i]+l[i])/2.0
+            val basicUpper=mid+multiplier*atrValue
+            val basicLower=mid-multiplier*atrValue
+            upper=if(basicUpper<upper || c[i-1]>upper) basicUpper else upper
+            lower=if(basicLower>lower || c[i-1]<lower) basicLower else lower
+            directionUp=if(directionUp) c[i]>=lower else c[i]>upper
+        }
+        return if(directionUp) "صعودی" else "نزولی"
+    }
+    private fun parabolicSar(h: List<Double>,l: List<Double>,c: List<Double>): Double {
+        if(c.size<3) return c.lastOrNull() ?: 0.0
+        var up=c[1]>=c[0]
+        var sar=if(up) min(l[0],l[1]) else max(h[0],h[1])
+        var extreme=if(up) max(h[0],h[1]) else min(l[0],l[1])
+        var acceleration=0.02
+        for(i in 2 until c.size) {
+            sar += acceleration*(extreme-sar)
+            if(up) {
+                sar=min(sar,min(l[i-1],l[i-2]))
+                if(l[i]<sar) { up=false; sar=extreme; extreme=l[i]; acceleration=0.02 }
+                else if(h[i]>extreme) { extreme=h[i]; acceleration=min(0.20,acceleration+0.02) }
+            } else {
+                sar=max(sar,max(h[i-1],h[i-2]))
+                if(h[i]>sar) { up=true; sar=extreme; extreme=h[i]; acceleration=0.02 }
+                else if(l[i]<extreme) { extreme=l[i]; acceleration=min(0.20,acceleration+0.02) }
+            }
+        }
+        return sar
+    }
+    private fun chaikinMoneyFlow(h: List<Double>,l: List<Double>,c: List<Double>,v: List<Double>,period: Int): Double {
+        val start=max(0,c.size-period); var flow=0.0; var volume=0.0
+        for(i in start until c.size) {
+            val range=(h[i]-l[i]).coerceAtLeast(1e-12)
+            val multiplier=((c[i]-l[i])-(h[i]-c[i]))/range
+            flow+=multiplier*v[i]; volume+=v[i]
+        }
+        return if(volume<=1e-12) 0.0 else flow/volume
+    }
+    private fun aroonOscillator(h: List<Double>,l: List<Double>,period: Int): Double {
+        val hs=h.takeLast(period); val ls=l.takeLast(period)
+        val highIndex=hs.indices.maxByOrNull { hs[it] } ?: return 0.0
+        val lowIndex=ls.indices.minByOrNull { ls[it] } ?: return 0.0
+        val up=(highIndex+1).toDouble()/period*100.0
+        val down=(lowIndex+1).toDouble()/period*100.0
+        return up-down
+    }
+    private fun channelPosition(h: List<Double>,l: List<Double>,period: Int): Double {
+        val hi=h.takeLast(period).maxOrNull() ?: return 50.0
+        val lo=l.takeLast(period).minOrNull() ?: return 50.0
+        return if(hi-lo<=1e-12) 50.0 else ((cSafeLast(h,l)-lo)/(hi-lo)*100.0).coerceIn(0.0,100.0)
+    }
+    private fun cSafeLast(h: List<Double>,l: List<Double>): Double = (h.last()+l.last())/2.0
+    private fun keltnerPosition(h: List<Double>,l: List<Double>,c: List<Double>,period: Int,multiplier: Double): Double {
+        val middle=ema(c,period); val width=atr(h,l,c,period)*multiplier
+        return if(width<=1e-12) 50.0 else ((c.last()-(middle-width))/(2.0*width)*100.0).coerceIn(0.0,100.0)
     }
 
     private fun valid(x: DoubleArray): Boolean = x.size>=6 && x.take(6).all { it.isFinite() } &&
@@ -349,6 +427,10 @@ internal object ZoroAdvancedTechnicalEngine {
             val prevBody=abs(c[i-1]-o[i-1])
             if(bullish && c[i-1]<o[i-1] && o[i]<=c[i-1] && c[i]>=o[i-1] && body>prevBody) out+="پوشای صعودی"
             if(bearish && c[i-1]>o[i-1] && o[i]>=c[i-1] && c[i]<=o[i-1] && body>prevBody) out+="پوشای نزولی"
+            if(c[i-1]<o[i-1] && bullish && o[i]<l[i-1]+(h[i-1]-l[i-1])*0.35 && c[i]>(o[i-1]+c[i-1])/2.0) out+="خط نفوذی صعودی"
+            if(c[i-1]>o[i-1] && bearish && o[i]>h[i-1]-(h[i-1]-l[i-1])*0.35 && c[i]<(o[i-1]+c[i-1])/2.0) out+="پوشش ابر تیره"
+            if(h[i]<h[i-1] && l[i]>l[i-1]) out+="Inside Bar • فشردگی"
+            if(h[i]>h[i-1] && l[i]<l[i-1]) out+="Outside Bar • گسترش دامنه"
             if(body<=prevBody*0.55 && (min(o[i],c[i])>=min(o[i-1],c[i-1])) &&
                 (max(o[i],c[i])<=max(o[i-1],c[i-1]))) out+="هارامی/کاهش بدنه"
         }
