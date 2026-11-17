@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - zoro-gen30-multihorizon-truth
+      - apex-zoro-xt-connection-redesign
 
 permissions:
   contents: read
