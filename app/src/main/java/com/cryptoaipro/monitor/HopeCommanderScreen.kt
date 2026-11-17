@@ -490,7 +490,7 @@ private fun CommanderCandlestickChart(signal: MarketSignal) {
         }
         return
     }
-    val levels = listOf(signal.entry, signal.stop, signal.tp1, signal.tp2, signal.tp3).filter { it.isFinite() && it > 0 }
+    val levels = (listOf(signal.entry, signal.stop, signal.tp1, signal.tp2, signal.tp3) + signal.advancedTechnical?.levels.orEmpty().map { it.price }).filter { it.isFinite() && it > 0 }
     val low = min(candles.minOf { it[2] }, levels.minOrNull() ?: candles.minOf { it[2] })
     val high = max(candles.maxOf { it[1] }, levels.maxOrNull() ?: candles.maxOf { it[1] })
     val span = (high-low).takeIf { it > 0 } ?: 1.0
@@ -514,7 +514,8 @@ private fun CommanderCandlestickChart(signal: MarketSignal) {
             val bodyBottom = max(y(c[0]),y(c[3]))
             drawRect(color, Offset(x-step*.29f,bodyTop), androidx.compose.ui.geometry.Size(max(1.dp.toPx(),step*.58f), max(1.dp.toPx(),bodyBottom-bodyTop)))
         }
-        val lineLevels = listOf(signal.entry to HGold, signal.stop to HRed, signal.tp1 to HMint)
+        val lineLevels = listOf(signal.entry to HGold, signal.stop to HRed, signal.tp1 to HMint) +
+            signal.advancedTechnical?.levels.orEmpty().take(4).map { it.price to Color(0xFF78877D) }
         lineLevels.forEach { (price,color) ->
             if (price.isFinite() && price in low..high) {
                 val yy = y(price)
