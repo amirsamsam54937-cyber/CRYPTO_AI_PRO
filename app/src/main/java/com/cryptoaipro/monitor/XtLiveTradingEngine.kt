@@ -15,8 +15,8 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * XT USDT-M execution with separate manual-confirmed and explicitly armed automatic paths.
- * Automatic scans may submit at most one qualified candidate per scan only when LIVE,
- * auto mode, credentials, validated neural bundle, account checks and every risk gate pass.
+ * Automatic scans may submit at most one qualified technical candidate per scan only when LIVE,
+ * auto mode, credentials, account checks and every risk gate pass. Neural validation is advisory.
  * Manual execution still requires a reviewed preview and explicit confirmation.
  * All gates fail closed. Ambiguous order POSTs are reconciled, never blindly retried.
  */
