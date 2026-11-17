@@ -29,6 +29,8 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
       - name: Download the verified XT-only neural bundle
         uses: actions/download-artifact@v4
@@ -63,7 +65,7 @@ jobs:
           PY
 
       - name: Run Android unit tests and assemble installable APK
-        run: ./gradlew testDebugUnitTest assembleDebug --no-daemon
+        run: gradle testDebugUnitTest assembleDebug --no-daemon
 
       - name: Verify APK package, version and embedded model assets
         shell: bash
