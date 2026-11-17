@@ -264,3 +264,53 @@ def test_stop_market_exit_uses_worse_open_when_price_gaps_through_stop(monkeypat
     assert trade["net_pnl"] == pytest.approx(-20.0)
     assert result["final_equity"] == pytest.approx(980.0)
     assert result["assumptions"]["stop_gap_rule"].startswith("use opening price")
+
+
+@pytest.mark.parametrize(
+    ("side", "funding_rate", "expected_sign"),
+    [
+        ("LONG", 0.001, 1.0),
+        ("SHORT", 0.001, -1.0),
+        ("LONG", -0.001, -1.0),
+        ("SHORT", -0.001, 1.0),
+    ],
+)
+def test_funding_cashflow_sign_tracks_position_side_and_signed_rate(
+    monkeypatch, side, funding_rate, expected_sign
+):
+    frame = sample_frame(103)
+    frame.loc[100:102, ["open", "high", "low", "close"]] = [
+        100.0, 100.5, 99.5, 100.0
+    ]
+    # Position opens at bar 101 and is liquidated eight hours later at bar 102.
+    frame.loc[102, "timestamp"] = (
+        frame.loc[101, "timestamp"] + pd.Timedelta(hours=8)
+    )
+    direction = "LONG_BIAS" if side == "LONG" else "SHORT_BIAS"
+    monkeypatch.setattr(
+        "app.backtest.analyze_ohlcv",
+        lambda history: {"direction": direction, "atr": 1.0},
+    )
+
+    result = run_backtest(
+        frame,
+        initial_equity=1000.0,
+        risk_per_trade=0.01,
+        max_leverage=1.0,
+        fee_rate=0.0,
+        slippage_rate=0.0,
+        funding_rate_8h=funding_rate,
+        warmup=100,
+    )
+
+    assert result["trade_count"] == 1
+    trade = result["trades"][0]
+    expected_funding = (
+        trade["quantity"] * abs(trade["entry"]) * funding_rate * expected_sign
+    )
+    assert trade["funding_estimate"] == pytest.approx(expected_funding)
+    assert trade["net_pnl"] == pytest.approx(-expected_funding)
+    assert result["final_equity"] == pytest.approx(1000.0 - expected_funding)
+    assert "positive rates charge LONG and credit SHORT" in (
+        result["assumptions"]["funding_cashflow_convention"]
+    )
