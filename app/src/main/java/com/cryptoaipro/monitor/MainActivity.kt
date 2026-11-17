@@ -147,8 +147,8 @@ data class TechnicalSnapshot(
 
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
     // The ten-expert model reads completed 1h OHLCV candles plus chart-derived technical features.
-    // Until strict chronological holdout validation passes, HopeCommander caps its coherent-panel
-    // research contribution at 8%; technical quality gates still control signal publication.
+    // Until strict chronological holdout validation passes, neural outputs remain visible as
+    // research context only; the commander uses independent technical evidence for direction.
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
     // Historical 6h outcomes calibrate member influence only after a minimum sample count.
     val adaptiveMemberWeights = WolfNeuralForecastJournal.adaptiveMemberWeights(context)
@@ -163,8 +163,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             neuralModelSource = if (pretrainedStatus.validatedForScoring) "۱۰ مدل • چارت ۱ساعته OHLCV + اندیکاتورها • افق ۶ساعت • معتبر" else "۱۰ مدل • در انتظار اعتبارسنجی")
         else {
             // Always expose all ten chart-conditioned specialist outputs. Unvalidated outputs
-            // remain experimental: HopeCommander may apply only its bounded 8% research blend
-            // when the full panel is coherent; they cannot independently flip technical direction.
+            // are advisory-only and have zero directional-score influence until strict validation.
             val research = WolfPretrainedEnsemble.predictResearch(candidate, adaptiveMemberWeights)
             val uncertainty = WolfEnsembleUncertainty.analyze(research?.memberProbabilities.orEmpty())
             val memberVotes = research?.let { prediction ->
