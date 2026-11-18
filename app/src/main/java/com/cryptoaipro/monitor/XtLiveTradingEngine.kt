@@ -61,11 +61,13 @@ internal object XtLiveTradingEngine {
     fun isAutoEnabled(context: Context): Boolean =
         prefs(context).getBoolean(KEY_AUTO_ENABLED, false) &&
             isEnabled(context) && !isEmergencyStopped(context) &&
-            XtCredentialVault.hasCredentials(context)
+            XtCredentialVault.hasCredentials(context) &&
+            XtCredentialVault.isConnectionVerified(context)
 
     fun canArmAutomatic(context: Context): Boolean =
         isEnabled(context) && !isEmergencyStopped(context) &&
-            XtCredentialVault.hasCredentials(context)
+            XtCredentialVault.hasCredentials(context) &&
+            XtCredentialVault.isConnectionVerified(context)
 
     fun setAutoEnabled(context: Context, enabled: Boolean) {
         val allowed = enabled && canArmAutomatic(context)
@@ -101,10 +103,14 @@ internal object XtLiveTradingEngine {
     }
 
     fun setEnabled(context: Context, enabled: Boolean) {
-        val editor = prefs(context).edit().putBoolean(KEY_ENABLED, enabled)
+        val safeEnabled = enabled && XtCredentialVault.hasCredentials(context) &&
+            XtCredentialVault.isConnectionVerified(context) && !isEmergencyStopped(context)
+        val editor = prefs(context).edit().putBoolean(KEY_ENABLED, safeEnabled)
         if (!enabled) editor.putBoolean(KEY_AUTO_ENABLED, false)
-        editor.putString(KEY_STATUS, if (enabled)
-            "حالت LIVE مسلح شد؛ فعال‌سازی خودکار جداگانه است و به اعتبارسنجی مدل عصبی وابسته نیست؛ کنترل‌های ریسک اجباری‌اند."
+        editor.putString(KEY_STATUS, if (safeEnabled)
+            "حالت LIVE مسلح شد؛ اتصال خصوصی و مجوزهای Futures قبلاً تأیید شده‌اند. کنترل‌های ریسک اجباری‌اند."
+        else if (enabled)
+            "فعال‌سازی LIVE رد شد؛ ابتدا اتصال XT و مجوزهای Futures را با موفقیت آزمایش کن."
         else "حالت LIVE غیرفعال شد؛ معامله‌گر خودکار و سفارش‌های جدید متوقف شدند.")
         editor.apply()
     }
