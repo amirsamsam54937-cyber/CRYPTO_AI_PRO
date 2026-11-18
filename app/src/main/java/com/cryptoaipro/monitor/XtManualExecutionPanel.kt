@@ -124,7 +124,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                     Text(
                         when {
                             autoEnabled -> "فعال • یک فرصت برتر در هر اسکن، با کنترل کامل ریسک"
-                            !modelValidated -> "قفل ایمنی: مدل عصبی هنوز آزمون مستقل را پاس نکرده است"
+                            !modelValidated -> "مدل عصبی مشورتی است؛ اجرای خودکار فقط با اجماع تکنیکال و کنترل ریسک مستقل انجام می‌شود"
                             !enabled -> "ابتدا حالت LIVE را مسلح کن"
                             else -> "خاموش • فقط با روشن‌کردن این کلید سفارش خودکار مجاز می‌شود"
                         },
