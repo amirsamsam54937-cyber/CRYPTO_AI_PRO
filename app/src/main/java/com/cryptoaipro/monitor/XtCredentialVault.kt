@@ -130,7 +130,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
             Text("اتصال امن XT Futures • حساب و مجوزها", color = ivory,
                 fontSize = 14.sp, fontWeight = FontWeight.Black)
             Text(
-                "آزمایش اتصال فقط وضعیت حساب USDT-M Futures، موجودی، Equity، مارجین آزاد و مجوزهای حساب را می‌خواند و هیچ سفارشی ارسال نمی‌کند. سفارش واقعی فقط از پنل اجرای دستی، پس از پیش‌نمایش ریسک و تأیید نهایی جداگانه قابل ارسال است.",
+                "آزمایش اتصال فقط وضعیت حساب USDT-M Futures، موجودی، Equity، مارجین آزاد و مجوزهای حساب را می‌خواند و هیچ سفارشی ارسال نمی‌کند. پس از ذخیره کلید و موفقیت این آزمون، LIVE را در پنل پایین روشن کن؛ سپس کلید معامله‌گر خودکار فعال می‌شود.",
                 color = muted, fontSize = 10.sp, lineHeight = 15.sp
             )
             OutlinedTextField(
@@ -249,7 +249,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 modifier = Modifier.align(Alignment.End)
             ) { Text("پاک‌کردن کلیدهای ذخیره‌شده", color = gold, fontSize = 10.sp) }
             Text(
-                "اتصال یا ذخیره کلید به‌تنهایی سفارش نمی‌فرستد. اجرای واقعی فقط با فعال‌سازی دستی LIVE و تأیید جداگانه هر سفارش انجام می‌شود؛ معامله خودکار با هر اسکن غیرفعال است.",
+                "ترتیب فعال‌سازی: ۱) ذخیره امن کلید ۲) آزمایش موفق اتصال ۳) روشن‌کردن LIVE در پنل اجرای XT ۴) روشن‌کردن معامله‌گر خودکار. ورود خودکار فقط پس از تأیید سیگنال، تازگی داده، موجودی و همه کنترل‌های ریسک مجاز است.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
             )
         }
