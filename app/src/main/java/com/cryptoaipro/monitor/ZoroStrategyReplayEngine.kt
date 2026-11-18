@@ -63,7 +63,7 @@ internal object ZoroStrategyReplayEngine {
             }
         }
         val grouped = byStrategy.mapValues { (_, trades) ->
-            ZoroStrategyLab.walkForward(trades, costs, minTrainTrades = 30, minTestTrades = 15)
+            ZoroStrategyLab.walkForward(trades, costs, minTrainTrades = 70, minTestTrades = 30)
         }
         Snapshot(System.currentTimeMillis(), selected, candlesTotal,
             byStrategy.values.sumOf { it.size }, grouped, errors)
