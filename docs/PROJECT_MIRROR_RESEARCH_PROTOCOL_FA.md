@@ -256,3 +256,105 @@ A trader is only promoted from WATCHLIST to RESEARCH-APPROVED after:
 4. Performance is positive in a later untouched period and not driven by one or two outliers.
 5. The Instagram account identity is cross-linked, not inferred from a similar handle.
 6. If the source only tracks calls and not executed account trades, the classification remains PUBLIC-CALL EDGE, never VERIFIED ACCOUNT PROFIT.
+
+
+## Case G — Behavioral deconstruction: Khosro / TRH vs. other documented traders (19 Nov 2026)
+
+### G1 — Khosro / Trading Room Hunter: observable operating loop
+
+Primary sources:
+- Official Trading Room Hunter website: https://tradingroomhunter.com/
+- Official public Telegram channel: https://t.me/s/TradingRoomHunterOfficial
+- Public live-trade recap, 27 Nov 2024: https://www.youtube.com/watch?v=wfbkJm1q_rM
+- Public full-day live-trade recap, 9 Oct 2025: https://www.youtube.com/watch?v=IXQaGCtxT60
+- Third-party TRH indicator description (not an official rulebook): https://tradingfinder.net/products/indicators/tradingview/khosro-gold-strategy/
+
+Observable facts from official public material:
+1. Khosro describes himself as a scalper and frames the product as live execution/decision-making education, not a signal-selling service.
+2. The public operating cycle is pre-trade scenario -> live market observation and execution -> outcome -> weekly recap/mentorship.
+3. Official copy explicitly names execution errors: moving stops, closing winners early and allowing fear to decide.
+4. The official teaching objective is independence, not blind copying. One public student testimonial even describes becoming dependent on copying the mentor's live trades and sometimes taking a stop despite having a different analysis; this is a meaningful operational warning, not proof of mentor profitability.
+5. The official Telegram public feed exposes both "in the hunt" and "stop touched" style posts. This creates a possible source for collecting losses as well as wins, but the feed is not a complete broker statement.
+
+Publicly described TRH setup (third-party description; exact proprietary implementation unverified):
+- Establish market structure and a meaningful swing/pivot.
+- Identify an impulsive displacement and a candle that breaks structure (BoS/CHoCH).
+- Identify the last opposing origin pivot before the displacement.
+- Define a zone between the origin pivot's distal edge and the break candle's proximal edge.
+- Wait for a return to the zone rather than chase the displacement; look for reaction/confirmation.
+- Reject zones that are too wide; define stop threshold and target R multiple before entry.
+- Third-party indicator parameters mention minimum spike bars, movement power, pivot period, stop-loss threshold, RR, wide-zone filter, setup/signal display and alert.
+- The article is third-party, rated 3/5 from only seven ratings; it is a description, not independent evidence of profitability or an authenticated copy of Khosro's private rules.
+
+Important caveat: The available public evidence does not reveal the complete live execution rulebook, exact stop placement algorithm, position sizing, session filter, full sample of trades or audited net equity curve. Do not infer these missing rules.
+
+### G2 — Daan Crypto Trades: range-first, conditional market framing
+
+Sources:
+- Public trader dossier and dated call sample: https://buycrypt.com/traders/daan-crypto-trades/
+- Daan's risk-management thread: https://threadreaderapp.com/thread/1296074527823351809.html
+- Cointelegraph interview: https://cointelegraph.com/magazine/bitcoin-stacks-price-predictions-cryptocurrency-daan-crypto-trades-hall-of-flame
+
+Observable method:
+- Start with a higher-timeframe range/box rather than an isolated low-timeframe entry.
+- Mark the decisive range boundaries and levels; use weekly/daily 200 moving averages, bull-market support band, CME gaps and liquidation/order-book liquidity as context.
+- Express views conditionally ("a close above X changes the bias") and wait for the market to prove the breakout; avoid dramatic price-target certainty.
+- Separate long-term holdings from the active trading portfolio so trading PnL can be measured independently.
+- Define account size and per-trade risk before sizing. Daan's own published example uses 1% as a standard and 2% in a strong trend; this is his stated preference, not a universal prescription.
+- Dossier sample: 15 dated calls, 11 played out, 2 open and 2 against over its stated window. This is a small, selected public-call sample, not verified account PnL; affiliate links are a possible conflict to record.
+
+### G3 — Linda Bradford Raschke: preparation, selectivity and operating routine
+
+Sources:
+- Futures Radio career interview: https://futures.anthonycrudele.com/podcast/241/4/
+- Published interview on rituals and preparation: https://www.lindaraschke.net/wp-content/uploads/2013/11/rituals.pdf
+- SFO interview on routines and research: https://lindaraschke.net/wp-content/uploads/2013/12/SFO_July04.pdf
+
+Observable process:
+- Prepare scenario plans across a broad watchlist but act only when a small subset of conditions appears.
+- Use repeatable physical/mental routines to manage attention and stress.
+- Keep records and conduct continuing market research; track a limited universe and a small number of patterns rather than chasing every market move.
+- Explicitly identified over-positioning as a hard lesson; accountability and time away from markets are part of the process.
+- Her advice emphasizes foundational chart reading and confirmation/non-confirmation rather than indicator accumulation.
+
+### G4 — Cross-trader common denominator: what is actually portable
+
+The recurring edge is not one magic indicator. It is a decision architecture:
+1. Context first: define regime, higher-timeframe structure and key range/levels.
+2. Conditional thesis: state what must happen for long, short or no-trade; specify invalidation.
+3. Wait for location: avoid chasing expansion; prefer a return/retest at a pre-defined level or zone.
+4. Require evidence: structure break/hold, displacement or rejection; no single oscillator vote is sufficient.
+5. Risk before entry: compute stop distance, account risk, position size and maximum daily loss before sending the order.
+6. Execute without discretionary stop-widening; accept planned loss.
+7. Limit activity: only trade the patterns/time windows in the playbook; avoid over-positioning and revenge trades.
+8. Log every idea, including no-fill, cancelled, stop, target and manual exit; retain pre-entry timestamp and chart snapshot.
+9. Review decisions separately from outcomes: a rule-following loss is not automatically a bad trade; a lucky win is not automatically a good trade.
+10. Validate net expectancy out of sample after spread, commissions, slippage, funding and missed fills.
+
+### G5 — What ZORO should decode and test (not blindly imitate)
+
+For every public trader, collect a standardized event record:
+- Trader/source identity and evidence grade
+- Original publication timestamp and immutable source URL
+- Instrument, venue, timeframe, side and market regime
+- Pre-entry thesis and higher-timeframe bias
+- Key swing/range levels, liquidity reference, break/shift event
+- Entry type (market/limit/confirmation), entry zone, stop, target and planned R
+- Whether a call was edited/deleted, filled, missed or invalidated
+- Partial exits, stop movement, re-entry, time in trade and final exit
+- Gross result and net result after realistic costs
+- Full sample denominator, including losses and no-trades where relevant
+
+Compare traders on expectancy in R, profit factor, maximum drawdown, average win/loss, tail loss, exposure/time in market, trade frequency, consecutive loss distribution and stability across market regimes. Do not rank by win rate or screenshots alone.
+
+### G6 — Evidence boundary and Instagram policy
+
+- Official Trading Room Hunter public pages establish its stated process and public teaching claims; testimonials are self-selected and do not establish the mentor's account-level profitability.
+- Third-party TRH description is not an official source and may not reproduce exact proprietary settings.
+- Public Instagram stories may disappear and are not a complete historical ledger. Only use public content and cross-linked accounts; never bypass login, privacy settings or platform controls.
+- YouTube video descriptions currently expose placeholders rather than the actual Instagram URLs for the two linked pages. Therefore, do not guess exact Instagram handles from display names. The public Telegram channel links to the Instagram page name "Tradingroomhunter", but the direct profile URL still needs authoritative cross-verification.
+- No publicly available evidence reviewed here establishes Khosro's audited net profitability, full win/loss distribution or exact risk per trade.
+
+### G7 — Research conclusion
+
+The most reproducible candidate mechanism from Khosro's public TRH description is: structure -> displacement -> break -> origin-pivot/break-candle zone -> patient retest -> reaction -> pre-defined stop/target -> recap. The most reproducible cross-trader behaviors are conditional planning, risk sizing before entry, selectivity, independent portfolios, and rigorous review. These become hypotheses for historical replay and paper forward testing, not live execution permissions.
