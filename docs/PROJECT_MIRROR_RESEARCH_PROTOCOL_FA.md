@@ -188,3 +188,30 @@ Each entry records its thesis, required observable evidence, invalidation condit
 
 ### Release gate
 The new Kotlin library is a research catalogue only. It has not been validated as a predictive model, is not wired into the live decision path, and must not alter current XT risk limits or live authorization. Integration into StrategyLab/UI and automated evaluation remains separate work.
+
+
+## Case E — Instagram public-profile discovery (2026-11-19)
+
+### E1 — Khosro / Trading Room Hunter
+- Public handle indexed: @tradingroomhunter — https://www.instagram.com/tradingroomhunter/
+- Third-party public creator index identifies the account as Mohammad Khosrojerdi and describes public investing/education content; the index itself says its summary is automated and must be verified against the original profile.
+- Official Trading Room Hunter website describes live market analysis, decision-making, trade management and recaps. Public channel posts include both target-hit and stop-hit notices, which is useful for checking completeness rather than collecting wins only.
+- Evidence grade: C for public content/identity association; not A/B proof of complete personal-account PnL. Follower counts and estimated sponsorship income are not net worth or trading profit.
+- Research extraction: timestamped pre-entry scenario, direction, instrument, entry/SL/TP, subsequent edits, result, and whether the same trade is visible in the live recap.
+
+### E2 — Beny Trade
+- Public handle referenced by the trader's Telegram channel: @beny.trade — https://www.instagram.com/beny.trade/
+- The linked channel explicitly says the creator's analysis/opinion is posted on that Instagram page.
+- Evidence grade: C for channel-to-profile cross-reference; account execution, full history and net profitability remain unverified.
+- Research extraction: BTC/altcoin market bias, breakout and retest rules, timing of calls, invalidation, leverage claims and full win/loss sequence. Referral campaigns or exchange incentives must be recorded as possible conflicts, not evidence of skill.
+
+### E3 — Other candidates from the GitHub watchlist
+- Daan Crypto Trades (@DaanCrypto), DonAlt, Crypto Chase, Trader XO, Satoshi Flipper and Denis_D remain research candidates. This web pass did not establish reliable exact Instagram handles for them. Do not construct profile URLs from display names or assume an X/Telegram username is the Instagram username.
+- Their publicly indexed trading material can still be researched through the existing public-source retrieval engine; the Instagram identity field stays unresolved until a direct cross-link from the creator's official site or verified social account is found.
+
+### Collection and validation policy
+- ZORO's in-app research panel runs a public web search for each candidate and shows source title, snippet and URL. Search results are discovery leads, not proof of identity or profitability.
+- No private Instagram content, login-gated stories, DMs, or private accounts are accessed. No scraping or circumvention of platform controls is implemented.
+- Every call is time-stamped and frozen before the market outcome; record deleted/edited calls where a public archive can verify them.
+- Count all calls in the chosen observation window, including stop-outs, invalidations, cancelled calls and calls with no fill. Separate educational examples, demo, prop-firm and personal live accounts.
+- Never infer a trader's personal wealth from follower counts, course sales, payout screenshots, or creator-index estimates.
