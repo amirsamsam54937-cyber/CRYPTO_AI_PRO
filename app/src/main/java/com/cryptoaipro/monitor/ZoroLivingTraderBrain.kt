@@ -1,6 +1,8 @@
 package com.cryptoaipro.monitor
 
 import android.content.Context
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
@@ -145,8 +147,8 @@ internal object ZoroLivingTraderBrain {
             .asSequence()
             .filter { it.closed && it.side.equals(side, true) && it.timeframe.equals(timeframe, true) }
             .sortedBy { it.closedAt }
-            .takeLast(120)
             .toList()
+            .takeLast(120)
         if (records.isEmpty()) return Edge(0, 0.5, 0.0, 0, 0L)
         val wins = records.count { it.pnlPct > 0.0 }
         val newestFirst = records.asReversed()
