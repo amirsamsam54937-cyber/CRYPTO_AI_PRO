@@ -86,7 +86,7 @@ internal object ZoroLivingTraderBrain {
             reasons += "رأی عصبی صرفاً ثبت می‌شود؛ هنوز اعتبارسنجی مستقل ندارد"
         }
 
-        val historical = historicalEdge(context, side, signal.tradeTimeframe)
+        val historical = historicalEdge(context, side, signal.timeframeCoverage)
         if (historical.count >= MIN_EDGE_SAMPLES) {
             if (historical.averageNetPct <= 0.0) {
                 score -= 18
