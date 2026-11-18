@@ -57,13 +57,16 @@ internal object ZoroTraderResearchRegistry {
 }
 
 @Composable
-internal fun ZoroTraderResearchPanel(context: Context) {
+internal fun ZoroTraderResearchPanel(context: Context, scannedSymbols: List<String>) {
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
     var activeTrader by remember { mutableStateOf<String?>(null) }
     var sources by remember { mutableStateOf<List<HopeResearchSource>>(emptyList()) }
     var searching by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("پروفایل عمومی را جست‌وجو کن؛ نتیجه فقط سرنخ تحقیق است، نه اثبات سود واقعی.") }
+    var replayLoading by remember { mutableStateOf(false) }
+    var replaySnapshot by remember { mutableStateOf<ZoroStrategyReplayEngine.Snapshot?>(null) }
+    var replayError by remember { mutableStateOf<String?>(null) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -121,8 +124,32 @@ internal fun ZoroTraderResearchPanel(context: Context) {
                     Text(source.url, color = Color(0xFF9A9A9A), fontSize = 9.sp)
                 }
             }
-            Text("۱۲ فرضیه استراتژی ثبت‌شده در کتابخانه ZORO", color = Color(0xFFFFD45A),
-                fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text("آزمون تاریخی روی XT USDT-M • ۹۰ روز • تایم‌فریم ۱۵ دقیقه", color = Color(0xFFFFD45A), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text("چهار فرضیه قابل بازپخش: روند و پولبک، شکست و Retest، شکست ناموفق، بازگشت به میانگین. ورود روی کندل بعدی؛ برخورد هم‌زمان حدضرر و هدف با فرض زیان محاسبه می‌شود.", color = Color(0xFFB8B0A0), fontSize = 10.sp)
+            Button(enabled = !replayLoading && scannedSymbols.isNotEmpty(), onClick = {
+                replayLoading = true
+                replayError = null
+                scope.launch {
+                    val result = runCatching { ZoroStrategyReplayEngine.run(context, scannedSymbols) }
+                    replaySnapshot = result.getOrNull()
+                    replayError = result.exceptionOrNull()?.message
+                    replayLoading = false
+                }
+            }, shape = RoundedCornerShape(9.dp)) { Text(if (replayLoading) "در حال دریافت تاریخچه XT…" else "اجرای آزمایش استراتژی‌ها", fontSize = 11.sp) }
+            if (scannedSymbols.isEmpty()) Text("برای اجرای آزمایش، ابتدا اسکن بازار را انجام بده.", color = Color(0xFFB8B0A0), fontSize = 10.sp)
+            if (replayLoading) CircularProgressIndicator(color = Color(0xFFFFD45A))
+            replayError?.let { Text("خطای آزمون: $it", color = Color(0xFFFF6570), fontSize = 10.sp) }
+            replaySnapshot?.let { snapshot ->
+                Text("نمادها: ${snapshot.symbols.size} • کندل‌ها: ${snapshot.candleCount} • معاملات نمونه: ${snapshot.tradeCount}", color = Color.White, fontSize = 10.sp)
+                snapshot.results.forEach { (id, wf) ->
+                    val test = wf.test
+                    Text("$id • خارج از نمونه: ${test.tradeCount} معامله | PF ${"%.2f".format(java.util.Locale.US, test.profitFactor)} | امید خالص ${"%.3f".format(java.util.Locale.US, test.expectancyPct)}٪ | افت ${"%.2f".format(java.util.Locale.US, test.maxDrawdownPct)}٪", color = if (wf.eligibleForPaperForwardTest) Color(0xFF20D477) else Color.White, fontSize = 10.sp)
+                    if (!wf.eligibleForPaperForwardTest) Text(wf.reasons.joinToString("؛ "), color = Color(0xFFFFA0A0), fontSize = 9.sp)
+                }
+                snapshot.errors.take(4).forEach { Text(it, color = Color(0xFFFFA0A0), fontSize = 9.sp) }
+                Text("هزینه مدل: کارمزد taker برابر ۰٫۰۶٪ هر سمت، اسلیپیج ۰٫۰۲٪ هر سمت و فاندینگ تخمینی ۰٫۰۱٪ در هر معامله. این مقادیر تخمینی‌اند و باید با نرخ واقعی حساب جایگزین شوند.", color = Color(0xFFB8B0A0), fontSize = 9.sp)
+            }
+            Text("۱۲ فرضیه استراتژی ثبت‌شده در کتابخانه ZORO", color = Color(0xFFFFD45A), fontWeight = FontWeight.Bold, fontSize = 13.sp)
             ZoroStrategyLibrary.patterns.forEachIndexed { index, pattern ->
                 Text("${index + 1}. ${pattern.name}  •  ${pattern.family.name}",
                     color = Color.White, fontSize = 10.sp)
