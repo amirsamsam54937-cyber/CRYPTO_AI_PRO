@@ -230,6 +230,61 @@ def run_backtest(
                 # Entry fee is reserved immediately so equity curve reflects actual costs.
                 equity -= entry_fee
 
+        # A position opened at this candle's open is exposed to the remainder of
+        # the same candle. Ignoring its high/low until the next bar can miss an
+        # immediate stop or target and bias results. Resolve it conservatively.
+        if position is not None and not had_position_at_bar_start:
+            side = position["side"]
+            entry_bar_stop_hit = (
+                row["low"] <= position["stop"] if side == "LONG"
+                else row["high"] >= position["stop"]
+            )
+            entry_bar_target_hit = (
+                row["high"] >= position["target"] if side == "LONG"
+                else row["low"] <= position["target"]
+            )
+            entry_bar_exit_reason = (
+                "STOP_LOSS" if entry_bar_stop_hit
+                else ("TAKE_PROFIT" if entry_bar_target_hit else None)
+            )
+            if entry_bar_exit_reason:
+                if entry_bar_stop_hit:
+                    stop_level = float(position["stop"])
+                    bar_open = float(row["open"])
+                    raw_exit = (
+                        min(stop_level, bar_open) if side == "LONG"
+                        else max(stop_level, bar_open)
+                    )
+                else:
+                    raw_exit = float(position["target"])
+                exit_price = adverse(float(raw_exit), side, entering=False)
+                direction = 1 if side == "LONG" else -1
+                gross = (
+                    (exit_price - position["entry"])
+                    * position["quantity"] * direction
+                )
+                exit_fee = abs(exit_price * position["quantity"]) * fee_rate
+                elapsed_hours = holding_hours(position, i)
+                funding = funding_cost(position, elapsed_hours)
+                fees = position["entry_fee"] + exit_fee
+                slip_cost = (
+                    position["entry_slip_cost"]
+                    + abs(raw_exit - exit_price) * position["quantity"]
+                )
+                net = gross - fees - funding
+                equity += gross - exit_fee - funding
+                trades.append(Trade(
+                    side=side, signal_time=position["signal_time"],
+                    entry_time=position["entry_time"], exit_time=ts,
+                    entry=position["entry"], exit=exit_price,
+                    stop=position["stop"], target=position["target"],
+                    quantity=position["quantity"], leverage=position["leverage"],
+                    gross_pnl=gross, fees=fees, slippage_cost=slip_cost,
+                    funding_estimate=funding, net_pnl=net,
+                    exit_reason=entry_bar_exit_reason, equity_after=equity,
+                ))
+                position = None
+
         # Mark open exposure to market at each candle close. Cash equity alone
         # hides unrealized losses and materially understates drawdown.
         marked_equity = equity
