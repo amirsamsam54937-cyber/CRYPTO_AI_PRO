@@ -65,8 +65,7 @@ internal object XtLiveTradingEngine {
 
     fun canArmAutomatic(context: Context): Boolean =
         isEnabled(context) && !isEmergencyStopped(context) &&
-            XtCredentialVault.hasCredentials(context) &&
-            WolfPretrainedEnsemble.status().validatedForScoring
+            XtCredentialVault.hasCredentials(context)
 
     fun setAutoEnabled(context: Context, enabled: Boolean) {
         val allowed = enabled && canArmAutomatic(context)
