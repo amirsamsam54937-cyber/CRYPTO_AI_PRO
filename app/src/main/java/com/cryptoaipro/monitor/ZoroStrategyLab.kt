@@ -17,8 +17,9 @@ internal object ZoroStrategyLab {
         val fundingPctPerRoundTrip: Double = 0.0
     ) {
         init {
-            require(feePerSidePct >= 0.0 && slippagePerSidePct >= 0.0)
-            require(fundingPctPerRoundTrip >= 0.0)
+            require(feePerSidePct.isFinite() && feePerSidePct >= 0.0)
+            require(slippagePerSidePct.isFinite() && slippagePerSidePct >= 0.0)
+            require(fundingPctPerRoundTrip.isFinite() && fundingPctPerRoundTrip >= 0.0)
         }
 
         val roundTripCostPct: Double
@@ -67,10 +68,13 @@ internal object ZoroStrategyLab {
     )
 
     fun applyCosts(trades: List<ClosedTrade>, costs: CostModel): List<TradeResult> {
+        require(trades.all { it.strategyId.isNotBlank() })
         require(trades.all { it.grossReturnPct.isFinite() })
         require(trades.all { it.closedAt >= it.openedAt })
+        require(trades.all { it.explicitCostPct == null ||
+            (it.explicitCostPct.isFinite() && it.explicitCostPct >= 0.0) })
         return trades.sortedBy { it.closedAt }.map {
-            val cost = (it.explicitCostPct ?: costs.roundTripCostPct).coerceAtLeast(0.0)
+            val cost = it.explicitCostPct ?: costs.roundTripCostPct
             TradeResult(it.strategyId, it.openedAt, it.closedAt, it.grossReturnPct, cost,
                 it.grossReturnPct - cost)
         }
@@ -133,6 +137,23 @@ internal object ZoroStrategyLab {
             losses.average().takeIf { it.isFinite() } ?: 0.0,
             reasons.isEmpty(), reasons
         )
+    }
+
+    /**
+     * Evaluate each strategy independently. Mixing trades from different strategies into one
+     * equity curve can hide a losing strategy behind a profitable one, so promotion decisions
+     * must use this grouped path rather than a pooled portfolio metric.
+     */
+    fun walkForwardByStrategy(
+        trades: List<ClosedTrade>,
+        costs: CostModel,
+        minTrainTrades: Int = 70,
+        minTestTrades: Int = 30
+    ): Map<String, WalkForward> {
+        require(trades.all { it.strategyId.isNotBlank() })
+        return trades.groupBy { it.strategyId }.toSortedMap().mapValues { (_, strategyTrades) ->
+            walkForward(strategyTrades, costs, minTrainTrades, minTestTrades)
+        }
     }
 
     /** Conservative ranking: out-of-sample expectancy and drawdown dominate win rate. */
