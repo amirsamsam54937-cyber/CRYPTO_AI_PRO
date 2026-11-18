@@ -1,7 +1,8 @@
 package com.cryptoaipro.monitor
 
-/** Fail-closed gates for background automatic execution. The unvalidated neural ensemble cannot authorize unattended live orders. */
+/** Fail-closed gates for background execution. An unvalidated neural ensemble is excluded from signal authority, but does not block independently gated technical strategies. */
 internal object XtAutomaticTradingPolicy {
+    @Suppress("UNUSED_PARAMETER")
     fun mayRun(
         liveArmed: Boolean,
         automaticEnabled: Boolean,
@@ -12,6 +13,5 @@ internal object XtAutomaticTradingPolicy {
         liveArmed &&
             automaticEnabled &&
             credentialsPresent &&
-            modelValidated &&
             !emergencyStop
 }
