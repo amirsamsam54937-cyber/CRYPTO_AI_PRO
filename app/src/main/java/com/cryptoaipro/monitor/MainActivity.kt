@@ -789,7 +789,7 @@ fun CryptoMonitorScreen() {
                             }
                             HopeLivingBrainPanel(context) { scanIntervalMinutes = it }
                             ZoroLivingTraderBrainPanel(context)
-                            ZoroTraderResearchPanel(context)
+                            ZoroTraderResearchPanel(context, rows.map { it.symbol })
                                                                                     Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
