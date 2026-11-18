@@ -10,8 +10,8 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 100
-  versionName = "2.79.0"
+  versionCode = 101
+  versionName = "2.80.0"
   // Release 2.79.0: ZORO APEX liquidity-pool mapping and Queen Core integration groundwork.
  }
  buildFeatures { compose = true }
