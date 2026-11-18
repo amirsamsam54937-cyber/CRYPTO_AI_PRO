@@ -90,7 +90,9 @@ internal object ZoroLivingTraderBrain {
             reasons += "رأی عصبی صرفاً ثبت می‌شود؛ هنوز اعتبارسنجی مستقل ندارد"
         }
 
-        val historical = historicalEdge(context, side, signal.timeframeCoverage)
+        // The paper journal currently evaluates a fixed 15-minute signal horizon.
+        // Never compare its outcomes with a multi-timeframe coverage label.
+        val historical = historicalEdge(context, side, PAPER_OUTCOME_TIMEFRAME)
         if (historical.count >= MIN_EDGE_SAMPLES) {
             if (historical.averageNetPct <= 0.0) {
                 score -= 18
@@ -106,6 +108,12 @@ internal object ZoroLivingTraderBrain {
             reasons += "نمونهٔ کافی برای اثبات مزیت تاریخی وجود ندارد"
         }
 
+        val lossCooldownActive = historical.lossStreak >= MAX_CONSECUTIVE_PAPER_LOSSES &&
+            historical.lastLossAt > 0L && System.currentTimeMillis() - historical.lastLossAt < LOSS_STREAK_COOLDOWN_MS
+        if (lossCooldownActive) {
+            score -= 25
+            reasons += "سه زیان پیاپی در سوابق کاغذی؛ دوره استراحت چهار ساعته فعال است"
+        }
         val quality = score.coerceIn(0, 100)
         val hardGates = signal.technicalDirection.equals(side, true) &&
             signal.confidence >= 70 &&
@@ -115,7 +123,8 @@ internal object ZoroLivingTraderBrain {
             rr != null && rr >= 1.5 &&
             signal.price.isFinite() && signal.price > 0.0 &&
             (!rangeRegime || adx >= 18.0) &&
-            (historical.count < MIN_EDGE_SAMPLES || historical.averageNetPct > 0.0)
+            (historical.count < MIN_EDGE_SAMPLES || historical.averageNetPct > 0.0) &&
+            !lossCooldownActive
 
         val allowed = hardGates && quality >= MIN_QUALITY
         val decision = Decision(
@@ -128,19 +137,23 @@ internal object ZoroLivingTraderBrain {
         return decision
     }
 
-    private data class Edge(val count: Int, val winRate: Double, val averageNetPct: Double)
+    private data class Edge(val count: Int, val winRate: Double, val averageNetPct: Double, val lossStreak: Int, val lastLossAt: Long)
 
     private fun historicalEdge(context: Context, side: String, timeframe: String): Edge {
         val records = runCatching { WolfSignalOutcomeJournal.snapshot(context).records }
             .getOrDefault(emptyList())
             .asSequence()
             .filter { it.closed && it.side.equals(side, true) && it.timeframe.equals(timeframe, true) }
+            .sortedBy { it.closedAt }
             .takeLast(120)
             .toList()
-        if (records.isEmpty()) return Edge(0, 0.5, 0.0)
+        if (records.isEmpty()) return Edge(0, 0.5, 0.0, 0, 0L)
         val wins = records.count { it.pnlPct > 0.0 }
+        val newestFirst = records.asReversed()
+        val lossStreak = newestFirst.takeWhile { it.pnlPct < 0.0 }.size
+        val lastLossAt = newestFirst.firstOrNull()?.takeIf { it.pnlPct < 0.0 }?.closedAt ?: 0L
         return Edge(records.size, wins.toDouble() / records.size,
-            records.map { it.pnlPct }.average())
+            records.map { it.pnlPct }.average(), lossStreak, lastLossAt)
     }
 
     private fun rewardRisk(signal: MarketSignal): Double? {
@@ -169,8 +182,13 @@ internal object ZoroLivingTraderBrain {
             .apply()
     }
 
+    // Capital-growth principles: protect the bankroll, wait for positive net expectancy,
+    // never martingale, and pause after a losing streak instead of forcing recovery trades.
     private const val MIN_EDGE_SAMPLES = 24
     private const val MIN_QUALITY = 74
+    private const val MAX_CONSECUTIVE_PAPER_LOSSES = 3
+    private const val LOSS_STREAK_COOLDOWN_MS = 4L * 60L * 60L * 1000L
+    private const val PAPER_OUTCOME_TIMEFRAME = "15m"
 }
 
 
