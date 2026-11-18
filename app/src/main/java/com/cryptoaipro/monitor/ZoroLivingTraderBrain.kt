@@ -216,6 +216,7 @@ internal fun ZoroLivingTraderBrainPanel(context: Context) {
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp)
         ) {
             androidx.compose.material3.Text("مغز زنده معامله‌گر ZORO", color = gold, fontSize = 14.sp)
+            androidx.compose.material3.Text("اصول رشد سرمایه: فقط فرصت‌های منتخب • مزیت خالص پس از کارمزد • ریسک ثابت • ترکیب سود فقط پس از اثبات عملکرد • ممنوعیت مارتینگل", color = muted, fontSize = 10.sp, lineHeight = 14.sp)
             androidx.compose.material3.Text(
                 if (snapshot.symbol.isBlank()) "در انتظار بررسی نامزدهای بازار؛ تصمیمی برای معامله صادر نشده است."
                 else "${snapshot.symbol} • ${snapshot.side} • رژیم: ${snapshot.regime}",
