@@ -252,8 +252,9 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         val commander = HopeCommander.decide(reviewed, neuralValidated)
         // Publish a technically valid 5m scalp candidate from 56/100 so the user can
         // inspect the Commander's decision instead of seeing every sub-62 setup capped
-        // at 49. This is a signal-publication threshold, NOT an order authorization:
-        // ZORO is an analysis-and-signals app; it never authorizes or submits exchange orders.
+        // at 49. This threshold only publishes a candidate; actual XT order authorization
+        // is performed independently by XtLiveTradingEngine after LIVE, account, freshness,
+        // fee-aware sizing, position, TP/SL and portfolio risk gates all pass.
         val publishThreshold = if (reviewed.tradeTimeframe.startsWith("5m")) 56 else 62
         val commanderQualified = commander.direction != "NEUTRAL" && commander.confidence >= publishThreshold
         val neuralAgreement = neuralValidated && bothDirectional && tech == neural && neuralStrength >= 55 &&
