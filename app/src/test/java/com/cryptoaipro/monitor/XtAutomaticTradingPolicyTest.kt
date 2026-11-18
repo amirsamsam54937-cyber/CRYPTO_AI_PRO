@@ -18,11 +18,11 @@ class XtAutomaticTradingPolicyTest {
         assertFalse(XtAutomaticTradingPolicy.mayRun(true, false, true, true, false))
         assertFalse(XtAutomaticTradingPolicy.mayRun(false, true, true, true, false))
         assertFalse(XtAutomaticTradingPolicy.mayRun(true, true, false, true, false))
-        assertFalse(XtAutomaticTradingPolicy.mayRun(true, true, true, false, false))
+        assertTrue(XtAutomaticTradingPolicy.mayRun(true, true, true, false, false))
         assertFalse(XtAutomaticTradingPolicy.mayRun(true, true, true, true, true))
     }
 
-    @Test fun unvalidatedNeuralModelBlocksUnattendedLiveTrading() {
+    @Test fun unvalidatedNeuralModelDoesNotBlockTechnicalOnlyAutopilot() {
         assertTrue(XtAutomaticTradingPolicy.mayRun(true, true, true, false, false))
     }
 
