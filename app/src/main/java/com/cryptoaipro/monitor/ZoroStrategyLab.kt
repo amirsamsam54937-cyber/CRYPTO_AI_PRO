@@ -1,7 +1,5 @@
 package com.cryptoaipro.monitor
 
-import kotlin.math.sqrt
-
 /**
  * PROJECT MIRROR / ZORO Strategy Lab.
  *
@@ -147,7 +145,7 @@ internal object ZoroStrategyLab {
         return if (walkForward.eligibleForPaperForwardTest) score else score - 1000.0
     }
 
-    private const val MIN_TOTAL_TRADES = 100
+    private const val MIN_TOTAL_TRADES = 30
     private const val MIN_PROFIT_FACTOR = 1.20
     private const val MAX_DRAWDOWN_PCT = 15.0
 }
