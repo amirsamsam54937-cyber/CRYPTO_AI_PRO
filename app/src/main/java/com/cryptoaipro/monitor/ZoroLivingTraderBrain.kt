@@ -1,6 +1,8 @@
 package com.cryptoaipro.monitor
 
 import android.content.Context
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 
 /**
@@ -160,6 +162,8 @@ internal object ZoroLivingTraderBrain {
             .putString("last_regime", decision.regime)
             .putString("last_reasons", decision.reasons.joinToString(" • ").take(1800))
             .putInt("last_edge_samples", decision.sampleCount)
+            .putFloat("last_win_rate", (decision.estimatedWinRate ?: 0.0).toFloat())
+            .putFloat("last_average_net_pct", (decision.averageNetReturnPct ?: 0.0).toFloat())
             .apply()
     }
 
