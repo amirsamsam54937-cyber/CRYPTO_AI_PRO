@@ -215,3 +215,44 @@ The new Kotlin library is a research catalogue only. It has not been validated a
 - Every call is time-stamped and frozen before the market outcome; record deleted/edited calls where a public archive can verify them.
 - Count all calls in the chosen observation window, including stop-outs, invalidations, cancelled calls and calls with no fill. Separate educational examples, demo, prop-firm and personal live accounts.
 - Never infer a trader's personal wealth from follower counts, course sales, payout screenshots, or creator-index estimates.
+
+
+## Case F — Trader shortlist based on tracked public calls (19 Nov 2026)
+
+This section prioritizes traders whose public calls have been followed to targets/stops by an independent call-tracking site. These are call-performance observations, not exchange-account statements or audited personal PnL. Figures below are before fees and without leverage, so they must not be treated as net returns.
+
+| Trader | 3-month tracked calls | Wins/losses | Win rate | Average move/trade | Current assessment |
+|---|---:|---:|---:|---:|---|
+| Crypto Outlooks (@CryptoOutlooks) | 56 | 42/14 | 75% | +1.65% | Best current research lead; good sample for a public-call tracker, but fees/Instagram identity/account PnL not verified |
+| MrTTRades (@MrTTrades) | 27 | 15/12 | 56% | +1.07% | Promising; worst observed call -4.98%, so inspect risk asymmetry |
+| Astronomer (@astronomer_zero) | 12 | 7/5 | 58% | +1.68% | Positive but small sample; 33 further finished calls lacked a stop and were not ranked, a material completeness caveat |
+| BuerTrades (@Teambuertrades) | 39 | 24/15 | 62% | +0.41% | Positive but modest edge; continue observation |
+| Bitcoin Bullets (@BitcoinBullet_official) | 8 | 6/2 | 75% | +1.23% | Too few trades for confidence |
+| DonAlt (@DonAlt) | 14 dated calls | 6 played out / 6 open / 2 against | — | Not comparable | High-quality explicit invalidation and patient level-based process; public calls are mostly spot/conditional ideas, not a verified leveraged futures equity curve |
+
+Primary call-tracker references:
+- Overall 3-month ranking: https://x-trades.live/best-crypto-traders
+- Crypto Outlooks record: https://x-trades.live/t/cryptooutlooks
+- MrTTRades record: https://x-trades.live/t/mrttrades
+- Astronomer record: https://x-trades.live/t/astronomer_zero
+- November monthly ranking (still in progress at capture): https://x-trades.live/rankings/2026-11
+- DonAlt dossier and dated call review: https://buycrypt.com/traders/donalt/
+
+### Important negative controls and exclusions
+- Wolfx Signals / @WolfxCrypto_VIP appears with positive public-call results on some trackers, but the UK FCA published a warning that WolfX Signals may be providing/promoting financial services without authorization and advises caution. Do not shortlist as a trusted trader or recommend following paid signals. FCA warning: https://www.fca.org.uk/news/warnings/wolfx-signals-wolfxsignals-wolfxsignals
+- Public trackers disagree in methodology and can count calls differently. Example: Astronomer has 12 stop/leverage-qualified calls in one tracker, while a broader scoring service gives a much larger but materially different call set and a near-chance accuracy score. Treat disagreement as uncertainty, not as proof of manipulation.
+- The X-trades leaderboard reports that only 18 of 50 ranked traders were positive over its recent three-month window before fees; popularity and win-rate alone are poor filters.
+
+### Instagram identity check
+- The current public search pass did not establish authoritative Instagram account cross-links for Crypto Outlooks, MrTTrades, Astronomer, BuerTrades or Bitcoin Bullets. Do not generate Instagram URLs by guessing from X handles.
+- Existing exact Instagram leads remain @tradingroomhunter and @beny.trade, but neither is upgraded to a proven profitable trader from the available evidence.
+- Next Instagram review should require a direct cross-link from the trader's official website or verified X/Telegram account, then compare the Instagram calls with the timestamped call ledger. Instagram follower count, lifestyle posts and payout screenshots are not performance evidence.
+
+### ZORO research ranking rule
+A trader is only promoted from WATCHLIST to RESEARCH-APPROVED after:
+1. At least 30 resolved, timestamped calls with entry and invalidation/stop.
+2. Losses, deleted/edited calls and unfilled calls are counted and disclosed.
+3. Net result is recalculated with realistic spread, fees, funding and slippage for the intended venue.
+4. Performance is positive in a later untouched period and not driven by one or two outliers.
+5. The Instagram account identity is cross-linked, not inferred from a similar handle.
+6. If the source only tracks calls and not executed account trades, the classification remains PUBLIC-CALL EDGE, never VERIFIED ACCOUNT PROFIT.
