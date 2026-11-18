@@ -333,8 +333,8 @@ def test_funding_cashflow_sign_tracks_position_side_and_signed_rate(
 def test_entry_candle_intrabar_stop_and_target_are_processed(
     monkeypatch, side, bar_high, bar_low, expected_reason, expected_exit, expected_pnl
 ):
-    frame = sample_frame(102)
-    frame.loc[100:101, ["open", "high", "low", "close"]] = [
+    frame = sample_frame(103)
+    frame.loc[100:102, ["open", "high", "low", "close"]] = [
         100.0, 100.5, 99.5, 100.0
     ]
     # The signal is formed from bars through 100; entry is at bar 101 open.
@@ -343,9 +343,18 @@ def test_entry_candle_intrabar_stop_and_target_are_processed(
         100.0, bar_high, bar_low, 100.0
     ]
     direction = "LONG_BIAS" if side == "LONG" else "SHORT_BIAS"
+    signal_calls = 0
+
+    def one_entry_signal(history):
+        nonlocal signal_calls
+        signal_calls += 1
+        return {
+            "direction": direction if signal_calls == 1 else "NEUTRAL",
+            "atr": 1.0,
+        }
+
     monkeypatch.setattr(
-        "app.backtest.analyze_ohlcv",
-        lambda history: {"direction": direction, "atr": 1.0},
+        "app.backtest.analyze_ohlcv", one_entry_signal,
     )
 
     result = run_backtest(
