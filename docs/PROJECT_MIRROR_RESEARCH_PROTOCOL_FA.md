@@ -141,3 +141,50 @@ H8: گزارش‌های 10 معامله‌ای با win rate برابر 50% و p
 
 ### D5 — معیار ویژه «شروع با 10 دلار»
 هیچ‌یک از پروفایل‌های عمومی کشف‌شده تا این مرحله، زنجیره مستقل و پیوسته‌ای از موجودی اولیه دقیق 10 دلار تا معاملات، واریز/برداشت و موجودی نهایی ارائه نکرده‌اند. این ویژگی باید جداگانه احراز شود و از ROI یا payout حساب‌های بزرگ/Prop Firm استنتاج نشود.
+
+
+## Strategy decoding library — integration in ZORO (research-only)
+Source file added:
+`app/src/main/java/com/cryptoaipro/monitor/ZoroStrategyLibrary.kt`
+
+The library currently registers 12 explicit hypotheses:
+1. HTF trend + pullback
+2. Channel breakout
+3. Failed breakout / reclaim
+4. Breakout + retest continuation
+5. Range mean reversion
+6. Supply/demand reaction
+7. Liquidity sweep / reclaim
+8. Volume imbalance / order-flow confirmation
+9. Volatility expansion after compression
+10. Session opening range
+11. Event/news volatility filter
+12. Cross-market confirmation and correlation regime
+
+Each entry records its thesis, required observable evidence, invalidation conditions and hidden failure modes. All entries default to RESEARCH_ONLY. The library has no order-execution authority and is not connected to the XT live engine. Do not promote any hypothesis merely because a trader claims it works or because a screenshot shows a winning example.
+
+### Cross-trader synthesis: observable edge vs hidden mechanics
+- Observable edge candidates: pre-announced levels, multi-timeframe context, waiting for confirmation, explicit invalidation, asymmetric payoff, selective frequency, and recording losses as well as wins.
+- Hidden mechanics to investigate: actual risk per trade, contract/lot value, stop distance, margin mode, correlated exposure, partial exits, slippage, spread, funding, fees, session/timezone, news exposure, execution latency, missed fills, and whether posted examples omit losing trades.
+- Psychological process to operationalize: pre-trade checklist, fixed loss budget, no revenge entry, no size escalation after loss, cooldown after loss streak, and post-trade journal. These are process controls, not predictive signals.
+- Do not infer ICT/SMC/order blocks, absorption, spoofing, or institutional order flow from a chart image alone. Order-flow claims require time-aligned trade prints or order-book data.
+
+### Research and validation rules
+- Maintain separate strategy families for trend-following, breakout, retest, mean reversion, volatility and event filters. Do not combine them into one opaque score until each has independent results.
+- Freeze definitions before testing; avoid parameter fishing and post-hoc zone drawing.
+- Use chronological train/validation/test splits, walk-forward checks, and a final untouched holdout.
+- Include maker/taker fees, funding, spread, slippage, minimum order notional, tick/step size and rejected/partial orders.
+- Report expectancy in R and USDT, profit factor, MDD, tail loss, exposure time, trade count, fee share, turnover and performance by market regime.
+- Compare with simple baselines and test robustness across symbols, timeframes and market regimes.
+- A small account test must use actual minimum notional and fee constraints; a theoretical $10 compounding curve is not evidence of executable profitability.
+- Minimum 200 out-of-sample trades is a screening floor, not proof; require forward paper/shadow results before considering live use.
+
+### Evidence base and limitations
+- CME position sizing guidance says size should be based on stop location and the amount/percentage of capital at risk; stops should be at logical invalidation levels. https://www.cmegroup.com/education/courses/trade-and-risk-management/proper-position-size
+- CME futures risk guidance emphasizes contract volatility, contract count and stops; margin availability is not a sensible proxy for acceptable risk. https://www.cmegroup.com/education/courses/things-to-know-before-trading-cme-futures/position-and-risk-management
+- A 2010 Journal of Banking & Finance study examined dual moving-average and channel trend rules across 28 commodity futures over 48 years and reported positive pooled excess returns net of modeled transaction costs; it does not prove the same edge persists in crypto intraday trading. https://doi.org/10.1016/j.jbankfin.2009.08.004
+- A 2017 Finance Research Letters paper found sampling frequency changes the relative performance of trend and mean-reversion rules in high-frequency commodity ETF data; high-frequency trend rules may degrade as noise rises. https://doi.org/10.1016/j.frl.2016.12.015
+- CFTC futures risk disclosure warns leverage can create substantial losses; no strategy is exempt from margin and execution risk. https://www.cftc.gov/LearnAndProtect/AdvisoriesAndArticles/FuturesMarketBasics/index.htm
+
+### Release gate
+The new Kotlin library is a research catalogue only. It has not been validated as a predictive model, is not wired into the live decision path, and must not alter current XT risk limits or live authorization. Integration into StrategyLab/UI and automated evaluation remains separate work.
