@@ -9,6 +9,7 @@ import org.json.JSONObject
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.net.HttpURLConnection
+import java.net.UnknownHostException
 import java.net.URL
 import java.nio.charset.StandardCharsets
 
@@ -120,6 +121,11 @@ internal class XtAuthenticatedFuturesClient(
                 throw IllegalStateException("XT خطای API: " + (error?.optString("msg")?.take(140) ?: response.optString("msgInfo", "نامشخص")))
             }
             response
+        } catch (error: UnknownHostException) {
+            throw IllegalStateException(
+                "DNS گوشی نتوانست fapi.xt.com را پیدا کند. دامنه رسمی XT تغییر نکرده؛ اینترنت را عوض کن یا Private DNS اندروید را روی Automatic بگذار و دوباره آزمایش کن. هیچ سفارشی ارسال نشده.",
+                error
+            )
         } finally {
             connection.disconnect()
         }
