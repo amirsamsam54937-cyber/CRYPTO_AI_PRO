@@ -441,11 +441,17 @@ fun CryptoMonitorScreen() {
         } catch (e: Exception) {
             ZoroDiagnostics.record(context, "اسکن", "ERROR", e.javaClass.simpleName + ": " + (e.message ?: "خطای نامشخص"))
             val rawMessage = e.message ?: "خطا در دریافت اطلاعات بازار"
-            error = if (rawMessage.contains("<html", ignoreCase = true) ||
-                rawMessage.contains("<!doctype", ignoreCase = true) ||
-                rawMessage.contains("<head", ignoreCase = true)) {
-                "پاسخ وب به‌جای داده بازار دریافت شد؛ احتمالاً WAF یا محدودیت دسترسی صرافی است. HTML خام حذف شد. در صورت تداوم خطای XT، منبع XT را انتخاب کن."
-            } else rawMessage.replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ").trim().take(240)
+            error = when {
+                rawMessage.contains("Unable to resolve host", ignoreCase = true) ||
+                    rawMessage.contains("UnknownHostException", ignoreCase = true) ||
+                    rawMessage.contains("fapi.xt.com", ignoreCase = true) && rawMessage.contains("resolve", ignoreCase = true) ->
+                    "DNS گوشی نتوانست میزبان رسمی XT (fapi.xt.com) را پیدا کند؛ این خطا پیش از احراز هویت API رخ می‌دهد. اینترنت را عوض کن (Wi‑Fi/داده همراه)، Private DNS اندروید را روی Automatic بگذار یا موقتاً خاموش کن، سپس «تلاش مجدد» را بزن. کلید API را دوباره وارد نکن؛ این خطا از کلید نیست."
+                rawMessage.contains("<html", ignoreCase = true) ||
+                    rawMessage.contains("<!doctype", ignoreCase = true) ||
+                    rawMessage.contains("<head", ignoreCase = true) ->
+                    "پاسخ وب به‌جای داده بازار دریافت شد؛ احتمالاً WAF یا محدودیت دسترسی صرافی است. HTML خام حذف شد. در صورت تداوم خطای XT، منبع XT را انتخاب کن."
+                else -> rawMessage.replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ").trim().take(240)
+            }
         } finally {
             loading = false
         }
