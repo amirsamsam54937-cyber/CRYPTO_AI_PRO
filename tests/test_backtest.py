@@ -314,3 +314,53 @@ def test_funding_cashflow_sign_tracks_position_side_and_signed_rate(
     assert "positive rates charge LONG and credit SHORT" in (
         result["assumptions"]["funding_cashflow_convention"]
     )
+
+@pytest.mark.parametrize(
+    ("side", "bar_high", "bar_low", "expected_reason", "expected_exit", "expected_pnl"),
+    [
+        ("LONG", 100.5, 98.0, "STOP_LOSS", 98.5, -10.0),
+        ("LONG", 103.5, 99.5, "TAKE_PROFIT", 103.0, 20.0),
+        ("SHORT", 102.0, 99.5, "STOP_LOSS", 101.5, -10.0),
+        ("SHORT", 100.5, 96.5, "TAKE_PROFIT", 97.0, 20.0),
+        # If both levels trade inside one OHLC candle, stop-first is conservative.
+        ("LONG", 104.0, 98.0, "STOP_LOSS", 98.5, -10.0),
+    ],
+)
+def test_entry_candle_intrabar_stop_and_target_are_processed(
+    monkeypatch, side, bar_high, bar_low, expected_reason, expected_exit, expected_pnl
+):
+    frame = sample_frame(103)
+    frame.loc[100:102, ["open", "high", "low", "close"]] = [
+        100.0, 100.5, 99.5, 100.0
+    ]
+    # The signal is formed from bars through 100; entry is at bar 101 open.
+    # Its remaining high/low range must already be checked for stop/target.
+    frame.loc[101, ["open", "high", "low", "close"]] = [
+        100.0, bar_high, bar_low, 100.0
+    ]
+    direction = "LONG_BIAS" if side == "LONG" else "SHORT_BIAS"
+    monkeypatch.setattr(
+        "app.backtest.analyze_ohlcv",
+        lambda history: {"direction": direction, "atr": 1.0},
+    )
+
+    result = run_backtest(
+        frame,
+        initial_equity=1000.0,
+        risk_per_trade=0.01,
+        max_leverage=3.0,
+        fee_rate=0.0,
+        slippage_rate=0.0,
+        funding_rate_8h=0.0,
+        warmup=100,
+    )
+
+    assert result["trade_count"] == 1
+    trade = result["trades"][0]
+    assert trade["entry_time"] == str(frame.loc[101, "timestamp"])
+    assert trade["exit_time"] == str(frame.loc[101, "timestamp"])
+    assert trade["exit_reason"] == expected_reason
+    assert trade["exit"] == pytest.approx(expected_exit)
+    assert trade["net_pnl"] == pytest.approx(expected_pnl)
+    assert result["final_equity"] == pytest.approx(1000.0 + expected_pnl)
+
