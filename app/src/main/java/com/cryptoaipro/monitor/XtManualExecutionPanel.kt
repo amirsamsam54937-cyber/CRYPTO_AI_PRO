@@ -98,7 +98,8 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                 }
                 Switch(
                     checked = enabled,
-                    enabled = XtCredentialVault.hasCredentials(context) && !emergency && !busy,
+                    enabled = XtCredentialVault.hasCredentials(context) &&
+                        XtCredentialVault.isConnectionVerified(context) && !emergency && !busy,
                     onCheckedChange = {
                         XtLiveTradingEngine.setEnabled(context, it)
                         enabled = it
@@ -125,6 +126,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                         when {
                             autoEnabled -> "فعال • یک فرصت برتر در هر اسکن، با کنترل کامل ریسک"
                             !modelValidated -> "مدل عصبی مشورتی است؛ اجرای خودکار فقط با اجماع تکنیکال و کنترل ریسک مستقل انجام می‌شود"
+                            !XtCredentialVault.isConnectionVerified(context) -> "ابتدا اتصال و مجوزهای Futures را با موفقیت آزمایش کن"
                             !enabled -> "ابتدا حالت LIVE را مسلح کن"
                             else -> "خاموش • فقط با روشن‌کردن این کلید سفارش خودکار مجاز می‌شود"
                         },
@@ -135,6 +137,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                 Switch(
                     checked = autoEnabled,
                     enabled = enabled && !emergency && !busy && preview == null &&
+                        XtCredentialVault.isConnectionVerified(context) &&
                         XtLiveTradingEngine.canArmAutomatic(context),
                     onCheckedChange = {
                         XtLiveTradingEngine.setAutoEnabled(context, it)
