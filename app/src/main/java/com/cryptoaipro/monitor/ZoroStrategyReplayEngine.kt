@@ -79,7 +79,11 @@ internal object ZoroStrategyReplayEngine {
         ids.forEach { id ->
             var i = 60
             while (i < candles.size - 30) {
-                val signal = signal(id, candles, closes, atrs, ema20, ema50, i) ?: run { i++; continue }
+                val signal = signal(id, candles, closes, atrs, ema20, ema50, i)
+                if (signal == null) {
+                    i++
+                    continue
+                }
                 val entryIndex = i + 1
                 val entry = candles[entryIndex][0]
                 if (!entry.isFinite() || entry <= 0.0 || signal.stopDistance <= 0.0) { i++; continue }
