@@ -188,7 +188,11 @@ def test_funding_uses_actual_elapsed_time_for_irregular_candle_intervals(monkeyp
 
 def test_position_size_caps_net_stop_loss_after_round_trip_fees_and_slippage(monkeypatch):
     frame = sample_frame(103)
-    frame.loc[100:102, ["open", "high", "low", "close"]] = [
+    frame.loc[100:101, ["open", "high", "low", "close"]] = [
+        100.0, 100.5, 99.5, 100.0
+    ]
+    # Entry is at bar 101; only the following bar reaches the stop.
+    frame.loc[102, ["open", "high", "low", "close"]] = [
         100.0, 100.5, 98.0, 99.0
     ]
     monkeypatch.setattr(
@@ -329,8 +333,8 @@ def test_funding_cashflow_sign_tracks_position_side_and_signed_rate(
 def test_entry_candle_intrabar_stop_and_target_are_processed(
     monkeypatch, side, bar_high, bar_low, expected_reason, expected_exit, expected_pnl
 ):
-    frame = sample_frame(103)
-    frame.loc[100:102, ["open", "high", "low", "close"]] = [
+    frame = sample_frame(102)
+    frame.loc[100:101, ["open", "high", "low", "close"]] = [
         100.0, 100.5, 99.5, 100.0
     ]
     # The signal is formed from bars through 100; entry is at bar 101 open.
