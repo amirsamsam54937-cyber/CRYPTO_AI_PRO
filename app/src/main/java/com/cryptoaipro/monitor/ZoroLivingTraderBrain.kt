@@ -166,3 +166,85 @@ internal object ZoroLivingTraderBrain {
     private const val MIN_EDGE_SAMPLES = 24
     private const val MIN_QUALITY = 74
 }
+
+
+@androidx.compose.runtime.Composable
+internal fun ZoroLivingTraderBrainPanel(context: Context) {
+    var snapshot by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(readBrainSnapshot(context))
+    }
+    androidx.compose.runtime.LaunchedEffect(context) {
+        while (true) {
+            snapshot = readBrainSnapshot(context)
+            kotlinx.coroutines.delay(2500)
+        }
+    }
+    val gold = androidx.compose.ui.graphics.Color(0xFFE8B85B)
+    val muted = androidx.compose.ui.graphics.Color(0xFFB8B0A0)
+    androidx.compose.material3.Surface(
+        color = androidx.compose.ui.graphics.Color(0xFF101010),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, gold.copy(alpha = 0.45f)),
+        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+    ) {
+        androidx.compose.foundation.layout.Column(
+            androidx.compose.ui.Modifier.padding(14.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp)
+        ) {
+            androidx.compose.material3.Text("مغز زنده معامله‌گر ZORO", color = gold, fontSize = 14.sp)
+            androidx.compose.material3.Text(
+                if (snapshot.symbol.isBlank()) "در انتظار بررسی نامزدهای بازار؛ تصمیمی برای معامله صادر نشده است."
+                else "${snapshot.symbol} • ${snapshot.side} • رژیم: ${snapshot.regime}",
+                color = androidx.compose.ui.graphics.Color.White, fontSize = 11.sp
+            )
+            androidx.compose.material3.Text(
+                if (snapshot.symbol.isBlank()) "پس از اجرای موتور ارزیابی، امتیاز و دلایل تصمیم در این بخش نمایش داده می‌شود."
+                else "امتیاز مغز: ${snapshot.score}/100 • ${if (snapshot.allowed) "عبور از فیلتر مغز" else "رد شده توسط فیلتر مغز"}",
+                color = if (snapshot.allowed) androidx.compose.ui.graphics.Color(0xFF79D6A0) else muted,
+                fontSize = 11.sp
+            )
+            if (snapshot.sampleCount > 0) {
+                androidx.compose.material3.Text(
+                    "سوابق خالص هم‌جهت/تایم‌فریم: ${snapshot.sampleCount} نمونه • برد: ${snapshot.winRate}% • میانگین خالص: ${snapshot.averageNetPct}%",
+                    color = muted, fontSize = 10.sp
+                )
+            }
+            if (snapshot.reasons.isNotBlank()) {
+                androidx.compose.material3.Text(snapshot.reasons, color = muted, fontSize = 10.sp, lineHeight = 15.sp)
+            }
+            androidx.compose.material3.Text(
+                "مغز فقط نامزدها را رتبه‌بندی و فیلتر می‌کند؛ مجوز حساب، اندازه پوزیشن، حدضرر/حدسود و توقف اضطراری همچنان مستقل و اجباری‌اند.",
+                color = muted, fontSize = 9.sp, lineHeight = 13.sp
+            )
+        }
+    }
+}
+
+private data class BrainSnapshot(
+    val symbol: String = "",
+    val side: String = "",
+    val regime: String = "—",
+    val score: Int = 0,
+    val allowed: Boolean = false,
+    val sampleCount: Int = 0,
+    val winRate: String = "—",
+    val averageNetPct: String = "—",
+    val reasons: String = ""
+)
+
+private fun readBrainSnapshot(context: Context): BrainSnapshot {
+    val p = context.getSharedPreferences("zoro_living_trader_brain", Context.MODE_PRIVATE)
+    val winRate = if (p.contains("last_win_rate")) p.getFloat("last_win_rate", 0f).toString() else "—"
+    val average = if (p.contains("last_average_net_pct")) p.getFloat("last_average_net_pct", 0f).toString() else "—"
+    return BrainSnapshot(
+        symbol = p.getString("last_symbol", "") ?: "",
+        side = p.getString("last_side", "") ?: "",
+        regime = p.getString("last_regime", "—") ?: "—",
+        score = p.getInt("last_score", 0),
+        allowed = p.getBoolean("last_allowed", false),
+        sampleCount = p.getInt("last_edge_samples", 0),
+        winRate = winRate,
+        averageNetPct = average,
+        reasons = p.getString("last_reasons", "") ?: ""
+    )
+}
