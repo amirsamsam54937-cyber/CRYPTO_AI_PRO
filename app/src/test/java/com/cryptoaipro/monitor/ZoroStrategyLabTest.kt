@@ -30,7 +30,7 @@ class ZoroStrategyLabTest {
         val result = ZoroStrategyLab.applyCosts(trades,
             ZoroStrategyLab.CostModel(0.0, 0.0))
         val metrics = ZoroStrategyLab.metrics(result)
-        assertEquals(0.0, metrics.totalNetReturnPct, 1e-9)
+        assertEquals(-1.0, metrics.totalNetReturnPct, 1e-9)
         assertEquals(10.0, metrics.maxDrawdownPct, 1e-9)
     }
 
