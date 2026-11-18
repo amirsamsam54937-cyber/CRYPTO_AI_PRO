@@ -539,23 +539,25 @@ internal object XtLiveTradingEngine {
                 )
             ) return@withLock null
 
+            // The living brain ranks only candidates that pass its independent market-regime,
+            // reward/risk and net-paper-edge review. XT preflight and hard account risk gates
+            // remain mandatory after this decision; the brain cannot override them.
             val candidate = signals.asSequence()
                 .filter { signal ->
                     val side = directionSide(signal.direction)
                     side != null &&
-                        directionSide(signal.technicalDirection) == side &&
-                        signal.confidence >= 70 &&
-                        signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه" &&
-                        signal.technical.adx >= 16.0 && signal.technical.relativeVolume >= 0.65 &&
-                        (signal.consensus?.agreement ?: 0) >= 58 &&
-                        signal.price.isFinite() && signal.price > 0.0
+                        signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه"
+                }
+                .mapNotNull { signal ->
+                    val decision = ZoroLivingTraderBrain.evaluate(context, signal)
+                    if (decision.allowed) signal to decision else null
                 }
                 .sortedWith(
-                    compareByDescending<MarketSignal> { it.confidence }
-                        .thenByDescending { it.score }
-                        .thenByDescending { it.volume }
+                    compareByDescending<Pair<MarketSignal, ZoroLivingTraderBrain.Decision>> { it.second.score }
+                        .thenByDescending { it.first.confidence }
+                        .thenByDescending { it.first.volume }
                 )
-                .firstOrNull()
+                .firstOrNull()?.first
                 ?: return@withLock null
 
             val candleTime = candidate.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L
