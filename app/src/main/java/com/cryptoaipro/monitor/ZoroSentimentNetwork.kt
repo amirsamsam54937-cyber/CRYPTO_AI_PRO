@@ -90,7 +90,7 @@ internal object ZoroSentimentNetwork {
             .replace(Regex("[^\\p{L}\\p{N}]+"), " ") + " "
         var raw = 0.0
         positive.forEach { (term, weight) ->
-            val count = Regex("(^|\\\s)" + Regex.escape(term) + "($|\\\s)").findAll(normalized).count()
+            val count = Regex("(^| )" + Regex.escape(term) + "( |$)").findAll(normalized).count()
             if (count > 0) {
                 val start = normalized.indexOf(term)
                 val context = normalized.substring(maxOf(0, start - 24), start)
@@ -100,7 +100,7 @@ internal object ZoroSentimentNetwork {
             }
         }
         negative.forEach { (term, weight) ->
-            val count = Regex("(^|\\\s)" + Regex.escape(term) + "($|\\\s)").findAll(normalized).count()
+            val count = Regex("(^| )" + Regex.escape(term) + "( |$)").findAll(normalized).count()
             if (count > 0) {
                 val start = normalized.indexOf(term)
                 val context = normalized.substring(maxOf(0, start - 24), start)
