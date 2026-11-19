@@ -155,6 +155,8 @@ jobs:
           retention-days: 90
       - name: Enforce complete offline AI bundle for release builds
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.require_trained_bundle) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation' || github.ref == 'refs/heads/zoro-gen4-validation-audit' || github.ref == 'refs/heads/zoro-gen4-holdout-hardening' || github.ref == 'refs/heads/zoro-gen4-signal-consensus' || github.ref == 'refs/heads/zoro-gen4-crypto-identity' || github.ref == 'refs/heads/zoro-gen4-neural-probability-labels' || github.ref == 'refs/heads/zoro-gen5-training-efficiency' || github.ref == 'refs/heads/zoro-gen6-dynamic-autopilot' || github.ref == 'refs/heads/zoro-gen7-risk-correlation-guards' || github.ref == 'refs/heads/zoro-gen8-execution-integrity' || github.ref == 'refs/heads/zoro-gen9-candle-integrity')) }}
+        env:
+          REQUIRE_TRAINED_BUNDLE: ${{ inputs.require_trained_bundle }}
         run: |
           set -euo pipefail
           ASSETS=app/src/main/assets
@@ -163,11 +165,22 @@ jobs:
           test -s "$ASSETS/wolf_pretrained_ensemble.json"
           test -s "$ASSETS/wolf_model_training_report.json"
           python - <<'PY'
-          import gzip, json, pathlib
+          import gzip, json, pathlib, os
           p=pathlib.Path("app/src/main/assets")
           m=json.loads((p/"wolf_corpus_manifest.json").read_text())
           model=json.loads((p/"wolf_pretrained_ensemble.json").read_text())
           report=json.loads((p/"wolf_model_training_report.json").read_text())
+          require_release = os.environ.get("REQUIRE_TRAINED_BUNDLE", "").strip().lower() == "true"
+          validation_status = report.get("validation_status")
+          validated_for_scoring = report.get("validated_for_scoring")
+          assert isinstance(validated_for_scoring, bool), "Training report must record validated_for_scoring explicitly"
+          assert (validation_status == "validated_for_scoring") == validated_for_scoring, "Training report validation fields disagree"
+          if require_release:
+              assert validated_for_scoring is True, "Release build blocked: model did not pass scoring validation"
+          else:
+              assert validation_status in {"trained_but_not_validated", "validated_for_scoring"}, "Unknown model validation state"
+              if not validated_for_scoring:
+                  print("Research-only APK: neural scoring remains blocked by runtime validation.")
           assert m.get("status")=="verified_real_exchange_data"
           assert m.get("rows",0)>=898_920 and m.get("synthetic_rows") == 0
           assert m.get("data_source_policy")=="XT_USDT_M_CRYPTO_ONLY"
@@ -201,6 +214,11 @@ jobs:
           model=json.loads((p/"wolf_pretrained_ensemble.json").read_text())
           manifest=json.loads((p/"wolf_corpus_manifest.json").read_text())
           report=json.loads((p/"wolf_model_training_report.json").read_text())
+          required_metric_fields = {"member", "role", "converged", "iterations", "max_iter", "final_loss", "accuracy", "balanced_accuracy", "log_loss", "brier_score", "roc_auc", "expected_calibration_error"}
+          report_metrics = report.get("metrics")
+          assert isinstance(report_metrics, list) and len(report_metrics) == 10, "Training report must contain metrics for all ten members"
+          assert all(required_metric_fields.issubset(set(item)) for item in report_metrics), "A member is missing one or more required evaluation metrics"
+          assert [item.get("member") for item in report_metrics] == list(range(1, 11)), "Member metrics must be individually indexed 1..10"
           assert model.get("format")=="amir-wolf-ensemble-v2" and len(model.get("members",[]))==10
           assert len(model.get("metrics",[]))==10
           assert manifest.get("status")=="verified_real_exchange_data"
