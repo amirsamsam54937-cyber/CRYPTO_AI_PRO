@@ -69,6 +69,9 @@ def run_backtest(
     if isinstance(warmup, bool) or not isinstance(warmup, (int, np.integer)) or warmup < 0:
         raise ValueError("warmup must be a non-negative integer")
 
+    if not frame.columns.is_unique:
+        raise ValueError("OHLCV column names must be unique")
+
     required = {"open", "high", "low", "close", "volume"}
     if not required.issubset(frame.columns):
         raise ValueError("OHLCV columns are required")

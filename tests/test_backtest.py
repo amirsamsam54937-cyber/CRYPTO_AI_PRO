@@ -32,6 +32,14 @@ def test_backtest_rejects_invalid_input():
         run_backtest(sample_frame(), risk_per_trade=0.5)
 
 
+def test_backtest_rejects_duplicate_column_names():
+    frame = sample_frame()
+    frame.columns = ["timestamp", "open", "high", "low", "close", "close"]
+
+    with pytest.raises(ValueError, match="column names must be unique"):
+        run_backtest(frame, warmup=100)
+
+
 def test_backtest_rejects_non_finite_values_negative_volume_and_bad_candle_bounds():
     cases = []
     non_finite = sample_frame()
