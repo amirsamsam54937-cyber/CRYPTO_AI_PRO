@@ -151,12 +151,7 @@ internal object WolfFlowNewsRepository {
             bookImbalance, bidDepthUsd, askDepthUsd, bidWallUsd, askWallUsd, bookFresh)
     }
 
-    private fun headlineSentiment(text: String): Int {
-        val value = " " + text.lowercase(Locale.US).replace(Regex("[^a-z0-9 ]"), " ") + " "
-        val positive = listOf(" approval ", " approved ", " adoption ", " inflow ", " partnership ", " upgrade ", " launch ", " integration ", " bullish ", " breakout ", " etf ", " listing ", " mainnet ", " funding secured ")
-        val negative = listOf(" hack ", " exploit ", " bankruptcy ", " lawsuit ", " crash ", " outage ", " ban ", " insolvency ", " attack ", " liquidation ", " delist ", " breach ", " exploit ", " bearish ", " fraud ", " investigation ", " arrest ", " rejection ")
-        return (positive.count { value.contains(it) } - negative.count { value.contains(it) }).coerceIn(-2, 2)
-    }
+    private fun headlineSentiment(text: String): Int = ZoroSentimentNetwork.analyzeText(text).let { (it / 18).coerceIn(-2, 2) }
 
     fun enrichSignals(context: android.content.Context, signals: List<MarketSignal>): List<MarketSignal> {
         val prefs = context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE)
@@ -257,7 +252,7 @@ internal object WolfFlowNewsRepository {
             put("askWallUsd", r.askWallUsd); put("bookFresh", r.bookFresh)
         }) } }
         val newsJson = JSONArray().apply { headlines.take(12).forEach { n -> put(org.json.JSONObject().apply {
-            put("title", n.title); put("source", n.source); put("url", n.link); put("date", n.date)
+            put("title", n.title); put("source", n.source); put("url", n.link); put("date", n.date); put("description", n.description)
         }) } }
         prefs.edit().putString("flow_reports", json.toString()).putString("flow_exchange", exchange)
             .putString("market_news", newsJson.toString()).putLong("market_news_updated_at", refreshedAt)
