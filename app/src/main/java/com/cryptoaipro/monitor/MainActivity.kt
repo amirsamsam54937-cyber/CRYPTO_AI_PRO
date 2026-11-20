@@ -81,15 +81,15 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
-// ZORO visual system: cinematic black, silver and crimson.
-private val Navy = Color(0xFF050505)
-private val Panel = Color(0xFF111111)
-private val Muted = Color(0xFFB8B0A0)
-private val Green = Color(0xFF20D477)
-private val Red = Color(0xFFFF4655)
-private val Blue = Color(0xFFE8B85B)
-private val Purple = Color(0xFFB88635)
-private val Gold = Color(0xFFFFD45A)
+// NEXUS QUANT visual system: deep-space navy, electric teal and signal-lime.
+private val Navy = Color(0xFF07111F)
+private val Panel = Color(0xFF102033)
+private val Muted = Color(0xFF91A9BD)
+private val Green = Color(0xFFB5F36B)
+private val Red = Color(0xFFFF647C)
+private val Blue = Color(0xFF24E6D3)
+private val Purple = Color(0xFF9B8CFF)
+private val Gold = Color(0xFFB5F36B)
 
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
@@ -530,7 +530,7 @@ fun CryptoMonitorScreen() {
         Scaffold(
             containerColor = Navy,
             bottomBar = {
-                NavigationBar(containerColor = Color(0xFF080808), contentColor = Color.White) {
+                NavigationBar(containerColor = Color(0xFF081625), contentColor = Color.White) {
                     listOf("قدرت سیگنال", "دفترچه", "عیب‌یابی", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
@@ -540,7 +540,7 @@ fun CryptoMonitorScreen() {
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Blue,
                                 selectedTextColor = Blue,
-                                indicatorColor = Color(0xFF342607),
+                                indicatorColor = Color(0xFF163D45),
                                 unselectedIconColor = Muted,
                                 unselectedTextColor = Muted
                             )
@@ -557,7 +557,7 @@ fun CryptoMonitorScreen() {
                     modifier = Modifier.fillMaxWidth().height(190.dp).align(Alignment.TopCenter).graphicsLayer { alpha = 0.34f }
                 )
                 Box(Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(listOf(Color(0xE6080808), Color(0xF2050505), Color(0xEA171006)))
+                    Brush.verticalGradient(listOf(Color(0xE607111F), Color(0xF207111F), Color(0xEA10263A)))
                 ))
                 Column(Modifier.fillMaxSize()) {
                 if (selectedTab !in setOf("خانه", "فرمانده")) {
@@ -567,24 +567,24 @@ fun CryptoMonitorScreen() {
                     ) {
                         if (selectedTab != "خانه") TextButton(onClick = { selectedTab = "خانه" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("‹ بازگشت", color = Blue, fontSize = 11.sp) }
                         Surface(
-                            color = Color(0xFF17130A),
+                            color = Color(0xFF102A3D),
                             shape = RoundedCornerShape(13.dp),
                             modifier = Modifier.size(52.dp),
                             shadowElevation = 8.dp
                         ) {
                             Image(
                                 painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
-                                contentDescription = "نشان گرگ ZORO SHANGAN",
+                                contentDescription = "نشان NEXUS QUANT",
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("ZORO SHANGAN", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
+                            Text("NEXUS QUANT", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
                         }
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("XT FUTURES", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Surface(color = if (loading) Color(0xFF3A2B0B) else Color(0xFF2B2108),
+                            Surface(color = if (loading) Color(0xFF17464B) else Color(0xFF123C3A),
                                 shape = RoundedCornerShape(20.dp)) {
                                 Text(if (loading) "در حال اسکن" else "● $selectedExchange",
                                     color = if (loading) Gold else Green,
@@ -611,7 +611,7 @@ fun CryptoMonitorScreen() {
                             onToggleBackground = {
                                 val enabled = !backgroundMonitoring
                                 if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
-                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط ZORO متوقف نمی‌شود."
+                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط NEXUS متوقف نمی‌شود."
                                 } else {
                                     val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
                                     if (enabled) {
@@ -923,7 +923,7 @@ internal fun ActiveCommandSignals(
     records: List<WolfSignalOutcomeJournal.Record>,
     onOpenJournal: () -> Unit
 ) {
-    Surface(color = Color(0xFF100D07), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.38f)), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(0xFF102033), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.38f)), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("سیگنال‌های فعال فرماندهی", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
@@ -1257,7 +1257,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
         "SHORT_BIAS" -> "SHORT"
         else -> "NO TRADE"
     }
-    Surface(color = Color(0xFF101010), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.25f)), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(0xFF102033), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.25f)), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(15.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(item.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
@@ -1381,7 +1381,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
             )
             if (item.direction != "NEUTRAL") {
                 Spacer(Modifier.height(8.dp))
-                Surface(color = Color(0xFF19150B), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.22f)), modifier = Modifier.fillMaxWidth()) {
+                Surface(color = Color(0xFF10283A), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.22f)), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("ENTRY: " + formatPrice(item.entry) + "   |   SMART LEVERAGE: " + item.leverage + "x", color = Blue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
