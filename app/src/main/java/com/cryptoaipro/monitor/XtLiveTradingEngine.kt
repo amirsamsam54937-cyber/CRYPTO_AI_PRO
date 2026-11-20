@@ -49,6 +49,11 @@ internal object XtLiveTradingEngine {
         val netRewardRisk: Double,
         val contractSize: Double,
         val takerFeeRate: Double,
+        val estimatedEntryFeeUsdt: Double,
+        val estimatedStopExitFeeUsdt: Double,
+        val estimatedFundingCostUsdt: Double,
+        val estimatedSlippageCostUsdt: Double,
+        val slippageRatePerSide: Double,
         val expiresAt: Long,
         val clientOrderId: String
     )
@@ -276,6 +281,12 @@ internal object XtLiveTradingEngine {
         require(drawdown < MAX_PEAK_DRAWDOWN) { "ترمز افت سرمایه از اوج ۸٪ فعال است." }
 
         val leverage = signal.leverage.coerceIn(1, 3)
+        val executionCost = XtExecutionCostModel.estimate(
+            atrPercent = signal.technical.atrPercent,
+            relativeVolume = signal.technical.relativeVolume,
+            liquidityStrength = signal.technical.liquidityStrength,
+            feePerSide = contract.takerFeeRate
+        )
         val decision = XtFuturesCapitalManager.planAdaptive(
             wallet = wallet,
             fees = XtFuturesCapitalManager.Fees(
@@ -299,12 +310,7 @@ internal object XtLiveTradingEngine {
                 maxMarginFraction = 0.05,
                 expectedFundingRatePer8h = XtExecutionCostModel.DEFAULT_FUNDING_RESERVE_PER_8H,
                 expectedHoldingHours = 6.0,
-                slippageRatePerSide = XtExecutionCostModel.estimate(
-                    atrPercent = signal.technical.atrPercent,
-                    relativeVolume = signal.technical.relativeVolume,
-                    liquidityStrength = signal.technical.liquidityStrength,
-                    feePerSide = contract.takerFeeRate
-                ).slippagePerSide,
+                slippageRatePerSide = executionCost.slippagePerSide,
                 extraSafetyBuffer = 0.20
             ),
             portfolio = portfolio
@@ -328,6 +334,11 @@ internal object XtLiveTradingEngine {
             netRewardRisk = plan.netRewardRisk,
             contractSize = contract.contractSize,
             takerFeeRate = contract.takerFeeRate,
+            estimatedEntryFeeUsdt = plan.entryFeeUsdt,
+            estimatedStopExitFeeUsdt = plan.exitFeeUsdt,
+            estimatedFundingCostUsdt = plan.estimatedFundingCostUsdt,
+            estimatedSlippageCostUsdt = plan.estimatedRoundTripSlippageUsdt,
+            slippageRatePerSide = executionCost.slippagePerSide,
             expiresAt = System.currentTimeMillis() + PREVIEW_TTL_MS,
             clientOrderId = clientOrderId
         )
