@@ -60,6 +60,10 @@ def run_backtest(
         "reward_risk": reward_risk,
     }
     for name, value in numeric_parameters.items():
+        # bool is a numeric subclass in Python; accepting it silently turns
+        # True/False into 1/0 for risk and execution settings.
+        if isinstance(value, (bool, np.bool_)):
+            raise ValueError(f"{name} must be a finite number")
         try:
             is_finite = math.isfinite(float(value))
         except (TypeError, ValueError, OverflowError):

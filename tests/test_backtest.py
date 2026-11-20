@@ -32,6 +32,19 @@ def test_backtest_rejects_invalid_input():
         run_backtest(sample_frame(), risk_per_trade=0.5)
 
 
+@pytest.mark.parametrize(
+    "parameter",
+    [
+        "initial_equity", "risk_per_trade", "max_leverage", "fee_rate",
+        "slippage_rate", "funding_rate_8h", "atr_multiple", "reward_risk",
+    ],
+)
+@pytest.mark.parametrize("bad_value", [True, False, np.bool_(True), np.bool_(False)])
+def test_backtest_rejects_boolean_execution_and_risk_parameters(parameter, bad_value):
+    with pytest.raises(ValueError, match="finite number"):
+        run_backtest(sample_frame(), **{parameter: bad_value})
+
+
 def test_backtest_rejects_duplicate_column_names():
     frame = sample_frame()
     frame.columns = ["timestamp", "open", "high", "low", "close", "close"]
