@@ -15,8 +15,8 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * XT USDT-M execution with separate manual-confirmed and explicitly armed automatic paths.
- * Automatic scans may submit at most one neural-ensemble-approved candidate per scan only when LIVE,
- * auto mode, credentials, account checks and every risk gate pass. Neural validation is advisory.
+ * Automatic scans may submit at most one independently validated neural candidate per scan only when LIVE,
+ * auto mode, verified connection, credentials, account checks and every risk gate pass.
  * Manual execution still requires a reviewed preview and explicit confirmation.
  * All gates fail closed. Ambiguous order POSTs are reconciled, never blindly retried.
  */
@@ -562,8 +562,9 @@ internal object XtLiveTradingEngine {
             val modelValidated = WolfPretrainedEnsemble.status().validatedForScoring
             if (!XtAutomaticTradingPolicy.mayRun(
                     liveArmed = isEnabled(context),
-                    automaticEnabled = prefs(context).getBoolean(KEY_AUTO_ENABLED, false),
-                    credentialsPresent = XtCredentialVault.hasCredentials(context),
+                    automaticEnabled = isAutoEnabled(context),
+                    credentialsPresent = XtCredentialVault.hasCredentials(context) &&
+                        XtCredentialVault.isConnectionVerified(context),
                     modelValidated = modelValidated,
                     emergencyStop = isEmergencyStopped(context)
                 )
