@@ -280,7 +280,10 @@ internal object XtLiveTradingEngine {
         require(dailyLoss < MAX_DAILY_LOSS) { "ترمز زیان روزانه ۲٪ فعال است." }
         require(drawdown < MAX_PEAK_DRAWDOWN) { "ترمز افت سرمایه از اوج ۸٪ فعال است." }
 
-        require(signal.cognitiveRiskMultiplier.isFinite() && signal.cognitiveRiskMultiplier in 0.25..1.0) {\n            "موتور شناختی اجازه ریسک صفر یا نامعتبر را نمی‌دهد."\n        }\n        val leverage = signal.leverage.coerceIn(1, 3)
+        require(signal.cognitiveRiskMultiplier.isFinite() && signal.cognitiveRiskMultiplier in 0.25..1.0) {
+            "موتور شناختی اجازه ریسک صفر یا نامعتبر را نمی‌دهد."
+        }
+        val leverage = signal.leverage.coerceIn(1, 3)
         val executionCost = XtExecutionCostModel.estimate(
             atrPercent = signal.technical.atrPercent,
             relativeVolume = signal.technical.relativeVolume,
