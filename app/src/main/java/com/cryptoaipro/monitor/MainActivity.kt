@@ -648,7 +648,7 @@ fun CryptoMonitorScreen() {
                             onToggleBackground = {
                                 val enabled = !backgroundMonitoring
                                 if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
-                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط ZORO متوقف نمی‌شود."
+                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط NEXUS متوقف نمی‌شود."
                                 } else {
                                     val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
                                     if (enabled) {
@@ -783,7 +783,7 @@ fun CryptoMonitorScreen() {
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Text("تنظیمات و پایش پس‌زمینه", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
-                            OutlinedButton(onClick = { selectedTab = "عیب‌یابی" }, modifier = Modifier.fillMaxWidth()) { Text("مرکز عیب‌یابی و گزارش خطاهای ZORO", color = Blue) }
+                            OutlinedButton(onClick = { selectedTab = "عیب‌یابی" }, modifier = Modifier.fillMaxWidth()) { Text("مرکز عیب‌یابی و گزارش خطاهای NEXUS", color = Blue) }
                             HopeAnimatedBrainBanner()
                             XtConnectionAndExecutionScreen(context, rows) { backgroundMonitoring = true; appSettings.edit().putBoolean("background_monitoring", true).apply() }
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
@@ -797,7 +797,7 @@ fun CryptoMonitorScreen() {
                                             checked = backgroundMonitoring,
                                             onCheckedChange = { enabled ->
                                                 if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
-                                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط ZORO متوقف نمی‌شود."
+                                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط NEXUS متوقف نمی‌شود."
                                                 } else {
                                                     val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
                                                     if (enabled) {
@@ -817,7 +817,7 @@ fun CryptoMonitorScreen() {
                                             }
                                         )
                                     }
-                                    Text("با فعال‌سازی، سرویس پیش‌زمینه ZORO فقط داده‌های بازار را دریافت می‌کند، تحلیل چندتایم‌فریمی و شبکه‌های عصبی را اجرا می‌کند و سیگنال‌های تازه را اطلاع می‌دهد؛ هیچ سفارش واقعی یا مدیریت پوزیشن حسابی انجام نمی‌شود. توقف اجباری برنامه، قطع اینترنت یا محدودیت باتری می‌تواند سرویس را مختل کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                                    Text("با فعال‌سازی، سرویس پیش‌زمینه NEXUS فقط داده‌های بازار را دریافت می‌کند، تحلیل چندتایم‌فریمی و شبکه‌های عصبی را اجرا می‌کند و سیگنال‌های تازه را اطلاع می‌دهد؛ هیچ سفارش واقعی یا مدیریت پوزیشن حسابی انجام نمی‌شود. توقف اجباری برنامه، قطع اینترنت یا محدودیت باتری می‌تواند سرویس را مختل کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                                 }
                             }
                             HopeLivingBrainPanel(context) { scanIntervalMinutes = it }
@@ -850,7 +850,7 @@ fun CryptoMonitorScreen() {
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
-                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← ZORO ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← NEXUS ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                         }
                     }
                 }
