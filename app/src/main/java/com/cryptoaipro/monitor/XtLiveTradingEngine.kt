@@ -579,7 +579,7 @@ internal object XtLiveTradingEngine {
                         val trailEdit = p.edit().putString(keyPrefix + "favorable_extreme", extreme.toString())
                         if (favorableR >= 1.0 && currentStop > 0.0 && targetPrice > 0.0) {
                             val contract = client.contractSpec(position.symbol)
-                            val fundingRate = p.getString(keyPrefix + "funding_rate", "0")?.toDoubleOrNull()?.let(kotlin.math::abs) ?: 0.0
+                            val fundingRate = p.getString(keyPrefix + "funding_rate", "0")?.toDoubleOrNull()?.let { kotlin.math.abs(it) } ?: 0.0
                             val feeBuffer = entry * (2.0 * contract.takerFeeRate + 2.0 * 0.0005 + fundingRate * 6.0 / 8.0)
                             val breakEven = if (isLong) entry + feeBuffer else entry - feeBuffer
                             val trailGap = when {
