@@ -156,7 +156,7 @@ internal class XtAuthenticatedFuturesClient(
             (0 until items.length()).mapNotNull { index ->
                 val item = items.optJSONObject(index) ?: return@mapNotNull null
                 val itemSymbol = item.optString("symbol").lowercase(Locale.US)
-                val createdAt = item.optLong("createdTime", 0L)
+                val rawCreatedAt = item.optLong("createdTime", 0L)\n                val createdAt = if (rawCreatedAt in 1L until 1_000_000_000_000L) rawCreatedAt * 1000L else rawCreatedAt
                 val rate = item.optString("fundingRate").toDoubleOrNull()
                     ?: if (item.has("fundingRate")) item.optDouble("fundingRate", Double.NaN) else Double.NaN
                 if (itemSymbol != normalized || createdAt <= 0L ||
