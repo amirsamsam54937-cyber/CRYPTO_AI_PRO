@@ -113,6 +113,8 @@ data class MarketSignal(
     val neuralMemberVotes: List<String> = emptyList(),
     val neuralMemberProbabilities: List<Double> = emptyList(),
     val neuralUncertainty: WolfEnsembleUncertainty.Summary = WolfEnsembleUncertainty.analyze(emptyList()),
+    val deepNeuralSuccessProbability: Double? = null,
+    val deepNeuralReviewedSamples: Int = 0,
     // Internal XT microstructure features; deliberately not rendered in any UI or notification.
     val hiddenFlowScore: Int = 0,
     val hiddenFlowFresh: Boolean = false,
@@ -227,17 +229,20 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
     }.map { rawReviewed ->
         // Apply only a small, fresh, signed XT order-flow adjustment. Raw order-book/trade
         // observations remain private to the model and never appear in UI or notifications.
-        val directionSign = when (rawReviewed.technicalDirection) {
-            "LONG_BIAS" -> 1
-            "SHORT_BIAS" -> -1
-            else -> 0
-        }
-        val alignedFlow = if (rawReviewed.hiddenFlowFresh) rawReviewed.hiddenFlowScore * directionSign else 0
-        val flowConfidenceAdjustment = (alignedFlow / 5).coerceIn(-5, 5)
-        val reviewed = if (directionSign == 0 || !rawReviewed.hiddenFlowFresh) rawReviewed else rawReviewed.copy(
-            confidence = (rawReviewed.confidence + flowConfidenceAdjustment).coerceIn(0, 100),
-            score = (rawReviewed.score + alignedFlow / 4).coerceIn(-100, 100)
+        val dnnPrefs = context.getSharedPreferences("wolf_signal_outcomes", Context.MODE_PRIVATE)
+        val dnnSamples = WolfDeepNeuralNetwork.reviewedSamples(dnnPrefs)
+        val dnnSide = rawReviewed.technicalDirection
+        val dnnProbability = if (dnnSide == "LONG_BIAS" || dnnSide == "SHORT_BIAS") {
+            runCatching {
+                WolfDeepNeuralNetwork.predict(dnnPrefs, rawReviewed.copy(direction = dnnSide), context)
+            }.getOrNull()
+        } else null
+        val withMemoryModel = rawReviewed.copy(
+            deepNeuralSuccessProbability = dnnProbability,
+            deepNeuralReviewedSamples = dnnSamples
         )
+        // Flow/news/sentiment are neural inputs, never deterministic directional score injection.
+        val reviewed = withMemoryModel
         // A not-yet-validated neural model must never become a hard lock on all live signals.
         // Until it beats the chronological baseline, publish only independently strong
         // technical setups; keep the neural vote visibly disabled and advisory-only.
