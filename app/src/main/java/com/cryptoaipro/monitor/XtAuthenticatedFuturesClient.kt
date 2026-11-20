@@ -11,6 +11,7 @@ import java.math.RoundingMode
 import java.net.HttpURLConnection
 import java.net.UnknownHostException
 import java.net.URL
+import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 /**
@@ -126,6 +127,43 @@ internal class XtAuthenticatedFuturesClient(
                 "DNS گوشی نتوانست fapi.xt.com را پیدا کند. دامنه رسمی XT تغییر نکرده؛ اینترنت را عوض کن یا Private DNS اندروید را روی Automatic بگذار و دوباره آزمایش کن. هیچ سفارشی ارسال نشده.",
                 error
             )
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
+     * XT public funding endpoint; deliberately unauthenticated and read-only.
+     * Null means stale, malformed, or unavailable data: live sizing must fail closed.
+     */
+    suspend fun currentFundingRate(symbol: String): Double? = withContext(Dispatchers.IO) {
+        val normalized = normalizeSymbol(symbol)
+        val encoded = URLEncoder.encode(normalized, "UTF-8")
+        val connection = (URL("$baseUrl/future/market/v1/public/q/funding-rate?symbol=$encoded")
+            .openConnection() as HttpURLConnection)
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 5000
+            connection.readTimeout = 7000
+            connection.setRequestProperty("Accept", "application/json")
+            val code = connection.responseCode
+            if (code !in 200..299) return@withContext null
+            val raw = connection.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            val root = JSONObject(raw)
+            if (root.optInt("returnCode", Int.MIN_VALUE) != 0) return@withContext null
+            val items = root.optJSONObject("result")?.optJSONArray("items") ?: return@withContext null
+            val now = System.currentTimeMillis()
+            (0 until items.length()).mapNotNull { index ->
+                val item = items.optJSONObject(index) ?: return@mapNotNull null
+                val itemSymbol = item.optString("symbol").lowercase(Locale.US)
+                val createdAt = item.optLong("createdTime", 0L)
+                val rate = item.optString("fundingRate").toDoubleOrNull()
+                    ?: if (item.has("fundingRate")) item.optDouble("fundingRate", Double.NaN) else Double.NaN
+                if (itemSymbol != normalized || createdAt <= 0L ||
+                    now - createdAt !in 0L..12L * 60L * 60L * 1000L ||
+                    !rate.isFinite() || kotlin.math.abs(rate) > 0.02) null
+                else createdAt to rate
+            }.maxByOrNull { it.first }?.second
         } finally {
             connection.disconnect()
         }
