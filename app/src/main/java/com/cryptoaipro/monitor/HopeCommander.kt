@@ -26,8 +26,8 @@ internal object HopeCommander {
         val longVotes = probabilities.count { it >= 0.55 }
         val shortVotes = probabilities.count { it <= 0.45 }
         val side = when {
-            longVotes >= 7 && meanUp >= 0.60 -> "LONG_BIAS"
-            shortVotes >= 7 && meanUp <= 0.40 -> "SHORT_BIAS"
+            signal.neuralDirection == "LONG_BIAS" && longVotes >= 7 && meanUp >= 0.60 -> "LONG_BIAS"
+            signal.neuralDirection == "SHORT_BIAS" && shortVotes >= 7 && meanUp <= 0.40 -> "SHORT_BIAS"
             else -> "NEUTRAL"
         }
         if (side == "NEUTRAL") return Decision(
