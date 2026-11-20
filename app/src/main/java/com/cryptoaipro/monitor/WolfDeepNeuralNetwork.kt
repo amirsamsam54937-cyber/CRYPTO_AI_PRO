@@ -132,7 +132,14 @@ internal object WolfDeepNeuralNetwork {
                 DoubleArray(cols) { c -> row.getDouble(c).coerceIn(-8.0, 8.0) }
             }
         }
-        Model(matrix("w1", H1, INPUTS), vector("b1", H1),
+        val oldW1 = j.getJSONArray("w1")
+        require(oldW1.length() == H1)
+        val migratedW1 = Array(H1) { rowIndex ->
+            val row = oldW1.getJSONArray(rowIndex)
+            require(row.length() == INPUTS || row.length() == 7)
+            DoubleArray(INPUTS) { col -> if (col < row.length()) row.getDouble(col).coerceIn(-8.0, 8.0) else 0.0 }
+        }
+        Model(migratedW1, vector("b1", H1),
             matrix("w2", H2, H1), vector("b2", H2),
             vector("w3", H2), j.optDouble("b3", 0.0).coerceIn(-8.0, 8.0))
     }.getOrNull()
