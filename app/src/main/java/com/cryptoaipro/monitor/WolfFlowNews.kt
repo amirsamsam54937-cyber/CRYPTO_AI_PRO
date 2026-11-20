@@ -216,7 +216,8 @@ internal object WolfFlowNewsRepository {
                 else -> "خبر معتبر و مرتبط تازه برای این دارایی در دسترس نیست"
             }
             val researchNote = prefs.getString("auto_research", "").orEmpty().take(500)
-            val adjustment = (flowAdjustment + bookAdjustment + crowdedSidePenalty + newsAdjustment).coerceIn(-7, 5)
+            // News, sentiment, funding and flow are consumed by the DNN feature vector; no rule-based score injection.
+            val adjustment = 0
             signal.copy(
                 score = (signal.score + adjustment).coerceIn(-100, 100),
                 confidence = (signal.confidence + adjustment).coerceIn(0, 95),
