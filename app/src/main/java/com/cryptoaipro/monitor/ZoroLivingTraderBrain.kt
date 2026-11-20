@@ -10,7 +10,7 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 
 /**
- * ZORO's adaptive trading supervisor.
+ * NEXUS QUANT adaptive trading supervisor.
  *
  * It combines explainable market-structure evidence with realized, fee-net paper outcomes.
  * It never invents a direction, never raises the configured risk budget, and never bypasses
@@ -109,9 +109,9 @@ internal object ZoroLivingTraderBrain {
             reasons += "سه زیان پیاپی در سوابق کاغذی؛ دوره استراحت چهار ساعته فعال است"
         }
         val quality = score.coerceIn(0, 100)
-        val hardGates = neuralValidated &&
+        val hardGates = thought.allowed && neuralValidated &&
             neuralSide == side &&
-            signal.neuralMemberProbabilities.size >= 7 &&
+            signal.neuralMemberProbabilities.size == 10 &&
             !signal.neuralUncertainty.highDisagreement &&
             signal.confidence >= 70 &&
             adx >= 18.0 && relativeVolume >= 0.75 &&
@@ -212,9 +212,9 @@ internal fun ZoroLivingTraderBrainPanel(context: Context) {
             androidx.compose.ui.Modifier.padding(14.dp),
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp)
         ) {
-            androidx.compose.material3.Text("مغز زنده معامله‌گر ZORO", color = gold, fontSize = 14.sp)
+            androidx.compose.material3.Text("مغز شناختی NEXUS QUANT", color = gold, fontSize = 14.sp)
             androidx.compose.material3.Text(
-                "حافظه کوتاه‌مدت: ${memory.shortTerm} • اپیزودها: ${memory.episodes} • الگوهای میان‌مدت: ${memory.mediumPatterns} • دانش بلندمدت معتبر: ${memory.deepCheckpoints}",
+                "چرخه فکر: مشاهده ← فرضیه ← سناریو ← آزمون هزینه ← تصمیم ← یادگیری • حافظه کوتاه‌مدت: ${memory.shortTerm} • اپیزودها: ${memory.episodes} • الگوهای میان‌مدت: ${memory.mediumPatterns} • دانش بلندمدت معتبر: ${memory.deepCheckpoints}",
                 color = muted, fontSize = 9.sp, lineHeight = 13.sp
             )
             androidx.compose.material3.Text("اصول رشد سرمایه: فقط فرصت‌های منتخب • مزیت خالص پس از کارمزد • ریسک ثابت • ترکیب سود فقط پس از اثبات عملکرد • ممنوعیت مارتینگل", color = muted, fontSize = 10.sp, lineHeight = 14.sp)
