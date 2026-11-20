@@ -49,6 +49,7 @@ internal object XtLiveTradingEngine {
         val netRewardRisk: Double,
         val contractSize: Double,
         val takerFeeRate: Double,
+        val actualFundingRatePer8h: Double,
         val estimatedEntryFeeUsdt: Double,
         val estimatedStopExitFeeUsdt: Double,
         val estimatedFundingCostUsdt: Double,
@@ -260,6 +261,8 @@ internal object XtLiveTradingEngine {
 
         val wallet = client.futuresWallet()
         val contract = client.contractSpec(signal.symbol)
+        val actualFundingRate = client.currentFundingRate(signal.symbol)
+            ?: throw IllegalStateException("نرخ Funding زنده XT برای این قرارداد تازه و معتبر دریافت نشد؛ معامله برای جلوگیری از محاسبه ناقص هزینه متوقف شد.")
         require(client.activeTakeProfitStopOrders(signal.symbol).isEmpty()) {
             "برای این نماد طرح TP/SL فعال یا باقی‌مانده در XT وجود دارد؛ ابتدا آن را تعیین تکلیف کن."
         }
@@ -288,7 +291,8 @@ internal object XtLiveTradingEngine {
             atrPercent = signal.technical.atrPercent,
             relativeVolume = signal.technical.relativeVolume,
             liquidityStrength = signal.technical.liquidityStrength,
-            feePerSide = contract.takerFeeRate
+            feePerSide = contract.takerFeeRate,
+            fundingReservePer8h = kotlin.math.abs(actualFundingRate)
         )
         val decision = XtFuturesCapitalManager.planAdaptive(
             wallet = wallet,
@@ -337,6 +341,7 @@ internal object XtLiveTradingEngine {
             netRewardRisk = plan.netRewardRisk,
             contractSize = contract.contractSize,
             takerFeeRate = contract.takerFeeRate,
+            actualFundingRatePer8h = actualFundingRate,
             estimatedEntryFeeUsdt = plan.entryFeeUsdt,
             estimatedStopExitFeeUsdt = plan.exitFeeUsdt,
             estimatedFundingCostUsdt = plan.estimatedFundingCostUsdt,
