@@ -130,7 +130,7 @@ internal object HopePaperTradingEngine {
                 if (exit == null && signal.price > 0.0) {
                     val trailedStop = DynamicTradingPolicy.trailStop(
                         p.side, p.entry, signal.price, p.stop, p.initialRiskDistance, signal.atr,
-                        roundTripCostFraction = FEE_PER_SIDE * 2.0 + SLIPPAGE_PER_SIDE
+                        roundTripCostFraction = p.feePerSide * 2.0 + p.slippagePerSide * 2.0
                     )
                     survivors += p.copy(mark = signal.price, stop = trailedStop)
                 }
@@ -141,11 +141,11 @@ internal object HopePaperTradingEngine {
             }
             if (exit != null) {
                 val isLong = p.side == "LONG_BIAS"
-                val exitFill = exit!! * (if (isLong) 1.0 - SLIPPAGE_PER_SIDE else 1.0 + SLIPPAGE_PER_SIDE)
+                val exitFill = exit!! * (if (isLong) 1.0 - p.slippagePerSide else 1.0 + p.slippagePerSide)
                 val gross = (exitFill - p.entry) * p.quantity * (if (isLong) 1.0 else -1.0)
-                val fees = (p.entry * p.quantity + exitFill * p.quantity) * FEE_PER_SIDE
+                val fees = (p.entry * p.quantity + exitFill * p.quantity) * p.feePerSide
                 val hours = ((now - p.openedAt).coerceAtLeast(0L)).toDouble() / 3_600_000.0
-                val funding = p.notionalUsdt * ESTIMATED_FUNDING_PER_8H * (hours / 8.0)
+                val funding = p.notionalUsdt * p.fundingRatePer8h * (hours / 8.0)
                 val net = gross - fees - funding
                 realized += net
                 dailyPnl += net
