@@ -231,30 +231,55 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         // observations remain private to the model and never appear in UI or notifications.
         val dnnPrefs = context.getSharedPreferences("wolf_signal_outcomes", Context.MODE_PRIVATE)
         val dnnSamples = WolfDeepNeuralNetwork.reviewedSamples(dnnPrefs)
-        val dnnSide = rawReviewed.technicalDirection
-        val dnnProbability = if (dnnSide == "LONG_BIAS" || dnnSide == "SHORT_BIAS") {
-            runCatching {
-                WolfDeepNeuralNetwork.predict(dnnPrefs, rawReviewed.copy(direction = dnnSide), context)
-            }.getOrNull()
-        } else null
+        val dnnLongProbability = runCatching {
+            WolfDeepNeuralNetwork.predict(dnnPrefs, rawReviewed.copy(direction = "LONG_BIAS"), context)
+        }.getOrNull()
+        val dnnShortProbability = runCatching {
+            WolfDeepNeuralNetwork.predict(dnnPrefs, rawReviewed.copy(direction = "SHORT_BIAS"), context)
+        }.getOrNull()
+        val dnnProbability = when (rawReviewed.neuralDirection) {
+            "LONG_BIAS" -> dnnLongProbability
+            "SHORT_BIAS" -> dnnShortProbability
+            else -> null
+        }
         val withMemoryModel = rawReviewed.copy(
             deepNeuralSuccessProbability = dnnProbability,
             deepNeuralReviewedSamples = dnnSamples
         )
         // Flow/news/sentiment are neural inputs, never deterministic directional score injection.
         val reviewed = withMemoryModel
-        // A not-yet-validated neural model must never become a hard lock on all live signals.
-        // Until it beats the chronological baseline, publish only independently strong
-        // technical setups; keep the neural vote visibly disabled and advisory-only.
+        // Only the validated neural specialist ensemble may originate LONG/SHORT.
+        // Technical features remain context and risk inputs, never a competing direction.
         val tech = reviewed.technicalDirection
         val neural = reviewed.neuralDirection
         val bothDirectional = (tech == "LONG_BIAS" || tech == "SHORT_BIAS") &&
             (neural == "LONG_BIAS" || neural == "SHORT_BIAS")
         val neuralStrength = maxOf(reviewed.neuralScore, 100 - reviewed.neuralScore)
         val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
-        // One central authority arbitrates every specialist, the technical consensus and
-        // the neural ensemble. The neural model is directional only after holdout validation.
-        val commander = HopeCommander.decide(reviewed, neuralValidated)
+        // Build stop/target geometry from ATR around the neural side, not the old technical side.
+        val neuralEntry = reviewed.price.takeIf { it.isFinite() && it > 0.0 } ?: reviewed.entry
+        val neuralRiskDistance = (neuralEntry * (reviewed.technical.atrPercent.coerceIn(0.1, 8.0) / 100.0) * 1.2)
+            .coerceAtLeast(neuralEntry * 0.0025)
+        val neuralSide = reviewed.neuralDirection
+        val neuralGeometry = when (neuralSide) {
+            "LONG_BIAS" -> reviewed.copy(
+                direction = neuralSide, entry = neuralEntry,
+                stop = neuralEntry - neuralRiskDistance,
+                tp1 = neuralEntry + neuralRiskDistance * 1.8,
+                tp2 = neuralEntry + neuralRiskDistance * 2.4,
+                tp3 = neuralEntry + neuralRiskDistance * 3.0
+            )
+            "SHORT_BIAS" -> reviewed.copy(
+                direction = neuralSide, entry = neuralEntry,
+                stop = neuralEntry + neuralRiskDistance,
+                tp1 = neuralEntry - neuralRiskDistance * 1.8,
+                tp2 = neuralEntry - neuralRiskDistance * 2.4,
+                tp3 = neuralEntry - neuralRiskDistance * 3.0
+            )
+            else -> reviewed
+        }
+        // The neural commander selects direction; risk geometry only determines whether the setup is executable.
+        val commander = HopeCommander.decide(neuralGeometry, neuralValidated)
         // Publish a technically valid 5m scalp candidate from 56/100 so the user can
         // inspect the Commander's decision instead of seeing every sub-62 setup capped
         // at 49. This threshold only publishes a candidate; actual XT order authorization
@@ -285,7 +310,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         }
         val promoted = commanderQualified &&
             (neuralValidated || technicalOnlyQualified) && tier != "بدون رتبه"
-        reviewed.copy(
+        val finalSignal = neuralGeometry.copy(
             direction = if (promoted) commander.direction else "NEUTRAL",
             score = if (promoted) commander.score else 0,
             confidence = if (promoted) commander.confidence else minOf(commander.confidence, 49),
@@ -300,6 +325,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             multiHorizonOutlook = ZoroMultiHorizonEngine.analyze(reviewed),
             advancedTechnical = ZoroAdvancedTechnicalEngine.analyze(reviewed.candles, reviewed.price, reviewed.neuralCandles)
         )
+        ZoroCognitiveMemory.observe(context, finalSignal)
+        finalSignal
     }.sortedWith(compareByDescending<MarketSignal> {
         if (it.direction == "NEUTRAL") it.score.toDouble() else it.confidence.toDouble()
     }.thenByDescending { it.volume })
