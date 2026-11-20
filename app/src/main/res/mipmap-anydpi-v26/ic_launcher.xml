@@ -1,5 +1,5 @@
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@android:color/black"/>
+    <background android:drawable="#07111F"/>
     <foreground android:drawable="@drawable/ic_zoro_foreground"/>
     <monochrome android:drawable="@drawable/ic_zoro_monochrome"/>
 </adaptive-icon>
