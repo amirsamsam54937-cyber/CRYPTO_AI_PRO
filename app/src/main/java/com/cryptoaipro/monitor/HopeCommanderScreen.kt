@@ -33,16 +33,16 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.max
 import kotlin.math.min
 
-private val HGold = Color(0xFFD5DCE5)
-private val HGoldBright = Color(0xFFF4F6FA)
-private val HInk = Color(0xFF050606)
-private val HPanel = Color(0xFF101211)
-private val HPanel2 = Color(0xFF171A18)
-private val HMint = Color(0xFF25D978)
-private val HRed = Color(0xFFFF5361)
-private val HMuted = Color(0xFFB8B0A0)
-private val HBlue = Color(0xFFFF5361)
-private val HPurple = Color(0xFFC7CDD4)
+private val HGold = Color(0xFF24E6D3)
+private val HGoldBright = Color(0xFFE9FBFF)
+private val HInk = Color(0xFF07111F)
+private val HPanel = Color(0xFF102033)
+private val HPanel2 = Color(0xFF172D43)
+private val HMint = Color(0xFFB5F36B)
+private val HRed = Color(0xFFFF647C)
+private val HMuted = Color(0xFF91A9BD)
+private val HBlue = Color(0xFF24E6D3)
+private val HPurple = Color(0xFF9B8CFF)
 
 @Composable
 fun HopeCommanderBrain(modifier: Modifier = Modifier) {
@@ -53,7 +53,7 @@ fun HopeCommanderBrain(modifier: Modifier = Modifier) {
         val cx = size.width / 2f
         val cy = size.height / 2f
         val r = size.minDimension * .34f
-        drawCircle(Color(0x443A9B63), r * 1.65f * pulse, Offset(cx, cy))
+        drawCircle(Color(0x4424E6D3), r * 1.65f * pulse, Offset(cx, cy))
         drawCircle(HGold.copy(alpha = .9f), r * 1.28f, Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
         drawCircle(HGold.copy(alpha = .42f), r, Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
         for (i in 0 until 24) {
@@ -77,7 +77,7 @@ fun HopeCommanderBrain(modifier: Modifier = Modifier) {
                 drawLine(HGold.copy(alpha=.7f), Offset(cx, yy), Offset(cx+side*r*(.18f+j*.075f), yy-r*.06f), 1.dp.toPx())
             }
         }
-        drawCircle(Color(0xFFFFE6A8), 4.dp.toPx()*pulse, Offset(cx, cy))
+        drawCircle(Color(0xFFB5F36B), 4.dp.toPx()*pulse, Offset(cx, cy))
     }
 }
 
@@ -138,14 +138,14 @@ internal fun HopeCommanderScreen(
     ) {
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(42.dp).background(Brush.linearGradient(listOf(Color(0xFF30230B), HInk)), CircleShape)
+                Box(Modifier.size(42.dp).background(Brush.linearGradient(listOf(Color(0xFF12364A), HInk)), CircleShape)
                     .border(1.dp, HGold, CircleShape), contentAlignment = Alignment.Center) {
                     HopeCommanderBrain(Modifier.size(38.dp))
                 }
                 Spacer(Modifier.width(9.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("ZORO", color = HGoldBright, fontSize = 17.sp, fontWeight = FontWeight.Black, letterSpacing = 1.1.sp)
-                    Text("مرکز هوشمند تحلیل و سیگنال بازار", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("NEXUS", color = HGoldBright, fontSize = 17.sp, fontWeight = FontWeight.Black, letterSpacing = 1.1.sp)
+                    Text("هوش معاملاتی و تحلیل بازار در لحظه", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
                 IconButton(onClick = onOpenSettings) { Icon(Icons.Outlined.Settings, "تنظیمات", tint = HGold) }
                 Icon(Icons.Outlined.Notifications, contentDescription = "اعلان‌ها", tint = HGoldBright, modifier = Modifier.padding(8.dp))
@@ -181,7 +181,7 @@ internal fun HopeCommanderScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("فرمانده مرکزی سیستم", color = HMuted, fontSize = 10.sp)
-                        Text("HOPE COMMANDER", color = HGoldBright, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                        Text("NEXUS CORE", color = HGoldBright, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                         Text("مغز یکپارچهٔ تحلیل و تصمیم‌گیری", color = Color.White, fontSize = 10.sp)
                         Surface(color = Color(0xFF092315), shape = RoundedCornerShape(30.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, HMint.copy(alpha = glow))) {
