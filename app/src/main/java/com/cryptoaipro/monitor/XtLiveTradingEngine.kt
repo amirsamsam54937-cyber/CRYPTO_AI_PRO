@@ -480,6 +480,7 @@ internal object XtLiveTradingEngine {
                 .putString("managed_${normalized(fresh.symbol)}_target", fresh.target.toString())
                 .putString("managed_${normalized(fresh.symbol)}_favorable_extreme", averageFillPrice.toString())
                 .putString("managed_${normalized(fresh.symbol)}_profit_id", protectionReceipt.profitId)
+                .putString("managed_${normalized(fresh.symbol)}_funding_rate", fresh.actualFundingRatePer8h.toString())
                 .putInt("last_position_count", positions.size)
                 .putString(KEY_STATUS,
                     "سفارش واقعی تأیید شد • ${fresh.symbol} ${fresh.side} • ${fresh.contracts} قرارداد • SL و TP در XT فعال تأیید شدند.")
@@ -498,7 +499,7 @@ internal object XtLiveTradingEngine {
         }
     }
 
-    /** Monitor only ZORO-managed positions; never submits or modifies an order. */
+    /** Verify NEXUS-managed positions and tighten exchange-native protection; never increases position size. */
     suspend fun monitorOpenPositions(context: Context) {
         val p = prefs(context)
         val managed = p.getStringSet(KEY_MANAGED, emptySet())?.toSet().orEmpty()
@@ -532,7 +533,7 @@ internal object XtLiveTradingEngine {
                     val prefix = "managed_" + symbol + "_"
                     val cleanup = p.edit()
                     listOf("side", "entry", "initial_risk", "current_stop", "target",
-                        "favorable_extreme", "profit_id", "last_trail_at").forEach { cleanup.remove(prefix + it) }
+                        "favorable_extreme", "profit_id", "funding_rate", "last_trail_at").forEach { cleanup.remove(prefix + it) }
                     cleanup.apply()
                     continue
                 }
@@ -578,7 +579,8 @@ internal object XtLiveTradingEngine {
                         val trailEdit = p.edit().putString(keyPrefix + "favorable_extreme", extreme.toString())
                         if (favorableR >= 1.0 && currentStop > 0.0 && targetPrice > 0.0) {
                             val contract = client.contractSpec(position.symbol)
-                            val feeBuffer = entry * (2.0 * contract.takerFeeRate + 2.0 * 0.0005)
+                            val fundingRate = p.getString(keyPrefix + "funding_rate", "0")?.toDoubleOrNull()?.let(kotlin.math::abs) ?: 0.0
+                            val feeBuffer = entry * (2.0 * contract.takerFeeRate + 2.0 * 0.0005 + fundingRate * 6.0 / 8.0)
                             val breakEven = if (isLong) entry + feeBuffer else entry - feeBuffer
                             val trailGap = when {
                                 favorableR >= 2.0 -> initialRisk * 0.75
