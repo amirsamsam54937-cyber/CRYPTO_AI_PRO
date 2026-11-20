@@ -43,12 +43,14 @@ internal object ZoroLivingTraderBrain {
         val regime = tech.regime.ifBlank { "UNKNOWN" }.uppercase()
         var score = 50
 
-        if (signal.technicalDirection.equals(side, true)) {
+        val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
+        val neuralSide = signal.neuralDirection.uppercase()
+        if (neuralValidated && neuralSide == side) {
             score += 12
-            reasons += "ساختار تکنیکال هم‌جهت"
+            reasons += "جهت منتخب شبکه عصبی اعتبارسنجی‌شده"
         } else {
-            score -= 20
-            reasons += "تعارض جهت با ساختار تکنیکال"
+            score -= 35
+            reasons += "خروجی عصبی معتبر و هم‌جهت وجود ندارد"
         }
 
         if (adx >= 25.0) { score += 10; reasons += "روند قدرتمند" }
@@ -80,17 +82,7 @@ internal object ZoroLivingTraderBrain {
         if (trendRegime && adx >= 20.0) score += 4
         if (rangeRegime && adx < 18.0) { score -= 8; reasons += "بازار رنج؛ ورود تعقیبی ممنوع" }
 
-        // A validated model may be one independent witness. An unvalidated model has zero authority.
-        if (WolfPretrainedEnsemble.status().validatedForScoring) {
-            val neural = signal.neuralDirection.uppercase()
-            if (neural == side) { score += 4; reasons += "تأیید مدل عصبی اعتبارسنجی‌شده" }
-            else if (neural == "LONG_BIAS" || neural == "SHORT_BIAS") {
-                score -= 10
-                reasons += "تعارض مدل عصبی اعتبارسنجی‌شده"
-            }
-        } else {
-            reasons += "رأی عصبی صرفاً ثبت می‌شود؛ هنوز اعتبارسنجی مستقل ندارد"
-        }
+        // Neural output owns direction. Technical indicators remain non-directional risk/context gates.
 
         // The paper journal currently evaluates a fixed 15-minute signal horizon.
         // Never compare its outcomes with a multi-timeframe coverage label.
@@ -117,9 +109,11 @@ internal object ZoroLivingTraderBrain {
             reasons += "سه زیان پیاپی در سوابق کاغذی؛ دوره استراحت چهار ساعته فعال است"
         }
         val quality = score.coerceIn(0, 100)
-        val hardGates = signal.technicalDirection.equals(side, true) &&
+        val hardGates = neuralValidated &&
+            neuralSide == side &&
+            signal.neuralMemberProbabilities.size >= 7 &&
+            !signal.neuralUncertainty.highDisagreement &&
             signal.confidence >= 70 &&
-            (signal.consensus?.agreement ?: 0) >= 58 &&
             adx >= 18.0 && relativeVolume >= 0.75 &&
             atrPct.isFinite() && atrPct in 0.2..6.0 &&
             rr != null && rr >= 1.5 &&
