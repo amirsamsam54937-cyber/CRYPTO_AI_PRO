@@ -1,4 +1,4 @@
-name: Build ZORO APK
+name: Build NEXUS QUANT APK
 permissions:
   contents: read
   actions: read
