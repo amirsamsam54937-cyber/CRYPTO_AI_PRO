@@ -43,9 +43,9 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
     var status by remember { mutableStateOf(XtLiveTradingEngine.lastStatus(context)) }
     var selectedSignal by remember { mutableStateOf<MarketSignal?>(null) }
     var preview by remember { mutableStateOf<XtLiveTradingEngine.ManualPreview?>(null) }
-    val gold = Color(0xFFFFD45A)
-    val ivory = Color(0xFFECE5D6)
-    val muted = Color(0xFFB8B0A0)
+    val gold = Color(0xFF24E6D3)
+    val ivory = Color(0xFFEAF7FF)
+    val muted = Color(0xFF91A9BD)
 
     LaunchedEffect(context) {
         if (XtLiveTradingEngine.isEnabled(context) || XtLiveTradingEngine.hasManagedSymbols(context)) {
@@ -77,7 +77,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
     }
 
     Surface(
-        color = Color(0xFF111111),
+        color = Color(0xFF07111F),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, gold.copy(alpha = 0.45f)),
         modifier = Modifier.fillMaxWidth()
@@ -169,7 +169,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                 ) { Text("بررسی حساب و بازنشانی توقف اضطراری") }
             }
             Text(status, color = gold, fontSize = 10.sp, lineHeight = 15.sp)
-            Text("پوزیشن‌های ثبت‌شده توسط ZORO: " + XtLiveTradingEngine.positionCount(context), color = ivory, fontSize = 10.sp)
+            Text("پوزیشن‌های ثبت‌شده توسط NEXUS: " + XtLiveTradingEngine.positionCount(context), color = ivory, fontSize = 10.sp)
 
             val candidates = signals.asSequence()
                 .filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
@@ -184,7 +184,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
             }
             candidates.forEach { signal ->
                 Surface(
-                    color = Color(0xFF1A1A1A),
+                    color = Color(0xFF102033),
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
                     modifier = Modifier.fillMaxWidth()
@@ -194,7 +194,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                             Text(signal.symbol, color = ivory, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                             Text(
                                 if (signal.direction == "LONG_BIAS") "LONG" else "SHORT",
-                                color = if (signal.direction == "LONG_BIAS") Color(0xFF63D7A0) else Color(0xFFFF8585),
+                                color = if (signal.direction == "LONG_BIAS") Color(0xFFB5F36B) else Color(0xFFFF8585),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 10.sp
                             )
@@ -242,7 +242,11 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                     Text("حدضرر: ${fmt(p.stop)}  •  هدف: ${fmt(p.target)}")
                     Text("اهرم: ${p.leverage}x  •  مارجین تخمینی: ${money(p.marginRequiredUsdt)} USDT")
                     Text("بودجه ریسک: ${money(p.riskBudgetUsdt)} USDT")
-                    Text("زیان تخمینی در حدضرر با هزینه‌ها: ${money(p.estimatedStopLossUsdt)} USDT")
+                    Text("کارمزد واقعی XT (Taker): ${String.format(Locale.US, "%.4f", p.takerFeeRate * 100.0)}٪ برای هر سمت")
+                    Text("کارمزد ورود: ${money(p.estimatedEntryFeeUsdt)} • کارمزد خروج در SL: ${money(p.estimatedStopExitFeeUsdt)} USDT")
+                    Text("لغزش پویا: ${String.format(Locale.US, "%.3f", p.slippageRatePerSide * 100.0)}٪ هر سمت • هزینه تخمینی: ${money(p.estimatedSlippageCostUsdt)} USDT")
+                    Text("ذخیره فاندینگ تخمینی: ${money(p.estimatedFundingCostUsdt)} USDT")
+                    Text("زیان تخمینی در حدضرر با همه هزینه‌ها: ${money(p.estimatedStopLossUsdt)} USDT")
                     Text("سود خالص تخمینی در هدف: ${money(p.estimatedNetTargetProfitUsdt)} USDT")
                     Text("نسبت سود به زیان خالص: ${String.format(Locale.US, "%.2f", p.netRewardRisk)}")
                     Text(
