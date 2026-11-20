@@ -80,7 +80,7 @@ internal object XtLiveTradingEngine {
             .putBoolean(KEY_AUTO_ENABLED, allowed)
             .putString(
                 KEY_STATUS,
-                if (allowed) "معامله‌گر خودکار مسلح شد؛ رأی عصبی در صورت اعتبارسنجی‌نشدن صرفاً نمایشی است و ورود با کنترل‌های مستقل تکنیکال، حساب و ریسک انجام می‌شود."
+                if (allowed) "معامله‌گر خودکار مسلح شد؛ فقط اجماع عصبی اعتبارسنجی‌شده همراه با آزمون سناریو و اقتصاد خالص معامله مجاز است."
                 else if (enabled) "فعال‌سازی خودکار رد شد؛ LIVE، کلید API و وضعیت توقف اضطراری را بررسی کن."
                 else "معامله‌گر خودکار خاموش شد؛ پایش و تحلیل ادامه دارد."
             )
@@ -280,7 +280,7 @@ internal object XtLiveTradingEngine {
         require(dailyLoss < MAX_DAILY_LOSS) { "ترمز زیان روزانه ۲٪ فعال است." }
         require(drawdown < MAX_PEAK_DRAWDOWN) { "ترمز افت سرمایه از اوج ۸٪ فعال است." }
 
-        val leverage = signal.leverage.coerceIn(1, 3)
+        require(signal.cognitiveRiskMultiplier.isFinite() && signal.cognitiveRiskMultiplier in 0.25..1.0) {\n            "موتور شناختی اجازه ریسک صفر یا نامعتبر را نمی‌دهد."\n        }\n        val leverage = signal.leverage.coerceIn(1, 3)
         val executionCost = XtExecutionCostModel.estimate(
             atrPercent = signal.technical.atrPercent,
             relativeVolume = signal.technical.relativeVolume,
@@ -306,7 +306,7 @@ internal object XtLiveTradingEngine {
                 stop = stopPrice,
                 takeProfit = targetPrice,
                 leverage = leverage,
-                riskFraction = 0.0025,
+                riskFraction = 0.0025 * signal.cognitiveRiskMultiplier.coerceIn(0.0, 1.0),
                 maxMarginFraction = 0.05,
                 expectedFundingRatePer8h = XtExecutionCostModel.DEFAULT_FUNDING_RESERVE_PER_8H,
                 expectedHoldingHours = 6.0,
