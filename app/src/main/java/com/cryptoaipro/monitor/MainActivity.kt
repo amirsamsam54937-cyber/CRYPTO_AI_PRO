@@ -159,7 +159,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             signal.direction != "NEUTRAL" -> signal
             signal.score > 0 -> signal.copy(direction = "LONG_BIAS")
             signal.score < 0 -> signal.copy(direction = "SHORT_BIAS")
-            else -> null
+            else -> signal.copy(direction = "LONG_BIAS")
         }
         if (candidate == null) signal.copy(neuralScore = 50, neuralDirection = "NEUTRAL",
             neuralModelSource = if (pretrainedStatus.validatedForScoring) "۱۰ مدل • چارت ۱ساعته OHLCV + اندیکاتورها • افق ۶ساعت • معتبر" else "۱۰ مدل • در انتظار اعتبارسنجی")
@@ -258,7 +258,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
         // Build stop/target geometry from ATR around the neural side, not the old technical side.
         val neuralEntry = reviewed.price.takeIf { it.isFinite() && it > 0.0 } ?: reviewed.entry
-        val neuralRiskDistance = (neuralEntry * (reviewed.technical.atrPercent.coerceIn(0.1, 8.0) / 100.0) * 1.2)
+        val atrPercentForRisk = reviewed.technical.atrPercent.takeIf { it.isFinite() }?.coerceIn(0.1, 8.0) ?: 1.0
+        val neuralRiskDistance = (neuralEntry * (atrPercentForRisk / 100.0) * 1.2)
             .coerceAtLeast(neuralEntry * 0.0025)
         val neuralSide = reviewed.neuralDirection
         val neuralGeometry = when (neuralSide) {
