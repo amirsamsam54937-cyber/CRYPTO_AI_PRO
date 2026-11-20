@@ -311,7 +311,7 @@ internal object XtLiveTradingEngine {
                 leverage = leverage,
                 riskFraction = 0.0025 * signal.cognitiveRiskMultiplier.coerceIn(0.0, 1.0),
                 maxMarginFraction = 0.05,
-                expectedFundingRatePer8h = XtExecutionCostModel.DEFAULT_FUNDING_RESERVE_PER_8H,
+                expectedFundingRatePer8h = kotlin.math.abs(actualFundingRate),
                 expectedHoldingHours = 6.0,
                 slippageRatePerSide = executionCost.slippagePerSide,
                 extraSafetyBuffer = 0.20
