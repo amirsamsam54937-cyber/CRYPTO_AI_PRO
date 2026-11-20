@@ -351,7 +351,7 @@ fun CryptoMonitorScreen() {
     var scanProgress by remember { mutableStateOf("آماده اسکن") }
     var scannedCount by remember { mutableIntStateOf(0) }
     var totalContracts by remember { mutableIntStateOf(0) }
-    var selectedTab by remember { mutableStateOf("قدرت سیگنال") }
+    var selectedTab by remember { mutableStateOf("فرمانده") }
     var selectedSymbol by remember { mutableStateOf("") }
     var chartInterval by remember { mutableStateOf("15") }
     var voiceTranscript by remember { mutableStateOf("") }
@@ -531,7 +531,7 @@ fun CryptoMonitorScreen() {
             containerColor = Navy,
             bottomBar = {
                 NavigationBar(containerColor = Color(0xFF081625), contentColor = Color.White) {
-                    listOf("قدرت سیگنال", "دفترچه", "عیب‌یابی", "تنظیمات").forEach { entry ->
+                    listOf("فرمانده", "بازار", "قدرت سیگنال", "دفترچه", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
                             onClick = { selectedTab = entry },
@@ -583,7 +583,7 @@ fun CryptoMonitorScreen() {
                             Text("NEXUS QUANT", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
                         }
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("XT FUTURES", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("NEXUS TERMINAL", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             Surface(color = if (loading) Color(0xFF17464B) else Color(0xFF123C3A),
                                 shape = RoundedCornerShape(20.dp)) {
                                 Text(if (loading) "در حال اسکن" else "● $selectedExchange",
@@ -846,7 +846,7 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.81.0 • XT USDT-M • ده متخصص عصبی مستقل + اعتبارسنجی زمانی + تحلیل چندلایه", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("NEXUS QUANT • XT USDT-M • شبکه عصبی چندمتخصصی • تحلیل چندلایه", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
