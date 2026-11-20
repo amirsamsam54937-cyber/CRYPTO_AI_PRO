@@ -121,7 +121,8 @@ data class MarketSignal(
     // Scenario evidence scores for 1h/4h/6h/24h; never a calibrated win probability.
     val multiHorizonOutlook: ZoroMultiHorizonEngine.Outlook? = null,
     // Full OHLCV chart interpretation: indicators, patterns, structure and liquidity concepts.
-    val advancedTechnical: ZoroAdvancedTechnicalEngine.Report? = null
+    val advancedTechnical: ZoroAdvancedTechnicalEngine.Report? = null,
+    val cognitiveRiskMultiplier: Double = 1.0
 )
 
 data class TechnicalSnapshot(
@@ -326,8 +327,19 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             multiHorizonOutlook = ZoroMultiHorizonEngine.analyze(reviewed),
             advancedTechnical = ZoroAdvancedTechnicalEngine.analyze(reviewed.candles, reviewed.price, reviewed.neuralCandles)
         )
-        ZoroCognitiveMemory.observe(context, finalSignal)
-        finalSignal
+        val thought = NexusCognitiveEngine.think(finalSignal, neuralValidated)
+        val cognitiveSignal = finalSignal.copy(
+            direction = if (promoted && thought.allowed) finalSignal.direction else "NEUTRAL",
+            score = if (promoted && thought.allowed) finalSignal.score else 0,
+            confidence = if (promoted && thought.allowed) finalSignal.confidence else minOf(finalSignal.confidence, 45),
+            cognitiveRiskMultiplier = thought.riskMultiplier,
+            agreementStatus = finalSignal.agreementStatus + " • NEXUS " + thought.phase +
+                " • اجماع " + thought.neuralAgreement + "/10 • RR خالص " +
+                String.format(java.util.Locale.US, "%.2f", thought.netRewardRisk) +
+                " • هزینه تخمینی " + String.format(java.util.Locale.US, "%.3f", thought.estimatedRoundTripCostPct) + "%"
+        )
+        ZoroCognitiveMemory.observe(context, cognitiveSignal)
+        cognitiveSignal
     }.sortedWith(compareByDescending<MarketSignal> {
         if (it.direction == "NEUTRAL") it.score.toDouble() else it.confidence.toDouble()
     }.thenByDescending { it.volume })
