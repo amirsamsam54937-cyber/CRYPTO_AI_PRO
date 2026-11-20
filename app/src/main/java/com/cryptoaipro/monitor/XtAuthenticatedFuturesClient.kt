@@ -603,6 +603,47 @@ internal class XtAuthenticatedFuturesClient(
         return TakeProfitStopReceipt(id, normalized, positionSide, contracts, plan)
     }
 
+    /**
+     * Move an existing exchange-native TP/SL pair without canceling protection.
+     * XT validates the profitId; the updated stop and unchanged target are then
+     * read back from profit-list before the caller accepts the change.
+     */
+    suspend fun updateTakeProfitStopMarket(
+        symbol: String,
+        profitId: String,
+        triggerStopPrice: Double,
+        triggerProfitPrice: Double
+    ): JSONObject {
+        requireLiveArmed()
+        require(profitId.matches(Regex("[0-9]{1,24}")))
+        require(triggerStopPrice.isFinite() && triggerStopPrice > 0.0)
+        require(triggerProfitPrice.isFinite() && triggerProfitPrice > 0.0)
+        val normalized = normalizeSymbol(symbol)
+        request(
+            "POST", "/future/trade/v1/entrust/update-profit-stop",
+            formBody = mapOf(
+                "profitId" to profitId,
+                "triggerStopPrice" to BigDecimal.valueOf(triggerStopPrice).stripTrailingZeros().toPlainString(),
+                "triggerProfitPrice" to BigDecimal.valueOf(triggerProfitPrice).stripTrailingZeros().toPlainString()
+            )
+        )
+        repeat(3) { attempt ->
+            val verified = activeTakeProfitStopOrders(symbol).firstOrNull { item ->
+                item.opt("profitId")?.toString() == profitId &&
+                    normalizeSymbol(item.optString("symbol")) == normalized &&
+                    abs((item.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0) - triggerStopPrice) <=
+                        maxOf(1e-8, triggerStopPrice * 1e-8) &&
+                    abs((item.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0) - triggerProfitPrice) <=
+                        maxOf(1e-8, triggerProfitPrice * 1e-8) &&
+                    item.optString("stopDelegateOrderType").equals("MARKET", true) &&
+                    item.optString("profitDelegateOrderType").equals("MARKET", true)
+            }
+            if (verified != null) return verified
+            if (attempt < 2) delay(250L)
+        }
+        throw IllegalStateException("به‌روزرسانی حدضرر پویا در XT ثبت شد اما مقدار جدید در profit-list تأیید نشد؛ پوزیشن فوراً بررسی شود.")
+    }
+
     data class TriggerPlanReceipt(
         val planId: String,
         val clientOrderId: String,
