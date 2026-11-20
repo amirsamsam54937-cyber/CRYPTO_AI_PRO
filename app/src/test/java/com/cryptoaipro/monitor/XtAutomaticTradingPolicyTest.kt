@@ -22,8 +22,8 @@ class XtAutomaticTradingPolicyTest {
         assertFalse(XtAutomaticTradingPolicy.mayRun(true, true, true, true, true))
     }
 
-    @Test fun unvalidatedNeuralModelDoesNotBlockTechnicalOnlyAutopilot() {
-        assertTrue(XtAutomaticTradingPolicy.mayRun(true, true, true, false, false))
+    @Test fun unvalidatedNeuralModelBlocksAutomaticTrading() {
+        assertFalse(XtAutomaticTradingPolicy.mayRun(true, true, true, false, false))
     }
 
     @Test fun automaticModeIsNeverEnabledByDefault() {
