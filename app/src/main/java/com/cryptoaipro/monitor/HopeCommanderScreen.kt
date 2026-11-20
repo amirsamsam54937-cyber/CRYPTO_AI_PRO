@@ -183,7 +183,7 @@ internal fun HopeCommanderScreen(
                         Text("فرمانده مرکزی سیستم", color = HMuted, fontSize = 10.sp)
                         Text("NEXUS CORE", color = HGoldBright, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                         Text("مغز یکپارچهٔ تحلیل و تصمیم‌گیری", color = Color.White, fontSize = 10.sp)
-                        Surface(color = Color(0xFF092315), shape = RoundedCornerShape(30.dp),
+                        Surface(color = Color(0xFF18352E), shape = RoundedCornerShape(30.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, HMint.copy(alpha = glow))) {
                             Text(if (signals.isEmpty()) "در انتظار دریافت داده…" else "در حال پایش و داوری شواهد",
                                 color = HMint, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 15.dp, vertical = 7.dp))
@@ -208,13 +208,13 @@ internal fun HopeCommanderScreen(
                     Text(ta.trend + " • " + ta.regime + " • " + ta.momentum, color = HMuted, fontSize = 9.sp)
                     Text(ta.structure + " • " + ta.higherTimeframe, color = Color.White, fontSize = 9.sp)
                     Text("حجم: " + ta.volumeState, color = HMuted, fontSize = 9.sp)
-                    Divider(color = Color(0xFF303632))
+                    Divider(color = Color(0xFF29445A))
                     Text("الگوهای کندلی: " + ta.candlePatterns.joinToString(" • ").ifBlank { "الگوی قوی تأیید نشد" },
                         color = HGoldBright, fontSize = 9.sp)
                     Text("الگوهای نموداری: " + ta.chartPatterns.joinToString(" • "),
                         color = HGoldBright, fontSize = 9.sp, lineHeight = 13.sp)
                     Text("ساختار نقدینگی: " + ta.smartMoney, color = Color.White, fontSize = 9.sp, lineHeight = 13.sp)
-                    Divider(color = Color(0xFF303632))
+                    Divider(color = Color(0xFF29445A))
                     Text("نقشه نقدینگی پویا • Liquidity Pools", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     Text(liquidityMap.summary, color = Color.White, fontSize = 9.sp, lineHeight = 13.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -234,7 +234,7 @@ internal fun HopeCommanderScreen(
                         color = if (liquidityMap.sweptBuySide || liquidityMap.sweptSellSide) HGold else HMuted, fontSize = 8.sp)
                     Text("این سطوح تخمین خوشه‌های حدضرر از کندل‌ها هستند، نه مشاهده سفارش‌های مخفی یا داده قطعی لیکوییدیشن.",
                         color = HMuted, fontSize = 8.sp, lineHeight = 12.sp)
-                    Divider(color = Color(0xFF303632))
+                    Divider(color = Color(0xFF29445A))
                     Text("پنل اندیکاتورها", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     ta.indicators.forEach { metric ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -244,7 +244,7 @@ internal fun HopeCommanderScreen(
                             Text(metric.interpretation, color = HMuted, fontSize = 8.sp, modifier = Modifier.weight(1.35f))
                         }
                     }
-                    Divider(color = Color(0xFF303632))
+                    Divider(color = Color(0xFF29445A))
                     Text("سطوح و نواحی مهم", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     ta.levels.take(7).forEach { level ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -257,7 +257,7 @@ internal fun HopeCommanderScreen(
                     }
                     Text("راهنمای تحلیل", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     ta.education.forEach { Text("• " + it, color = HMuted, fontSize = 8.sp, lineHeight = 12.sp) }
-                    Text("امتیاز این بخش شاخص قدرت شواهد است، نه احتمال برد. اصطلاح کوانتومی در ZORO به سناریوسازی چندحالته اشاره دارد؛ ادعای استفاده از سخت‌افزار کوانتومی نمی‌شود.",
+                    Text("امتیاز این بخش شاخص قدرت شواهد است، نه احتمال برد. اصطلاح کوانتومی در NEXUS QUANT به سناریوسازی چندحالته اشاره دارد؛ ادعای استفاده از سخت‌افزار کوانتومی نمی‌شود.",
                         color = HMuted, fontSize = 8.sp, lineHeight = 12.sp)
                 }
             }
@@ -279,8 +279,8 @@ internal fun HopeCommanderScreen(
                             val vote = votes.getOrNull(index)
                             val active = vote != null && vote.isNotBlank() && vote != "NEUTRAL"
                             Column(Modifier.weight(1f).height(82.dp)
-                                .background(Color(0xFF090B0A), RoundedCornerShape(9.dp))
-                                .border(1.dp, if (neuralActive && active) HGold else Color(0xFF51401F), RoundedCornerShape(9.dp))
+                                .background(Color(0xFF0B1B2B), RoundedCornerShape(9.dp))
+                                .border(1.dp, if (neuralActive && active) HGold else Color(0xFF27515A), RoundedCornerShape(9.dp))
                                 .padding(horizontal = 2.dp, vertical = 5.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                                 Text(listOf("⌁","ϟ","▤","∿","◉","⇄","◇","▧","⟳","◎")[index],
@@ -372,7 +372,7 @@ internal fun HopeCommanderScreen(
                             else -> HGold
                         }
                         Row(
-                            Modifier.fillMaxWidth().background(Color(0xFF090B0A), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 7.dp),
+                            Modifier.fillMaxWidth().background(Color(0xFF0B1B2B), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(horizon.label, color = Color.White, fontSize = 9.sp, modifier = Modifier.weight(1f))
@@ -416,7 +416,7 @@ internal fun HopeCommanderScreen(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onOpenMarket, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF342607))) { Text("بازارها", color = HGoldBright) }
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16414A))) { Text("بازارها", color = HGoldBright) }
                 OutlinedButton(onClick = onOpenJournal, modifier = Modifier.weight(1f)) { Text("دفترچه و نتایج", color = HGold) }
                 OutlinedButton(onClick = onOpenSettings, modifier = Modifier.weight(1f)) { Text("تنظیمات", color = HGold) }
             }
@@ -439,13 +439,13 @@ internal fun HopeCommanderScreen(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onRescan, enabled = !isLoading, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF342607))) {
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16414A))) {
                     Text(if (isLoading) "در حال اسکن…" else "اسکن مجدد بازار", color = HGoldBright)
                 }
             }
         }
         item {
-            Text("ZORO • تحلیل فرمانده و خودکارسازی آزمایشی پویا • اجرای واقعی قفل است",
+            Text("NEXUS QUANT • تحلیل فرمانده و خودکارسازی آزمایشی پویا • اجرای واقعی قفل است",
                 color = HMuted, fontSize = 8.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
@@ -453,7 +453,7 @@ internal fun HopeCommanderScreen(
 
 @Composable
 private fun HPanelCard(modifier: Modifier, title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.background(Brush.verticalGradient(listOf(Color(0xFF151715), Color(0xFF080A09))), RoundedCornerShape(15.dp))
+    Column(modifier.background(Brush.verticalGradient(listOf(Color(0xFF132A3F), Color(0xFF07111F))), RoundedCornerShape(15.dp))
         .border(1.dp, HGold.copy(alpha = .78f), RoundedCornerShape(15.dp)).padding(9.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp)) {
         if (title.isNotBlank()) Text(title, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -493,7 +493,7 @@ private fun MetricTile(label: String, value: String, color: Color, modifier: Mod
 private fun ScoreRing(score: Int, label: String) {
     Box(Modifier.fillMaxWidth().height(70.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(66.dp)) {
-            drawArc(Color(0xFF30342F), -90f, 360f, false, style = androidx.compose.ui.graphics.drawscope.Stroke(6.dp.toPx()))
+            drawArc(Color(0xFF29445A), -90f, 360f, false, style = androidx.compose.ui.graphics.drawscope.Stroke(6.dp.toPx()))
             drawArc(HMint, -90f, score.coerceIn(0,100)*3.6f, false, style = androidx.compose.ui.graphics.drawscope.Stroke(6.dp.toPx(), cap = StrokeCap.Round))
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -505,7 +505,7 @@ private fun ScoreRing(score: Int, label: String) {
 
 @Composable
 private fun PriceTag(label: String, value: Double, color: Color, modifier: Modifier) {
-    Column(modifier.background(Color(0xFF080A09), RoundedCornerShape(7.dp)).padding(5.dp)) {
+    Column(modifier.background(Color(0xFF07111F), RoundedCornerShape(7.dp)).padding(5.dp)) {
         Text(label, color = color, fontSize = 7.sp, fontWeight = FontWeight.Bold)
         Text(if (value.isFinite() && value > 0) String.format(java.util.Locale.US, "%.5f", value) else "—", color = Color.White, fontSize = 7.sp, maxLines = 1)
     }
@@ -525,7 +525,7 @@ private fun CommanderCandlestickChart(signal: MarketSignal) {
     val low = min(candles.minOf { it[2] }, levels.minOrNull() ?: candles.minOf { it[2] })
     val high = max(candles.maxOf { it[1] }, levels.maxOrNull() ?: candles.maxOf { it[1] })
     val span = (high-low).takeIf { it > 0 } ?: 1.0
-    Canvas(Modifier.fillMaxWidth().height(160.dp).background(Color(0xFF050706), RoundedCornerShape(9.dp))) {
+    Canvas(Modifier.fillMaxWidth().height(160.dp).background(Color(0xFF0B1B2B), RoundedCornerShape(9.dp))) {
         val left = 5.dp.toPx()
         val right = size.width-5.dp.toPx()
         val top = 8.dp.toPx()
@@ -533,7 +533,7 @@ private fun CommanderCandlestickChart(signal: MarketSignal) {
         fun y(price: Double) = bottom - (((price-low)/span).toFloat()*(bottom-top))
         for (i in 0..4) {
             val yy = top + (bottom-top)*i/4
-            drawLine(Color(0xFF252B27), Offset(left,yy), Offset(right,yy), 1.dp.toPx())
+            drawLine(Color(0xFF1B3449), Offset(left,yy), Offset(right,yy), 1.dp.toPx())
         }
         val step = (right-left)/candles.size
         candles.forEachIndexed { index, c ->
@@ -546,7 +546,7 @@ private fun CommanderCandlestickChart(signal: MarketSignal) {
             drawRect(color, Offset(x-step*.29f,bodyTop), androidx.compose.ui.geometry.Size(max(1.dp.toPx(),step*.58f), max(1.dp.toPx(),bodyBottom-bodyTop)))
         }
         val lineLevels = listOf(signal.entry to HGold, signal.stop to HRed, signal.tp1 to HMint) +
-            signal.advancedTechnical?.levels.orEmpty().take(4).map { it.price to Color(0xFF78877D) }
+            signal.advancedTechnical?.levels.orEmpty().take(4).map { it.price to Color(0xFF91A9BD) }
         lineLevels.forEach { (price,color) ->
             if (price.isFinite() && price in low..high) {
                 val yy = y(price)
