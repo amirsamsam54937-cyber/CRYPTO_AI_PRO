@@ -1,6 +1,7 @@
 package com.cryptoaipro.monitor
 
 import android.content.SharedPreferences
+import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.exp
@@ -8,11 +9,11 @@ import kotlin.math.tanh
 
 /**
  * Small on-device deep feed-forward neural network.
- * Architecture: 7 normalized technical features -> 16 tanh -> 8 tanh -> 1 sigmoid.
+ * Architecture: 13 normalized market/context features -> 16 tanh -> 8 tanh -> 1 sigmoid.
  * Online fine-tuned from measured paper-signal outcomes; not pretrained and not a guaranteed predictor.
  */
 internal object WolfDeepNeuralNetwork {
-    private const val INPUTS = 7
+    private const val INPUTS = 13
     private const val H1 = 16
     private const val H2 = 8
     private const val KEY = "wolf_dnn_v1"
@@ -30,7 +31,7 @@ internal object WolfDeepNeuralNetwork {
         return 1.0 / (1.0 + exp(-z))
     }
 
-    private fun features(s: MarketSignal): DoubleArray {
+    private fun features(s: MarketSignal, context: Context? = null): DoubleArray {
         val direction = if (s.direction == "SHORT_BIAS") -1.0 else 1.0
         val trend = if (s.technical.ema20 >= s.technical.ema50) 1.0 else -1.0
         val rsi = ((s.rsi - 50.0) / 50.0).coerceIn(-1.0, 1.0)
@@ -42,7 +43,57 @@ internal object WolfDeepNeuralNetwork {
             else -> 0.0
         }
         val volatility = ((s.technical.atrPercent - 2.0) / 5.0).coerceIn(-1.0, 1.0)
-        return doubleArrayOf(trend * direction, rsi * direction, adx, volume, pattern * direction, volatility, (s.score / 100.0).coerceIn(-1.0, 1.0))
+        // Fresh public context is a neural input, never an independent signal generator.
+        var news = 0.0
+        var marketSentiment = 0.0
+        var fearGreed = 0.0
+        var flow = 0.0
+        var book = 0.0
+        var funding = 0.0
+        if (context != null) runCatching {
+            val prefs = context.getSharedPreferences("wolf_background_intelligence", Context.MODE_PRIVATE)
+            val now = System.currentTimeMillis()
+            if (now - prefs.getLong("market_news_updated_at", 0L) in 0L..7200000L) {
+                val articles = org.json.JSONArray(prefs.getString("market_news", "[]"))
+                val base = s.symbol.uppercase().replace(Regex("[^A-Z0-9]"), "").removeSuffix("USDT").removeSuffix("USD")
+                val aliases = when (base) {
+                    "BTC" -> listOf("bitcoin", "btc")
+                    "ETH" -> listOf("ethereum", "ether", "eth")
+                    "SOL" -> listOf("solana", "sol")
+                    "XRP" -> listOf("ripple", "xrp")
+                    else -> listOf(base.lowercase())
+                }
+                val scores = (0 until articles.length()).mapNotNull { i ->
+                    val a = articles.optJSONObject(i) ?: return@mapNotNull null
+                    val headline = a.optString("title") + " " + a.optString("description")
+                    if (aliases.any { headline.contains(it, ignoreCase = true) })
+                        ZoroSentimentNetwork.analyzeText(headline).toDouble() / 100.0 else null
+                }
+                if (scores.isNotEmpty()) news = scores.average()
+            }
+            val sentiment = org.json.JSONObject(prefs.getString("sentiment_network_snapshot", "{}"))
+            marketSentiment = (sentiment.optDouble("marketScore", 0.0) / 100.0).coerceIn(-1.0, 1.0)
+            if (sentiment.has("fearGreed") && !sentiment.isNull("fearGreed"))
+                fearGreed = ((sentiment.optDouble("fearGreed", 50.0) - 50.0) / 50.0).coerceIn(-1.0, 1.0)
+            val flows = org.json.JSONArray(prefs.getString("flow_reports", "[]"))
+            val wanted = s.symbol.uppercase().replace(Regex("[^A-Z0-9]"), "")
+            for (i in 0 until flows.length()) {
+                val f = flows.optJSONObject(i) ?: continue
+                val key = f.optString("symbol").uppercase().replace(Regex("[^A-Z0-9]"), "")
+                if (key == wanted && now - f.optLong("updatedAt", 0L) in 0L..1800000L) {
+                    flow = f.optDouble("imbalance", 0.0).coerceIn(-1.0, 1.0)
+                    book = f.optDouble("bookImbalance", 0.0).coerceIn(-1.0, 1.0)
+                    funding = (f.optDouble("funding", 0.0) * 100.0).coerceIn(-1.0, 1.0)
+                    break
+                }
+            }
+        }
+        return doubleArrayOf(
+            trend * direction, rsi * direction, adx, volume, pattern * direction, volatility,
+            (s.score / 100.0).coerceIn(-1.0, 1.0), news * direction,
+            marketSentiment * direction, fearGreed * direction, flow * direction,
+            book * direction, -funding * direction
+        )
     }
 
     private fun fresh(): Model {
@@ -108,10 +159,10 @@ internal object WolfDeepNeuralNetwork {
         return Forward(h1, h2, out)
     }
 
-    fun featureVector(signal: MarketSignal): DoubleArray = features(signal)
+    fun featureVector(signal: MarketSignal, context: Context? = null): DoubleArray = features(signal, context)
     fun reviewedSamples(prefs: SharedPreferences): Int = prefs.getInt(SAMPLE_COUNT_KEY, 0)
-    fun predict(prefs: SharedPreferences, signal: MarketSignal): Double =
-        forward(load(prefs), features(signal)).output.coerceIn(0.01, 0.99)
+    fun predict(prefs: SharedPreferences, signal: MarketSignal, context: Context? = null): Double =
+        forward(load(prefs), features(signal, context)).output.coerceIn(0.01, 0.99)
     @Synchronized
     fun learn(prefs: SharedPreferences, signal: MarketSignal, outcome: Double) =
         learn(prefs, features(signal), outcome)
