@@ -297,9 +297,14 @@ internal object XtLiveTradingEngine {
                 leverage = leverage,
                 riskFraction = 0.0025,
                 maxMarginFraction = 0.05,
-                expectedFundingRatePer8h = 0.0001,
+                expectedFundingRatePer8h = XtExecutionCostModel.DEFAULT_FUNDING_RESERVE_PER_8H,
                 expectedHoldingHours = 6.0,
-                slippageRatePerSide = 0.001,
+                slippageRatePerSide = XtExecutionCostModel.estimate(
+                    atrPercent = signal.technical.atrPercent,
+                    relativeVolume = signal.technical.relativeVolume,
+                    liquidityStrength = signal.technical.liquidityStrength,
+                    feePerSide = contract.takerFeeRate
+                ).slippagePerSide,
                 extraSafetyBuffer = 0.20
             ),
             portfolio = portfolio
