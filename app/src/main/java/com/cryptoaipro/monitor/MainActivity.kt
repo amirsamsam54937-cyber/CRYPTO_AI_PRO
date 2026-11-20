@@ -1331,6 +1331,13 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                             (if (neuralValidated && item.neuralDirection != "NEUTRAL") " • احتمال صعود مدل (P↑): ${item.neuralScore}/100" else ""),
                         color = Muted, fontSize = 9.sp
                     )
+                    Text(
+                        if (item.deepNeuralSuccessProbability != null)
+                            "شبکه زمینه‌ای ۱۳ ویژگی (خبر، احساسات، فاندینگ، جریان/دفتر سفارش و تکنیکال): احتمال موفقیت سمت عصبی ${String.format(Locale.US, "%.1f", item.deepNeuralSuccessProbability * 100.0)}٪ • سوابق یادگیری ${item.deepNeuralReviewedSamples}"
+                        else
+                            "شبکه زمینه‌ای ۱۳ ویژگی در حال یادگیری از نتایج ثبت‌شده است • سوابق ${item.deepNeuralReviewedSamples}",
+                        color = Gold, fontSize = 9.sp, lineHeight = 13.sp
+                    )
                     if (item.neuralMemberVotes.isNotEmpty()) {
                         val uncertainty = item.neuralUncertainty
                         Text(
@@ -1346,17 +1353,17 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                     }
                     Divider(color = Gold.copy(alpha = 0.22f))
                     Text(
-                        "نظر سیستم ZORO (تحلیل تکنیکال و ساختار بازار): " + (if (item.technicalDirection == "LONG_BIAS") "صعودی LONG" else if (item.technicalDirection == "SHORT_BIAS") "نزولی SHORT" else "خنثی"),
+                        "جهت تحلیل تکنیکال (فقط داده زمینه‌ای): " + (if (item.technicalDirection == "LONG_BIAS") "صعودی LONG" else if (item.technicalDirection == "SHORT_BIAS") "نزولی SHORT" else "خنثی"),
                         color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "نتیجه مقایسه دو موتور: " + item.agreementStatus,
+                        "تصمیم فرمانده عصبی: " + item.agreementStatus,
                         color = if (item.agreementStatus.contains("توافق") || item.agreementStatus.contains("تأیید مستقل")) Green else Gold,
                         fontSize = 9.sp, lineHeight = 14.sp
                     )
                     if (!neuralValidated) {
                         Text(
-                            "نظر شبکه عصبی فعالانه محاسبه و برای مقایسه نمایش داده می‌شود؛ اما چون هنوز اعتبارسنجی زمانی را نگذرانده، مغز هوشمند اجازه دخالت آن در تأیید یا رد سیگنال نهایی را نمی‌دهد. امتیاز خام، احتمال برد نیست.",
+                            "شبکه عصبی در حال محاسبه است؛ چون هنوز اعتبارسنجی زمانی مستقل را نگذرانده، جهت سیگنال و معامله خودکار مسدود است. امتیاز خام، احتمال برد نیست.",
                             color = Gold, fontSize = 9.sp, lineHeight = 14.sp
                         )
                     }
