@@ -195,6 +195,12 @@ internal object XtLiveTradingEngine {
 
         val side = signalSide(signal)
         require(side.isNotBlank()) { "این سیگنال جهت قطعی LONG یا SHORT ندارد." }
+        require(WolfPretrainedEnsemble.status().validatedForScoring &&
+            signal.neuralDirection.equals(side + "_BIAS", true) &&
+            signal.neuralMemberProbabilities.size >= 7 &&
+            !signal.neuralUncertainty.highDisagreement) {
+            "معامله واقعی فقط با اجماع شبکه عصبی اعتبارسنجی‌شده مجاز است؛ رأی تکنیکال به‌تنهایی مجوز ورود نیست."
+        }
         require(signal.confidence >= 70 && signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه") {
             "قدرت یا رتبه سیگنال برای بررسی سفارش واقعی کافی نیست."
         }
@@ -203,8 +209,8 @@ internal object XtLiveTradingEngine {
             "امتیاز کیفیت شواهد برای معامله واقعی کافی نیست (" + qualityReview.quality + "/100): " +
                 qualityReview.warnings.take(3).joinToString("، ")
         }
-        require(directionSide(signal.technicalDirection) == side) {
-            "جهت سیگنال باید با تحلیل تکنیکال مستقل همسو باشد؛ رأی مدل عصبی به‌تنهایی مجوز ورود نیست."
+        require(signal.neuralDirection.equals(side + "_BIAS", true)) {
+            "جهت سفارش باید مستقیماً از خروجی شبکه عصبی اعتبارسنجی‌شده آمده باشد."
         }
         require(signal.technical.adx >= 16.0 && signal.technical.relativeVolume >= 0.65 &&
             (signal.consensus?.agreement ?: 0) >= 58) {
