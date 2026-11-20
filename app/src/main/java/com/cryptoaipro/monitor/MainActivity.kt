@@ -303,7 +303,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             commander.direction == "NEUTRAL" -> "بدون رتبه"
             neuralAgreement && commander.confidence >= 82 && neuralStrength >= 70 -> "نوع ۱ • ممتاز"
             neuralAgreement && commander.confidence >= 72 && neuralStrength >= 62 -> "نوع ۲ • تأییدشده"
-            commanderQualified && neuralValidated -> "نوع ۳ • فرمانده تکنیکال + عصبی"
+            commanderQualified && neuralValidated -> "نوع ۳ • فرمانده عصبی اعتبارسنجی‌شده"
             commanderQualified && technicalOnlyQualified && neuralExperimentalAgreement ->
                 "آزمایشی • تکنیکال + ۱۰ شبکه عصبی"
             commanderQualified && technicalOnlyQualified -> "نوع ۳ • فرمانده تکنیکال مستقل"
@@ -319,8 +319,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             agreementStatus = if (promoted) commander.explanation else when {
                 commander.status == "ABSTAIN_NEURAL_CONFLICT" -> commander.explanation
                 !neuralValidated && neuralExperimentalAgreement -> "سیگنال آزمایشی: ۱۰ شبکه عصبی با جهت تکنیکال همسو هستند؛ مدل هنوز اعتبارسنجی مستقل را پاس نکرده است"
-                !neuralValidated -> "مدل عصبی هنوز از آزمون مستقل عبور نکرده؛ فقط اثر کمکی محدود دارد"
-                tech != neural -> "اختلاف تحلیل تکنیکال و شبکه عصبی • فرمانده سیگنال را متوقف کرد"
+                !neuralValidated -> "مدل عصبی هنوز از آزمون مستقل عبور نکرده؛ صدور سیگنال و معامله خودکار مسدود است"
+                tech != neural -> "جهت نهایی فقط از شبکه عصبی انتخاب شد؛ ساختار تکنیکال صرفاً داده زمینه‌ای است"
                 else -> commander.explanation
             },
             multiHorizonOutlook = ZoroMultiHorizonEngine.analyze(reviewed),
