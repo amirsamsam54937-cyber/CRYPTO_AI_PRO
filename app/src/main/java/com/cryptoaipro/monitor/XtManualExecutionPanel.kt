@@ -246,6 +246,7 @@ internal fun XtManualExecutionPanel(context: Context, signals: List<MarketSignal
                     Text("کارمزد ورود: ${money(p.estimatedEntryFeeUsdt)} • کارمزد خروج در SL: ${money(p.estimatedStopExitFeeUsdt)} USDT")
                     Text("لغزش پویا: ${String.format(Locale.US, "%.3f", p.slippageRatePerSide * 100.0)}٪ هر سمت • هزینه تخمینی: ${money(p.estimatedSlippageCostUsdt)} USDT")
                     Text("نرخ Funding زنده XT: ${String.format(Locale.US, "%.5f", p.actualFundingRatePer8h * 100.0)}٪ در هر دوره")
+                    Text("نرخ Funding زنده XT: ${String.format(Locale.US, "%.5f", p.actualFundingRatePer8h * 100.0)}٪ در هر دوره")
                     Text("ذخیره فاندینگ تخمینی: ${money(p.estimatedFundingCostUsdt)} USDT")
                     Text("زیان تخمینی در حدضرر با همه هزینه‌ها: ${money(p.estimatedStopLossUsdt)} USDT")
                     Text("سود خالص تخمینی در هدف: ${money(p.estimatedNetTargetProfitUsdt)} USDT")
