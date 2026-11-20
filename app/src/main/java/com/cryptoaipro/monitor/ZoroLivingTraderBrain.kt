@@ -201,6 +201,7 @@ internal fun ZoroLivingTraderBrainPanel(context: Context) {
     }
     val gold = androidx.compose.ui.graphics.Color(0xFFE8B85B)
     val muted = androidx.compose.ui.graphics.Color(0xFFB8B0A0)
+    val memory = ZoroCognitiveMemory.status(context)
     androidx.compose.material3.Surface(
         color = androidx.compose.ui.graphics.Color(0xFF101010),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
@@ -212,6 +213,10 @@ internal fun ZoroLivingTraderBrainPanel(context: Context) {
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp)
         ) {
             androidx.compose.material3.Text("مغز زنده معامله‌گر ZORO", color = gold, fontSize = 14.sp)
+            androidx.compose.material3.Text(
+                "حافظه کوتاه‌مدت: ${memory.shortTerm} • اپیزودها: ${memory.episodes} • الگوهای میان‌مدت: ${memory.mediumPatterns} • دانش بلندمدت معتبر: ${memory.deepCheckpoints}",
+                color = muted, fontSize = 9.sp, lineHeight = 13.sp
+            )
             androidx.compose.material3.Text("اصول رشد سرمایه: فقط فرصت‌های منتخب • مزیت خالص پس از کارمزد • ریسک ثابت • ترکیب سود فقط پس از اثبات عملکرد • ممنوعیت مارتینگل", color = muted, fontSize = 10.sp, lineHeight = 14.sp)
             androidx.compose.material3.Text(
                 if (snapshot.symbol.isBlank()) "در انتظار بررسی نامزدهای بازار؛ تصمیمی برای معامله صادر نشده است."
