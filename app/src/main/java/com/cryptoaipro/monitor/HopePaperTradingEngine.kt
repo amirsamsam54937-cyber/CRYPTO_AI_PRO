@@ -25,8 +25,9 @@ import kotlin.math.max
 /** Persistent simulated execution engine. It has no exchange account or order API access. */
 internal object HopePaperTradingEngine {
     private const val PREFS = "hope_paper_ledger"
-    private const val KEY = "ledger_v1"
-    private const val STARTING_EQUITY = 1000.0
+    // A fresh v2 ledger deliberately starts at $10. The previous v1 ledger remains untouched for audit/history.
+    private const val KEY = "ledger_v2"
+    private const val STARTING_EQUITY = 10.0
     private const val FEE_PER_SIDE = 0.0006
     private const val SLIPPAGE_PER_SIDE = 0.0005
     private const val ESTIMATED_FUNDING_PER_8H = 0.0001
@@ -41,7 +42,10 @@ internal object HopePaperTradingEngine {
         val entry: Double, val stop: Double, val target: Double,
         val leverage: Int, val openedAt: Long, val mark: Double,
         val riskUsdt: Double, val notionalUsdt: Double,
-        val initialRiskDistance: Double
+        val initialRiskDistance: Double,
+        val feePerSide: Double = FEE_PER_SIDE,
+        val slippagePerSide: Double = SLIPPAGE_PER_SIDE,
+        val fundingRatePer8h: Double = ESTIMATED_FUNDING_PER_8H
     )
     data class Snapshot(
         val equity: Double, val startingEquity: Double, val realizedPnl: Double,
@@ -84,7 +88,10 @@ internal object HopePaperTradingEngine {
                     p.getDouble("entry"), p.getDouble("stop"), p.getDouble("target"),
                     p.optInt("leverage", 1), p.getLong("openedAt"), p.optDouble("mark", p.getDouble("entry")),
                     p.optDouble("riskUsdt"), p.optDouble("notionalUsdt"),
-                    p.optDouble("initialRiskDistance", abs(p.getDouble("entry") - p.getDouble("stop"))))
+                    p.optDouble("initialRiskDistance", abs(p.getDouble("entry") - p.getDouble("stop"))),
+                    p.optDouble("feePerSide", FEE_PER_SIDE),
+                    p.optDouble("slippagePerSide", SLIPPAGE_PER_SIDE),
+                    p.optDouble("fundingRatePer8h", ESTIMATED_FUNDING_PER_8H))
             }.getOrNull()
         }.toMutableList()
         val current = signals.associateBy { it.symbol }
@@ -123,7 +130,7 @@ internal object HopePaperTradingEngine {
                 if (exit == null && signal.price > 0.0) {
                     val trailedStop = DynamicTradingPolicy.trailStop(
                         p.side, p.entry, signal.price, p.stop, p.initialRiskDistance, signal.atr,
-                        roundTripCostFraction = FEE_PER_SIDE * 2.0 + SLIPPAGE_PER_SIDE
+                        roundTripCostFraction = p.feePerSide * 2.0 + p.slippagePerSide * 2.0
                     )
                     survivors += p.copy(mark = signal.price, stop = trailedStop)
                 }
@@ -134,11 +141,11 @@ internal object HopePaperTradingEngine {
             }
             if (exit != null) {
                 val isLong = p.side == "LONG_BIAS"
-                val exitFill = exit!! * (if (isLong) 1.0 - SLIPPAGE_PER_SIDE else 1.0 + SLIPPAGE_PER_SIDE)
+                val exitFill = exit!! * (if (isLong) 1.0 - p.slippagePerSide else 1.0 + p.slippagePerSide)
                 val gross = (exitFill - p.entry) * p.quantity * (if (isLong) 1.0 else -1.0)
-                val fees = (p.entry * p.quantity + exitFill * p.quantity) * FEE_PER_SIDE
+                val fees = (p.entry * p.quantity + exitFill * p.quantity) * p.feePerSide
                 val hours = ((now - p.openedAt).coerceAtLeast(0L)).toDouble() / 3_600_000.0
-                val funding = p.notionalUsdt * ESTIMATED_FUNDING_PER_8H * (hours / 8.0)
+                val funding = p.notionalUsdt * p.fundingRatePer8h * (hours / 8.0)
                 val net = gross - fees - funding
                 realized += net
                 dailyPnl += net
@@ -157,11 +164,11 @@ internal object HopePaperTradingEngine {
 
         fun unrealizedNet(p: Position): Double {
             val isLong = p.side == "LONG_BIAS"
-            val exitFill = p.mark * (if (isLong) 1.0 - SLIPPAGE_PER_SIDE else 1.0 + SLIPPAGE_PER_SIDE)
+            val exitFill = p.mark * (if (isLong) 1.0 - p.slippagePerSide else 1.0 + p.slippagePerSide)
             val gross = (exitFill - p.entry) * p.quantity * (if (isLong) 1.0 else -1.0)
-            val fees = (p.entry * p.quantity + exitFill * p.quantity) * FEE_PER_SIDE
+            val fees = (p.entry * p.quantity + exitFill * p.quantity) * p.feePerSide
             val hours = ((now - p.openedAt).coerceAtLeast(0L)).toDouble() / 3_600_000.0
-            val funding = p.notionalUsdt * ESTIMATED_FUNDING_PER_8H * (hours / 8.0)
+            val funding = p.notionalUsdt * p.fundingRatePer8h * (hours / 8.0)
             return gross - fees - funding
         }
         val floatingPnl = survivors.sumOf { unrealizedNet(it) }
@@ -216,8 +223,13 @@ internal object HopePaperTradingEngine {
                     // Size against the adverse simulated entry fill, not the ideal signal price.
                     // Entry slippage is already reflected in fill-to-stop distance; cost reserve
                     // below therefore includes round-trip fees plus the exit-side slippage only.
-                    val fill = s.entry * (if (isLong) 1.0 + SLIPPAGE_PER_SIDE else 1.0 - SLIPPAGE_PER_SIDE)
-                    val roundTripCostPercent = (FEE_PER_SIDE * 2.0 + SLIPPAGE_PER_SIDE) * 100.0
+                    val executionCost = XtExecutionCostModel.estimate(
+                        atrPercent = s.technical.atrPercent,
+                        relativeVolume = s.technical.relativeVolume,
+                        liquidityStrength = s.technical.liquidityStrength
+                    )
+                    val fill = s.entry * (if (isLong) 1.0 + executionCost.slippagePerSide else 1.0 - executionCost.slippagePerSide)
+                    val roundTripCostPercent = XtExecutionCostModel.remainingCostPercentAfterEntry(executionCost)
                     val riskReward = DynamicTradingPolicy.netRiskReward(fill, s.stop, s.tp1, roundTripCostPercent)
                     val plan = DynamicTradingPolicy.evaluate(
                         DynamicTradingPolicy.Input(
@@ -249,7 +261,8 @@ internal object HopePaperTradingEngine {
                     if ((openRisk + plan.estimatedLossAtStopUsdt) / currentEquity * 100.0 > 2.5) return@forEach
                     val position = Position(s.symbol, s.direction, plan.quantity, fill, s.stop, s.tp1,
                         plan.leverage, s.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: now,
-                        s.price, plan.estimatedLossAtStopUsdt, plan.notionalUsdt, abs(fill - s.stop))
+                        s.price, plan.estimatedLossAtStopUsdt, plan.notionalUsdt, abs(fill - s.stop),
+                        executionCost.feePerSide, executionCost.slippagePerSide, executionCost.fundingReservePer8h)
                     survivors += position
                     dailyEntries++
                     lastAction = "${s.symbol} • ورود شبیه‌سازی‌شده ${s.direction} • حجم ${"%.5f".format(java.util.Locale.US, plan.quantity)}"
@@ -276,6 +289,9 @@ internal object HopePaperTradingEngine {
                     put("leverage", p.leverage); put("openedAt", p.openedAt); put("mark", p.mark)
                     put("riskUsdt", p.riskUsdt); put("notionalUsdt", p.notionalUsdt)
                     put("initialRiskDistance", p.initialRiskDistance)
+                    put("feePerSide", p.feePerSide)
+                    put("slippagePerSide", p.slippagePerSide)
+                    put("fundingRatePer8h", p.fundingRatePer8h)
                 })
             } })
         }
@@ -344,7 +360,9 @@ internal object HopePaperTradingEngine {
             runCatching { Position(p.getString("symbol"), p.getString("side"), p.getDouble("quantity"),
                 p.getDouble("entry"), p.getDouble("stop"), p.getDouble("target"), p.optInt("leverage", 1),
                 p.getLong("openedAt"), p.optDouble("mark", p.getDouble("entry")), p.optDouble("riskUsdt"),
-                p.optDouble("notionalUsdt"), p.optDouble("initialRiskDistance", abs(p.getDouble("entry") - p.getDouble("stop")))) }.getOrNull()
+                p.optDouble("notionalUsdt"), p.optDouble("initialRiskDistance", abs(p.getDouble("entry") - p.getDouble("stop"))),
+                p.optDouble("feePerSide", FEE_PER_SIDE), p.optDouble("slippagePerSide", SLIPPAGE_PER_SIDE),
+                p.optDouble("fundingRatePer8h", ESTIMATED_FUNDING_PER_8H)) }.getOrNull()
         }
         val equity = root.optDouble("equity", STARTING_EQUITY)
         val dailyStart = root.optDouble("dailyStartEquity", equity)

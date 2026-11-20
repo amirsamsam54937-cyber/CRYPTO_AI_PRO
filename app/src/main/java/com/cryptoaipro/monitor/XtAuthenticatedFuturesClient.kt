@@ -9,8 +9,12 @@ import org.json.JSONObject
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.net.HttpURLConnection
+import java.net.UnknownHostException
 import java.net.URL
+import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.util.Locale
+import kotlin.math.abs
 
 /**
  * Authenticated XT USDT-M futures transport.
@@ -120,6 +124,49 @@ internal class XtAuthenticatedFuturesClient(
                 throw IllegalStateException("XT خطای API: " + (error?.optString("msg")?.take(140) ?: response.optString("msgInfo", "نامشخص")))
             }
             response
+        } catch (error: UnknownHostException) {
+            throw IllegalStateException(
+                "DNS گوشی نتوانست fapi.xt.com را پیدا کند. دامنه رسمی XT تغییر نکرده؛ اینترنت را عوض کن یا Private DNS اندروید را روی Automatic بگذار و دوباره آزمایش کن. هیچ سفارشی ارسال نشده.",
+                error
+            )
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
+     * XT public funding endpoint; deliberately unauthenticated and read-only.
+     * Null means stale, malformed, or unavailable data: live sizing must fail closed.
+     */
+    suspend fun currentFundingRate(symbol: String): Double? = withContext(Dispatchers.IO) {
+        val normalized = normalizeSymbol(symbol)
+        val encoded = URLEncoder.encode(normalized, "UTF-8")
+        val connection = (URL("$baseUrl/future/market/v1/public/q/funding-rate?symbol=$encoded")
+            .openConnection() as HttpURLConnection)
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 5000
+            connection.readTimeout = 7000
+            connection.setRequestProperty("Accept", "application/json")
+            val code = connection.responseCode
+            if (code !in 200..299) return@withContext null
+            val raw = connection.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            val root = JSONObject(raw)
+            if (root.optInt("returnCode", Int.MIN_VALUE) != 0) return@withContext null
+            val items = root.optJSONObject("result")?.optJSONArray("items") ?: return@withContext null
+            val now = System.currentTimeMillis()
+            (0 until items.length()).mapNotNull { index ->
+                val item = items.optJSONObject(index) ?: return@mapNotNull null
+                val itemSymbol = item.optString("symbol").lowercase(Locale.US)
+                val rawCreatedAt = item.optLong("createdTime", 0L)
+                val createdAt = if (rawCreatedAt in 1L until 1_000_000_000_000L) rawCreatedAt * 1000L else rawCreatedAt
+                val rate = item.optString("fundingRate").toDoubleOrNull()
+                    ?: if (item.has("fundingRate")) item.optDouble("fundingRate", Double.NaN) else Double.NaN
+                if (itemSymbol != normalized || createdAt <= 0L ||
+                    now - createdAt !in 0L..12L * 60L * 60L * 1000L ||
+                    !rate.isFinite() || kotlin.math.abs(rate) > 0.02) null
+                else createdAt to rate
+            }.maxByOrNull { it.first }?.second
         } finally {
             connection.disconnect()
         }
@@ -555,6 +602,47 @@ internal class XtAuthenticatedFuturesClient(
         val id = plan.opt("profitId")?.toString().orEmpty()
         require(id.isNotBlank()) { "طرح TP/SL پیدا شد اما profitId آن قابل تأیید نیست." }
         return TakeProfitStopReceipt(id, normalized, positionSide, contracts, plan)
+    }
+
+    /**
+     * Move an existing exchange-native TP/SL pair without canceling protection.
+     * XT validates the profitId; the updated stop and unchanged target are then
+     * read back from profit-list before the caller accepts the change.
+     */
+    suspend fun updateTakeProfitStopMarket(
+        symbol: String,
+        profitId: String,
+        triggerStopPrice: Double,
+        triggerProfitPrice: Double
+    ): JSONObject {
+        requireLiveArmed()
+        require(profitId.matches(Regex("[0-9]{1,24}")))
+        require(triggerStopPrice.isFinite() && triggerStopPrice > 0.0)
+        require(triggerProfitPrice.isFinite() && triggerProfitPrice > 0.0)
+        val normalized = normalizeSymbol(symbol)
+        request(
+            "POST", "/future/trade/v1/entrust/update-profit-stop",
+            formBody = mapOf(
+                "profitId" to profitId,
+                "triggerStopPrice" to BigDecimal.valueOf(triggerStopPrice).stripTrailingZeros().toPlainString(),
+                "triggerProfitPrice" to BigDecimal.valueOf(triggerProfitPrice).stripTrailingZeros().toPlainString()
+            )
+        )
+        repeat(3) { attempt ->
+            val verified = activeTakeProfitStopOrders(symbol).firstOrNull { item ->
+                item.opt("profitId")?.toString() == profitId &&
+                    normalizeSymbol(item.optString("symbol")) == normalized &&
+                    abs((item.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0) - triggerStopPrice) <=
+                        maxOf(1e-8, triggerStopPrice * 1e-8) &&
+                    abs((item.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0) - triggerProfitPrice) <=
+                        maxOf(1e-8, triggerProfitPrice * 1e-8) &&
+                    item.optString("stopDelegateOrderType").equals("MARKET", true) &&
+                    item.optString("profitDelegateOrderType").equals("MARKET", true)
+            }
+            if (verified != null) return verified
+            if (attempt < 2) delay(250L)
+        }
+        throw IllegalStateException("به‌روزرسانی حدضرر پویا در XT ثبت شد اما مقدار جدید در profit-list تأیید نشد؛ پوزیشن فوراً بررسی شود.")
     }
 
     data class TriggerPlanReceipt(
