@@ -150,8 +150,7 @@ data class TechnicalSnapshot(
 
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
     // The ten-expert model reads completed 1h OHLCV candles plus chart-derived technical features.
-    // Until strict chronological holdout validation passes, neural outputs remain visible as
-    // research context only; the commander uses independent technical evidence for direction.
+    // The neural ensemble owns direction; until strict holdout validation passes it remains research-only and all live entries are blocked.
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
     // Historical 6h outcomes calibrate member influence only after a minimum sample count.
     val adaptiveMemberWeights = WolfNeuralForecastJournal.adaptiveMemberWeights(context)
@@ -291,27 +290,14 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         val commanderQualified = commander.direction != "NEUTRAL" && commander.confidence >= publishThreshold
         val neuralAgreement = neuralValidated && bothDirectional && tech == neural && neuralStrength >= 55 &&
             !reviewed.neuralUncertainty.highDisagreement
-        val neuralExperimentalAgreement = !neuralValidated && bothDirectional && tech == neural &&
-            neuralStrength >= 55 && !reviewed.neuralUncertainty.highDisagreement &&
-            (if (tech == "LONG_BIAS") reviewed.neuralUncertainty.upVotes else reviewed.neuralUncertainty.downVotes) >= 7
-        val technicalOnlyQualified = !neuralValidated &&
-            (tech == "LONG_BIAS" || tech == "SHORT_BIAS") &&
-            reviewed.confidence >= 58 &&
-            (reviewed.consensus?.agreement ?: 0) >= 58 &&
-            reviewed.technical.adx >= 16.0 &&
-            reviewed.technical.relativeVolume >= 0.65
         val tier = when {
-            commander.direction == "NEUTRAL" -> "بدون رتبه"
+            !neuralAgreement || commander.direction == "NEUTRAL" -> "بدون رتبه"
             neuralAgreement && commander.confidence >= 82 && neuralStrength >= 70 -> "نوع ۱ • ممتاز"
             neuralAgreement && commander.confidence >= 72 && neuralStrength >= 62 -> "نوع ۲ • تأییدشده"
-            commanderQualified && neuralValidated -> "نوع ۳ • فرمانده عصبی اعتبارسنجی‌شده"
-            commanderQualified && technicalOnlyQualified && neuralExperimentalAgreement ->
-                "آزمایشی • تکنیکال + ۱۰ شبکه عصبی"
-            commanderQualified && technicalOnlyQualified -> "نوع ۳ • فرمانده تکنیکال مستقل"
+            commanderQualified -> "نوع ۳ • فرمانده عصبی اعتبارسنجی‌شده"
             else -> "بدون رتبه"
         }
-        val promoted = commanderQualified &&
-            (neuralValidated || technicalOnlyQualified) && tier != "بدون رتبه"
+        val promoted = commanderQualified && neuralAgreement && tier != "بدون رتبه"
         val finalSignal = neuralGeometry.copy(
             direction = if (promoted) commander.direction else "NEUTRAL",
             score = if (promoted) commander.score else 0,
@@ -319,9 +305,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             signalTier = if (promoted) tier else "بدون رتبه",
             agreementStatus = if (promoted) commander.explanation else when {
                 commander.status == "ABSTAIN_NEURAL_CONFLICT" -> commander.explanation
-                !neuralValidated && neuralExperimentalAgreement -> "سیگنال آزمایشی: ۱۰ شبکه عصبی با جهت تکنیکال همسو هستند؛ مدل هنوز اعتبارسنجی مستقل را پاس نکرده است"
                 !neuralValidated -> "مدل عصبی هنوز از آزمون مستقل عبور نکرده؛ صدور سیگنال و معامله خودکار مسدود است"
-                tech != neural -> "جهت نهایی فقط از شبکه عصبی انتخاب شد؛ ساختار تکنیکال صرفاً داده زمینه‌ای است"
+                tech != neural -> "شبکه عصبی و فیلتر ساختار بازار همسو نیستند؛ ورود متوقف شد"
                 else -> commander.explanation
             },
             multiHorizonOutlook = ZoroMultiHorizonEngine.analyze(reviewed),
