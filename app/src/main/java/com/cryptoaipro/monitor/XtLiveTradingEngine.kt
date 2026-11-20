@@ -15,7 +15,7 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * XT USDT-M execution with separate manual-confirmed and explicitly armed automatic paths.
- * Automatic scans may submit at most one qualified technical candidate per scan only when LIVE,
+ * Automatic scans may submit at most one neural-ensemble-approved candidate per scan only when LIVE,
  * auto mode, credentials, account checks and every risk gate pass. Neural validation is advisory.
  * Manual execution still requires a reviewed preview and explicit confirmation.
  * All gates fail closed. Ambiguous order POSTs are reconciled, never blindly retried.
@@ -545,9 +545,9 @@ internal object XtLiveTradingEngine {
                 )
             ) return@withLock null
 
-            // The living brain ranks only candidates that pass its independent market-regime,
-            // reward/risk and net-paper-edge review. XT preflight and hard account risk gates
-            // remain mandatory after this decision; the brain cannot override them.
+            // The living brain accepts direction only from the validated neural ensemble.
+            // Technical/regime/liquidity inputs are risk filters, not direction sources.
+            // XT preflight and hard account risk gates remain mandatory after this decision.
             val candidate = signals.asSequence()
                 .filter { signal ->
                     val side = directionSide(signal.direction)
