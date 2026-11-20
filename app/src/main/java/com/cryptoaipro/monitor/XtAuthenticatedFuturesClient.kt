@@ -14,6 +14,7 @@ import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.Locale
+import kotlin.math.abs
 
 /**
  * Authenticated XT USDT-M futures transport.
