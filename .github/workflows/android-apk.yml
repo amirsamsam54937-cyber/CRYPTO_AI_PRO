@@ -156,7 +156,7 @@ jobs:
       - name: Enforce complete offline AI bundle for release builds
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.require_trained_bundle) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation' || github.ref == 'refs/heads/zoro-gen4-validation-audit' || github.ref == 'refs/heads/zoro-gen4-holdout-hardening' || github.ref == 'refs/heads/zoro-gen4-signal-consensus' || github.ref == 'refs/heads/zoro-gen4-crypto-identity' || github.ref == 'refs/heads/zoro-gen4-neural-probability-labels' || github.ref == 'refs/heads/zoro-gen5-training-efficiency' || github.ref == 'refs/heads/zoro-gen6-dynamic-autopilot' || github.ref == 'refs/heads/zoro-gen7-risk-correlation-guards' || github.ref == 'refs/heads/zoro-gen8-execution-integrity' || github.ref == 'refs/heads/zoro-gen9-candle-integrity')) }}
         env:
-          REQUIRE_TRAINED_BUNDLE: ${{ inputs.require_trained_bundle }}
+          REQUIRE_TRAINED_BUNDLE: ${{ inputs.require_trained_bundle || github.ref == 'refs/heads/release/hope-hunter-2.64-enhanced-signals' }}
         run: |
           set -euo pipefail
           ASSETS=app/src/main/assets
