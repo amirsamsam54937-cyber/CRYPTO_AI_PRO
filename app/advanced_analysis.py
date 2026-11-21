@@ -29,15 +29,26 @@ def _adx(frame: pd.DataFrame, period: int = 14) -> float:
 def analyze_ohlcv(frame: pd.DataFrame) -> dict:
     """Return trend, momentum, volatility, volume and candle-quality diagnostics."""
     required = {"open", "high", "low", "close", "volume"}
+    if not frame.columns.is_unique:
+        raise ValueError("OHLCV column names must be unique")
     if not required.issubset(frame.columns) or len(frame) < 60:
         raise ValueError("OHLCV data with at least 60 candles is required")
     f = frame.copy()
     for col in required:
         f[col] = pd.to_numeric(f[col], errors="coerce")
-    if f[list(required)].isna().any().any() or (f[["open","high","low","close"]] <= 0).any().any():
+    if f[list(required)].isna().any().any():
         raise ValueError("OHLCV contains missing or invalid values")
-    if (f["high"] < f[["open","close","low"]].max(axis=1)).any() or (f["low"] > f[["open","close","high"]].min(axis=1)).any():
+    values = f[["open", "high", "low", "close", "volume"]].to_numpy(dtype=float)
+    if not np.isfinite(values).all():
+        raise ValueError("OHLCV contains non-finite values")
+    if (f[["open", "high", "low", "close"]] <= 0).any().any() or (f["volume"] < 0).any():
+        raise ValueError("OHLCV prices must be positive and volume cannot be negative")
+    if (f["high"] < f[["open", "close", "low"]].max(axis=1)).any() or (f["low"] > f[["open", "close", "high"]].min(axis=1)).any():
         raise ValueError("Invalid candle high/low bounds")
+    if "timestamp" in f.columns:
+        timestamps = pd.to_datetime(f["timestamp"], utc=True, errors="coerce")
+        if timestamps.isna().any() or timestamps.duplicated().any() or not timestamps.is_monotonic_increasing:
+            raise ValueError("Candle timestamps must be valid, unique and strictly increasing")
 
     close, volume = f["close"], f["volume"]
     last = float(close.iloc[-1])

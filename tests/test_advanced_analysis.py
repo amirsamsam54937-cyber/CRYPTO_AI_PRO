@@ -29,3 +29,50 @@ def test_analysis_rejects_short_or_invalid_data():
     bad.loc[10, "high"] = 1
     with pytest.raises(ValueError):
         analyze_ohlcv(bad)
+
+
+def test_analysis_rejects_non_finite_prices_and_volume():
+    bad_price = candles()
+    bad_price.loc[100, "close"] = np.inf
+    with pytest.raises(ValueError, match="non-finite"):
+        analyze_ohlcv(bad_price)
+
+    bad_volume = candles()
+    bad_volume.loc[100, "volume"] = -1.0
+    with pytest.raises(ValueError, match="volume cannot be negative"):
+        analyze_ohlcv(bad_volume)
+
+    infinite_volume = candles()
+    infinite_volume.loc[100, "volume"] = np.inf
+    with pytest.raises(ValueError, match="non-finite"):
+        analyze_ohlcv(infinite_volume)
+
+
+def test_analysis_rejects_duplicate_ohlcv_column_names():
+    frame = candles()
+    frame.columns = ["open", "high", "low", "close", "close"]
+    with pytest.raises(ValueError, match="column names must be unique"):
+        analyze_ohlcv(frame)
+
+
+@pytest.mark.parametrize(
+    "timestamp_mutation",
+    ["duplicate", "out_of_order", "invalid"],
+)
+def test_analysis_rejects_invalid_or_non_monotonic_timestamps(timestamp_mutation):
+    frame = candles()
+    frame.insert(
+        0,
+        "timestamp",
+        pd.date_range("2024-01-01", periods=len(frame), freq="15min", tz="UTC"),
+    )
+    if timestamp_mutation == "duplicate":
+        frame.loc[100, "timestamp"] = frame.loc[99, "timestamp"]
+    elif timestamp_mutation == "out_of_order":
+        frame.loc[100, "timestamp"] = frame.loc[99, "timestamp"] - pd.Timedelta(minutes=15)
+    else:
+        frame.loc[100, "timestamp"] = "not-a-timestamp"
+
+    with pytest.raises(ValueError, match="timestamps"):
+        analyze_ohlcv(frame)
+
