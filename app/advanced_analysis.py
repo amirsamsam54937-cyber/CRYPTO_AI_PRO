@@ -10,7 +10,8 @@ import pandas as pd
 from app.indicators import atr, ema, macd, rsi
 
 
-def _adx(frame: pd.DataFrame, period: int = 14) -> float:
+def _directional_movement(frame: pd.DataFrame, period: int = 14) -> tuple[float, float, float]:
+    """Return Wilder-smoothed +DI, -DI and ADX from the supplied closed candles."""
     high, low, close = (frame[c].astype(float) for c in ("high", "low", "close"))
     up = high.diff()
     down = -low.diff()
@@ -19,12 +20,13 @@ def _adx(frame: pd.DataFrame, period: int = 14) -> float:
     prev = close.shift(1)
     tr = pd.concat([(high-low), (high-prev).abs(), (low-prev).abs()], axis=1).max(axis=1)
     smooth_tr = tr.ewm(alpha=1/period, adjust=False).mean().replace(0, np.nan)
-    plus_di = 100 * plus_dm.ewm(alpha=1/period, adjust=False).mean() / smooth_tr
-    minus_di = 100 * minus_dm.ewm(alpha=1/period, adjust=False).mean() / smooth_tr
-    dx = 100 * (plus_di-minus_di).abs() / (plus_di+minus_di).replace(0, np.nan)
-    value = dx.ewm(alpha=1/period, adjust=False).mean().iloc[-1]
-    return float(0 if pd.isna(value) else value)
-
+    plus_di_series = 100 * plus_dm.ewm(alpha=1/period, adjust=False).mean() / smooth_tr
+    minus_di_series = 100 * minus_dm.ewm(alpha=1/period, adjust=False).mean() / smooth_tr
+    denominator = (plus_di_series + minus_di_series).replace(0, np.nan)
+    dx = 100 * (plus_di_series-minus_di_series).abs() / denominator
+    adx_series = dx.ewm(alpha=1/period, adjust=False).mean()
+    last_values = (plus_di_series.iloc[-1], minus_di_series.iloc[-1], adx_series.iloc[-1])
+    return tuple(float(0.0 if pd.isna(value) else value) for value in last_values)
 
 def analyze_ohlcv(frame: pd.DataFrame) -> dict:
     """Return trend, momentum, volatility, volume and candle-quality diagnostics."""
@@ -68,7 +70,9 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
     typical = (f["high"] + f["low"] + close) / 3
     vwap_den = float(volume.rolling(24).sum().iloc[-1])
     vwap = float((typical*volume).rolling(24).sum().iloc[-1]/vwap_den) if vwap_den > 0 else last
-    adx = _adx(f)
+    plus_di, minus_di, adx = _directional_movement(f)
+    di_spread = plus_di - minus_di
+    directional_bias = "BULLISH" if di_spread > 0 else "BEARISH" if di_spread < 0 else "NEUTRAL"
     score, reasons = 0, []
     checks = [
         (e20.iloc[-1] > e50.iloc[-1], "EMA20/50 bullish", "EMA20/50 bearish"),
@@ -145,7 +149,9 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
         "direction": direction, "score": score, "confidence": round(confidence,1),
         "last_price": last, "rsi": round(rv,2), "macd_histogram": round(float(macd_hist.iloc[-1]),8),
         "atr": round(av,10), "atr_percent": round(atr_pct,3), "adx": round(adx,2),
-        "regime": regime, "market_structure": structure, "break_of_structure": bos,
+        "regime": regime, "plus_di": round(plus_di, 2), "minus_di": round(minus_di, 2),
+        "di_spread": round(di_spread, 2), "directional_bias": directional_bias,
+        "market_structure": structure, "break_of_structure": bos,
         "liquidity_sweep": liquidity, "fair_value_gap": fvg, "candle_pattern": candle_pattern,
         "supertrend": supertrend, "support": round(support,10), "resistance": round(resistance,10),
         "fibonacci": fibonacci, "bb_width_percent": round(bb_width_pct,3),
