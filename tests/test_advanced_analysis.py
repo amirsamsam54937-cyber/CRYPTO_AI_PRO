@@ -76,3 +76,19 @@ def test_analysis_rejects_invalid_or_non_monotonic_timestamps(timestamp_mutation
     with pytest.raises(ValueError, match="timestamps"):
         analyze_ohlcv(frame)
 
+
+
+def test_directional_movement_diagnostics_distinguish_uptrend_and_downtrend():
+    bullish = analyze_ohlcv(candles(trend=0.15))
+    bearish = analyze_ohlcv(candles(trend=-0.15))
+
+    assert bullish["plus_di"] > bullish["minus_di"]
+    assert bullish["directional_bias"] == "BULLISH"
+    assert bullish["di_spread"] == pytest.approx(
+        bullish["plus_di"] - bullish["minus_di"], abs=0.02
+    )
+    assert bearish["minus_di"] > bearish["plus_di"]
+    assert bearish["directional_bias"] == "BEARISH"
+    assert bearish["di_spread"] == pytest.approx(
+        bearish["plus_di"] - bearish["minus_di"], abs=0.02
+    )
