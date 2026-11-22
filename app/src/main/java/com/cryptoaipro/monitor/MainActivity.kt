@@ -115,6 +115,7 @@ data class MarketSignal(
     val neuralUncertainty: WolfEnsembleUncertainty.Summary = WolfEnsembleUncertainty.analyze(emptyList()),
     val neuralOutOfDistribution: Boolean = true,
     val neuralInputDistance: Double = Double.POSITIVE_INFINITY,
+    val neuralDecisionThreshold: Double = 1.01,
     val deepNeuralSuccessProbability: Double? = null,
     val deepNeuralReviewedSamples: Int = 0,
     // Internal XT microstructure features; deliberately not rendered in any UI or notification.
@@ -169,10 +170,15 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             // Always expose all ten chart-conditioned specialist outputs. Unvalidated outputs
             // are advisory-only and have zero directional-score influence until strict validation.
             val research = WolfPretrainedEnsemble.predictResearch(candidate, adaptiveMemberWeights)
-            val uncertainty = WolfEnsembleUncertainty.analyze(research?.memberProbabilities.orEmpty())
+            val decisionThreshold = research?.decisionThreshold ?: pretrainedStatus.decisionThreshold
+            val uncertainty = WolfEnsembleUncertainty.analyze(research?.memberProbabilities.orEmpty(), decisionThreshold)
             val memberVotes = research?.let { prediction ->
                 prediction.memberProbabilities.mapIndexed { index, p ->
-                    val side = when { p >= 0.55 -> "LONG_BIAS"; p <= 0.45 -> "SHORT_BIAS"; else -> "NEUTRAL" }
+                    val side = when {
+                        prediction.decisionThreshold <= 1.0 && p >= prediction.decisionThreshold -> "LONG_BIAS"
+                        prediction.decisionThreshold <= 1.0 && p <= 1.0 - prediction.decisionThreshold -> "SHORT_BIAS"
+                        else -> "NEUTRAL"
+                    }
                     val label = when (side) { "LONG_BIAS" -> "LONG"; "SHORT_BIAS" -> "SHORT"; else -> "خنثی" }
                     "شبکه ${index + 1}: $label ${(maxOf(p,1.0-p)*100.0).toInt()}٪"
                 }
@@ -196,7 +202,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
                     neuralUncertainty = uncertainty,
                     neuralOutOfDistribution = research?.outOfDistribution ?: true,
-                    neuralInputDistance = research?.inputDistance ?: Double.POSITIVE_INFINITY
+                    neuralInputDistance = research?.inputDistance ?: Double.POSITIVE_INFINITY,
+                    neuralDecisionThreshold = decisionThreshold
                 )
             } else {
                 val probability = research?.upProbability
@@ -209,7 +216,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                         neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
                         neuralUncertainty = uncertainty,
                         neuralOutOfDistribution = research?.outOfDistribution ?: true,
-                        neuralInputDistance = research?.inputDistance ?: Double.POSITIVE_INFINITY
+                        neuralInputDistance = research?.inputDistance ?: Double.POSITIVE_INFINITY,
+                        neuralDecisionThreshold = decisionThreshold
                     )
                 } else {
                     // This model is trained on 1h inputs with a 6h forecast horizon,
@@ -217,7 +225,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     // Keep its ten specialist opinions visible as higher-timeframe context;
                     // never blend a mismatched horizon into 15m signal confidence.
                     val directionalScore = (probability * 100.0).toInt().coerceIn(1, 99)
-                    val predictedSide = NeuralSignalAlignment.predictedDirection(probability)
+                    val predictedSide = NeuralSignalAlignment.predictedDirection(probability, decisionThreshold)
                     signal.copy(
                         neuralScore = directionalScore,
                         neuralDirection = predictedSide,
