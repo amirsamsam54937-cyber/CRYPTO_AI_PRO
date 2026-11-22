@@ -699,7 +699,7 @@ internal object XtLiveTradingEngine {
                 }
                 .mapNotNull { signal ->
                     val decision = ZoroLivingTraderBrain.evaluate(context, signal)
-                    if (decision.allowed && decision.side == directionSide(signal.direction)) signal to decision else null
+                    if (decision.allowed && decision.side.equals(signal.direction, true)) signal to decision else null
                 }
                 .sortedWith(
                     compareByDescending<Pair<MarketSignal, ZoroLivingTraderBrain.Decision>> { it.second.score }
