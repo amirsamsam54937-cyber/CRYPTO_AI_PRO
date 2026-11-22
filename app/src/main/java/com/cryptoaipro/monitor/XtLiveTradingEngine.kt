@@ -100,6 +100,9 @@ internal object XtLiveTradingEngine {
     fun hasManagedSymbols(context: Context): Boolean =
         prefs(context).getStringSet(KEY_MANAGED, emptySet())?.isNotEmpty() == true
 
+    internal fun isManagedPosition(context: Context, symbol: String): Boolean =
+        normalized(symbol) in (prefs(context).getStringSet(KEY_MANAGED, emptySet())?.toSet().orEmpty())
+
     suspend fun canClearCredentials(context: Context): Boolean {
         val client = XtAuthenticatedFuturesClient(context)
         if (client.activePositions().isNotEmpty() || client.activeOpenOrders().isNotEmpty()) return false
