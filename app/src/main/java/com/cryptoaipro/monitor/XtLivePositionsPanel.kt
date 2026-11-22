@@ -76,12 +76,11 @@ internal fun XtLivePositionsPanel(context: Context = LocalContext.current) {
                     val qty = p.optDouble("quantity")
                     val leverage = p.optInt("leverage", 1)
                     val key = symbol.filter(Char::isLetterOrDigit).lowercase() + "_" + side
-                    val protection = runCatching {
-                        JSONObject(context.getSharedPreferences("zoro_live_trade_state", Context.MODE_PRIVATE)
-                            .getString("position_protection", "{}")).optJSONObject(key)
-                    }.getOrNull()
-                    val lockStage = context.getSharedPreferences("zoro_live_trade_state", Context.MODE_PRIVATE)
-                        .getInt("managed_${symbol.filter(Char::isLetterOrDigit).lowercase()}_profit_lock_stage", 0)
+                    val tradePrefs = context.getSharedPreferences("zoro_live_trade_state", Context.MODE_PRIVATE)
+                    val managedPrefix = "managed_" + symbol.filter(Char::isLetterOrDigit).lowercase() + "_"
+                    val savedStop = tradePrefs.getString(managedPrefix + "current_stop", null)?.toDoubleOrNull() ?: 0.0
+                    val savedTarget = tradePrefs.getString(managedPrefix + "target", null)?.toDoubleOrNull() ?: 0.0
+                    val lockStage = tradePrefs.getInt(managedPrefix + "profit_lock_stage", 0)
                     Surface(color = Color(0xFF191D1B), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -98,15 +97,15 @@ internal fun XtLivePositionsPanel(context: Context = LocalContext.current) {
                                 "حجم: ${String.format(Locale.US, "%.4f", qty)} • اهرم: ${leverage}x",
                                 color = muted, fontSize = 9.sp
                             )
-                            if (protection != null) {
+                            if (savedStop > 0.0 && savedTarget > 0.0) {
                                 Text(
-                                    "SL: ${String.format(Locale.US, "%.8f", protection.optDouble("stop"))} • TP: ${String.format(Locale.US, "%.8f", protection.optDouble("takeProfit"))}",
+                                    "SL: ${String.format(Locale.US, "%.8f", savedStop)} • TP: ${String.format(Locale.US, "%.8f", savedTarget)}",
                                     color = silver, fontSize = 9.sp
                                 )
-                                Text("قفل سود خودکار: مرحله ${lockStage.coerceIn(0, 5)}/5 • حفاظت صرافی",
+                                Text("قفل سود خودکار: مرحله ${lockStage.coerceIn(0, 5)}/5 • حفاظت XT",
                                     color = if (lockStage > 0) green else muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             } else {
-                                Text("حدود حفاظتی محلی ثبت‌شده نیست؛ بررسی حفاظتی صرافی لازم است.", color = red, fontSize = 9.sp)
+                                Text("حدود حفاظتی ثبت‌شده در حافظه برنامه موجود نیست؛ وضعیت XT باید بررسی شود.", color = red, fontSize = 9.sp)
                             }
                         }
                     }
