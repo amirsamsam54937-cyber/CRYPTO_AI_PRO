@@ -101,6 +101,8 @@ data class MarketSignal(
     val neuralScore: Int = 50,
     val timeframeCoverage: String = "15m / 1h / 4h",
     val timeframeAnalysis: List<ZoroTimeframeAnalysisEngine.Frame> = emptyList(),
+    val timeframeCandles: Map<String, List<DoubleArray>> = emptyMap(),
+    val scenarioCandles: List<DoubleArray> = emptyList(),
     val neuralDirection: String = "NEUTRAL",
     val neuralModelSource: String = "در انتظار مدل",
     val technicalDirection: String = "NEUTRAL",
@@ -1825,7 +1827,13 @@ private fun SignalOutcomePanel(snapshot: WolfSignalOutcomeJournal.Snapshot) {
 
 @Composable
 private fun SignalLevelsChart(signal: MarketSignal) {
-    val candles = signal.candles.filter { it.size >= 4 && it.take(4).all(Double::isFinite) }.takeLast(96)
+    val timeframeOptions = listOf("1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w")
+        .filter { it in signal.timeframeCandles }
+    var selectedTimeframe by remember(signal.symbol) {
+        mutableStateOf(if ("5m" in timeframeOptions) "5m" else timeframeOptions.firstOrNull() ?: "5m")
+    }
+    val sourceCandles = signal.timeframeCandles[selectedTimeframe] ?: signal.candles
+    val candles = sourceCandles.filter { it.size >= 6 && it.take(6).all(Double::isFinite) }.takeLast(120)
     data class Pivot(val index: Int, val price: Double, val isHigh: Boolean)
     val pivots = buildList {
         for (i in 2 until candles.size - 2) {
@@ -1849,9 +1857,14 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                 add(Gap(i - 2, i, currentHigh, olderLow, false))
         }
     }.takeLast(5)
-    val marketReader = signal.humanChartReadout
-    val advancedLevels = signal.advancedTechnical?.levels.orEmpty()
-    val liquiditySnapshot = remember(signal.symbol, signal.candles.size, signal.price) {
+    val marketReader = remember(signal.symbol, selectedTimeframe, candles.lastOrNull()?.getOrNull(5)) {
+        ZoroHumanMarketReader.analyze(candles)
+    }
+    val advancedReport = remember(signal.symbol, selectedTimeframe, candles.lastOrNull()?.getOrNull(5), signal.price) {
+        ZoroAdvancedTechnicalEngine.analyze(candles, signal.price)
+    }
+    val advancedLevels = advancedReport.levels
+    val liquiditySnapshot = remember(signal.symbol, selectedTimeframe, candles.lastOrNull()?.getOrNull(5), signal.price) {
         val rows = candles.mapNotNull { row ->
             if (row.size < 6) null else runCatching {
                 ZoroLiquidityMapEngine.Candle(
@@ -1862,13 +1875,11 @@ private fun SignalLevelsChart(signal: MarketSignal) {
         }
         ZoroLiquidityMapEngine.analyze(rows)
     }
-    val prices = candles.flatMap { listOf(it[1], it[2]) } + listOf(
-        signal.technical.support, signal.technical.resistance, signal.entry,
-        signal.stop, signal.tp1, signal.tp2, signal.tp3, signal.price,
-        signal.technical.ema20, signal.technical.vwap,
-        marketReader?.poc ?: Double.NaN, marketReader?.valueLow ?: Double.NaN,
-        marketReader?.valueHigh ?: Double.NaN
-    ).filter { it.isFinite() && it > 0.0 }
+    val prices = (candles.flatMap { listOf(it[1], it[2]) } + listOf(
+        signal.entry, signal.stop, signal.tp1, signal.tp2, signal.tp3, signal.price,
+        marketReader.poc ?: Double.NaN, marketReader.valueLow ?: Double.NaN,
+        marketReader.valueHigh ?: Double.NaN
+    ) + advancedLevels.map { it.price }).filter { it.isFinite() && it > 0.0 }
     val rawLow = prices.minOrNull() ?: signal.price * 0.98
     val rawHigh = prices.maxOrNull() ?: signal.price * 1.02
     val pad = (rawHigh - rawLow).coerceAtLeast(signal.price * 0.001) * 0.1
@@ -1881,7 +1892,7 @@ private fun SignalLevelsChart(signal: MarketSignal) {
     val structureText = when {
         brokenHigh != null -> "BOS صعودی احتمالی"
         brokenLow != null -> "BOS نزولی احتمالی"
-        signal.technical.marketStructure.isNotBlank() -> signal.technical.marketStructure
+        marketReader.structure.isNotBlank() -> marketReader.structure
         else -> "ساختار در حال ارزیابی"
     }
     Surface(
@@ -1893,10 +1904,23 @@ private fun SignalLevelsChart(signal: MarketSignal) {
         Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("تحلیل خودکار روی چارت", color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                    Text("تحلیل خودکار روی چارت • " + selectedTimeframe, color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
                     Text(signal.symbol + " • تحلیل و ترسیم خودکار ساختار و سناریو", color = Gold, fontSize = 9.sp)
                 }
                 Text("HOPE AI", color = Green, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+            if (timeframeOptions.isNotEmpty()) {
+                timeframeOptions.chunked(4).forEach { group ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        group.forEach { frame ->
+                            TextButton(onClick = { selectedTimeframe = frame }, modifier = Modifier.weight(1f)) {
+                                Text(frame, color = if (selectedTimeframe == frame) Gold else Muted,
+                                    fontSize = 9.sp, fontWeight = if (selectedTimeframe == frame) FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                        repeat(4 - group.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
             }
             if (candles.size < 10) {
                 Text("کندل کافی برای تحلیل ساختار و علامت‌گذاری خودکار دریافت نشده است.", color = Muted, fontSize = 10.sp)
@@ -1980,10 +2004,10 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                     val tint = if (pool.side == ZoroLiquidityMapEngine.Side.BUY_SIDE) Red else Green
                     level(pool.price, tint.copy(alpha = 0.8f), 1.2f, true)
                 }
-                level(signal.technical.support, Green, 1.6f, true)
-                level(signal.technical.resistance, Red, 1.6f, true)
-                level(signal.technical.ema20, Gold, 1.4f)
-                level(signal.technical.vwap, Color(0xFF69B8E8), 1.3f, true)
+                if (selectedTimeframe == "5m") {
+                    level(signal.technical.ema20, Gold, 1.4f)
+                    level(signal.technical.vwap, Color(0xFF69B8E8), 1.3f, true)
+                }
                 level(marketReader?.poc ?: Double.NaN, Gold, 1.8f)
                 level(marketReader?.valueLow ?: Double.NaN, Blue.copy(alpha = 0.7f), 1.0f, true)
                 level(marketReader?.valueHigh ?: Double.NaN, Blue.copy(alpha = 0.7f), 1.0f, true)
@@ -2009,7 +2033,7 @@ private fun SignalLevelsChart(signal: MarketSignal) {
             }
             Text("ساختار: $structureText • رژیم: " + signal.technical.regime, color = Gold, fontSize = 9.sp)
             Text("نقاط قرمز/سبز: سقف و کف خودکار • نواحی سایه‌دار: FVG شناسایی‌شده • خطوط: سطوح محاسبه‌شده", color = Muted, fontSize = 8.sp)
-            if (marketReader?.available == true) Text("خط طلایی: POC • خطوط فیروزه‌ای: Value Area • فاز: " + marketReader.phase, color = Blue, fontSize = 8.sp)
+            if (marketReader.available) Text("خط طلایی: POC • خطوط فیروزه‌ای: Value Area • فاز: " + marketReader.phase, color = Blue, fontSize = 8.sp)
             if (liquiditySnapshot.pools.isNotEmpty()) Text("خطوط نقدینگی: خوشه‌های احتمالی حدضرر بالای سقف‌ها و زیر کف‌ها • " + liquiditySnapshot.summary, color = Gold, fontSize = 8.sp, lineHeight = 12.sp)
             Text("حمایت/مقاومت، EMA20، VWAP، ورود، حد ضرر و اهداف از تحلیل داخلی نمایش داده می‌شوند. برچسب BOS فقط در صورت عبور قیمت بسته‌شدن از آخرین پیوت نمایش داده می‌شود. خطوط روند از پیوت‌های تأییدشده ترسیم می‌شوند.", color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
             if (signal.timeframeAnalysis.isNotEmpty()) {
@@ -2291,7 +2315,9 @@ internal object MarketAnalysisEngine {
             neuralTechnical = neuralStats?.technical ?: b.technical,
             neuralRsi = neuralStats?.third ?: b.third,
             neuralCandles = (neuralFrame ?: confirm).takeLast(80),
-            timeframeAnalysis = ZoroTimeframeAnalysisEngine.analyze(timeframeFrames)
+            timeframeAnalysis = ZoroTimeframeAnalysisEngine.analyze(timeframeFrames),
+            timeframeCandles = timeframeFrames.mapValues { it.value.takeLast(120) },
+            scenarioCandles = timeframeFrames["15m"].orEmpty().takeLast(240)
         )
     }
 
