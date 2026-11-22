@@ -233,7 +233,10 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                         neuralModelSource = "۱۰ شبکه عصبی • تحلیل کندل‌های بسته ۱ساعته و اندیکاتورهای چارت • افق ۶ساعت • معتبر",
                         neuralMemberVotes = memberVotes,
                         neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
-                        neuralUncertainty = uncertainty
+                        neuralUncertainty = uncertainty,
+                        neuralOutOfDistribution = research?.outOfDistribution ?: true,
+                        neuralInputDistance = research?.inputDistance ?: Double.POSITIVE_INFINITY,
+                        neuralDecisionThreshold = decisionThreshold
                     )
                 }
             }
