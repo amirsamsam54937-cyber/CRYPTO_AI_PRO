@@ -1472,10 +1472,65 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                         }
                         Text("قدرت خوشه سطوح: ${item.technical.liquidityStrength}/10 • برآورد از پیوت‌ها و سقف/کف ۹۶ کندل؛ نه داده قطعی لیکوییدیشن صرافی",
                             color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
+                        TraderChartReadoutPanel(item)
                         Text("تحلیل خودکار چارت و ساختار قیمت توسط موتور داخلی انجام شده است؛ نمایش نمودار خام غیرفعال است.", color = Gold, fontSize = 9.sp, lineHeight = 14.sp)
                         Text("الگوها احتمالی‌اند؛ هیچ الگویی جهت قیمت را تضمین نمی‌کند.", color = Muted, fontSize = 9.sp)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TraderChartReadoutPanel(signal: MarketSignal) {
+    val report = signal.advancedTechnical
+    val readout = remember(signal.symbol, signal.price, signal.direction, report) {
+        report?.let {
+            ZoroTraderChartReadout.analyze(
+                report = it,
+                price = signal.price,
+                support = signal.technical.support,
+                resistance = signal.technical.resistance,
+                relativeVolume = signal.technical.relativeVolume,
+                signalDirection = signal.direction
+            )
+        }
+    }
+    Surface(
+        color = Color(0xFF101719),
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Blue.copy(alpha = 0.38f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("گزارش تحلیل‌گر چارت • سناریو و استدلال", color = Blue, fontSize = 12.sp, fontWeight = FontWeight.Black)
+            if (readout == null || !readout.available) {
+                Text("داده کافی برای تحلیل ساختار بازار وجود ندارد؛ تا تکمیل تاریخچه از صدور برداشت قطعی خودداری کن.",
+                    color = Gold, fontSize = 10.sp, lineHeight = 15.sp)
+            } else {
+                Text(readout.marketSummary, color = Color.White, fontSize = 10.sp, lineHeight = 15.sp)
+                Divider(color = Blue.copy(alpha = 0.2f))
+                Text("ساختار و رفتار قیمت", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(readout.structureStory, color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                Text("سناریوی صعودی", color = Green, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(readout.bullishScenario, color = Color.White, fontSize = 9.sp, lineHeight = 14.sp)
+                Text("سناریوی نزولی", color = Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(readout.bearishScenario, color = Color.White, fontSize = 9.sp, lineHeight = 14.sp)
+                Divider(color = Blue.copy(alpha = 0.2f))
+                Text("ارزیابی سیگنال فعلی", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(readout.activeSignalAssessment, color = if (signal.direction == "NEUTRAL") Gold else Color.White,
+                    fontSize = 9.sp, lineHeight = 14.sp)
+                Text("هم‌گرایی شواهد", color = Blue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                readout.confluences.forEach { Text("• $it", color = Muted, fontSize = 8.sp, lineHeight = 12.sp) }
+                Text("الگوهای شناسایی‌شده", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(readout.patterns.joinToString(" • "), color = Muted, fontSize = 9.sp, lineHeight = 13.sp)
+                if (readout.cautions.isNotEmpty()) {
+                    Text("ریسک‌ها و موارد احتیاط", color = Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    readout.cautions.forEach { Text("• $it", color = Muted, fontSize = 8.sp, lineHeight = 12.sp) }
+                }
+                Text("سناریوها شرطی‌اند؛ شکست سطح باید با بسته‌شدن کندل و حجم تأیید شود. این گزارش به‌تنهایی مجوز معامله نیست.",
+                    color = Gold, fontSize = 8.sp, lineHeight = 12.sp)
             }
         }
     }
