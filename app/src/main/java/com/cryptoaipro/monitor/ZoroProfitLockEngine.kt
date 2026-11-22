@@ -50,9 +50,14 @@ internal object ZoroProfitLockEngine {
 
         val favorableR = if (isLong) (favorableExtreme - entry) / initialRisk
             else (entry - favorableExtreme) / initialRisk
-        val active = stages.lastOrNull { favorableR >= it.first } ?: return null
-        val stage = stages.indexOf(active) + 1
-        val lockedR = active.second
+        val active = stages.lastOrNull { favorableR >= it.first }
+        val stage = if (active == null) 0 else stages.indexOf(active) + 1
+        val lockedR = active?.second ?: 0.0
+        val favorablePercent = if (isLong) (favorableExtreme - entry) / entry
+            else (entry - favorableExtreme) / entry
+        val atrGap = atrTrailDistance?.takeIf { it.isFinite() && it > 0.0 }
+        val atrTrailActive = atrGap != null && favorablePercent >= 0.008
+        if (stage == 0 && !atrTrailActive) return null
 
         // Five ratchets: fee-adjusted break-even, then lock +0.5R, +1R, +1.5R, +2R.
         // Add a small 0.01% cushion beyond round-trip costs so "break-even" is net-positive.
@@ -60,12 +65,11 @@ internal object ZoroProfitLockEngine {
         val lockedStop = if (isLong) entry + initialRisk * lockedR + feeBufferPrice + netProfitCushion
             else entry - initialRisk * lockedR - feeBufferPrice - netProfitCushion
 
-        // Once stage 5 is reached, preserve a one-R trailing gap behind the best excursion.
-        val rawCandidate = if (stage >= 5) {
-            val gap = atrTrailDistance?.takeIf { it.isFinite() && it > 0.0 } ?: initialRisk
-            val trailing = if (isLong) favorableExtreme - gap
-                else favorableExtreme + gap
-            if (isLong) max(lockedStop, trailing) else min(lockedStop, trailing)
+        // Start a 2-ATR trail after +0.8%; later R milestones ratchet the floor higher.
+        val rawCandidate = if (atrTrailActive) {
+            val trailing = if (isLong) favorableExtreme - atrGap!! else favorableExtreme + atrGap!!
+            if (stage == 0) trailing
+            else if (isLong) max(lockedStop, trailing) else min(lockedStop, trailing)
         } else lockedStop
 
         val precision = pricePrecision.coerceIn(0, 12)
