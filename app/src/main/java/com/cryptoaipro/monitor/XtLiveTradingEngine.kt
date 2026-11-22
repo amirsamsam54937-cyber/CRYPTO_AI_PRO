@@ -658,11 +658,6 @@ internal object XtLiveTradingEngine {
                         return
                     }
                 }
-                    } else {
-                        tripEmergencyStop(context, "شناسه طرح TP/SL برای ${position.symbol} با داده مدیریت داخلی تطبیق ندارد؛ پوزیشن فوراً بررسی شود.")
-                        return
-                    }
-                }
             }
             p.edit().putStringSet(KEY_MANAGED, remainingManaged).apply()
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
