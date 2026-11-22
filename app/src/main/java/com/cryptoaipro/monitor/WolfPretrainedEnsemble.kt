@@ -28,7 +28,8 @@ internal object WolfPretrainedEnsemble {
     data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double,
         val baselineAccuracy:Double=0.0,val balancedAccuracy:Double=0.0,val logLoss:Double=0.0,
         val validatedForScoring:Boolean=false,val corpusRows:Int=0,val brierScore:Double=0.0,
-        val rocAuc:Double=0.0,val calibrationError:Double=1.0,val loadError:String="")
+        val rocAuc:Double=0.0,val calibrationError:Double=1.0,val loadError:String="",
+        val decisionThreshold:Double=1.01,val abstentionEnabled:Boolean=false)
     private data class Member(
         val role:String,val featureMask:BooleanArray,
         val w1:Array<DoubleArray>,val b1:DoubleArray,
