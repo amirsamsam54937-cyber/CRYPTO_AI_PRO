@@ -51,10 +51,23 @@ internal object ZoroLivingTraderBrain {
         // compression/expansion and an approximate volume-at-price profile.
         // These are measured proxies, not proof of hidden orders or true exchange delta.
         val chart = ZoroHumanMarketReader.analyze(signal.candles)
-        val chartAlignment = if (side == "LONG_BIAS") chart.score else -chart.score
+        val timeframeFrames = signal.timeframeAnalysis.filter { it.available }
+        val timeframeScore = ZoroTimeframeAnalysisEngine.consensusScore(timeframeFrames)
+        val combinedChartScore = if (timeframeFrames.size >= 3)
+            (chart.score * 0.55 + timeframeScore * 0.45).toInt().coerceIn(-100, 100)
+        else chart.score
+        val chartAlignment = if (side == "LONG_BIAS") combinedChartScore else -combinedChartScore
+        val timeframeOpposition = ZoroTimeframeAnalysisEngine.opposingCount(timeframeFrames, side)
+        val timeframeConflict = timeframeFrames.size >= 4 && timeframeOpposition >= 4 &&
+            (if (side == "LONG_BIAS") timeframeScore <= -20 else timeframeScore >= 20)
         if (chart.available) {
             score += (chartAlignment * 0.12).toInt().coerceIn(-12, 12)
             reasons += "خوانش رفتار قیمت: ${chart.phase}؛ ${chart.structure}"
+            if (timeframeFrames.isNotEmpty()) reasons += "تحلیل چندتایم‌فریمی: ${timeframeFrames.size} بازه؛ امتیاز وزنی ${timeframeScore}/100؛ مخالف‌ها ${timeframeOpposition}"
+            timeframeFrames.forEach { frame ->
+                reasons += "${frame.timeframe}: ${frame.direction} • ${frame.structure} • ${frame.phase}"
+            }
+            if (timeframeConflict) reasons += "تعارض غالب تایم‌فریم‌ها؛ اجازه ورود صادر نمی‌شود"
             reasons += "حراج بازار: ${chart.auction}"
             reasons += chart.patterns.take(4).map { "الگوی چارت: " + it }
             reasons += "سناریوی صعودی: ${chart.bullishScenario}"
@@ -159,7 +172,7 @@ internal object ZoroLivingTraderBrain {
             signal.confidence >= 70
         )
         val hardGates = thought.allowed && neuralGate &&
-            chartSupportsSide && !chart.blocks(side) &&
+            chartSupportsSide && !chart.blocks(side) && !timeframeConflict &&
             adx >= 18.0 && relativeVolume >= 0.75 &&
             atrPct.isFinite() && atrPct in 0.2..6.0 &&
             rr != null && rr >= 1.5 &&
