@@ -49,6 +49,41 @@ class ZoroProfitLockEngineTest {
         assertTrue(short.stopPrice > 81.0)
     }
 
+    @Test fun finalStageUsesTwoAtrTrailButNeverGivesBackTheLockedTwoR() {
+        val plan = ZoroProfitLockEngine.plan(
+            side = "LONG",
+            entry = 100.0,
+            initialRisk = 10.0,
+            favorableExtreme = 140.0,
+            mark = 139.0,
+            currentStop = 120.0,
+            feeBufferPrice = 0.5,
+            pricePrecision = 2,
+            atrTrailDistance = 5.0
+        )!!
+        assertEquals(5, plan.stage)
+        // 2 ATR = 10, so trail from 140 to 130; it is tighter than the +2R floor.
+        assertEquals(130.51, plan.stopPrice, 1e-8)
+        assertTrue(plan.shouldUpdate)
+    }
+
+    @Test fun atrTrailCannotMoveStopBackwardsOnShortPositions() {
+        val plan = ZoroProfitLockEngine.plan(
+            side = "SHORT",
+            entry = 100.0,
+            initialRisk = 10.0,
+            favorableExtreme = 60.0,
+            mark = 61.0,
+            currentStop = 78.0,
+            feeBufferPrice = 0.5,
+            pricePrecision = 2,
+            atrTrailDistance = 5.0
+        )!!
+        assertEquals(5, plan.stage)
+        assertEquals(69.49, plan.stopPrice, 1e-8)
+        assertTrue(plan.shouldUpdate)
+    }
+
     @Test fun noLockBeforeOneRAndInvalidInputsAreRejected() {
         assertNull(ZoroProfitLockEngine.plan(
             "LONG", 100.0, 10.0, 109.99, 109.0, 90.0, 1.0, 2
