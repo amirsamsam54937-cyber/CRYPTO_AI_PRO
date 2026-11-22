@@ -22,6 +22,7 @@ internal object AdaptiveLeverageEngine {
         val tp1: Double,
         val atrPercent: Double,
         val venueMaxLeverage: Int?,
+        val maintenanceMarginRate: Double = 0.01,
         val simulation: Boolean = false,
         val simulationMaxLeverage: Int = 20
     )
@@ -78,7 +79,11 @@ internal object AdaptiveLeverageEngine {
         // Nonlinear signal-strength ladder; no artificial 3x ceiling.
         val raw = (1.0 + (strength / 100.0).let { it * it } * 19.0 *
             rrFactor * volatilityFactor * evidenceFactor).roundToInt()
-        val leverage = raw.coerceIn(1, venueCap)
+        val maintenance = input.maintenanceMarginRate.takeIf { it.isFinite() && it in 0.0..0.25 } ?: 0.25
+        val liquidationBuffer = 0.005
+        val liquidationSafeCap = (1.0 / (stopPct / 100.0 + maintenance + liquidationBuffer))
+            .toInt().coerceAtLeast(1)
+        val leverage = raw.coerceIn(1, minOf(venueCap, liquidationSafeCap))
         val rrText = "%.2f".format(java.util.Locale.US, rr)
         val atrText = "%.2f".format(java.util.Locale.US, volatility)
         val reason = "قدرت تطبیقی $strength/100 • R:R $rrText • نوسان ATR $atrText٪" +
