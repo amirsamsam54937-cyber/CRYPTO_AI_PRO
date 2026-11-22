@@ -9,7 +9,7 @@ import kotlin.math.min
  * Scores are evidence indices, not probabilities. Volume delta is a candle-location proxy,
  * not exchange aggressor data; liquidity pools are inferred, never observed hidden orders.
  */
-internal object ZoroHumanMarketReader {
+object ZoroHumanMarketReader {
     data class Readout(
         val available: Boolean, val score: Int, val phase: String, val structure: String,
         val auction: String, val flow: String, val poc: Double?, val valueLow: Double?,
