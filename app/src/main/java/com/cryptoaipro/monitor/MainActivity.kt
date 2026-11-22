@@ -1755,6 +1755,7 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                 add(Gap(i - 2, i, currentHigh, olderLow, false))
         }
     }.takeLast(5)
+    val marketReader = signal.humanChartReadout
     val prices = candles.flatMap { listOf(it[1], it[2]) } + listOf(
         signal.technical.support, signal.technical.resistance, signal.entry,
         signal.stop, signal.tp1, signal.tp2, signal.tp3, signal.price,
@@ -1769,7 +1770,6 @@ private fun SignalLevelsChart(signal: MarketSignal) {
     val high = rawHigh + pad
     val span = (high - low).coerceAtLeast(signal.price * 0.001)
     val lastClose = candles.lastOrNull()?.getOrNull(3) ?: signal.price
-    val marketReader = signal.humanChartReadout
     val brokenHigh = recentHigh.lastOrNull()?.takeIf { lastClose > it.price }
     val brokenLow = recentLow.lastOrNull()?.takeIf { lastClose < it.price }
     val structureText = when {
