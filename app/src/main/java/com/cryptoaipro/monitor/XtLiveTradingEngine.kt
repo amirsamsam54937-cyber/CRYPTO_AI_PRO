@@ -26,6 +26,7 @@ internal object XtLiveTradingEngine {
     private const val KEY_AUTO_ENABLED = "automatic_execution_enabled"
     private val autoScanMutex = Mutex()
     private val executionMutex = Mutex()
+    private val positionMonitorMutex = Mutex()
     private const val KEY_EMERGENCY = "emergency_stop"
     private const val KEY_STATUS = "last_status"
     private const val KEY_MANAGED = "managed_symbols"
@@ -503,6 +504,8 @@ internal object XtLiveTradingEngine {
                 .putString("managed_${normalized(fresh.symbol)}_favorable_extreme", averageFillPrice.toString())
                 .putString("managed_${normalized(fresh.symbol)}_profit_id", protectionReceipt.profitId)
                 .putString("managed_${normalized(fresh.symbol)}_funding_rate", fresh.actualFundingRatePer8h.toString())
+                .putString("managed_${normalized(fresh.symbol)}_initial_atr", signal.atr.takeIf { it.isFinite() && it > 0.0 }?.toString() ?: "")
+                .putInt("managed_${normalized(fresh.symbol)}_profit_lock_stage", 0)
                 .putInt("last_position_count", positions.size)
                 .putString(KEY_STATUS,
                     "سفارش واقعی تأیید شد • ${fresh.symbol} ${fresh.side} • ${fresh.contracts} قرارداد • SL و TP در XT فعال تأیید شدند.")
@@ -522,7 +525,10 @@ internal object XtLiveTradingEngine {
     }
 
     /** Verify NEXUS-managed positions and tighten exchange-native protection; never increases position size. */
-    suspend fun monitorOpenPositions(context: Context) {
+    suspend fun monitorOpenPositions(context: Context) =
+        positionMonitorMutex.withLock { monitorOpenPositionsLocked(context) }
+
+    private suspend fun monitorOpenPositionsLocked(context: Context) {
         val p = prefs(context)
         val managed = p.getStringSet(KEY_MANAGED, emptySet())?.toSet().orEmpty()
         if (managed.isEmpty()) return
@@ -555,7 +561,8 @@ internal object XtLiveTradingEngine {
                     val prefix = "managed_" + symbol + "_"
                     val cleanup = p.edit()
                     listOf("side", "entry", "initial_risk", "current_stop", "target",
-                        "favorable_extreme", "profit_id", "funding_rate", "last_trail_at").forEach { cleanup.remove(prefix + it) }
+                        "favorable_extreme", "profit_id", "funding_rate", "initial_atr",
+                        "profit_lock_stage", "last_trail_at").forEach { cleanup.remove(prefix + it) }
                     cleanup.apply()
                     continue
                 }
@@ -575,15 +582,13 @@ internal object XtLiveTradingEngine {
                     return
                 }
 
-                // Dynamic exchange-side trailing: once price reaches +1R, protect
-                // break-even after estimated round-trip fees; after +1.5R trail
-                // the favorable extreme. The stop can only move toward profit.
+                // Five-stage fee-aware profit lock. XT remains the authority for the active exchange-side stop.
                 val keyPrefix = "managed_" + symbol + "_"
                 val entry = p.getString(keyPrefix + "entry", null)?.toDoubleOrNull()
                 val initialRisk = p.getString(keyPrefix + "initial_risk", null)?.toDoubleOrNull()
                 val storedProfitId = p.getString(keyPrefix + "profit_id", null)
                 val mark = position.markPrice
-                if (isEnabled(context) && entry != null && initialRisk != null &&
+                if (entry != null && initialRisk != null &&
                     entry > 0.0 && initialRisk > 0.0 && mark.isFinite() && mark > 0.0 &&
                     !storedProfitId.isNullOrBlank()) {
                     val protection = protections.firstOrNull {
@@ -597,49 +602,62 @@ internal object XtLiveTradingEngine {
                         val oldExtreme = p.getString(keyPrefix + "favorable_extreme", null)
                             ?.toDoubleOrNull() ?: entry
                         val extreme = if (isLong) max(oldExtreme, mark) else kotlin.math.min(oldExtreme, mark)
-                        val favorableR = if (isLong) (extreme - entry) / initialRisk else (entry - extreme) / initialRisk
-                        val trailEdit = p.edit().putString(keyPrefix + "favorable_extreme", extreme.toString())
-                        if (favorableR >= 1.0 && currentStop > 0.0 && targetPrice > 0.0) {
-                            val contract = client.contractSpec(position.symbol)
-                            val fundingRate = p.getString(keyPrefix + "funding_rate", "0")?.toDoubleOrNull()?.let { kotlin.math.abs(it) } ?: 0.0
-                            val feeBuffer = entry * (2.0 * contract.takerFeeRate + 2.0 * 0.0005 + fundingRate * 6.0 / 8.0)
-                            val breakEven = if (isLong) entry + feeBuffer else entry - feeBuffer
-                            val trailGap = when {
-                                favorableR >= 2.0 -> initialRisk * 0.75
-                                favorableR >= 1.5 -> initialRisk
-                                else -> Double.POSITIVE_INFINITY
+                        val contract = client.contractSpec(position.symbol)
+                        val fundingRate = p.getString(keyPrefix + "funding_rate", "0")
+                            ?.toDoubleOrNull()?.let { kotlin.math.abs(it) } ?: 0.0
+                        val atr = p.getString(keyPrefix + "initial_atr", null)
+                            ?.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+                        val feeBuffer = entry * (
+                            2.0 * contract.takerFeeRate +
+                                2.0 * 0.0005 +
+                                fundingRate * 6.0 / 8.0
+                            )
+                        val plan = ZoroProfitLockEngine.plan(
+                            side = position.side,
+                            entry = entry,
+                            initialRisk = initialRisk,
+                            favorableExtreme = extreme,
+                            mark = mark,
+                            currentStop = currentStop,
+                            feeBufferPrice = feeBuffer,
+                            pricePrecision = contract.pricePrecision,
+                            atrTrailDistance = atr?.times(2.0)
+                        )
+                        val oldStage = p.getInt(keyPrefix + "profit_lock_stage", 0)
+                        val trailEdit = p.edit()
+                            .putString(keyPrefix + "favorable_extreme", extreme.toString())
+                        if (plan != null && plan.stage > oldStage) {
+                            trailEdit.putInt(keyPrefix + "profit_lock_stage", plan.stage)
+                        }
+                        val lastTrailAt = p.getLong(keyPrefix + "last_trail_at", 0L)
+                        if (plan != null && plan.shouldUpdate &&
+                            System.currentTimeMillis() - lastTrailAt >= 10_000L) {
+                            val updated = client.updateTakeProfitStopMarket(
+                                position.symbol, storedProfitId, plan.stopPrice, targetPrice
+                            )
+                            val verifiedStop = updated.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0
+                            val tick = Math.pow(10.0, -contract.pricePrecision.coerceIn(0, 12).toDouble())
+                            if (verifiedStop <= 0.0 ||
+                                abs(verifiedStop - plan.stopPrice) > maxOf(tick, plan.stopPrice * 1e-8)) {
+                                tripEmergencyStop(context, "قفل سود مرحله ${plan.stage} برای ${position.symbol} در XT تأیید نشد.")
+                                return
                             }
-                            val rawStop = if (trailGap.isFinite()) {
-                                if (isLong) max(breakEven, extreme - trailGap)
-                                else kotlin.math.min(breakEven, extreme + trailGap)
-                            } else breakEven
-                            val precision = contract.pricePrecision.coerceIn(0, 12)
-                            val nextStop = BigDecimal.valueOf(rawStop)
-                                .setScale(precision, RoundingMode.HALF_UP).toDouble()
-                            val tick = Math.pow(10.0, -precision.toDouble())
-                            val improves = if (isLong) nextStop > currentStop + tick
-                                else nextStop < currentStop - tick
-                            val stillOnSafeSide = if (isLong) nextStop < mark - tick
-                                else nextStop > mark + tick
-                            val lastTrailAt = p.getLong(keyPrefix + "last_trail_at", 0L)
-                            if (improves && stillOnSafeSide &&
-                                System.currentTimeMillis() - lastTrailAt >= 15_000L) {
-                                val updated = client.updateTakeProfitStopMarket(
-                                    position.symbol, storedProfitId, nextStop, targetPrice
-                                )
-                                val verifiedStop = updated.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0
-                                if (verifiedStop <= 0.0 ||
-                                    abs(verifiedStop - nextStop) > maxOf(tick, nextStop * 1e-8)) {
-                                    tripEmergencyStop(context, "حدضرر پویا برای ${position.symbol} پس از تغییر در XT تأیید نشد.")
-                                    return
-                                }
-                                trailEdit.putString(keyPrefix + "current_stop", verifiedStop.toString())
-                                    .putLong(keyPrefix + "last_trail_at", System.currentTimeMillis())
-                                setStatus(context,
-                                    "حدضرر پویا در XT به‌روزرسانی و تأیید شد • ${position.symbol} • R=${String.format(Locale.US, "%.2f", favorableR)}")
-                            }
+                            trailEdit.putString(keyPrefix + "current_stop", verifiedStop.toString())
+                                .putInt(keyPrefix + "profit_lock_stage", maxOf(oldStage, plan.stage))
+                                .putLong(keyPrefix + "last_trail_at", System.currentTimeMillis())
+                            setStatus(
+                                context,
+                                "قفل سود مرحله ${plan.stage}/5 در XT تأیید شد • ${position.symbol} • " +
+                                    "حدضرر=${String.format(Locale.US, "%.8f", verifiedStop)} • " +
+                                    "سود مطلوب=${String.format(Locale.US, "%.2f", plan.favorableR)}R"
+                            )
                         }
                         trailEdit.apply()
+                    } else {
+                        tripEmergencyStop(context, "شناسه طرح TP/SL برای ${position.symbol} با داده مدیریت داخلی تطبیق ندارد؛ پوزیشن فوراً بررسی شود.")
+                        return
+                    }
+                }
                     } else {
                         tripEmergencyStop(context, "شناسه طرح TP/SL برای ${position.symbol} با داده مدیریت داخلی تطبیق ندارد؛ پوزیشن فوراً بررسی شود.")
                         return
