@@ -51,6 +51,7 @@ internal object WolfPretrainedEnsemble {
             val root=JSONObject(context.assets.open("wolf_pretrained_ensemble.json").bufferedReader().use{it.readText()})
             require(root.optString("format")=="amir-wolf-ensemble-v2")
             require(root.optString("target_definition")=="future_return_6h_up_vs_down_neutral_band_excluded")
+            require(root.optString("ensemble_aggregation")=="equal_weight_mean")
             val corpus=JSONObject(context.assets.open("wolf_corpus_manifest.json").bufferedReader().use{it.readText()})
             val corpusRows=corpus.optInt("rows",0)
             val sources=corpus.optJSONArray("source_exchanges")
@@ -153,7 +154,7 @@ internal object WolfPretrainedEnsemble {
     }
 
     /** Research-only inference; probabilities are converted to P(correct relative to the technical reference side). */
-    fun predictResearch(signal:MarketSignal, memberWeights: List<Double> = emptyList()):ResearchPrediction? {
+    fun predictResearch(signal:MarketSignal):ResearchPrediction? {
         if(members.size!=10) return null
         val technical=signal.neuralTechnical ?: return null
         val rsiValue=signal.neuralRsi?.takeIf{it.isFinite()} ?: return null
@@ -185,10 +186,9 @@ internal object WolfPretrainedEnsemble {
             val pUp=1.0/(1.0+exp(-logit.coerceIn(-30.0,30.0)))
             pUp
         }
-        val weights = if (memberWeights.size == 10 && memberWeights.all { it.isFinite() && it in 0.5..2.0 })
-            memberWeights else List(10) { 1.0 }
-        val weightTotal = weights.sum().coerceAtLeast(1e-9)
-        val weightedProbability = predictions.indices.sumOf { predictions[it] * weights[it] } / weightTotal
+        // Must match the exact aggregation used for calibration and untouched holdout metrics.
+        // Online member reweighting is diagnostic-only until it receives its own calibration.
+        val weightedProbability = predictions.average()
         return ResearchPrediction(
             weightedProbability.coerceIn(.01,.99),
             predictions,
