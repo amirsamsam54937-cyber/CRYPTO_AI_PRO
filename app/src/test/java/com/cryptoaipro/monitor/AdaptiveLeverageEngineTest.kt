@@ -64,4 +64,14 @@ class AdaptiveLeverageEngineTest {
         val validated = AdaptiveLeverageEngine.recommend(input(neuralValidated = true))
         assertTrue(validated.leverage >= unvalidated.leverage)
     }
+
+    @Test fun widerStopAndHigherMaintenanceMarginReduceSafeLeverage() {
+        val narrowStop = AdaptiveLeverageEngine.recommend(input().copy(stop = 99.0))
+        val wideStop = AdaptiveLeverageEngine.recommend(input().copy(stop = 90.0))
+        val higherMaintenance = AdaptiveLeverageEngine.recommend(
+            input().copy(maintenanceMarginRate = 0.08)
+        )
+        assertTrue(narrowStop.leverage > wideStop.leverage)
+        assertTrue(narrowStop.leverage > higherMaintenance.leverage)
+    }
 }
