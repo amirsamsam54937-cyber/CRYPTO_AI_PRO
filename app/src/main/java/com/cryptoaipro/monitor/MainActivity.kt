@@ -411,16 +411,16 @@ fun CryptoMonitorScreen() {
     var voiceReady by remember { mutableStateOf(false) }
     var voiceLanguageReady by remember { mutableStateOf(false) }
     val voiceEngine = remember(context) {
-        TextToSpeech(context) { status ->
-            voiceReady = status == TextToSpeech.SUCCESS
-            if (status == TextToSpeech.SUCCESS) {
-                val localeResult = voiceEngine.setLanguage(Locale("fa", "IR"))
-                voiceLanguageReady = localeResult != TextToSpeech.LANG_MISSING_DATA &&
-                    localeResult != TextToSpeech.LANG_NOT_SUPPORTED
-            }
-        }
+        TextToSpeech(context) { status -> voiceReady = status == TextToSpeech.SUCCESS }
     }
     DisposableEffect(voiceEngine) { onDispose { voiceEngine.stop(); voiceEngine.shutdown() } }
+    LaunchedEffect(voiceReady) {
+        if (voiceReady) {
+            val localeResult = voiceEngine.setLanguage(Locale("fa", "IR"))
+            voiceLanguageReady = localeResult != TextToSpeech.LANG_MISSING_DATA &&
+                localeResult != TextToSpeech.LANG_NOT_SUPPORTED
+        }
+    }
     LaunchedEffect(voiceReply, voiceReady) {
         if (voiceReady && voiceReply.isNotBlank()) {
             voiceEngine.speak(voiceReply, TextToSpeech.QUEUE_FLUSH, null, "nexus-voice-reply")
