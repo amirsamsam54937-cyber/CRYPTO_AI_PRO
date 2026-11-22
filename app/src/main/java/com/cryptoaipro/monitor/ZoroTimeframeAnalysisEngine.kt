@@ -1,7 +1,7 @@
 package com.cryptoaipro.monitor
 
 /** Multi-timeframe OHLCV reader for every interval exposed by XT's futures kline REST endpoint. */
-internal object ZoroTimeframeAnalysisEngine {
+object ZoroTimeframeAnalysisEngine {
     data class Frame(
         val timeframe: String,
         val available: Boolean,
