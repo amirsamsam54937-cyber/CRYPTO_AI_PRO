@@ -80,6 +80,8 @@ internal fun XtLivePositionsPanel(context: Context = LocalContext.current) {
                         JSONObject(context.getSharedPreferences("zoro_live_trade_state", Context.MODE_PRIVATE)
                             .getString("position_protection", "{}")).optJSONObject(key)
                     }.getOrNull()
+                    val lockStage = context.getSharedPreferences("zoro_live_trade_state", Context.MODE_PRIVATE)
+                        .getInt("managed_${symbol.filter(Char::isLetterOrDigit).lowercase()}_profit_lock_stage", 0)
                     Surface(color = Color(0xFF191D1B), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -101,6 +103,8 @@ internal fun XtLivePositionsPanel(context: Context = LocalContext.current) {
                                     "SL: ${String.format(Locale.US, "%.8f", protection.optDouble("stop"))} • TP: ${String.format(Locale.US, "%.8f", protection.optDouble("takeProfit"))}",
                                     color = silver, fontSize = 9.sp
                                 )
+                                Text("قفل سود خودکار: مرحله ${lockStage.coerceIn(0, 5)}/5 • حفاظت صرافی",
+                                    color = if (lockStage > 0) green else muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             } else {
                                 Text("حدود حفاظتی محلی ثبت‌شده نیست؛ بررسی حفاظتی صرافی لازم است.", color = red, fontSize = 9.sp)
                             }
