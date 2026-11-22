@@ -19,6 +19,7 @@ import kotlin.math.abs
 internal object ZoroLivingTraderBrain {
     data class Decision(
         val allowed: Boolean,
+        val side: String,
         val score: Int,
         val regime: String,
         val sampleCount: Int,
@@ -34,7 +35,7 @@ internal object ZoroLivingTraderBrain {
         reasons += thought.reasons
         val side = thought.side.uppercase()
         if (side != "LONG_BIAS" && side != "SHORT_BIAS") {
-            return Decision(false, 0, "NEUTRAL", 0, null, null, listOf("جهت بازار خنثی است"))
+            return Decision(false, "NEUTRAL", 0, "NEUTRAL", 0, null, null, listOf("جهت بازار خنثی است"))
         }
 
         val tech = signal.technical
@@ -183,7 +184,7 @@ internal object ZoroLivingTraderBrain {
 
         val allowed = hardGates && quality >= MIN_QUALITY
         val decision = Decision(
-            allowed, quality, regime, historical.count,
+            allowed, side, quality, regime, historical.count,
             historical.takeIf { it.count >= MIN_EDGE_SAMPLES }?.winRate,
             historical.takeIf { it.count >= MIN_EDGE_SAMPLES }?.averageNetPct,
             reasons.distinct()
