@@ -27,6 +27,8 @@ internal object NexusAutonomousMind {
         val netWinRate: Int,
         val meanNetPnlPct: Double,
         val modelValidated: Boolean,
+        val memoryCount: Int,
+        val selfCritique: String,
         val lastReflectionAt: Long
     )
 
@@ -171,6 +173,8 @@ internal object NexusAutonomousMind {
 
     fun status(context: Context): State {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val history = runCatching { JSONArray(p.getString(HISTORY, "[]")) }.getOrDefault(JSONArray())
+        val last = history.optJSONObject(history.length() - 1)
         return State(
             cycles = p.getInt("cycles", 0),
             phase = p.getString("phase", "AWAITING_FIRST_OBSERVATION") ?: "AWAITING_FIRST_OBSERVATION",
@@ -182,6 +186,8 @@ internal object NexusAutonomousMind {
             netWinRate = p.getInt("net_win_rate", 0),
             meanNetPnlPct = p.getFloat("mean_net_pnl", 0f).toDouble(),
             modelValidated = p.getBoolean("model_validated", false),
+            memoryCount = history.length(),
+            selfCritique = last?.optString("selfCritique").orEmpty().ifBlank { "هنوز بازبینی انتقادی ثبت نشده است" },
             lastReflectionAt = p.getLong("last_reflection_at", 0L)
         )
     }
