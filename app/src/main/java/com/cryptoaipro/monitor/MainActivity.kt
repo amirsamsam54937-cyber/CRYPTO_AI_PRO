@@ -100,6 +100,7 @@ data class MarketSignal(
     val consensus: WolfConsensus? = null,
     val neuralScore: Int = 50,
     val timeframeCoverage: String = "15m / 1h / 4h",
+    val timeframeAnalysis: List<ZoroTimeframeAnalysisEngine.Frame> = emptyList(),
     val neuralDirection: String = "NEUTRAL",
     val neuralModelSource: String = "در انتظار مدل",
     val technicalDirection: String = "NEUTRAL",
@@ -1852,7 +1853,7 @@ private fun SignalLevelsChart(signal: MarketSignal) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("تحلیل خودکار روی چارت", color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
-                    Text(signal.symbol + " • داده کندلی XT • بدون ترسیم دستی", color = Gold, fontSize = 9.sp)
+                    Text(signal.symbol + " • تحلیل و ترسیم خودکار ساختار و سناریو", color = Gold, fontSize = 9.sp)
                 }
                 Text("HOPE AI", color = Green, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
@@ -1897,6 +1898,21 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                     val endX = (xx + 18f).coerceAtMost(right)
                     drawLine(tint.copy(alpha = 0.65f), Offset(xx, yy), Offset(endX, yy), 1f)
                 }
+                // The chart engine projects the last two confirmed swing pivots as dynamic trendlines.
+                fun trendline(points: List<Pivot>, tint: Color) {
+                    if (points.size >= 2) {
+                        val a = points[points.lastIndex - 1]
+                        val b = points.last()
+                        if (b.index > a.index) {
+                            val slope = (b.price - a.price) / (b.index - a.index).toDouble()
+                            val projectedAtLast = b.price + slope * (candles.lastIndex - b.index)
+                            drawLine(tint.copy(alpha = 0.72f), Offset(x(a.index), y(a.price)),
+                                Offset(x(candles.lastIndex), y(projectedAtLast)), 1.5f)
+                        }
+                    }
+                }
+                trendline(recentHigh, Red)
+                trendline(recentLow, Green)
                 fun level(price: Double, color: Color, width: Float = 1.5f, dashed: Boolean = false) {
                     if (price.isFinite() && price > low && price < high) {
                         val yy = y(price)
@@ -1939,7 +1955,27 @@ private fun SignalLevelsChart(signal: MarketSignal) {
             Text("ساختار: $structureText • رژیم: " + signal.technical.regime, color = Gold, fontSize = 9.sp)
             Text("نقاط قرمز/سبز: سقف و کف خودکار • نواحی سایه‌دار: FVG شناسایی‌شده • خطوط: سطوح محاسبه‌شده", color = Muted, fontSize = 8.sp)
             if (marketReader?.available == true) Text("خط طلایی: POC • خطوط فیروزه‌ای: Value Area • فاز: " + marketReader.phase, color = Blue, fontSize = 8.sp)
-            Text("حمایت/مقاومت، EMA20، VWAP، ورود، حد ضرر و اهداف از تحلیل داخلی نمایش داده می‌شوند. برچسب BOS فقط در صورت عبور قیمت بسته‌شدن از آخرین پیوت نمایش داده می‌شود.", color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
+            Text("حمایت/مقاومت، EMA20، VWAP، ورود، حد ضرر و اهداف از تحلیل داخلی نمایش داده می‌شوند. برچسب BOS فقط در صورت عبور قیمت بسته‌شدن از آخرین پیوت نمایش داده می‌شود. خطوط روند از پیوت‌های تأییدشده ترسیم می‌شوند.", color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
+            if (signal.timeframeAnalysis.isNotEmpty()) {
+                Text("خوانش مستقل همه تایم‌فریم‌های XT • وزن بیشتر برای تایم‌فریم‌های بالاتر", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                signal.timeframeAnalysis.chunked(4).forEach { group ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        group.forEach { frame ->
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(frame.timeframe, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text(if (frame.available) frame.direction else "داده ناکافی",
+                                    color = when (frame.direction) { "LONG" -> Green; "SHORT" -> Red; else -> Muted },
+                                    fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                Text(if (frame.available) "امتیاز " + frame.score else "—",
+                                    color = Muted, fontSize = 7.sp)
+                            }
+                        }
+                        repeat(4 - group.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+                Text("فاز و ساختار هر بازه جداگانه بررسی می‌شود؛ تعارض تایم‌فریم‌ها در داوری مغز مرکزی لحاظ می‌شود، نه اینکه میانگین ساده گرفته شود.",
+                    color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
+            }
         }
     }
 }
@@ -2075,7 +2111,8 @@ internal object MarketAnalysisEngine {
                                     primaryLabel: String = "15m", confirmLabel: String = "1h",
                                     trendLabel: String = "4h", microLabel: String = "5m",
                                     macroLabel: String = "1D",
-                                    neuralFrame: List<DoubleArray>? = null): MarketSignal {
+                                    neuralFrame: List<DoubleArray>? = null,
+                                    timeframeFrames: Map<String, List<DoubleArray>> = emptyMap()): MarketSignal {
         val a = indicators(short)
         val b = indicators(confirm)
         val c = indicators(trend)
@@ -2184,7 +2221,7 @@ internal object MarketAnalysisEngine {
                 (marketContext?.let { " | " + it.conciseSummary() } ?: " | نمای کلان بازار فعلاً در دسترس نیست") +
                 filterNote + " | اهرم تطبیقی: " + leverageDecision.reason,
             price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical, short.takeLast(80), wolf,
-            timeframeCoverage = listOfNotNull(primaryLabel, confirmLabel, microLabel.takeIf { microStats != null }, trendLabel, macroLabel.takeIf { macroStats != null }).distinct().joinToString(" / "),
+            timeframeCoverage = listOf("1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w").filter { it in timeframeFrames }.joinToString(" / "),
             technicalDirection = direction,
             tradeTimeframe = when {
                 direction == "NEUTRAL" -> "بدون معامله"
@@ -2197,7 +2234,8 @@ internal object MarketAnalysisEngine {
             },
             neuralTechnical = neuralStats?.technical ?: b.technical,
             neuralRsi = neuralStats?.third ?: b.third,
-            neuralCandles = (neuralFrame ?: confirm).takeLast(80)
+            neuralCandles = (neuralFrame ?: confirm).takeLast(80),
+            timeframeAnalysis = ZoroTimeframeAnalysisEngine.analyze(timeframeFrames)
         )
     }
 
