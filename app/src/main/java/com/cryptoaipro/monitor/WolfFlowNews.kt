@@ -204,25 +204,26 @@ internal object WolfFlowNewsRepository {
             val newsDirectional = (assetNewsBias + broadBias) * if (isLong) 1 else -1
             // Headlines are a low-weight risk/context modifier, never a standalone trade trigger.
             val newsAdjustment = if (signal.direction == "NEUTRAL") 0 else newsDirectional.coerceIn(-2, 2)
-            val flowNote = flow?.let {
-                "جریان معاملات تهاجمی تازه: " + it.optString("summary") +
-                    "؛ عدم‌تعادل معاملات " + String.format(Locale.US, "%.1f%%", it.optDouble("imbalance") * 100) +
-                    (if (bookFresh) "؛ عدم‌تعادل دفتر سفارش " + String.format(Locale.US, "%.1f%%", it.optDouble("bookImbalance") * 100) else "")
-            } ?: "جریان معاملات درشت برای این نماد تازه/قابل‌دسترسی نیست"
-            val newsNote = when {
-                related.isNotEmpty() -> "خبرهای مرتبط با " + base + ": " + related.take(2).joinToString(" | ") { it.optString("title").take(110) } +
-                    "؛ امتیاز احساس خبر " + assetNewsBias
-                broadNews.isNotEmpty() -> "زمینه خبر کل بازار دریافت شد؛ امتیاز محدود " + broadBias
-                else -> "خبر معتبر و مرتبط تازه برای این دارایی در دسترس نیست"
-            }
-            val researchNote = prefs.getString("auto_research", "").orEmpty().take(500)
-            // News, sentiment, funding and flow are consumed by the DNN feature vector; no rule-based score injection.
-            val adjustment = 0
+            // Keep sentiment, news and microstructure private to the decision engine.
+            // They are feature inputs and risk context, never appended to user-facing signal text.
+            val sentimentSnapshot = runCatching {
+                org.json.JSONObject(prefs.getString("sentiment_network_snapshot", "{}"))
+            }.getOrDefault(org.json.JSONObject())
+            val nodeRows = sentimentSnapshot.optJSONArray("nodes") ?: JSONArray()
+            val sentimentNode = (0 until nodeRows.length()).mapNotNull { nodeRows.optJSONObject(it) }
+                .firstOrNull { it.optString("id").equals(base, true) }
+            val sentimentFresh = now - sentimentSnapshot.optLong("updatedAt", 0L) in 0..(45L * 60L * 1000L)
+            val hiddenSentiment = if (sentimentFresh) sentimentNode?.optInt("score", 0) ?: 0 else 0
+            val hiddenFlow = if (flow != null) {
+                ((flow.optDouble("imbalance", 0.0) * 65.0) +
+                    (if (bookFresh) flow.optDouble("bookImbalance", 0.0) * 35.0 else 0.0))
+                    .toInt().coerceIn(-100, 100)
+            } else 0
+            val combinedHiddenContext = (hiddenSentiment * 0.60 + hiddenFlow * 0.40)
+                .toInt().coerceIn(-100, 100)
             signal.copy(
-                score = (signal.score + adjustment).coerceIn(-100, 100),
-                confidence = (signal.confidence + adjustment).coerceIn(0, 95),
-                reason = signal.reason + " | " + flowNote + " | " + newsNote +
-                    if (researchNote.isBlank()) "" else " | پژوهش پس‌زمینه: " + researchNote
+                hiddenFlowScore = combinedHiddenContext,
+                hiddenFlowFresh = sentimentFresh || flow != null
             )
         }
     }
@@ -259,6 +260,10 @@ internal object WolfFlowNewsRepository {
             .putString("market_news", newsJson.toString()).putLong("market_news_updated_at", refreshedAt)
             .putString("auto_research", research?.first.orEmpty()).putString("auto_research_source", research?.second.orEmpty())
             .putLong("last_refresh", refreshedAt).putString("last_refresh_exchange", exchange).apply()
+
+        // Refresh the hidden sentiment graph from the same cached multi-source news batch.
+        // Failure is non-fatal: stale sentiment is ignored by the feature builder.
+        runCatching { ZoroSentimentNetwork.refresh(context, signals.map { it.symbol }.distinct()) }
     }
 
     suspend fun news(): List<MarketNewsItem> = withContext(Dispatchers.IO) {
