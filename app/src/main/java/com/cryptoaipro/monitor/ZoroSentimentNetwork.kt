@@ -206,7 +206,25 @@ internal object ZoroSentimentNetwork {
     suspend fun refresh(context: Context, symbols: List<String>): ZoroSentimentSnapshot =
         withContext(Dispatchers.IO) {
             val prefs = context.getSharedPreferences("wolf_background_intelligence", Context.MODE_PRIVATE)
-            val articles = runCatching { WolfFlowNewsRepository.news() }.getOrDefault(emptyList())
+            // Reuse the batch just fetched by WolfFlowNewsRepository; avoid a second
+            // news request during the same intelligence refresh cycle.
+            val cachedNewsAt = prefs.getLong("market_news_updated_at", 0L)
+            val cachedNews = runCatching { JSONArray(prefs.getString("market_news", "[]")) }
+                .getOrDefault(JSONArray())
+            val cachedArticles = (0 until cachedNews.length()).mapNotNull { index ->
+                val row = cachedNews.optJSONObject(index) ?: return@mapNotNull null
+                val title = row.optString("title").trim()
+                if (title.isBlank()) null else MarketNewsItem(
+                    title,
+                    row.optString("source"),
+                    row.optString("url"),
+                    row.optString("date"),
+                    row.optString("description")
+                )
+            }
+            val articles = if (cachedArticles.isNotEmpty() &&
+                System.currentTimeMillis() - cachedNewsAt in 0..(2L * 60L * 60L * 1000L)
+            ) cachedArticles else runCatching { WolfFlowNewsRepository.news() }.getOrDefault(emptyList())
             val fearGreed = runCatching {
                 val connection = URL("https://api.alternative.me/fng/?limit=1&format=json")
                     .openConnection() as HttpURLConnection
