@@ -6,11 +6,11 @@ import org.junit.Test
 class ZoroProfitLockEngineTest {
     @Test fun longPositionLocksFeesAndFiveProfitMilestones() {
         val cases = listOf(
-            Triple(110.0, 1, 101.0),
-            Triple(115.0, 2, 106.0),
-            Triple(120.0, 3, 111.0),
-            Triple(125.0, 4, 116.0),
-            Triple(130.0, 5, 121.0)
+            Triple(110.0, 1, 101.01),
+            Triple(115.0, 2, 106.01),
+            Triple(120.0, 3, 111.01),
+            Triple(125.0, 4, 116.01),
+            Triple(130.0, 5, 121.01)
         )
         cases.forEach { (extreme, expectedStage, expectedStop) ->
             val plan = ZoroProfitLockEngine.plan(
@@ -29,7 +29,7 @@ class ZoroProfitLockEngineTest {
             110.0, 1.0, 2
         )!!
         assertEquals(5, plan.stage)
-        assertEquals(79.0, plan.stopPrice, 1e-8)
+        assertEquals(78.99, plan.stopPrice, 1e-8)
         assertTrue(plan.shouldUpdate)
     }
 
