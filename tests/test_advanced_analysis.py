@@ -92,3 +92,41 @@ def test_directional_movement_diagnostics_distinguish_uptrend_and_downtrend():
     assert bearish["di_spread"] == pytest.approx(
         bearish["plus_di"] - bearish["minus_di"], abs=0.02
     )
+
+
+def test_analysis_reports_timestamp_gaps_without_changing_signal_metrics():
+    frame = candles()
+    frame.insert(
+        0,
+        "timestamp",
+        pd.date_range("2024-01-01", periods=len(frame), freq="15min", tz="UTC"),
+    )
+    frame.loc[120:, "timestamp"] += pd.Timedelta(minutes=15)
+
+    result = analyze_ohlcv(frame)
+    baseline = analyze_ohlcv(candles())
+
+    assert result["timestamp_interval_seconds"] == 900.0
+    assert result["timestamp_gap_count"] == 1
+    assert result["estimated_missing_candles"] == 1
+    assert result["direction"] == baseline["direction"]
+    assert result["score"] == baseline["score"]
+    assert result["confidence"] == baseline["confidence"]
+
+
+def test_analysis_reports_no_timestamp_gaps_for_regular_or_untimestamped_data():
+    regular = candles()
+    regular.insert(
+        0,
+        "timestamp",
+        pd.date_range("2024-01-01", periods=len(regular), freq="15min", tz="UTC"),
+    )
+    regular_result = analyze_ohlcv(regular)
+    assert regular_result["timestamp_interval_seconds"] == 900.0
+    assert regular_result["timestamp_gap_count"] == 0
+    assert regular_result["estimated_missing_candles"] == 0
+
+    untimestamped_result = analyze_ohlcv(candles())
+    assert untimestamped_result["timestamp_interval_seconds"] is None
+    assert untimestamped_result["timestamp_gap_count"] == 0
+    assert untimestamped_result["estimated_missing_candles"] == 0

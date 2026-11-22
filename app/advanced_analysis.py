@@ -47,10 +47,25 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
         raise ValueError("OHLCV prices must be positive and volume cannot be negative")
     if (f["high"] < f[["open", "close", "low"]].max(axis=1)).any() or (f["low"] > f[["open", "close", "high"]].min(axis=1)).any():
         raise ValueError("Invalid candle high/low bounds")
+    timestamp_interval_seconds = None
+    timestamp_gap_count = 0
+    estimated_missing_candles = 0
     if "timestamp" in f.columns:
         timestamps = pd.to_datetime(f["timestamp"], utc=True, errors="coerce")
         if timestamps.isna().any() or timestamps.duplicated().any() or not timestamps.is_monotonic_increasing:
             raise ValueError("Candle timestamps must be valid, unique and strictly increasing")
+        # Treat the median observed cadence as the timeframe proxy. Report gaps only;
+        # do not alter directional scoring or manufacture replacement candles.
+        intervals = np.diff(timestamps.astype("int64").to_numpy(dtype=np.int64)) / 1_000_000_000.0
+        if intervals.size:
+            typical_interval = float(np.median(intervals))
+            timestamp_interval_seconds = round(typical_interval, 3)
+            gap_intervals = intervals[intervals > typical_interval * 1.5]
+            timestamp_gap_count = int(gap_intervals.size)
+            estimated_missing_candles = int(sum(
+                max(1, int(round(interval / typical_interval)) - 1)
+                for interval in gap_intervals
+            ))
 
     close, volume = f["close"], f["volume"]
     last = float(close.iloc[-1])
@@ -156,5 +171,9 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
         "supertrend": supertrend, "support": round(support,10), "resistance": round(resistance,10),
         "fibonacci": fibonacci, "bb_width_percent": round(bb_width_pct,3),
         "bb_position": round(bb_position,3), "volume_ratio": round(volume_ratio,3),
-        "rolling_vwap": round(vwap,10), "reasons": reasons,
+        "rolling_vwap": round(vwap,10),
+        "timestamp_interval_seconds": timestamp_interval_seconds,
+        "timestamp_gap_count": timestamp_gap_count,
+        "estimated_missing_candles": estimated_missing_candles,
+        "reasons": reasons,
     }
