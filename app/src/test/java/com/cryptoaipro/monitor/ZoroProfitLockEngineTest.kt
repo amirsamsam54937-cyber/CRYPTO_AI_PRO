@@ -49,6 +49,23 @@ class ZoroProfitLockEngineTest {
         assertTrue(short.stopPrice > 81.0)
     }
 
+    @Test fun atrTrailActivatesAtEightTenthsPercentBeforeOneR() {
+        val plan = ZoroProfitLockEngine.plan(
+            side = "LONG",
+            entry = 100.0,
+            initialRisk = 10.0,
+            favorableExtreme = 101.0,
+            mark = 100.9,
+            currentStop = 90.0,
+            feeBufferPrice = 0.1,
+            pricePrecision = 2,
+            atrTrailDistance = 0.5
+        )!!
+        assertEquals(0, plan.stage)
+        assertEquals(100.5, plan.stopPrice, 1e-8)
+        assertTrue(plan.shouldUpdate)
+    }
+
     @Test fun finalStageUsesTwoAtrTrailButNeverGivesBackTheLockedTwoR() {
         val plan = ZoroProfitLockEngine.plan(
             side = "LONG",
