@@ -93,9 +93,9 @@ class HopeHunterMonitorService : Service() {
             }
             while (isActive) {
                 try {
-                    val signals = XtFuturesMonitor.scan { _, completed, universe, failed ->
-                        updateNotification("پایش XT • " + completed + " از " + universe + " قرارداد • خطا: " + failed)
-                    }
+                    // Reconcile exchange positions before starting a potentially long market scan.
+                    // This keeps protection checks ahead of discovery work on every service cycle.
+                    val signals = scanWithReconnect()
                     WolfMarketDataStore.recordLiveScan(this@HopeHunterMonitorService, "XT", signals)
                     WolfFlowNewsRepository.refreshForEngine(this@HopeHunterMonitorService, signals, "XT")
                     val enrichedSignals = WolfFlowNewsRepository.enrichSignals(this@HopeHunterMonitorService, signals)
@@ -178,6 +178,45 @@ class HopeHunterMonitorService : Service() {
                 delay(minutes * 60_000L)
             }
         }
+    }
+
+    /**
+     * Retries read-only market discovery after transient network failures.
+     * Never retries order submission here: ambiguous trading requests must be reconciled,
+     * not blindly replayed. Backoff is bounded and cancellation-aware.
+     */
+    private suspend fun scanWithReconnect(): List<MarketSignal> {
+        var lastError: Throwable? = null
+        val delaysMs = longArrayOf(2_000L, 4_000L, 8_000L, 16_000L, 30_000L)
+        for (attempt in 0..delaysMs.size) {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            try {
+                updateNotification(
+                    if (attempt == 0) "اتصال XT • شروع اسکن بازار"
+                    else "اتصال XT قطع شد • تلاش مجدد " + attempt + "/" + delaysMs.size
+                )
+                return XtFuturesMonitor.scan { _, completed, universe, failed ->
+                    updateNotification("پایش XT • " + completed + " از " + universe + " قرارداد • خطا: " + failed)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                lastError = error
+                ZoroDiagnostics.record(
+                    this,
+                    "بازیابی اتصال XT",
+                    "WARN",
+                    "attempt=" + (attempt + 1) + "/" + (delaysMs.size + 1) + "; " +
+                        (error.message ?: error.javaClass.simpleName)
+                )
+                if (attempt < delaysMs.size) delay(delaysMs[attempt])
+            }
+        }
+        throw IllegalStateException(
+            "پس از " + (delaysMs.size + 1) +
+                " تلاش، اسکن XT برقرار نشد؛ سرویس زنده می‌ماند و چرخه بعدی دوباره تلاش می‌کند.",
+            lastError
+        )
     }
 
     private fun notifyNewPublishedSignals(signals: List<MarketSignal>) {
