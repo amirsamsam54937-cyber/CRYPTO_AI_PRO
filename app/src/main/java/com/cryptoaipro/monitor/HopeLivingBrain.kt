@@ -208,7 +208,7 @@ internal fun HopeLivingBrainPanel(context: Context, onIntervalChanged: (Int) -> 
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("مغز زنده HOPE HUNTER", color = Color.White, fontSize = 14.sp)
+            Text("NEXUS • ذهن خودبازبین", color = Color.White, fontSize = 14.sp)
             Text("وضعیت: ${status.mode}", color = gold, fontSize = 11.sp)
             Text("مدیریت شبکه عصبی: ${status.neuralManagement}", color = if (status.neuralReady) Color(0xFF73D6A0) else gold, fontSize = 10.sp, lineHeight = 14.sp)
             Surface(
@@ -223,6 +223,8 @@ internal fun HopeLivingBrainPanel(context: Context, onIntervalChanged: (Int) -> 
                     Text(mind.awareness, color = Color(0xFFE3E9E5), fontSize = 10.sp, lineHeight = 14.sp)
                     Text(mind.currentHypothesis, color = Color(0xFFB5F36B), fontSize = 9.sp, lineHeight = 13.sp)
                     Text("هدف بعدی: ${mind.nextGoal}", color = Color(0xFFE3E9E5), fontSize = 9.sp, lineHeight = 13.sp)
+                    Text("حافظه اپیزودیک: ${mind.memoryCount} چرخه ثبت‌شده", color = muted, fontSize = 9.sp)
+                    Text("نقد خودکار شواهد: ${mind.selfCritique}", color = Color(0xFFE3E9E5), fontSize = 9.sp, lineHeight = 13.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("شواهد معتبر: ${mind.evidenceCount}", color = muted, fontSize = 9.sp)
                         Text("نتایج بسته‌شده: ${mind.closedOutcomes}", color = muted, fontSize = 9.sp)
