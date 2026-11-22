@@ -344,7 +344,26 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                 " • هزینه تخمینی " + String.format(java.util.Locale.US, "%.3f", thought.estimatedRoundTripCostPct) + "%"
         )
         ZoroCognitiveMemory.observe(context, cognitiveSignal)
-        cognitiveSignal
+        val adaptiveLeverage = AdaptiveLeverageEngine.recommend(
+            AdaptiveLeverageEngine.Input(
+                direction = cognitiveSignal.direction,
+                confidence = (cognitiveSignal.confidence * cognitiveSignal.cognitiveRiskMultiplier)
+                    .toInt().coerceIn(0, 100),
+                consensusStrength = commander.confidence,
+                neuralStrength = neuralStrength,
+                neuralValidated = neuralValidated,
+                neuralDisagreement = reviewed.neuralUncertainty.highDisagreement,
+                outOfDistribution = reviewed.neuralOutOfDistribution,
+                entry = cognitiveSignal.entry,
+                stop = cognitiveSignal.stop,
+                tp1 = cognitiveSignal.tp1,
+                atrPercent = cognitiveSignal.technical.atrPercent,
+                venueMaxLeverage = null,
+                simulation = true,
+                simulationMaxLeverage = 20
+            )
+        )
+        cognitiveSignal.copy(leverage = adaptiveLeverage.leverage)
     }.sortedWith(compareByDescending<MarketSignal> {
         if (it.direction == "NEUTRAL") it.score.toDouble() else it.confidence.toDouble()
     }.thenByDescending { it.volume })
