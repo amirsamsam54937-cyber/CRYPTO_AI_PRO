@@ -629,9 +629,6 @@ internal object XtLiveTradingEngine {
                         val oldStage = p.getInt(keyPrefix + "profit_lock_stage", 0)
                         val trailEdit = p.edit()
                             .putString(keyPrefix + "favorable_extreme", extreme.toString())
-                        if (plan != null && plan.stage > oldStage) {
-                            trailEdit.putInt(keyPrefix + "profit_lock_stage", plan.stage)
-                        }
                         val lastTrailAt = p.getLong(keyPrefix + "last_trail_at", 0L)
                         if (plan != null && plan.shouldUpdate &&
                             System.currentTimeMillis() - lastTrailAt >= 10_000L) {
