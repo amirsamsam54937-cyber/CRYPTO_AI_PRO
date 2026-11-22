@@ -37,7 +37,7 @@ class AdaptiveLeverageEngineTest {
     }
 
     @Test fun leverageIsCappedByVerifiedVenueMaximum() {
-        val result = AdaptiveLeverageEngine.recommend(input(venueCap = 7))
+        val result = AdaptiveLeverageEngine.recommend(input(venueCap = 7, simulation = false))
         assertTrue(result.leverage <= 7)
     }
 
