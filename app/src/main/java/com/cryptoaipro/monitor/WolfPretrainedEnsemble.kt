@@ -12,7 +12,10 @@ import kotlin.math.tanh
  */
 internal object WolfPretrainedEnsemble {
     data class ResearchPrediction(
-        val upProbability:Double, val memberProbabilities:List<Double>
+        val upProbability:Double,
+        val memberProbabilities:List<Double>,
+        val inputDistance:Double = 0.0,
+        val outOfDistribution:Boolean = false
     ) {
         val predictedDirection:String get() = when {
             upProbability >= 0.55 -> "LONG_BIAS"
@@ -158,6 +161,8 @@ internal object WolfPretrainedEnsemble {
         val momentum6=(((candle[3]/oldClose.coerceAtLeast(1e-9)-1.0)*100.0)/5.0).coerceIn(-1.0,1.0)
         // Feature order exactly matches tools/train_wolf_ensemble.py.
         val raw=doubleArrayOf(trend,rsi,adx,volume,body,volatility,momentum6)
+        val inputGuard = WolfModelInputGuard.assess(raw, mean, scale)
+        if (!inputGuard.available) return null
         val predictions=members.map { member ->
             val x=DoubleArray(7){i->if(member.featureMask[i])
                 ((raw[i]-mean[i])/scale[i]).coerceIn(-8.0,8.0) else 0.0}
@@ -173,6 +178,11 @@ internal object WolfPretrainedEnsemble {
             memberWeights else List(10) { 1.0 }
         val weightTotal = weights.sum().coerceAtLeast(1e-9)
         val weightedProbability = predictions.indices.sumOf { predictions[it] * weights[it] } / weightTotal
-        return ResearchPrediction(weightedProbability.coerceIn(.01,.99),predictions)
+        return ResearchPrediction(
+            weightedProbability.coerceIn(.01,.99),
+            predictions,
+            inputGuard.rmsZScore,
+            inputGuard.outOfDistribution
+        )
     }
 }
