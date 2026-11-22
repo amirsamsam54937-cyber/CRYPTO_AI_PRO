@@ -71,6 +71,26 @@ class HopeHunterMonitorService : Service() {
                     "بارگذاری مدل ناموفق: " + neuralStatus.loadError
                 }
             )
+            // Independent knowledge refresh runs off the market-scan path. Public web results
+            // are cached with source URLs and remain research-only; they cannot alter orders or model weights.
+            serviceScope.launch {
+                runCatching {
+                    val refreshed = HopeResearchEngine.refreshCoreKnowledge(this@HopeHunterMonitorService)
+                    ZoroDiagnostics.record(
+                        this@HopeHunterMonitorService,
+                        "NEXUS Knowledge Research",
+                        "INFO",
+                        "refreshed=$refreshed; durableSources=${HopeResearchEngine.memoryCount(this@HopeHunterMonitorService)}; sourceContent=untrusted research context only"
+                    )
+                }.onFailure { researchError ->
+                    ZoroDiagnostics.record(
+                        this@HopeHunterMonitorService,
+                        "NEXUS Knowledge Research",
+                        "WARN",
+                        researchError.message ?: researchError.javaClass.simpleName
+                    )
+                }
+            }
             while (isActive) {
                 try {
                     val signals = XtFuturesMonitor.scan { _, completed, universe, failed ->
