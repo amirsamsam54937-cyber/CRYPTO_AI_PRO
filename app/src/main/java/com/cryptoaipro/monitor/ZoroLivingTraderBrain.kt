@@ -46,6 +46,43 @@ internal object ZoroLivingTraderBrain {
         val regime = tech.regime.ifBlank { "UNKNOWN" }.uppercase()
         var score = 50
 
+        // Read the actual OHLCV sequence as a discretionary price-action trader would:
+        // swing structure, failed auctions, liquidity sweeps, candle formations,
+        // compression/expansion and an approximate volume-at-price profile.
+        // These are measured proxies, not proof of hidden orders or true exchange delta.
+        val chart = ZoroHumanMarketReader.analyze(signal.candles)
+        val chartAlignment = if (side == "LONG_BIAS") chart.score else -chart.score
+        if (chart.available) {
+            score += (chartAlignment * 0.12).toInt().coerceIn(-12, 12)
+            reasons += "خوانش رفتار قیمت: ${chart.phase}؛ ${chart.structure}"
+            reasons += "حراج بازار: ${chart.auction}"
+            reasons += chart.patterns.take(4).map { "الگوی چارت: " + it }
+            reasons += "سناریوی صعودی: ${chart.bullishScenario}"
+            reasons += "سناریوی نزولی: ${chart.bearishScenario}"
+            if (chart.blocks(side)) reasons += "تعارض جدی ساختار قیمت با جهت نامزد؛ ورود مسدود"
+            reasons += chart.warnings.take(2)
+        } else {
+            score -= 8
+            reasons += "خوانش ساختار چارت در دسترس نیست: ${chart.warnings.firstOrNull() ?: "داده ناکافی"}"
+        }
+
+        // Market sentiment is internal-only. A stale or absent snapshot contributes nothing.
+        // Sentiment can adjust conviction but cannot create a trade direction.
+        val sentiment = readFreshSentiment(context, signal.symbol)
+        if (sentiment != null) {
+            val alignedSentiment = if (side == "LONG_BIAS") sentiment.first else -sentiment.first
+            score += when {
+                alignedSentiment >= 35 -> 5
+                alignedSentiment >= 15 -> 2
+                alignedSentiment <= -50 -> -8
+                alignedSentiment <= -25 -> -4
+                else -> 0
+            }
+            reasons += "احساسات پنهان بازار: ${sentiment.first} از ۱۰۰؛ ${sentiment.second}"
+        } else {
+            reasons += "احساسات بازار: داده تازه و کافی در دسترس نیست؛ بدون اثر بر تصمیم"
+        }
+
         val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
         val neuralSide = signal.neuralDirection.uppercase()
         if (neuralValidated && neuralSide == side) {
@@ -114,6 +151,7 @@ internal object ZoroLivingTraderBrain {
         val quality = score.coerceIn(0, 100)
         val hardGates = thought.allowed && neuralValidated &&
             neuralSide == side &&
+            chart.available && !chart.blocks(side) &&
             signal.neuralMemberProbabilities.size == 10 &&
             !signal.neuralUncertainty.highDisagreement &&
             signal.confidence >= 70 &&
@@ -135,6 +173,24 @@ internal object ZoroLivingTraderBrain {
         persist(context, signal, decision)
         return decision
     }
+
+    private fun readFreshSentiment(context: Context, symbol: String): Pair<Int, String>? = runCatching {
+        val prefs = context.getSharedPreferences("wolf_background_intelligence", Context.MODE_PRIVATE)
+        val root = org.json.JSONObject(prefs.getString("sentiment_network_snapshot", "{}") ?: "{}")
+        val updatedAt = root.optLong("updatedAt", 0L)
+        if (updatedAt <= 0L || System.currentTimeMillis() - updatedAt !in 0..(2L * 60L * 60L * 1000L)) {
+            return@runCatching null
+        }
+        val key = symbol.uppercase(java.util.Locale.ROOT)
+            .replace(Regex("[^A-Z0-9]"), "").removeSuffix("USDT").removeSuffix("USD")
+        val nodes = root.optJSONArray("nodes") ?: return@runCatching null
+        val node = (0 until nodes.length()).mapNotNull { nodes.optJSONObject(it) }
+            .firstOrNull { it.optString("id").equals(key, true) }
+            ?: return@runCatching null
+        if (node.optInt("evidenceCount", 0) < 2) return@runCatching null
+        node.optInt("score").coerceIn(-100, 100) to
+            node.optString("summary", "شواهد خبر و جریان بازار")
+    }.getOrNull()
 
     private data class Edge(val count: Int, val winRate: Double, val averageNetPct: Double, val lossStreak: Int, val lastLossAt: Long)
 
@@ -175,6 +231,8 @@ internal object ZoroLivingTraderBrain {
             .putBoolean("last_allowed", decision.allowed)
             .putString("last_regime", decision.regime)
             .putString("last_reasons", decision.reasons.joinToString(" • ").take(1800))
+            .putString("last_chart_phase", ZoroHumanMarketReader.analyze(signal.candles).phase)
+            .putString("last_chart_patterns", ZoroHumanMarketReader.analyze(signal.candles).patterns.take(12).joinToString(" • "))
             .putInt("last_edge_samples", decision.sampleCount)
             .putFloat("last_win_rate", (decision.estimatedWinRate ?: 0.0).toFloat())
             .putFloat("last_average_net_pct", (decision.averageNetReturnPct ?: 0.0).toFloat())
