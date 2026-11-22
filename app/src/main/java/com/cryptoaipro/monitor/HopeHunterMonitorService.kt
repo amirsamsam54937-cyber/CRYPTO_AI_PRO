@@ -28,9 +28,11 @@ class HopeHunterMonitorService : Service() {
     private val notificationId = 2401
     private val signalChannelId = "hope_hunter_new_signals"
     private var monitorJob: kotlinx.coroutines.Job? = null
+    private var voiceAnnouncer: NexusVoiceAnnouncer? = null
 
     override fun onCreate() {
         super.onCreate()
+        voiceAnnouncer = NexusVoiceAnnouncer(this)
         createChannel()
         startForeground(notificationId, notification("در حال آماده‌سازی موتور تحلیل بازار NEXUS QUANT"))
     }
@@ -188,6 +190,15 @@ class HopeHunterMonitorService : Service() {
                 .build()
             val id = 3000 + (signal.symbol.hashCode() and 0x00FFFFFF)
             getSystemService(NotificationManager::class.java).notify(id, notification)
+            voiceAnnouncer?.announceSignal(
+                signal.symbol,
+                signal.direction,
+                signal.tradeTimeframe,
+                signal.confidence,
+                signal.entry,
+                signal.stop,
+                signal.tp1
+            )
         }
         prefs.edit().putStringSet("active_signal_keys", active).apply()
     }
@@ -228,6 +239,8 @@ class HopeHunterMonitorService : Service() {
     override fun onDestroy() {
         monitorJob?.cancel()
         serviceScope.cancel()
+        voiceAnnouncer?.shutdown()
+        voiceAnnouncer = null
         super.onDestroy()
     }
 
