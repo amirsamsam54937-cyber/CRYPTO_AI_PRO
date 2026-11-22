@@ -12,13 +12,13 @@ try:
     from tools.advanced_validation import evaluate_generalization
     from tools.wilder_indicators import wilder_atr, wilder_adx
     from tools.regime_analysis import specialist_regime_breakdown, classify_regime
-    from tools.ensemble_meta import estimate_regime_member_weights, select_abstention_threshold
+    from tools.ensemble_meta import estimate_regime_member_weights, select_abstention_threshold, combine_equal_weight_predictions
 except ModuleNotFoundError:
     from time_series_validation import three_way_chronological_masks
     from advanced_validation import evaluate_generalization
     from wilder_indicators import wilder_atr, wilder_adx
     from regime_analysis import specialist_regime_breakdown, classify_regime
-    from ensemble_meta import estimate_regime_member_weights, select_abstention_threshold
+    from ensemble_meta import estimate_regime_member_weights, select_abstention_threshold, combine_equal_weight_predictions
 
 DATA_SOURCE = "verified XT USDT-M crypto-only historical corpus"
 MIN_LABELED_SAMPLES = 250_000
@@ -294,12 +294,11 @@ def main():
             regime_history[label][role].append((float(probability),int(outcome)))
     regime_calibration=estimate_regime_member_weights(regime_history,min_observations=40)
     def combine_by_regime(features, member_probability_arrays):
+        # Match the exact equal-weight aggregation performed by Android at inference.
+        # Regime-specific reliability remains diagnostic until separately validated
+        # with the same runtime aggregation and a new chronological holdout.
         regimes=[classify_regime(row) for row in features]
-        combined=[]
-        for row_index,regime in enumerate(regimes):
-            weights=regime_calibration["regimes"][regime]["weights"]
-            combined.append(sum(weights[role]*float(member_probability_arrays[member_index][row_index])
-                                for member_index,(role,_) in enumerate(SPECIALISTS)))
+        combined=combine_equal_weight_predictions(member_probability_arrays)
         return np.asarray(combined,dtype=float),regimes
     calibration_ensemble,calibration_regimes=combine_by_regime(X_cal,calibration_probabilities)
     ensemble,test_regimes=combine_by_regime(X_test,test_probabilities)
@@ -334,6 +333,7 @@ def main():
         "interval":INTERVAL,"horizon_bars":HORIZON,"feature_names":FEATURE_NAMES,
         "regime_diagnostics":{"method":"deterministic_feature_thresholds","regimes":["high_volatility","low_volatility","trend_up","trend_down","range"],"per_specialist_final_test_metrics":True,"min_samples_per_regime":30,"calibration":regime_calibration,"runtime_weighting_enabled":False},
         "target_definition":"future_return_6h_up_vs_down_neutral_band_excluded",
+        "ensemble_aggregation":"equal_weight_mean",
         "specialist_roles":[x[0] for x in SPECIALISTS],"symbols":sorted(used_symbols),"symbols_count":len(used_symbols),
         "data_source_policy":"XT_USDT_M_CRYPTO_ONLY","asset_class_policy":"XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH",
         "corpus_sha256":corpus_manifest.get("sha256",""),
