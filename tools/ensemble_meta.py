@@ -303,6 +303,24 @@ def estimate_regime_member_weights(
     }
 
 
+def combine_equal_weight_predictions(member_probability_arrays):
+    """Aggregate specialist outputs with the same rule used by Android inference.
+
+    Inputs are per-member probability arrays from one chronological split. The
+    runtime uses a plain mean; calibration and final-test metrics must use that
+    exact aggregation or the abstention threshold is not transferable.
+    """
+    arrays = [np.asarray(values, dtype=float) for values in member_probability_arrays]
+    if len(arrays) != 10 or not arrays:
+        raise ValueError("exactly ten specialist probability arrays are required")
+    lengths = {len(values) for values in arrays}
+    if len(lengths) != 1 or not next(iter(lengths)):
+        raise ValueError("specialist probability arrays must have equal nonzero length")
+    if any(not np.isfinite(values).all() or np.any((values < 0.0) | (values > 1.0)) for values in arrays):
+        raise ValueError("specialist probabilities must be finite and within [0, 1]")
+    return np.mean(np.column_stack(arrays), axis=1)
+
+
 def select_abstention_threshold(
     outcomes: Iterable[int],
     probabilities_up: Iterable[float],
