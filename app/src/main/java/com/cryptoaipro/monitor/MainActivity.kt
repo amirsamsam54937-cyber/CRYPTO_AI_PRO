@@ -1758,7 +1758,9 @@ private fun SignalLevelsChart(signal: MarketSignal) {
     val prices = candles.flatMap { listOf(it[1], it[2]) } + listOf(
         signal.technical.support, signal.technical.resistance, signal.entry,
         signal.stop, signal.tp1, signal.tp2, signal.tp3, signal.price,
-        signal.technical.ema20, signal.technical.vwap
+        signal.technical.ema20, signal.technical.vwap,
+        marketReader?.poc ?: Double.NaN, marketReader?.valueLow ?: Double.NaN,
+        marketReader?.valueHigh ?: Double.NaN
     ).filter { it.isFinite() && it > 0.0 }
     val rawLow = prices.minOrNull() ?: signal.price * 0.98
     val rawHigh = prices.maxOrNull() ?: signal.price * 1.02
@@ -1767,6 +1769,7 @@ private fun SignalLevelsChart(signal: MarketSignal) {
     val high = rawHigh + pad
     val span = (high - low).coerceAtLeast(signal.price * 0.001)
     val lastClose = candles.lastOrNull()?.getOrNull(3) ?: signal.price
+    val marketReader = signal.humanChartReadout
     val brokenHigh = recentHigh.lastOrNull()?.takeIf { lastClose > it.price }
     val brokenLow = recentLow.lastOrNull()?.takeIf { lastClose < it.price }
     val structureText = when {
@@ -1846,6 +1849,9 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                 level(signal.technical.resistance, Red, 1.6f, true)
                 level(signal.technical.ema20, Gold, 1.4f)
                 level(signal.technical.vwap, Color(0xFF69B8E8), 1.3f, true)
+                level(marketReader?.poc ?: Double.NaN, Gold, 1.8f)
+                level(marketReader?.valueLow ?: Double.NaN, Blue.copy(alpha = 0.7f), 1.0f, true)
+                level(marketReader?.valueHigh ?: Double.NaN, Blue.copy(alpha = 0.7f), 1.0f, true)
                 if (signal.direction != "NEUTRAL") {
                     level(signal.entry, Blue, 2f)
                     level(signal.stop, Red, 2f, true)
@@ -1868,6 +1874,7 @@ private fun SignalLevelsChart(signal: MarketSignal) {
             }
             Text("ساختار: $structureText • رژیم: " + signal.technical.regime, color = Gold, fontSize = 9.sp)
             Text("نقاط قرمز/سبز: سقف و کف خودکار • نواحی سایه‌دار: FVG شناسایی‌شده • خطوط: سطوح محاسبه‌شده", color = Muted, fontSize = 8.sp)
+            if (marketReader?.available == true) Text("خط طلایی: POC • خطوط فیروزه‌ای: Value Area • فاز: " + marketReader.phase, color = Blue, fontSize = 8.sp)
             Text("حمایت/مقاومت، EMA20، VWAP، ورود، حد ضرر و اهداف از تحلیل داخلی نمایش داده می‌شوند. برچسب BOS فقط در صورت عبور قیمت بسته‌شدن از آخرین پیوت نمایش داده می‌شود.", color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
         }
     }
