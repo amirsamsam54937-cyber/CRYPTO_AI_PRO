@@ -21,6 +21,12 @@ internal object HopeCommander {
             "ABSTAIN_OUT_OF_DISTRIBUTION",
             "فرمانده عصبی: شرایط ورودی از دامنه داده‌های آموزش فاصله دارد؛ برای جلوگیری از تعمیم نامعتبر، از معامله خودداری شد"
         )
+        val threshold = signal.neuralDecisionThreshold
+        if (!threshold.isFinite() || threshold !in 0.5..1.0) return Decision(
+            "NEUTRAL", 0, minOf(signal.confidence, 30), 0,
+            "ABSTAIN_CALIBRATION_GATE_DISABLED",
+            "فرمانده عصبی: آستانهٔ تصمیم روی دادهٔ کالیبراسیون تأیید نشده؛ مدل فقط پژوهشی است"
+        )
         val probabilities = signal.neuralMemberProbabilities.filter { it.isFinite() && it in 0.0..1.0 }
         if (probabilities.size < 7) return Decision(
             "NEUTRAL", 0, minOf(signal.confidence, 35), 0,
@@ -28,11 +34,11 @@ internal object HopeCommander {
             "فرمانده عصبی: کمتر از ۷ رأی معتبر از متخصصان شبکه عصبی دریافت شد"
         )
         val meanUp = probabilities.average()
-        val longVotes = probabilities.count { it >= 0.55 }
-        val shortVotes = probabilities.count { it <= 0.45 }
+        val longVotes = probabilities.count { it >= threshold }
+        val shortVotes = probabilities.count { it <= 1.0 - threshold }
         val side = when {
-            signal.neuralDirection == "LONG_BIAS" && longVotes >= 7 && meanUp >= 0.60 -> "LONG_BIAS"
-            signal.neuralDirection == "SHORT_BIAS" && shortVotes >= 7 && meanUp <= 0.40 -> "SHORT_BIAS"
+            signal.neuralDirection == "LONG_BIAS" && longVotes >= 7 && meanUp >= threshold -> "LONG_BIAS"
+            signal.neuralDirection == "SHORT_BIAS" && shortVotes >= 7 && meanUp <= 1.0 - threshold -> "SHORT_BIAS"
             else -> "NEUTRAL"
         }
         if (side == "NEUTRAL") return Decision(
