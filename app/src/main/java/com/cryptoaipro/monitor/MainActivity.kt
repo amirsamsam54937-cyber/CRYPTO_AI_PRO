@@ -360,7 +360,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                 atrPercent = cognitiveSignal.technical.atrPercent,
                 venueMaxLeverage = null,
                 simulation = true,
-                simulationMaxLeverage = 20
+                simulationMaxLeverage = 50
             )
         )
         cognitiveSignal.copy(leverage = adaptiveLeverage.leverage)
@@ -2158,7 +2158,7 @@ internal object MarketAnalysisEngine {
                 atrPercent = a.technical.atrPercent,
                 venueMaxLeverage = null,
                 simulation = true,
-                simulationMaxLeverage = 20
+                simulationMaxLeverage = 50
             )
         )
         val leverage = leverageDecision.leverage
