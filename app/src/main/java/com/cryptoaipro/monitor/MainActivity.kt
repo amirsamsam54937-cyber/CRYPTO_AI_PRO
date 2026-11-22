@@ -81,7 +81,7 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
-// NEXUS QUANT visual system: obsidian graphite, champagne metal and emerald signal accents.
+// ZORO APEX visual system: obsidian graphite, champagne metal and emerald signal accents.
 private val Navy = Color(0xFF090B0D)
 private val Panel = Color(0xFF171C1F)
 private val Muted = Color(0xFF9BA7A8)
@@ -689,16 +689,16 @@ fun CryptoMonitorScreen() {
                         ) {
                             Image(
                                 painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
-                                contentDescription = "نشان NEXUS QUANT",
+                                contentDescription = "نشان ZORO APEX",
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("NEXUS QUANT", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
+                            Text("ZORO APEX", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
                         }
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("NEXUS TERMINAL", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("WOLF TERMINAL", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             Surface(color = if (loading) Color(0xFF24463D) else Color(0xFF203D32),
                                 shape = RoundedCornerShape(20.dp)) {
                                 Text(if (loading) "در حال اسکن" else "● $selectedExchange",
@@ -961,7 +961,7 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("NEXUS QUANT • XT USDT-M • شبکه عصبی چندمتخصصی • تحلیل چندلایه", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("ZORO APEX • XT USDT-M • شبکه عصبی چندمتخصصی • تحلیل چندلایه", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
