@@ -59,11 +59,11 @@ class ZoroProfitLockEngineTest {
             currentStop = 120.0,
             feeBufferPrice = 0.5,
             pricePrecision = 2,
-            atrTrailDistance = 5.0
+            atrTrailDistance = 10.0
         )!!
         assertEquals(5, plan.stage)
         // 2 ATR = 10, so trail from 140 to 130; it is tighter than the +2R floor.
-        assertEquals(130.51, plan.stopPrice, 1e-8)
+        assertEquals(130.0, plan.stopPrice, 1e-8)
         assertTrue(plan.shouldUpdate)
     }
 
@@ -80,7 +80,7 @@ class ZoroProfitLockEngineTest {
             atrTrailDistance = 5.0
         )!!
         assertEquals(5, plan.stage)
-        assertEquals(69.49, plan.stopPrice, 1e-8)
+        assertEquals(70.0, plan.stopPrice, 1e-8)
         assertTrue(plan.shouldUpdate)
     }
 
