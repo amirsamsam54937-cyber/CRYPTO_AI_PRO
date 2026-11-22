@@ -113,6 +113,8 @@ data class MarketSignal(
     val neuralMemberVotes: List<String> = emptyList(),
     val neuralMemberProbabilities: List<Double> = emptyList(),
     val neuralUncertainty: WolfEnsembleUncertainty.Summary = WolfEnsembleUncertainty.analyze(emptyList()),
+    val neuralOutOfDistribution: Boolean = true,
+    val neuralInputDistance: Double = Double.POSITIVE_INFINITY,
     val deepNeuralSuccessProbability: Double? = null,
     val deepNeuralReviewedSamples: Int = 0,
     // Internal XT microstructure features; deliberately not rendered in any UI or notification.
@@ -192,7 +194,9 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     neuralModelSource = "۱۰ شبکه عصبی • تحلیل کندل‌های بسته ۱ساعته و اندیکاتورهای چارت • افق ۶ساعت • آزمایشی تا اعتبارسنجی",
                     neuralMemberVotes = memberVotes,
                     neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
-                    neuralUncertainty = uncertainty
+                    neuralUncertainty = uncertainty,
+                    neuralOutOfDistribution = research?.outOfDistribution ?: true,
+                    neuralInputDistance = research?.inputDistance ?: Double.POSITIVE_INFINITY
                 )
             } else {
                 val probability = research?.upProbability
@@ -203,7 +207,9 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                         neuralModelSource = "مدل معتبر در دسترس نیست",
                         neuralMemberVotes = memberVotes,
                         neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
-                        neuralUncertainty = uncertainty
+                        neuralUncertainty = uncertainty,
+                        neuralOutOfDistribution = research?.outOfDistribution ?: true,
+                        neuralInputDistance = research?.inputDistance ?: Double.POSITIVE_INFINITY
                     )
                 } else {
                     // This model is trained on 1h inputs with a 6h forecast horizon,
