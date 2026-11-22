@@ -46,7 +46,9 @@ object ZoroMultiHorizonEngine {
     private data class Regression(val slope: Double, val r2: Double)
 
     fun analyze(signal: MarketSignal, nowMs: Long = System.currentTimeMillis()): Outlook {
-        val valid = signal.candles.asSequence()
+        // The scenario engine is calibrated to 15m bars; signal.candles is the 5m execution chart.
+        val scenarioSource = signal.scenarioCandles.ifEmpty { signal.candles }
+        val valid = scenarioSource.asSequence()
             .filter { row ->
                 row.size >= 6 && row.take(6).all { it.isFinite() } &&
                     row[0] > 0.0 && row[1] >= maxOf(row[0], row[3]) &&
