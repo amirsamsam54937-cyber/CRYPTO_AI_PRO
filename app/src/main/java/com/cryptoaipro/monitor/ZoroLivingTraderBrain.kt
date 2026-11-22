@@ -32,7 +32,7 @@ internal object ZoroLivingTraderBrain {
         val neuralValidatedAtEntry = WolfPretrainedEnsemble.status().validatedForScoring
         val thought = NexusCognitiveEngine.think(signal, neuralValidatedAtEntry)
         reasons += thought.reasons
-        val side = signal.direction.uppercase()
+        val side = thought.side.uppercase()
         if (side != "LONG_BIAS" && side != "SHORT_BIAS") {
             return Decision(false, 0, "NEUTRAL", 0, null, null, listOf("جهت بازار خنثی است"))
         }
@@ -87,10 +87,12 @@ internal object ZoroLivingTraderBrain {
         val neuralSide = signal.neuralDirection.uppercase()
         if (neuralValidated && neuralSide == side) {
             score += 12
-            reasons += "جهت منتخب شبکه عصبی اعتبارسنجی‌شده"
-        } else {
+            reasons += "جهت منتخب شبکه عصبی اعتبارسنجی‌شده و هم‌جهت است"
+        } else if (neuralValidated) {
             score -= 35
-            reasons += "خروجی عصبی معتبر و هم‌جهت وجود ندارد"
+            reasons += "شبکه عصبی اعتبارسنجی‌شده با جهت تصمیم مغز تعارض دارد"
+        } else {
+            reasons += "شبکه عصبی اعتبارسنجی‌نشده در رأی جهت و امتیاز معامله دخالت داده نشد"
         }
 
         if (adx >= 25.0) { score += 10; reasons += "روند قدرتمند" }
@@ -149,12 +151,15 @@ internal object ZoroLivingTraderBrain {
             reasons += "سه زیان پیاپی در سوابق کاغذی؛ دوره استراحت چهار ساعته فعال است"
         }
         val quality = score.coerceIn(0, 100)
-        val hardGates = thought.allowed && neuralValidated &&
+        val chartSupportsSide = chart.available && chartAlignment >= 25
+        val neuralGate = !neuralValidated || (
             neuralSide == side &&
-            chart.available && !chart.blocks(side) &&
             signal.neuralMemberProbabilities.size == 10 &&
             !signal.neuralUncertainty.highDisagreement &&
-            signal.confidence >= 70 &&
+            signal.confidence >= 70
+        )
+        val hardGates = thought.allowed && neuralGate &&
+            chartSupportsSide && !chart.blocks(side) &&
             adx >= 18.0 && relativeVolume >= 0.75 &&
             atrPct.isFinite() && atrPct in 0.2..6.0 &&
             rr != null && rr >= 1.5 &&
