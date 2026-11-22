@@ -15,11 +15,12 @@ internal object WolfPretrainedEnsemble {
         val upProbability:Double,
         val memberProbabilities:List<Double>,
         val inputDistance:Double = 0.0,
-        val outOfDistribution:Boolean = false
+        val outOfDistribution:Boolean = false,
+        val decisionThreshold:Double = 1.01
     ) {
         val predictedDirection:String get() = when {
-            upProbability >= 0.55 -> "LONG_BIAS"
-            upProbability <= 0.45 -> "SHORT_BIAS"
+            decisionThreshold <= 1.0 && upProbability >= decisionThreshold -> "LONG_BIAS"
+            decisionThreshold <= 1.0 && upProbability <= 1.0 - decisionThreshold -> "SHORT_BIAS"
             else -> "NEUTRAL"
         }
         val strength:Int get() = (maxOf(upProbability, 1.0-upProbability) * 100.0).toInt().coerceIn(1,99)
@@ -39,6 +40,8 @@ internal object WolfPretrainedEnsemble {
     @Volatile private var mean=DoubleArray(7)
     @Volatile private var scale=DoubleArray(7){1.0}
     @Volatile private var trainingPriorLogOdds=0.0
+    @Volatile private var decisionThreshold=1.01
+    @Volatile private var abstentionEnabled=false
     @Volatile private var status=Status(false,0,0,"",0.0)
 
     @Synchronized fun initialize(context:Context):Status {
@@ -104,9 +107,12 @@ internal object WolfPretrainedEnsemble {
             val testSamples=root.optInt("test_samples",0)
             val calibrationSamples=root.optInt("calibration_samples",0)
             val signalPolicy=root.optJSONObject("signal_policy")
+            val policyEnabled=signalPolicy?.optBoolean("enabled",false)==true
+            val policyThreshold=signalPolicy?.optDouble("threshold",1.01) ?: 1.01
             val signalPolicyWellFormed=signalPolicy!=null && signalPolicy.optInt("calibration_samples",0)>=100 &&
-                signalPolicy.optDouble("threshold",0.0).isFinite() &&
-                (signalPolicy.optBoolean("enabled",false) || signalPolicy.optDouble("threshold",0.0)>1.0)
+                policyEnabled && policyThreshold.isFinite() && policyThreshold>0.5 && policyThreshold<=1.0
+            decisionThreshold=if(signalPolicyWellFormed) policyThreshold else 1.01
+            abstentionEnabled=signalPolicyWellFormed
             val chronological=evaluation?.optString("split","")=="purged_train_calibration_final_test"
             val correctTarget=evaluation?.optString("target","")=="future_price_direction_up_vs_down"
             val walk=root.optJSONObject("walk_forward")
@@ -127,10 +133,14 @@ internal object WolfPretrainedEnsemble {
                 brier<baselineBrier && auc.isFinite() && auc>=0.55 && ece.isFinite() && ece<=0.10 &&
                 walkForwardValid && unseenSymbolValid
             status=Status(true,members.size,root.optInt("samples"),root.optString("trained_at_utc"),
-                accuracy,baseline,balanced,loss,validated,corpusRows,brier,auc,ece)
+                accuracy,baseline,balanced,loss,validated,corpusRows,brier,auc,ece,
+                decisionThreshold=decisionThreshold,abstentionEnabled=abstentionEnabled)
         }.onFailure { error ->
             members=emptyList()
-            status=Status(false,0,0,"",0.0,loadError=(error.message ?: error.javaClass.simpleName).take(240))
+            decisionThreshold=1.01
+            abstentionEnabled=false
+            status=Status(false,0,0,"",0.0,loadError=(error.message ?: error.javaClass.simpleName).take(240),
+                decisionThreshold=1.01,abstentionEnabled=false)
         }
         return status
     }
@@ -182,7 +192,8 @@ internal object WolfPretrainedEnsemble {
             weightedProbability.coerceIn(.01,.99),
             predictions,
             inputGuard.rmsZScore,
-            inputGuard.outOfDistribution
+            inputGuard.outOfDistribution,
+            decisionThreshold
         )
     }
 }
