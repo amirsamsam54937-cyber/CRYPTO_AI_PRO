@@ -1766,9 +1766,9 @@ private fun LiveMarketChartPanel(
                     SmallStat("کف محلی", formatPrice(swingLow), Green)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    SmallStat("مقاومت", formatPrice(signal.technical.resistance), Red)
+                    SmallStat("مقاومت", formatPrice(chartResistance), Red)
                     SmallStat("EMA20", formatPrice(signal.technical.ema20), Gold)
-                    SmallStat("حمایت", formatPrice(signal.technical.support), Green)
+                    SmallStat("حمایت", formatPrice(chartSupport), Green)
                 }
                 if (lastTime > 0L) Text("آخرین کندل بسته‌شده: " + iranDateTime(lastTime), color = Muted, fontSize = 8.sp)
             }
@@ -1864,6 +1864,8 @@ private fun SignalLevelsChart(signal: MarketSignal) {
         ZoroAdvancedTechnicalEngine.analyze(candles, signal.price)
     }
     val advancedLevels = advancedReport.levels
+    val chartSupport = advancedLevels.firstOrNull { it.name.contains("حمایت") }?.price ?: signal.technical.support
+    val chartResistance = advancedLevels.firstOrNull { it.name.contains("مقاومت") }?.price ?: signal.technical.resistance
     val chartPatterns = (marketReader.patterns + advancedReport.candlePatterns + advancedReport.chartPatterns).distinct().take(6)
     val liquiditySnapshot = remember(signal.symbol, selectedTimeframe, candles.lastOrNull()?.getOrNull(5), signal.price) {
         val rows = candles.mapNotNull { row ->
@@ -2028,9 +2030,9 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                SmallStat("سقف محلی", formatPrice(recentHigh.lastOrNull()?.price ?: signal.technical.resistance), Red)
+                SmallStat("سقف محلی", formatPrice(recentHigh.lastOrNull()?.price ?: chartResistance), Red)
                 SmallStat("قیمت", formatPrice(signal.price), Color.White)
-                SmallStat("کف محلی", formatPrice(recentLow.lastOrNull()?.price ?: signal.technical.support), Green)
+                SmallStat("کف محلی", formatPrice(recentLow.lastOrNull()?.price ?: chartSupport), Green)
             }
             Text("ساختار: $structureText • رژیم: " + advancedReport.regime, color = Gold, fontSize = 9.sp)
             Text("نقاط قرمز/سبز: سقف و کف خودکار • نواحی سایه‌دار: FVG شناسایی‌شده • خطوط: سطوح محاسبه‌شده", color = Muted, fontSize = 8.sp)
