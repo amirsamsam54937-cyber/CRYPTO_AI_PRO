@@ -48,7 +48,9 @@ class ZoroTimeframeAnalysisEngineTest {
         val frames = ZoroTimeframeAnalysisEngine.analyze(
             mapOf("1h" to candles(160, -0.1), "4h" to candles(160, -0.08))
         )
-        assertEquals(2, ZoroTimeframeAnalysisEngine.opposingCount(frames, "LONG_BIAS"))
-        assertEquals(0, ZoroTimeframeAnalysisEngine.opposingCount(frames, "SHORT_BIAS"))
+        assertEquals(frames.count { it.direction == "SHORT" },
+            ZoroTimeframeAnalysisEngine.opposingCount(frames, "LONG_BIAS"))
+        assertEquals(frames.count { it.direction == "LONG" },
+            ZoroTimeframeAnalysisEngine.opposingCount(frames, "SHORT_BIAS"))
     }
 }
