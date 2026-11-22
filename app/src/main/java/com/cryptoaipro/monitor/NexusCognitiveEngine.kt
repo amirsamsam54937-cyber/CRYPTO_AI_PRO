@@ -28,12 +28,20 @@ internal object NexusCognitiveEngine {
         val reasons = mutableListOf<String>()
         val neuralSide = signal.neuralDirection.uppercase()
         val chart = ZoroHumanMarketReader.analyze(signal.candles)
+        val timeframeFrames = signal.timeframeAnalysis.filter { it.available }
+        val timeframeScore = ZoroTimeframeAnalysisEngine.consensusScore(timeframeFrames)
+        val combinedChartScore = if (timeframeFrames.size >= 3)
+            (chart.score * 0.55 + timeframeScore * 0.45).toInt().coerceIn(-100, 100)
+        else chart.score
         val chartSide = when {
-            chart.available && chart.score >= 25 -> "LONG_BIAS"
-            chart.available && chart.score <= -25 -> "SHORT_BIAS"
+            chart.available && combinedChartScore >= 25 -> "LONG_BIAS"
+            chart.available && combinedChartScore <= -25 -> "SHORT_BIAS"
             else -> "NEUTRAL"
         }
         val side = if (modelValidated) neuralSide else chartSide
+        val timeframeOpposition = ZoroTimeframeAnalysisEngine.opposingCount(timeframeFrames, side)
+        val timeframeConflict = timeframeFrames.size >= 4 && timeframeOpposition >= 4 &&
+            (if (side == "LONG_BIAS") timeframeScore <= -20 else if (side == "SHORT_BIAS") timeframeScore >= 20 else true)
         val probs = signal.neuralMemberProbabilities.filter { it.isFinite() && it in 0.0..1.0 }
         val meanUp = if (probs.isEmpty()) 0.5 else probs.average()
         val longVotes = probs.count { it >= 0.55 }
@@ -63,6 +71,8 @@ internal object NexusCognitiveEngine {
             reasons += "جهت از خوانش مستقل رفتار قیمت تعیین شد؛ رأی مدل اعتبارسنجی‌نشده کنار گذاشته شد"
             if (!chart.available) reasons += "داده کافی برای خوانش مستقل چارت وجود ندارد"
             else reasons += "امتیاز ساختار چارت: ${chart.score}/100؛ ${chart.structure}"
+            if (timeframeFrames.isNotEmpty()) reasons += "اجماع وزنی تایم‌فریم‌ها: ${timeframeScore}/100 از ${timeframeFrames.size} بازه؛ مخالف جهت منتخب: ${timeframeOpposition}"
+            if (timeframeConflict) reasons += "تعارض غالب تایم‌فریم‌ها؛ ورود مسدود"
         }
         if (side != "LONG_BIAS" && side != "SHORT_BIAS") reasons += "شواهد جهت‌دار برای ورود کافی نیست"
 
@@ -127,6 +137,7 @@ internal object NexusCognitiveEngine {
                 it.contains("قیمت از نقطه") || it.contains("نوسان خارج") ||
                 it.contains("قدرت روند") || it.contains("حجم نسبی پایین") ||
                 it.contains("حداقل ۳ سناریو") || it.contains("سناریوهای چندافقی") ||
+                it.contains("تعارض غالب تایم‌فریم‌ها") ||
                 it.contains("نسبت سود") || it.contains("مسدود")
         }
         val allowed = !blockingReason
