@@ -81,15 +81,15 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
-// NEXUS QUANT visual system: deep-space navy, electric teal and signal-lime.
-private val Navy = Color(0xFF07111F)
-private val Panel = Color(0xFF102033)
-private val Muted = Color(0xFF91A9BD)
-private val Green = Color(0xFFB5F36B)
-private val Red = Color(0xFFFF647C)
-private val Blue = Color(0xFF24E6D3)
-private val Purple = Color(0xFF9B8CFF)
-private val Gold = Color(0xFFB5F36B)
+// NEXUS QUANT visual system: obsidian graphite, champagne metal and emerald signal accents.
+private val Navy = Color(0xFF090B0D)
+private val Panel = Color(0xFF171C1F)
+private val Muted = Color(0xFF9BA7A8)
+private val Green = Color(0xFF9BE3A6)
+private val Red = Color(0xFFFF6878)
+private val Blue = Color(0xFF54D8C2)
+private val Purple = Color(0xFFC8A96B)
+private val Gold = Color(0xFFD8B878)
 
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
@@ -542,7 +542,7 @@ fun CryptoMonitorScreen() {
         Scaffold(
             containerColor = Navy,
             bottomBar = {
-                NavigationBar(containerColor = Color(0xFF081625), contentColor = Color.White) {
+                NavigationBar(containerColor = Color(0xFF111619), contentColor = Color.White) {
                     listOf("فرمانده", "بازار", "قدرت سیگنال", "دفترچه", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
@@ -552,7 +552,7 @@ fun CryptoMonitorScreen() {
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Blue,
                                 selectedTextColor = Blue,
-                                indicatorColor = Color(0xFF163D45),
+                                indicatorColor = Color(0xFF263B36),
                                 unselectedIconColor = Muted,
                                 unselectedTextColor = Muted
                             )
@@ -569,7 +569,7 @@ fun CryptoMonitorScreen() {
                     modifier = Modifier.fillMaxWidth().height(190.dp).align(Alignment.TopCenter).graphicsLayer { alpha = 0.34f }
                 )
                 Box(Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(listOf(Color(0xE607111F), Color(0xF207111F), Color(0xEA10263A)))
+                    Brush.verticalGradient(listOf(Color(0xE6090B0D), Color(0xF2090B0D), Color(0xEA171C1F)))
                 ))
                 Column(Modifier.fillMaxSize()) {
                 if (selectedTab !in setOf("خانه", "فرمانده")) {
@@ -579,7 +579,7 @@ fun CryptoMonitorScreen() {
                     ) {
                         if (selectedTab != "خانه") TextButton(onClick = { selectedTab = "خانه" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("‹ بازگشت", color = Blue, fontSize = 11.sp) }
                         Surface(
-                            color = Color(0xFF102A3D),
+                            color = Color(0xFF202628),
                             shape = RoundedCornerShape(13.dp),
                             modifier = Modifier.size(52.dp),
                             shadowElevation = 8.dp
@@ -596,7 +596,7 @@ fun CryptoMonitorScreen() {
                         }
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("NEXUS TERMINAL", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Surface(color = if (loading) Color(0xFF17464B) else Color(0xFF123C3A),
+                            Surface(color = if (loading) Color(0xFF24463D) else Color(0xFF203D32),
                                 shape = RoundedCornerShape(20.dp)) {
                                 Text(if (loading) "در حال اسکن" else "● $selectedExchange",
                                     color = if (loading) Gold else Green,
