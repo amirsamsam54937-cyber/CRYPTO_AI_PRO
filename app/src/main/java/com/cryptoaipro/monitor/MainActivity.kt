@@ -1821,6 +1821,18 @@ private fun SignalLevelsChart(signal: MarketSignal) {
         }
     }.takeLast(5)
     val marketReader = signal.humanChartReadout
+    val advancedLevels = signal.advancedTechnical?.levels.orEmpty()
+    val liquiditySnapshot = remember(signal.symbol, signal.candles.size, signal.price) {
+        val rows = candles.mapNotNull { row ->
+            if (row.size < 6) null else runCatching {
+                ZoroLiquidityMapEngine.Candle(
+                    time = row[5].toLong(), open = row[0], high = row[1], low = row[2],
+                    close = row[3], volume = row[4]
+                )
+            }.getOrNull()
+        }
+        ZoroLiquidityMapEngine.analyze(rows)
+    }
     val prices = candles.flatMap { listOf(it[1], it[2]) } + listOf(
         signal.technical.support, signal.technical.resistance, signal.entry,
         signal.stop, signal.tp1, signal.tp2, signal.tp3, signal.price,
@@ -1925,6 +1937,20 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                         } else drawLine(color, Offset(left, yy), Offset(right, yy), width)
                     }
                 }
+                // Overlay the engine's named structural levels and inferred liquidity pools.
+                advancedLevels.forEach { candidate ->
+                    val name = candidate.name.lowercase()
+                    val tint = when {
+                        name.contains("resistance") || name.contains("supply") || name.contains("مقاومت") -> Red
+                        name.contains("support") || name.contains("demand") || name.contains("حمایت") -> Green
+                        else -> Gold.copy(alpha = 0.75f)
+                    }
+                    level(candidate.price, tint, 1.0f, true)
+                }
+                liquiditySnapshot.pools.take(8).forEach { pool ->
+                    val tint = if (pool.side == ZoroLiquidityMapEngine.Side.BUY_SIDE) Red else Green
+                    level(pool.price, tint.copy(alpha = 0.8f), 1.2f, true)
+                }
                 level(signal.technical.support, Green, 1.6f, true)
                 level(signal.technical.resistance, Red, 1.6f, true)
                 level(signal.technical.ema20, Gold, 1.4f)
@@ -1955,6 +1981,7 @@ private fun SignalLevelsChart(signal: MarketSignal) {
             Text("ساختار: $structureText • رژیم: " + signal.technical.regime, color = Gold, fontSize = 9.sp)
             Text("نقاط قرمز/سبز: سقف و کف خودکار • نواحی سایه‌دار: FVG شناسایی‌شده • خطوط: سطوح محاسبه‌شده", color = Muted, fontSize = 8.sp)
             if (marketReader?.available == true) Text("خط طلایی: POC • خطوط فیروزه‌ای: Value Area • فاز: " + marketReader.phase, color = Blue, fontSize = 8.sp)
+            if (liquiditySnapshot.pools.isNotEmpty()) Text("خطوط نقدینگی: خوشه‌های احتمالی حدضرر بالای سقف‌ها و زیر کف‌ها • " + liquiditySnapshot.summary, color = Gold, fontSize = 8.sp, lineHeight = 12.sp)
             Text("حمایت/مقاومت، EMA20، VWAP، ورود، حد ضرر و اهداف از تحلیل داخلی نمایش داده می‌شوند. برچسب BOS فقط در صورت عبور قیمت بسته‌شدن از آخرین پیوت نمایش داده می‌شود. خطوط روند از پیوت‌های تأییدشده ترسیم می‌شوند.", color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
             if (signal.timeframeAnalysis.isNotEmpty()) {
                 Text("خوانش مستقل همه تایم‌فریم‌های XT • وزن بیشتر برای تایم‌فریم‌های بالاتر", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
