@@ -286,7 +286,29 @@ internal object XtLiveTradingEngine {
         require(signal.cognitiveRiskMultiplier.isFinite() && signal.cognitiveRiskMultiplier in 0.25..1.0) {
             "موتور شناختی اجازه ریسک صفر یا نامعتبر را نمی‌دهد."
         }
-        val leverage = signal.leverage.coerceIn(1, 3)
+        val desiredLeverage = signal.leverage.coerceIn(1, 50)
+        val projectedMaxNotional = minOf(wallet.availableMargin, wallet.equity * 0.05) * desiredLeverage
+        val xtLeverageTier = client.leverageTierForNotional(signal.symbol, projectedMaxNotional)
+            ?: throw IllegalStateException("جدول رسمی اهرم و مارجین XT برای این نماد دریافت یا اعتبارسنجی نشد؛ معامله متوقف شد.")
+        val liveLeverageDecision = AdaptiveLeverageEngine.recommend(
+            AdaptiveLeverageEngine.Input(
+                direction = signal.direction,
+                confidence = signal.confidence,
+                consensusStrength = signal.consensus?.agreement ?: signal.confidence,
+                neuralStrength = maxOf(signal.neuralScore, 100 - signal.neuralScore),
+                neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring,
+                neuralDisagreement = signal.neuralUncertainty.highDisagreement,
+                outOfDistribution = signal.neuralOutOfDistribution,
+                entry = signal.price,
+                stop = stopPrice,
+                tp1 = targetPrice,
+                atrPercent = signal.technical.atrPercent,
+                venueMaxLeverage = xtLeverageTier.maxLeverage,
+                maintenanceMarginRate = xtLeverageTier.maintenanceMarginRate,
+                simulation = false
+            )
+        )
+        val leverage = minOf(desiredLeverage, liveLeverageDecision.leverage)
         val executionCost = XtExecutionCostModel.estimate(
             atrPercent = signal.technical.atrPercent,
             relativeVolume = signal.technical.relativeVolume,
