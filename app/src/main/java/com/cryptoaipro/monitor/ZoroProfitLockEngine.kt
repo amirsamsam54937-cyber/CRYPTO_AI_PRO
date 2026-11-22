@@ -82,7 +82,7 @@ internal object ZoroProfitLockEngine {
             else candidate > mark + tick
         return Plan(
             stage = stage,
-            triggerR = active.first,
+            triggerR = active?.first ?: 0.0,
             lockedR = lockedR,
             favorableR = favorableR,
             stopPrice = candidate,
