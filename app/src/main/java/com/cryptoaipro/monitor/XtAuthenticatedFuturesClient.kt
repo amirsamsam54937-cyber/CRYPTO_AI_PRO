@@ -242,7 +242,6 @@ internal class XtAuthenticatedFuturesClient(
                     else LeverageTier(maxLeverage, maintenance, maxNotional)
                 }.sortedBy { it.maxNominalValue }
                 brackets.firstOrNull { notionalUsdt <= it.maxNominalValue }
-                    ?: brackets.lastOrNull()
             } catch (_: Exception) {
                 null
             } finally {
