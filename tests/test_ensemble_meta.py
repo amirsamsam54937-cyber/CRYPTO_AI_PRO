@@ -7,6 +7,7 @@ from tools.ensemble_meta import (
     expected_calibration_error,
     estimate_regime_member_weights,
     select_abstention_threshold,
+    combine_equal_weight_predictions,
 )
 
 
@@ -81,6 +82,19 @@ class EnsembleMetaTests(unittest.TestCase):
         self.assertFalse(result["approved"])
         self.assertEqual(result["direction"], "WAIT")
 
+
+    def test_equal_weight_aggregation_matches_android_runtime_rule(self):
+        members = [[0.8, 0.2] for _ in range(10)]
+        result = combine_equal_weight_predictions(members)
+        self.assertEqual(result.tolist(), [0.8, 0.2])
+
+    def test_equal_weight_aggregation_rejects_wrong_member_count_and_invalid_values(self):
+        with self.assertRaises(ValueError):
+            combine_equal_weight_predictions([[0.8, 0.2] for _ in range(9)])
+        invalid = [[0.8, 0.2] for _ in range(10)]
+        invalid[0] = [float("nan"), 0.2]
+        with self.assertRaises(ValueError):
+            combine_equal_weight_predictions(invalid)
 
     def test_abstention_gate_uses_calibration_quality_and_coverage(self):
         outcomes = [1, 0] * 100
