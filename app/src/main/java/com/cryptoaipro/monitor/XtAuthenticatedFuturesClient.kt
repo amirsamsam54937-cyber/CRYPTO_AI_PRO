@@ -363,7 +363,7 @@ internal class XtAuthenticatedFuturesClient(
         marginFraction: Double = 0.10
     ): ContractSizing {
         require(listOf(equityUsdt, availableUsdt, entry, stop, contractSize).all { it.isFinite() && it > 0.0 })
-        require(entry != stop && leverage in 1..3)
+        require(entry != stop && leverage in 1..125)
         require(riskFraction in 0.001..0.01 && marginFraction in 0.02..0.15 &&
             takerFeeRate in 0.0..0.02 && slippageRate in 0.0..0.02)
         val riskBudget = equityUsdt * riskFraction
@@ -545,7 +545,7 @@ internal class XtAuthenticatedFuturesClient(
     suspend fun adjustLeverage(symbol: String, positionSide: String, leverage: Int): JSONObject {
         requireLiveArmed()
         require(positionSide in setOf("LONG", "SHORT"))
-        require(leverage in 1..3) { "ZORO safety cap: leverage must be between 1x and 3x." }
+        require(leverage in 1..125) { "XT leverage must be between 1x and 125x; the live tier cap is checked before execution." }
         val body = JSONObject()
             .put("symbol", normalizeSymbol(symbol))
             .put("positionSide", positionSide)
