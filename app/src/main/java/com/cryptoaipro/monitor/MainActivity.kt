@@ -155,8 +155,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
     // The ten-expert model reads completed 1h OHLCV candles plus chart-derived technical features.
     // The neural ensemble owns direction; until strict holdout validation passes it remains research-only and all live entries are blocked.
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
-    // Historical 6h outcomes calibrate member influence only after a minimum sample count.
-    val adaptiveMemberWeights = WolfNeuralForecastJournal.adaptiveMemberWeights(context)
+    // Member-level outcomes are tracked for diagnostics; weights stay equal until separately calibrated.
     return signals.map { signal ->
         val candidate = when {
             signal.direction != "NEUTRAL" -> signal
@@ -169,7 +168,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         else {
             // Always expose all ten chart-conditioned specialist outputs. Unvalidated outputs
             // are advisory-only and have zero directional-score influence until strict validation.
-            val research = WolfPretrainedEnsemble.predictResearch(candidate, adaptiveMemberWeights)
+            val research = WolfPretrainedEnsemble.predictResearch(candidate)
             val decisionThreshold = research?.decisionThreshold ?: pretrainedStatus.decisionThreshold
             val uncertainty = WolfEnsembleUncertainty.analyze(research?.memberProbabilities.orEmpty(), decisionThreshold)
             val memberVotes = research?.let { prediction ->
