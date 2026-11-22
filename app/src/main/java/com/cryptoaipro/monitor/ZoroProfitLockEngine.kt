@@ -37,7 +37,8 @@ internal object ZoroProfitLockEngine {
         mark: Double,
         currentStop: Double,
         feeBufferPrice: Double,
-        pricePrecision: Int
+        pricePrecision: Int,
+        atrTrailDistance: Double? = null
     ): Plan? {
         val isLong = side.equals("LONG", true) || side == "LONG_BIAS"
         val isShort = side.equals("SHORT", true) || side == "SHORT_BIAS"
@@ -54,13 +55,16 @@ internal object ZoroProfitLockEngine {
         val lockedR = active.second
 
         // Five ratchets: fee-adjusted break-even, then lock +0.5R, +1R, +1.5R, +2R.
-        val lockedStop = if (isLong) entry + initialRisk * lockedR + feeBufferPrice
-            else entry - initialRisk * lockedR - feeBufferPrice
+        // Add a small 0.01% cushion beyond round-trip costs so "break-even" is net-positive.
+        val netProfitCushion = entry * 0.0001
+        val lockedStop = if (isLong) entry + initialRisk * lockedR + feeBufferPrice + netProfitCushion
+            else entry - initialRisk * lockedR - feeBufferPrice - netProfitCushion
 
         // Once stage 5 is reached, preserve a one-R trailing gap behind the best excursion.
         val rawCandidate = if (stage >= 5) {
-            val trailing = if (isLong) favorableExtreme - initialRisk
-                else favorableExtreme + initialRisk
+            val gap = atrTrailDistance?.takeIf { it.isFinite() && it > 0.0 } ?: initialRisk
+            val trailing = if (isLong) favorableExtreme - gap
+                else favorableExtreme + gap
             if (isLong) max(lockedStop, trailing) else min(lockedStop, trailing)
         } else lockedStop
 
