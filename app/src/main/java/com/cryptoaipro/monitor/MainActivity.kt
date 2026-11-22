@@ -275,22 +275,37 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             (neural == "LONG_BIAS" || neural == "SHORT_BIAS")
         val neuralStrength = maxOf(reviewed.neuralScore, 100 - reviewed.neuralScore)
         val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
-        // Build stop/target geometry from ATR around the neural side, not the old technical side.
+        // Independent chart authority is used when the neural ensemble is unvalidated.
+        // The chart reader and weighted XT timeframe panel nominate direction; the neural
+        // ensemble remains visible as research-only context until it passes holdout tests.
+        val humanChart = ZoroHumanMarketReader.analyze(reviewed.candles)
+        val timeframeFrames = reviewed.timeframeAnalysis.filter { it.available }
+        val timeframeScore = ZoroTimeframeAnalysisEngine.consensusScore(timeframeFrames)
+        val combinedChartScore = if (timeframeFrames.size >= 3)
+            (humanChart.score * 0.55 + timeframeScore * 0.45).toInt().coerceIn(-100, 100)
+        else humanChart.score
+        val chartSide = when {
+            humanChart.available && combinedChartScore >= 25 -> "LONG_BIAS"
+            humanChart.available && combinedChartScore <= -25 -> "SHORT_BIAS"
+            else -> "NEUTRAL"
+        }
+        val neuralSide = reviewed.neuralDirection
+        val selectedSide = if (neuralValidated) neuralSide else chartSide
+        val humanChartConflict = humanChart.blocks(selectedSide)
         val neuralEntry = reviewed.price.takeIf { it.isFinite() && it > 0.0 } ?: reviewed.entry
         val atrPercentForRisk = reviewed.technical.atrPercent.takeIf { it.isFinite() }?.coerceIn(0.1, 8.0) ?: 1.0
         val neuralRiskDistance = (neuralEntry * (atrPercentForRisk / 100.0) * 1.2)
             .coerceAtLeast(neuralEntry * 0.0025)
-        val neuralSide = reviewed.neuralDirection
-        val neuralGeometry = when (neuralSide) {
+        val neuralGeometry = when (selectedSide) {
             "LONG_BIAS" -> reviewed.copy(
-                direction = neuralSide, entry = neuralEntry,
+                direction = selectedSide, entry = neuralEntry,
                 stop = neuralEntry - neuralRiskDistance,
                 tp1 = neuralEntry + neuralRiskDistance * 1.8,
                 tp2 = neuralEntry + neuralRiskDistance * 2.4,
                 tp3 = neuralEntry + neuralRiskDistance * 3.0
             )
             "SHORT_BIAS" -> reviewed.copy(
-                direction = neuralSide, entry = neuralEntry,
+                direction = selectedSide, entry = neuralEntry,
                 stop = neuralEntry + neuralRiskDistance,
                 tp1 = neuralEntry - neuralRiskDistance * 1.8,
                 tp2 = neuralEntry - neuralRiskDistance * 2.4,
@@ -298,11 +313,21 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             )
             else -> reviewed
         }
-        // The neural commander selects direction; risk geometry only determines whether the setup is executable.
-        val commander = HopeCommander.decide(neuralGeometry, neuralValidated)
-        val humanChart = ZoroHumanMarketReader.analyze(reviewed.candles)
-        val humanChartConflict = humanChart.blocks(neuralSide)
-        // Publish a technically valid 5m scalp candidate from 56/100 so the user can
+        val commander = if (neuralValidated) HopeCommander.decide(neuralGeometry, true) else {
+            val independentDirection = if (timeframeFrames.size >= 4) chartSide else "NEUTRAL"
+            val evidenceConfidence = (50.0 + kotlin.math.abs(combinedChartScore) * 0.45)
+                .toInt().coerceIn(50, 85)
+            HopeCommander.Decision(
+                direction = independentDirection,
+                score = if (independentDirection == "NEUTRAL") 0 else evidenceConfidence,
+                confidence = evidenceConfidence,
+                neuralInfluence = 0,
+                status = if (independentDirection == "NEUTRAL") "ABSTAIN_CHART_CONFLICT" else "INDEPENDENT_CHART_AUTHORITY",
+                explanation = if (independentDirection == "NEUTRAL")
+                    "مغز مستقل: جهت چارت یا پوشش حداقل چهار تایم‌فریم کافی نیست؛ WAIT"
+                else "مغز مستقل: ساختار قیمت و اجماع وزنی " + timeframeFrames.size + " تایم‌فریم جهت " + independentDirection + " را انتخاب کردند؛ رأی عصبی اعتبارسنجی‌نشده فقط نمایشی است"
+            )
+        }        // Publish a technically valid 5m scalp candidate from 56/100 so the user can
         // inspect the Commander's decision instead of seeing every sub-62 setup capped
         // at 49. This threshold only publishes a candidate; actual XT order authorization
         // is performed independently by XtLiveTradingEngine after LIVE, account, freshness,
@@ -311,14 +336,18 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         val commanderQualified = commander.direction != "NEUTRAL" && commander.confidence >= publishThreshold
         val neuralAgreement = neuralValidated && bothDirectional && tech == neural && neuralStrength >= 55 &&
             !reviewed.neuralUncertainty.highDisagreement
+        val independentChartQualified = !neuralValidated && timeframeFrames.size >= 4 &&
+            humanChart.available && chartSide != "NEUTRAL" && kotlin.math.abs(combinedChartScore) >= 25
+        val directionalAuthority = if (neuralValidated) neuralAgreement else independentChartQualified
         val tier = when {
-            !neuralAgreement || commander.direction == "NEUTRAL" -> "بدون رتبه"
-            neuralAgreement && commander.confidence >= 82 && neuralStrength >= 70 -> "نوع ۱ • ممتاز"
-            neuralAgreement && commander.confidence >= 72 && neuralStrength >= 62 -> "نوع ۲ • تأییدشده"
-            commanderQualified -> "نوع ۳ • فرمانده عصبی اعتبارسنجی‌شده"
-            else -> "بدون رتبه"
+            !directionalAuthority || commander.direction == "NEUTRAL" -> "بدون رتبه"
+            neuralValidated && commander.confidence >= 82 && neuralStrength >= 70 -> "نوع ۱ • ممتاز"
+            neuralValidated && commander.confidence >= 72 && neuralStrength >= 62 -> "نوع ۲ • تأییدشده"
+            neuralValidated -> "نوع ۳ • فرمانده عصبی اعتبارسنجی‌شده"
+            else -> "نوع ۳ • اجماع مستقل چارت"
         }
-        val promoted = commanderQualified && neuralAgreement && tier != "بدون رتبه" && humanChart.available && !humanChartConflict
+        val promoted = commanderQualified && directionalAuthority && tier != "بدون رتبه" &&
+            humanChart.available && !humanChartConflict && kotlin.math.abs(combinedChartScore) >= 25
         val finalSignal = neuralGeometry.copy(
             direction = if (promoted) commander.direction else "NEUTRAL",
             score = if (promoted) commander.score else 0,
@@ -326,7 +355,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             signalTier = if (promoted) tier else "بدون رتبه",
             agreementStatus = if (promoted) commander.explanation else when {
                 commander.status == "ABSTAIN_NEURAL_CONFLICT" -> commander.explanation
-                !neuralValidated -> "مدل عصبی هنوز از آزمون مستقل عبور نکرده؛ صدور سیگنال و معامله خودکار مسدود است"
+                !neuralValidated -> "مدل عصبی اعتبارسنجی نشده و در جهت دخالت ندارد؛ مغز مستقل چارت/تایم‌فریم‌ها هنوز به آستانه سیگنال نرسیده است"
                 tech != neural -> "شبکه عصبی و فیلتر ساختار بازار همسو نیستند؛ ورود متوقف شد"
                 !humanChart.available -> "تاریخچه کافی برای خوانش مستقل چارت وجود ندارد؛ ورود متوقف شد"
                 humanChartConflict -> "خوانش مستقل چارت با جهت شبکه عصبی تعارض قوی دارد؛ ورود متوقف شد"
