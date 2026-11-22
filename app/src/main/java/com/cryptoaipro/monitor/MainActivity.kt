@@ -1864,6 +1864,7 @@ private fun SignalLevelsChart(signal: MarketSignal) {
         ZoroAdvancedTechnicalEngine.analyze(candles, signal.price)
     }
     val advancedLevels = advancedReport.levels
+    val chartPatterns = (marketReader.patterns + advancedReport.candlePatterns + advancedReport.chartPatterns).distinct().take(6)
     val liquiditySnapshot = remember(signal.symbol, selectedTimeframe, candles.lastOrNull()?.getOrNull(5), signal.price) {
         val rows = candles.mapNotNull { row ->
             if (row.size < 6) null else runCatching {
@@ -2008,9 +2009,9 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                     level(signal.technical.ema20, Gold, 1.4f)
                     level(signal.technical.vwap, Color(0xFF69B8E8), 1.3f, true)
                 }
-                level(marketReader?.poc ?: Double.NaN, Gold, 1.8f)
-                level(marketReader?.valueLow ?: Double.NaN, Blue.copy(alpha = 0.7f), 1.0f, true)
-                level(marketReader?.valueHigh ?: Double.NaN, Blue.copy(alpha = 0.7f), 1.0f, true)
+                level(marketReader.poc ?: Double.NaN, Gold, 1.8f)
+                level(marketReader.valueLow ?: Double.NaN, Blue.copy(alpha = 0.7f), 1.0f, true)
+                level(marketReader.valueHigh ?: Double.NaN, Blue.copy(alpha = 0.7f), 1.0f, true)
                 if (signal.direction != "NEUTRAL") {
                     level(signal.entry, Blue, 2f)
                     level(signal.stop, Red, 2f, true)
@@ -2031,9 +2032,13 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                 SmallStat("قیمت", formatPrice(signal.price), Color.White)
                 SmallStat("کف محلی", formatPrice(recentLow.lastOrNull()?.price ?: signal.technical.support), Green)
             }
-            Text("ساختار: $structureText • رژیم: " + signal.technical.regime, color = Gold, fontSize = 9.sp)
+            Text("ساختار: $structureText • رژیم: " + advancedReport.regime, color = Gold, fontSize = 9.sp)
             Text("نقاط قرمز/سبز: سقف و کف خودکار • نواحی سایه‌دار: FVG شناسایی‌شده • خطوط: سطوح محاسبه‌شده", color = Muted, fontSize = 8.sp)
             if (marketReader.available) Text("خط طلایی: POC • خطوط فیروزه‌ای: Value Area • فاز: " + marketReader.phase, color = Blue, fontSize = 8.sp)
+            if (chartPatterns.isNotEmpty()) Text("الگوهای چارت: " + chartPatterns.joinToString(" • "), color = Gold, fontSize = 8.sp, lineHeight = 12.sp)
+            if (advancedReport.smartMoney.isNotBlank()) Text("ساختار پول هوشمند: " + advancedReport.smartMoney, color = Blue, fontSize = 8.sp, lineHeight = 12.sp)
+            Text("سناریوی صعودی: " + marketReader.bullishScenario, color = Green, fontSize = 8.sp, lineHeight = 12.sp)
+            Text("سناریوی نزولی: " + marketReader.bearishScenario, color = Red, fontSize = 8.sp, lineHeight = 12.sp)
             if (liquiditySnapshot.pools.isNotEmpty()) Text("خطوط نقدینگی: خوشه‌های احتمالی حدضرر بالای سقف‌ها و زیر کف‌ها • " + liquiditySnapshot.summary, color = Gold, fontSize = 8.sp, lineHeight = 12.sp)
             Text("حمایت/مقاومت، EMA20، VWAP، ورود، حد ضرر و اهداف از تحلیل داخلی نمایش داده می‌شوند. برچسب BOS فقط در صورت عبور قیمت بسته‌شدن از آخرین پیوت نمایش داده می‌شود. خطوط روند از پیوت‌های تأییدشده ترسیم می‌شوند.", color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
             if (signal.timeframeAnalysis.isNotEmpty()) {
