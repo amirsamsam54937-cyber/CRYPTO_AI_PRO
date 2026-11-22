@@ -821,7 +821,7 @@ fun CryptoMonitorScreen() {
                             ZoroLivingTraderBrainPanel(context)
                             ZoroTraderResearchPanel(context, rows.map { it.symbol })
                             ZoroTraderEvidenceCapturePanel(context)
-                            ZoroSentimentNetworkPanel(context, rows.map { it.symbol })
+                            // News and sentiment remain internal decision features; no user-facing feed.
                                                                                     Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
