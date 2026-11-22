@@ -1,13 +1,12 @@
 package com.cryptoaipro.monitor
 
-/** Fail-closed gates for background execution. Only a validated neural ensemble may authorize it. */
+/** Fail-closed operational gates. Market intelligence is arbitrated by the independent trading brain. */
 internal object XtAutomaticTradingPolicy {
     fun mayRun(
         liveArmed: Boolean,
         automaticEnabled: Boolean,
         credentialsPresent: Boolean,
-        modelValidated: Boolean,
         emergencyStop: Boolean
     ): Boolean =
-        liveArmed && automaticEnabled && credentialsPresent && modelValidated && !emergencyStop
+        liveArmed && automaticEnabled && credentialsPresent && !emergencyStop
 }
