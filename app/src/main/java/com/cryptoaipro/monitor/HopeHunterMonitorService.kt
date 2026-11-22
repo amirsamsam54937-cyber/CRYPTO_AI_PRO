@@ -29,6 +29,7 @@ class HopeHunterMonitorService : Service() {
     private val notificationId = 2401
     private val signalChannelId = "hope_hunter_new_signals"
     private var monitorJob: kotlinx.coroutines.Job? = null
+    private var positionMonitorJob: kotlinx.coroutines.Job? = null
     private var voiceAnnouncer: NexusVoiceAnnouncer? = null
 
     override fun onCreate() {
@@ -47,6 +48,8 @@ class HopeHunterMonitorService : Service() {
                 }
                 monitorJob?.cancel()
                 monitorJob = null
+                positionMonitorJob?.cancel()
+                positionMonitorJob = null
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
@@ -58,6 +61,23 @@ class HopeHunterMonitorService : Service() {
 
     private fun startMonitoring() {
         if (monitorJob?.isActive == true) return
+        if (positionMonitorJob?.isActive != true) {
+            positionMonitorJob = serviceScope.launch {
+                while (isActive) {
+                    runCatching {
+                        XtLiveTradingEngine.monitorOpenPositions(this@HopeHunterMonitorService)
+                    }.onFailure { monitorError ->
+                        ZoroDiagnostics.record(
+                            this@HopeHunterMonitorService,
+                            "ناظر مستقل حفاظت پوزیشن",
+                            "ERROR",
+                            monitorError.message ?: monitorError.javaClass.simpleName
+                        )
+                    }
+                    delay(10_000L)
+                }
+            }
+        }
         monitorJob = serviceScope.launch {
             val neuralStatus = WolfPretrainedEnsemble.initialize(this@HopeHunterMonitorService)
             ZoroDiagnostics.record(
@@ -94,18 +114,7 @@ class HopeHunterMonitorService : Service() {
             }
             while (isActive) {
                 try {
-                    // Reconcile exchange positions before starting a potentially long market scan.
-                    // This keeps protection checks ahead of discovery work on every service cycle.
-                    runCatching {
-                        XtLiveTradingEngine.monitorOpenPositions(this@HopeHunterMonitorService)
-                    }.onFailure { monitorError ->
-                        ZoroDiagnostics.record(
-                            this@HopeHunterMonitorService,
-                            "نظارت پوزیشن واقعی",
-                            "ERROR",
-                            monitorError.message ?: monitorError.javaClass.simpleName
-                        )
-                    }
+                    // Position protection runs in its own 10-second coroutine, independent of scan latency.
                     val signals = scanWithReconnect()
                     WolfMarketDataStore.recordLiveScan(this@HopeHunterMonitorService, "XT", signals)
                     WolfFlowNewsRepository.refreshForEngine(this@HopeHunterMonitorService, signals, "XT")
@@ -330,6 +339,7 @@ class HopeHunterMonitorService : Service() {
 
     override fun onDestroy() {
         monitorJob?.cancel()
+        positionMonitorJob?.cancel()
         serviceScope.cancel()
         voiceAnnouncer?.shutdown()
         voiceAnnouncer = null
