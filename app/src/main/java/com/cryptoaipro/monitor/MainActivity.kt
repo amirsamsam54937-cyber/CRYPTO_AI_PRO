@@ -2124,7 +2124,25 @@ internal object MarketAnalysisEngine {
         }
         val tp3 = structuralTp3
         val stopPct = stopDistance / price * 100.0
-        val leverage = when { !isLong && !isShort -> 1; stopPct <= 0.8 -> 5; stopPct <= 1.5 -> 3; stopPct <= 3.0 -> 2; else -> 1 }
+        val leverageDecision = AdaptiveLeverageEngine.recommend(
+            AdaptiveLeverageEngine.Input(
+                direction = direction,
+                confidence = confidence,
+                consensusStrength = wolf.strengthIndex,
+                neuralStrength = 0,
+                neuralValidated = false,
+                neuralDisagreement = false,
+                outOfDistribution = true,
+                entry = price,
+                stop = stop,
+                tp1 = tp1,
+                atrPercent = a.technical.atrPercent,
+                venueMaxLeverage = null,
+                simulation = true,
+                simulationMaxLeverage = 20
+            )
+        )
+        val leverage = leverageDecision.leverage
         val agentSummary = wolf.votes.joinToString("، ") { it.name + ":" + it.direction }
         val filterNote = when {
             stretched -> " | فیلتر: قیمت بیش از حد از EMA20 فاصله گرفته؛ تعقیب نکن"
@@ -2142,7 +2160,7 @@ internal object MarketAnalysisEngine {
                 (microStats?.let { " | ۵د: " + it.second } ?: "") +
                 (macroStats?.let { " | ۱روز: " + it.second } ?: "") +
                 (marketContext?.let { " | " + it.conciseSummary() } ?: " | نمای کلان بازار فعلاً در دسترس نیست") +
-                filterNote,
+                filterNote + " | اهرم تطبیقی: " + leverageDecision.reason,
             price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical, short.takeLast(80), wolf,
             timeframeCoverage = listOfNotNull(primaryLabel, confirmLabel, microLabel.takeIf { microStats != null }, trendLabel, macroLabel.takeIf { macroStats != null }).distinct().joinToString(" / "),
             technicalDirection = direction,
