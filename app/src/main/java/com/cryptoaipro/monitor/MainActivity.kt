@@ -314,7 +314,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             commanderQualified -> "نوع ۳ • فرمانده عصبی اعتبارسنجی‌شده"
             else -> "بدون رتبه"
         }
-        val promoted = commanderQualified && neuralAgreement && tier != "بدون رتبه" && !humanChartConflict
+        val promoted = commanderQualified && neuralAgreement && tier != "بدون رتبه" && humanChart.available && !humanChartConflict
         val finalSignal = neuralGeometry.copy(
             direction = if (promoted) commander.direction else "NEUTRAL",
             score = if (promoted) commander.score else 0,
@@ -324,6 +324,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                 commander.status == "ABSTAIN_NEURAL_CONFLICT" -> commander.explanation
                 !neuralValidated -> "مدل عصبی هنوز از آزمون مستقل عبور نکرده؛ صدور سیگنال و معامله خودکار مسدود است"
                 tech != neural -> "شبکه عصبی و فیلتر ساختار بازار همسو نیستند؛ ورود متوقف شد"
+                !humanChart.available -> "تاریخچه کافی برای خوانش مستقل چارت وجود ندارد؛ ورود متوقف شد"
                 humanChartConflict -> "خوانش مستقل چارت با جهت شبکه عصبی تعارض قوی دارد؛ ورود متوقف شد"
                 else -> commander.explanation
             },
