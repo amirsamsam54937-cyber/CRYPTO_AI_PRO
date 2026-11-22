@@ -152,6 +152,9 @@ internal fun HopeCommanderScreen(
             }
         }
         item {
+            HopeLivingBrainPanel(context)
+        }
+        item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 HPanelCard(Modifier.weight(1.08f), "نمای کلان بازار") {
                     MacroLine("TOTAL", macro?.let { "$" + compactUsd(it.totalUsd) } ?: "—", macro?.total24hPct)
