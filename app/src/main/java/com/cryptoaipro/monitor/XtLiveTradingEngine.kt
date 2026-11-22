@@ -15,7 +15,7 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * XT USDT-M execution with separate manual-confirmed and explicitly armed automatic paths.
- * Automatic scans may submit at most one independently validated neural candidate per scan only when LIVE,
+ * Automatic scans may submit at most one brain-approved candidate per scan only when LIVE,
  * auto mode, verified connection, credentials, account checks and every risk gate pass.
  * Manual execution still requires a reviewed preview and explicit confirmation.
  * All gates fail closed. Ambiguous order POSTs are reconciled, never blindly retried.
@@ -665,19 +665,18 @@ internal object XtLiveTradingEngine {
      */
     suspend fun processScan(context: Context, signals: List<MarketSignal>): ExecutionResult? =
         autoScanMutex.withLock {
-            val modelValidated = WolfPretrainedEnsemble.status().validatedForScoring
             if (!XtAutomaticTradingPolicy.mayRun(
                     liveArmed = isEnabled(context),
                     automaticEnabled = isAutoEnabled(context),
                     credentialsPresent = XtCredentialVault.hasCredentials(context) &&
                         XtCredentialVault.isConnectionVerified(context),
-                    modelValidated = modelValidated,
                     emergencyStop = isEmergencyStopped(context)
                 )
             ) return@withLock null
 
-            // The living brain accepts direction only from the validated neural ensemble.
-            // Technical/regime/liquidity inputs are risk filters, not direction sources.
+            // The independent brain nominates direction from chart structure when the neural
+            // ensemble is unvalidated. The scanner's candidate direction must agree with that
+            // decision; the brain may veto, but an untrusted model cannot reverse an order.
             // XT preflight and hard account risk gates remain mandatory after this decision.
             val candidate = signals.asSequence()
                 .filter { signal ->
@@ -687,7 +686,7 @@ internal object XtLiveTradingEngine {
                 }
                 .mapNotNull { signal ->
                     val decision = ZoroLivingTraderBrain.evaluate(context, signal)
-                    if (decision.allowed) signal to decision else null
+                    if (decision.allowed && decision.side == directionSide(signal.direction)) signal to decision else null
                 }
                 .sortedWith(
                     compareByDescending<Pair<MarketSignal, ZoroLivingTraderBrain.Decision>> { it.second.score }
