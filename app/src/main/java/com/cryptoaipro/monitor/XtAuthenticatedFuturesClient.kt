@@ -200,6 +200,56 @@ internal class XtAuthenticatedFuturesClient(
         }
     }
 
+    data class LeverageTier(
+        val maxLeverage: Int,
+        val maintenanceMarginRate: Double,
+        val maxNominalValue: Double
+    )
+
+    /**
+     * Reads XT's public notional-tier table. A missing or malformed table is not replaced
+     * with a guessed leverage ceiling; live execution must stop instead.
+     */
+    suspend fun leverageTierForNotional(symbol: String, notionalUsdt: Double): LeverageTier? =
+        withContext(Dispatchers.IO) {
+            if (!notionalUsdt.isFinite() || notionalUsdt <= 0.0) return@withContext null
+            val normalized = normalizeSymbol(symbol)
+            val url = URL("$baseUrl/future/market/v1/public/leverage/bracket/detail?symbol=" +
+                URLEncoder.encode(normalized, "UTF-8"))
+            val connection = (url.openConnection() as HttpURLConnection)
+            try {
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 6000
+                connection.readTimeout = 8000
+                connection.setRequestProperty("Accept", "application/json")
+                val code = connection.responseCode
+                if (code !in 200..299) return@withContext null
+                val raw = connection.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+                val root = JSONObject(raw)
+                if (root.optInt("returnCode", Int.MIN_VALUE) != 0) return@withContext null
+                val result = root.optJSONObject("result") ?: return@withContext null
+                if (!result.optString("symbol").equals(normalized, true)) return@withContext null
+                val rows = result.optJSONArray("leverageBrackets") ?: return@withContext null
+                val brackets = (0 until rows.length()).mapNotNull { index ->
+                    val row = rows.optJSONObject(index) ?: return@mapNotNull null
+                    val maxLeverage = row.optInt("maxLeverage", 0)
+                    val maintenance = row.optString("maintMarginRate").toDoubleOrNull()
+                        ?: row.optDouble("maintMarginRate", Double.NaN)
+                    val maxNotional = row.optString("maxNominalValue").toDoubleOrNull()
+                        ?: row.optDouble("maxNominalValue", Double.NaN)
+                    if (maxLeverage !in 1..125 || !maintenance.isFinite() ||
+                        maintenance !in 0.0..0.25 || !maxNotional.isFinite() || maxNotional <= 0.0) null
+                    else LeverageTier(maxLeverage, maintenance, maxNotional)
+                }.sortedBy { it.maxNominalValue }
+                brackets.firstOrNull { notionalUsdt <= it.maxNominalValue }
+                    ?: brackets.lastOrNull()
+            } catch (_: Exception) {
+                null
+            } finally {
+                connection.disconnect()
+            }
+        }
+
     data class ContractSpec(
         val symbol: String,
         val contractSize: Double,
