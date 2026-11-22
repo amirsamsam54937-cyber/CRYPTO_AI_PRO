@@ -95,6 +95,16 @@ class HopeHunterMonitorService : Service() {
                 try {
                     // Reconcile exchange positions before starting a potentially long market scan.
                     // This keeps protection checks ahead of discovery work on every service cycle.
+                    runCatching {
+                        XtLiveTradingEngine.monitorOpenPositions(this@HopeHunterMonitorService)
+                    }.onFailure { monitorError ->
+                        ZoroDiagnostics.record(
+                            this@HopeHunterMonitorService,
+                            "نظارت پوزیشن واقعی",
+                            "ERROR",
+                            monitorError.message ?: monitorError.javaClass.simpleName
+                        )
+                    }
                     val signals = scanWithReconnect()
                     WolfMarketDataStore.recordLiveScan(this@HopeHunterMonitorService, "XT", signals)
                     WolfFlowNewsRepository.refreshForEngine(this@HopeHunterMonitorService, signals, "XT")
@@ -113,16 +123,6 @@ class HopeHunterMonitorService : Service() {
                         )
                     }
                     val paperSnapshot = HopePaperTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
-                    runCatching {
-                        XtLiveTradingEngine.monitorOpenPositions(this@HopeHunterMonitorService)
-                    }.onFailure { monitorError ->
-                        ZoroDiagnostics.record(
-                            this@HopeHunterMonitorService,
-                            "نظارت پوزیشن واقعی",
-                            "ERROR",
-                            monitorError.message ?: monitorError.javaClass.simpleName
-                        )
-                    }
                     val automaticExecution = runCatching {
                         XtLiveTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
                     }.onFailure { autoError ->
