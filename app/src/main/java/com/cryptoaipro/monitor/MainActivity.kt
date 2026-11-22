@@ -1337,6 +1337,16 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                         color = Muted, fontSize = 9.sp
                     )
                     Text(
+                        if (item.neuralOutOfDistribution)
+                            "هشدار تعمیم: ورودی خارج از توزیع آموزش یا آمار نامعتبر • فاصله استاندارد: " +
+                                (if (item.neuralInputDistance.isFinite()) String.format(Locale.US, "%.2fσ", item.neuralInputDistance) else "ناموجود") +
+                                " • تصمیم اجرایی: توقف"
+                        else
+                            "ممیزی دامنه ورودی: در محدوده آماری آموزش • فاصله استاندارد: ${String.format(Locale.US, "%.2fσ", item.neuralInputDistance)}",
+                        color = if (item.neuralOutOfDistribution) Red else Green,
+                        fontSize = 9.sp, lineHeight = 13.sp
+                    )
+                    Text(
                         if (item.deepNeuralSuccessProbability != null)
                             "شبکه زمینه‌ای ۱۳ ویژگی (خبر، احساسات، فاندینگ، جریان/دفتر سفارش و تکنیکال): احتمال موفقیت سمت عصبی ${String.format(Locale.US, "%.1f", item.deepNeuralSuccessProbability * 100.0)}٪ • سوابق یادگیری ${item.deepNeuralReviewedSamples}"
                         else
