@@ -664,7 +664,11 @@ internal class XtAuthenticatedFuturesClient(
         triggerStopPrice: Double,
         triggerProfitPrice: Double
     ): JSONObject {
-        requireLiveArmed()
+        check(XtCredentialVault.hasCredentials(context) &&
+            !XtLiveTradingEngine.isEmergencyStopped(context) &&
+            XtLiveTradingEngine.isManagedPosition(context, symbol)) {
+            "به‌روزرسانی حفاظت فقط برای پوزیشن ثبت‌شده و مدیریت‌شده، با کلید امن و بدون توقف اضطراری مجاز است."
+        }
         require(profitId.matches(Regex("[0-9]{1,24}")))
         require(triggerStopPrice.isFinite() && triggerStopPrice > 0.0)
         require(triggerProfitPrice.isFinite() && triggerProfitPrice > 0.0)
