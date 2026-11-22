@@ -116,7 +116,8 @@ internal fun HopeCommanderScreen(
         }
         ZoroLiquidityMapEngine.analyze(rows)
     }
-    val validated = best?.neuralModelSource?.contains("اعتبارسنجی‌شده") == true
+    // Read the model gate from the ensemble itself; display strings are not a source of truth.
+    val validated = WolfPretrainedEnsemble.status().validatedForScoring
     val votes = best?.neuralMemberVotes.orEmpty()
     val neuralActive = validated && votes.size == 10
     val longCount = signals.count { it.direction == "LONG_BIAS" }
@@ -153,6 +154,13 @@ internal fun HopeCommanderScreen(
         }
         item {
             HopeLivingBrainPanel(context)
+        }
+        item {
+            NeuralEnsemblePulse(
+                probabilities = best?.neuralMemberProbabilities.orEmpty(),
+                validated = validated,
+                signalCount = signals.size
+            )
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -451,6 +459,87 @@ internal fun HopeCommanderScreen(
             Text("NEXUS QUANT • تحلیل فرمانده و خودکارسازی آزمایشی پویا • اجرای واقعی قفل است",
                 color = HMuted, fontSize = 8.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
+    }
+}
+
+
+@Composable
+private fun NeuralEnsemblePulse(
+    probabilities: List<Double>,
+    validated: Boolean,
+    signalCount: Int
+) {
+    val transition = rememberInfiniteTransition(label = "neuralPulse")
+    val pulse by transition.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1250), RepeatMode.Reverse),
+        label = "neuralPulseAlpha"
+    )
+    val usable = probabilities.take(10).map { it.takeIf { p -> p.isFinite() }?.coerceIn(0.0, 1.0) }
+    HPanelCard(Modifier.fillMaxWidth(), "نقشهٔ زندهٔ خروجی ۱۰ متخصص عصبی") {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (usable.size == 10) "۱۰ خروجی مستقل دریافت شد" else "در انتظار خروجی کامل متخصصان",
+                    color = HGoldBright, fontSize = 10.sp, fontWeight = FontWeight.Bold
+                )
+                Text(
+                    if (validated) "اعتبارسنجی مستقل تأیید شده" else "حالت پژوهشی • بدون وزن در مجوز معامله",
+                    color = if (validated) HMint else HGold, fontSize = 8.sp
+                )
+            }
+            Surface(
+                color = Color(0xFF0B1B2B),
+                shape = RoundedCornerShape(20.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, HGold.copy(alpha = pulse))
+            ) {
+                Text(
+                    "$signalCount نماد",
+                    color = HGoldBright,
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                    fontSize = 8.sp
+                )
+            }
+        }
+        Canvas(Modifier.fillMaxWidth().height(54.dp)) {
+            val count = 10
+            val gap = 7.dp.toPx()
+            val barWidth = (size.width - gap * (count - 1)) / count
+            val base = size.height - 4.dp.toPx()
+            for (i in 0 until count) {
+                val x = i * (barWidth + gap) + barWidth / 2f
+                val p = usable.getOrNull(i) ?: 0.5
+                val magnitude = if (usable.getOrNull(i) == null) 0.12f else
+                    (kotlin.math.abs(p - 0.5) * 2.0).toFloat().coerceIn(0.08f, 1f)
+                val top = base - (size.height - 10.dp.toPx()) * magnitude
+                drawLine(
+                    color = Color(0xFF24445A),
+                    start = Offset(x, 3.dp.toPx()),
+                    end = Offset(x, base),
+                    strokeWidth = barWidth.coerceAtLeast(2.dp.toPx()),
+                    cap = StrokeCap.Round
+                )
+                val tint = if (usable.getOrNull(i) == null) HMuted
+                    else if (p >= 0.55) HMint else if (p <= 0.45) HRed else HGold
+                drawLine(
+                    color = tint.copy(alpha = if (usable.getOrNull(i) == null) 0.45f else pulse),
+                    start = Offset(x, top),
+                    end = Offset(x, base),
+                    strokeWidth = (barWidth * 0.72f).coerceAtLeast(2.dp.toPx()),
+                    cap = StrokeCap.Round
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("نزولی", color = HRed, fontSize = 8.sp)
+            Text("خنثی", color = HGold, fontSize = 8.sp)
+            Text("صعودی", color = HMint, fontSize = 8.sp)
+        }
+        Text(
+            "ارتفاع هر ستون شدت فاصلهٔ رأی همان متخصص از حالت خنثی را نشان می‌دهد؛ این نمودار احتمال برد یا تضمین سود نیست.",
+            color = HMuted, fontSize = 8.sp, lineHeight = 11.sp
+        )
     }
 }
 
