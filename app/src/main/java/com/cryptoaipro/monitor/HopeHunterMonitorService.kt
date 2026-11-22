@@ -108,6 +108,7 @@ class HopeHunterMonitorService : Service() {
                     val signals = scanWithReconnect()
                     WolfMarketDataStore.recordLiveScan(this@HopeHunterMonitorService, "XT", signals)
                     WolfFlowNewsRepository.refreshForEngine(this@HopeHunterMonitorService, signals, "XT")
+                    refreshHiddenSentiment(signals)
                     val enrichedSignals = WolfFlowNewsRepository.enrichSignals(this@HopeHunterMonitorService, signals)
                     val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, enrichedSignals)
                     runCatching {
@@ -177,6 +178,37 @@ class HopeHunterMonitorService : Service() {
                 val minutes = prefs.getInt("scan_interval_minutes", 3).coerceIn(1, 10)
                 delay(minutes * 60_000L)
             }
+        }
+    }
+
+    /**
+     * Refresh internal sentiment at a bounded cadence. It never renders a news panel
+     * or creates a direction; the trading brain uses only fresh, symbol-specific evidence.
+     */
+    private suspend fun refreshHiddenSentiment(signals: List<MarketSignal>) {
+        val prefs = getSharedPreferences("zoro_sentiment_refresh", Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val last = prefs.getLong("last_refresh_at", 0L)
+        if (now - last < 20L * 60L * 1000L) return
+        try {
+            val snapshot = ZoroSentimentNetwork.refresh(
+                this,
+                signals.map { it.symbol }.distinct()
+            )
+            prefs.edit().putLong("last_refresh_at", snapshot.updatedAtMs).apply()
+            ZoroDiagnostics.record(
+                this,
+                "تحلیل پنهان احساسات بازار",
+                "INFO",
+                "marketScore=${snapshot.marketScore}; articles=${snapshot.articleCount}; sources=${snapshot.sourceCount}; symbols=${snapshot.nodes.size}"
+            )
+        } catch (error: Exception) {
+            ZoroDiagnostics.record(
+                this,
+                "تحلیل پنهان احساسات بازار",
+                "WARN",
+                error.message ?: error.javaClass.simpleName
+            )
         }
     }
 
