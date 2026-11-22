@@ -1,12 +1,13 @@
-"""Reliability-aware consensus for ZORO's specialist ensemble.
+"""Reliability-aware consensus for NEXUS QUANT specialist ensemble.
 
 All calibration observations must be chronological out-of-sample predictions.
 This module is advisory only: it never places orders or turns a probability into
-a guaranteed win rate. It is dependency-free and suitable for mobile inference.
+a guaranteed win rate. NumPy is used for validated batch aggregation.
 """
 from __future__ import annotations
 
 import math
+import numpy as np
 from typing import Iterable, Mapping, Sequence
 
 
