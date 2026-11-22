@@ -299,6 +299,18 @@ internal fun ZoroLivingTraderBrainPanel(context: Context) {
             if (snapshot.reasons.isNotBlank()) {
                 androidx.compose.material3.Text(snapshot.reasons, color = muted, fontSize = 10.sp, lineHeight = 15.sp)
             }
+            if (snapshot.chartPhase.isNotBlank()) {
+                androidx.compose.material3.Text(
+                    "خوانش چارت: " + snapshot.chartPhase,
+                    color = gold, fontSize = 10.sp, lineHeight = 14.sp
+                )
+            }
+            if (snapshot.chartPatterns.isNotBlank()) {
+                androidx.compose.material3.Text(
+                    "الگوهای تشخیص‌داده‌شده: " + snapshot.chartPatterns,
+                    color = muted, fontSize = 9.sp, lineHeight = 13.sp
+                )
+            }
             androidx.compose.material3.Text(
                 "مغز فقط نامزدها را رتبه‌بندی و فیلتر می‌کند؛ مجوز حساب، اندازه پوزیشن، حدضرر/حدسود و توقف اضطراری همچنان مستقل و اجباری‌اند.",
                 color = muted, fontSize = 9.sp, lineHeight = 13.sp
@@ -316,7 +328,9 @@ private data class BrainSnapshot(
     val sampleCount: Int = 0,
     val winRate: String = "—",
     val averageNetPct: String = "—",
-    val reasons: String = ""
+    val reasons: String = "",
+    val chartPhase: String = "",
+    val chartPatterns: String = ""
 )
 
 private fun readBrainSnapshot(context: Context): BrainSnapshot {
@@ -332,6 +346,8 @@ private fun readBrainSnapshot(context: Context): BrainSnapshot {
         sampleCount = p.getInt("last_edge_samples", 0),
         winRate = winRate,
         averageNetPct = average,
-        reasons = p.getString("last_reasons", "") ?: ""
+        reasons = p.getString("last_reasons", "") ?: "",
+        chartPhase = p.getString("last_chart_phase", "") ?: "",
+        chartPatterns = p.getString("last_chart_patterns", "") ?: ""
     )
 }
