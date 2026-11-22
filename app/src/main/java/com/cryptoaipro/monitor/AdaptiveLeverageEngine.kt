@@ -77,7 +77,7 @@ internal object AdaptiveLeverageEngine {
             !input.outOfDistribution) 1.0 else 0.70
 
         // Nonlinear signal-strength ladder; no artificial 3x ceiling.
-        val raw = (1.0 + (strength / 100.0).let { it * it } * 19.0 *
+        val raw = (1.0 + (strength / 100.0).let { it * it } * 49.0 *
             rrFactor * volatilityFactor * evidenceFactor).roundToInt()
         val maintenance = input.maintenanceMarginRate.takeIf { it.isFinite() && it in 0.0..0.25 } ?: 0.25
         val liquidationBuffer = 0.005
