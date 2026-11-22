@@ -7,7 +7,8 @@ import kotlin.math.max
  * NEXUS cognitive decision loop.
  * OBSERVE -> VALIDATE -> FORM SCENARIOS -> STRESS TEST COSTS -> DECIDE -> LOG.
  * This is an auditable software reasoning pipeline, not consciousness.
- * Neural inference alone chooses LONG/SHORT. Other evidence may only veto or scale risk.
+ * A validated ensemble may nominate direction; otherwise independent OHLCV price action
+ * nominates direction. Other evidence may veto or scale risk.
  */
 internal object NexusCognitiveEngine {
     data class Thought(
@@ -25,7 +26,14 @@ internal object NexusCognitiveEngine {
 
     fun think(signal: MarketSignal, modelValidated: Boolean = WolfPretrainedEnsemble.status().validatedForScoring): Thought {
         val reasons = mutableListOf<String>()
-        val side = signal.neuralDirection.uppercase()
+        val neuralSide = signal.neuralDirection.uppercase()
+        val chart = ZoroHumanMarketReader.analyze(signal.candles)
+        val chartSide = when {
+            chart.available && chart.score >= 25 -> "LONG_BIAS"
+            chart.available && chart.score <= -25 -> "SHORT_BIAS"
+            else -> "NEUTRAL"
+        }
+        val side = if (modelValidated) neuralSide else chartSide
         val probs = signal.neuralMemberProbabilities.filter { it.isFinite() && it in 0.0..1.0 }
         val meanUp = if (probs.isEmpty()) 0.5 else probs.average()
         val longVotes = probs.count { it >= 0.55 }
@@ -44,14 +52,19 @@ internal object NexusCognitiveEngine {
             else -> "BALANCED"
         }
 
-        if (!modelValidated) reasons += "مدل عصبی هنوز اعتبارسنجی مستقل را نگذرانده است"
-        if (probs.size != 10) reasons += "برای تصمیم، هر ۱۰ خروجی متخصص عصبی لازم است"
-        if (signal.neuralUncertainty.highDisagreement) reasons += "اختلاف یا آنتروپی متخصصان بیش از حد مجاز است"
-        if (side == "LONG_BIAS" && (longVotes < 7 || meanUp < 0.60))
-            reasons += "اجماع صعودی کمتر از ۷ رأی و احتمال میانگین ۶۰٪ است"
-        if (side == "SHORT_BIAS" && (shortVotes < 7 || meanUp > 0.40))
-            reasons += "اجماع نزولی کمتر از ۷ رأی و احتمال میانگین ۴۰٪ است"
-        if (side != "LONG_BIAS" && side != "SHORT_BIAS") reasons += "خروجی شبکه عصبی خنثی است"
+        if (modelValidated) {
+            if (probs.size != 10) reasons += "برای تصمیم عصبی، هر ۱۰ خروجی متخصص لازم است"
+            if (signal.neuralUncertainty.highDisagreement) reasons += "اختلاف یا آنتروپی متخصصان بیش از حد مجاز است"
+            if (side == "LONG_BIAS" && (longVotes < 7 || meanUp < 0.60))
+                reasons += "اجماع صعودی متخصصان کمتر از حد لازم است"
+            if (side == "SHORT_BIAS" && (shortVotes < 7 || meanUp > 0.40))
+                reasons += "اجماع نزولی متخصصان کمتر از حد لازم است"
+        } else {
+            reasons += "جهت از خوانش مستقل رفتار قیمت تعیین شد؛ رأی مدل اعتبارسنجی‌نشده کنار گذاشته شد"
+            if (!chart.available) reasons += "داده کافی برای خوانش مستقل چارت وجود ندارد"
+            else reasons += "امتیاز ساختار چارت: ${chart.score}/100؛ ${chart.structure}"
+        }
+        if (side != "LONG_BIAS" && side != "SHORT_BIAS") reasons += "شواهد جهت‌دار برای ورود کافی نیست"
 
         val candleTime = signal.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L
         val age = System.currentTimeMillis() - candleTime
@@ -108,9 +121,9 @@ internal object NexusCognitiveEngine {
         else if (riskMultiplier < 1.0) reasons += "اندازه ریسک به " + (riskMultiplier * 100).toInt() + "٪ کاهش می‌یابد"
 
         val blockingReason = reasons.any {
-            it.contains("اعتبارسنجی") || it.contains("۱۰ خروجی") ||
-                it.contains("اختلاف یا آنتروپی") || it.contains("اجماع") ||
-                it.contains("خنثی") || it.contains("کندل مرجع") ||
+            (modelValidated && (it.contains("۱۰ خروجی") ||
+                it.contains("اختلاف یا آنتروپی") || it.contains("اجماع"))) ||
+                it.contains("خنثی") || it.contains("داده کافی برای خوانش مستقل") || it.contains("کندل مرجع") ||
                 it.contains("قیمت از نقطه") || it.contains("نوسان خارج") ||
                 it.contains("قدرت روند") || it.contains("حجم نسبی پایین") ||
                 it.contains("حداقل ۳ سناریو") || it.contains("سناریوهای چندافقی") ||
