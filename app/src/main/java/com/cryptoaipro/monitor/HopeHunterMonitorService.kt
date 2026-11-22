@@ -118,6 +118,24 @@ class HopeHunterMonitorService : Service() {
                     val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, scoredSignals)
                     val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records)
                     HopeLivingBrain.runCycle(this@HopeHunterMonitorService, scoredSignals, learningStats, outcomeSnapshot.records)
+                    runCatching {
+                        val mind = NexusAutonomousMind.reflect(
+                            this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records
+                        )
+                        ZoroDiagnostics.record(
+                            this@HopeHunterMonitorService,
+                            "NEXUS Autonomous Mind",
+                            "INFO",
+                            "cycle=${mind.cycles}; phase=${mind.phase}; evidence=${mind.evidenceCount}; closed=${mind.closedOutcomes}; hypothesis=${mind.currentHypothesis}"
+                        )
+                    }.onFailure { mindError ->
+                        ZoroDiagnostics.record(
+                            this@HopeHunterMonitorService,
+                            "NEXUS Autonomous Mind",
+                            "ERROR",
+                            mindError.message ?: mindError.javaClass.simpleName
+                        )
+                    }
                     val liveStatus = when {
                         XtLiveTradingEngine.isEmergencyStopped(this@HopeHunterMonitorService) ->
                             " • توقف اضطراری: " + XtLiveTradingEngine.lastStatus(this@HopeHunterMonitorService)
