@@ -26,13 +26,14 @@ object WolfEnsembleUncertainty {
         val assessment: String
     )
 
-    fun analyze(probabilities: List<Double>): Summary {
+    fun analyze(probabilities: List<Double>, decisionThreshold: Double = LONG_THRESHOLD): Summary {
         if (probabilities.size != EXPECTED_MEMBERS ||
-            probabilities.any { !it.isFinite() || it !in 0.0..1.0 }
+            probabilities.any { !it.isFinite() || it !in 0.0..1.0 } ||
+            !decisionThreshold.isFinite() || decisionThreshold !in 0.5..1.01
         ) return unavailable()
 
-        val up = probabilities.count { it >= LONG_THRESHOLD }
-        val down = probabilities.count { it <= SHORT_THRESHOLD }
+        val up = if (decisionThreshold > 1.0) 0 else probabilities.count { it >= decisionThreshold }
+        val down = if (decisionThreshold > 1.0) 0 else probabilities.count { it <= 1.0 - decisionThreshold }
         val neutral = EXPECTED_MEMBERS - up - down
         val directional = up + down
         val agreement = if (directional == 0) 0.0 else maxOf(up, down).toDouble() / directional
