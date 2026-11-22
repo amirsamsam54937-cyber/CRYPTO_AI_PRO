@@ -408,9 +408,51 @@ fun CryptoMonitorScreen() {
             HopeScenarioLab.recordAndEvaluate(context, rows)
         }
     }
-    val voiceEngine = remember(context) { TextToSpeech(context) { } }
+    var voiceReady by remember { mutableStateOf(false) }
+    var voiceLanguageReady by remember { mutableStateOf(false) }
+    val voiceEngine = remember(context) {
+        TextToSpeech(context) { status ->
+            voiceReady = status == TextToSpeech.SUCCESS
+            if (status == TextToSpeech.SUCCESS) {
+                val localeResult = voiceEngine.setLanguage(Locale("fa", "IR"))
+                voiceLanguageReady = localeResult != TextToSpeech.LANG_MISSING_DATA &&
+                    localeResult != TextToSpeech.LANG_NOT_SUPPORTED
+            }
+        }
+    }
     DisposableEffect(voiceEngine) { onDispose { voiceEngine.stop(); voiceEngine.shutdown() } }
-    LaunchedEffect(voiceReply) { if (voiceReply.isNotBlank()) { voiceEngine.language = Locale("fa", "IR"); voiceEngine.speak(voiceReply, TextToSpeech.QUEUE_FLUSH, null, "hope-hunter-voice-reply") } }
+    LaunchedEffect(voiceReply, voiceReady) {
+        if (voiceReady && voiceReply.isNotBlank()) {
+            voiceEngine.speak(voiceReply, TextToSpeech.QUEUE_FLUSH, null, "nexus-voice-reply")
+        }
+    }
+    // Announce each newly confirmed signal once, after a complete scan.
+    LaunchedEffect(rows, loading, voiceReady, voiceLanguageReady) {
+        if (!loading && voiceReady && voiceLanguageReady && appSettings.getBoolean("voice_signal_announcements", true)) {
+            val signal = rows.firstOrNull {
+                (it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS") &&
+                    it.signalTier != "بدون رتبه" && it.confidence >= 60
+            }
+            if (signal != null) {
+                val candleTime = signal.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L
+                val marker = signal.symbol + "|" + signal.tradeTimeframe + "|" + signal.direction + "|" + candleTime
+                val spoken = appSettings.getString("last_voice_signal_marker", "")
+                if (candleTime > 0L && marker != spoken) {
+                    val side = if (signal.direction == "LONG_BIAS") "لانگ" else "شورت"
+                    val message = "سیگنال جدید تأیید شد. " + signal.symbol + ". جهت " + side +
+                        ". تایم فریم " + signal.tradeTimeframe + ". قیمت ورود " + formatPrice(signal.entry) +
+                        ". حد ضرر " + formatPrice(signal.stop) + ". هدف اول " + formatPrice(signal.tp1) +
+                        "، هدف دوم " + formatPrice(signal.tp2) + "، هدف سوم " + formatPrice(signal.tp3) +
+                        ". درجه سیگنال " + signal.signalTier + ". اطمینان " + signal.confidence +
+                        " درصد. لطفاً شرایط بازار و ریسک را بررسی کن."
+                    val result = voiceEngine.speak(message, TextToSpeech.QUEUE_ADD, null, "nexus-signal-" + signal.symbol + "-" + candleTime)
+                    if (result == TextToSpeech.SUCCESS) {
+                        appSettings.edit().putString("last_voice_signal_marker", marker).apply()
+                    }
+                }
+            }
+        }
+    }
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
         if (spoken.isNotBlank()) {
