@@ -3,7 +3,6 @@ package com.cryptoaipro.monitor
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
-import kotlin.math.abs
 
 /**
  * Persistent autonomous reflection loop for NEXUS.
@@ -50,8 +49,7 @@ internal object NexusAutonomousMind {
             val candleAt = signal.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L
             candleAt > 0L && now >= candleAt && now - candleAt <= 30L * 60L * 1000L
         }
-        val closed = outcomes.asSequence().filter { it.closed && it.pnlPct.isFinite() }
-            .takeLast(120).toList()
+        val closed = outcomes.filter { it.closed && it.pnlPct.isFinite() }.takeLast(120)
         val wins = closed.count { it.pnlPct > 0.0 }
         val winRate = if (closed.isEmpty()) 0 else (wins * 100.0 / closed.size).toInt()
         val meanPnl = if (closed.isEmpty()) 0.0 else closed.map { it.pnlPct }.average()
