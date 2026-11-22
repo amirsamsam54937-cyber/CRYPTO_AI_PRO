@@ -417,6 +417,8 @@ fun CryptoMonitorScreen() {
 
 
     suspend fun performScan() {
+        // Prevent overlapping manual and scheduled scans from racing over shared UI state.
+        if (loading) return
         loading = true
         error = null
         ZoroDiagnostics.record(context, "اسکن", "INFO", "شروع اسکن زنده؛ صرافی=" + selectedExchange)
