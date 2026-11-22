@@ -16,6 +16,11 @@ internal object HopeCommander {
             "ABSTAIN_MODEL_NOT_VALIDATED",
             "فرمانده عصبی: مدل از اعتبارسنجی زمانی مستقل عبور نکرده؛ صدور سیگنال و معامله متوقف است"
         )
+        if (signal.neuralOutOfDistribution || !signal.neuralInputDistance.isFinite()) return Decision(
+            "NEUTRAL", 0, minOf(signal.confidence, 30), 0,
+            "ABSTAIN_OUT_OF_DISTRIBUTION",
+            "فرمانده عصبی: شرایط ورودی از دامنه داده‌های آموزش فاصله دارد؛ برای جلوگیری از تعمیم نامعتبر، از معامله خودداری شد"
+        )
         val probabilities = signal.neuralMemberProbabilities.filter { it.isFinite() && it in 0.0..1.0 }
         if (probabilities.size < 7) return Decision(
             "NEUTRAL", 0, minOf(signal.confidence, 35), 0,
