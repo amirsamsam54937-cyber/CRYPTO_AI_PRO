@@ -1766,9 +1766,9 @@ private fun LiveMarketChartPanel(
                     SmallStat("کف محلی", formatPrice(swingLow), Green)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    SmallStat("مقاومت", formatPrice(chartResistance), Red)
+                    SmallStat("مقاومت", formatPrice(signal.technical.resistance), Red)
                     SmallStat("EMA20", formatPrice(signal.technical.ema20), Gold)
-                    SmallStat("حمایت", formatPrice(chartSupport), Green)
+                    SmallStat("حمایت", formatPrice(signal.technical.support), Green)
                 }
                 if (lastTime > 0L) Text("آخرین کندل بسته‌شده: " + iranDateTime(lastTime), color = Muted, fontSize = 8.sp)
             }
