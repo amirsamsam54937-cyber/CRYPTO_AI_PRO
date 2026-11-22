@@ -238,7 +238,7 @@ internal class XtAuthenticatedFuturesClient(
                     val maxNotional = row.optString("maxNominalValue").toDoubleOrNull()
                         ?: row.optDouble("maxNominalValue", Double.NaN)
                     if (maxLeverage !in 1..125 || !maintenance.isFinite() ||
-                        maintenance !in 0.0..0.25 || !maxNotional.isFinite() || maxNotional <= 0.0) null
+                        maintenance !in 0.0..0.75 || !maxNotional.isFinite() || maxNotional <= 0.0) null
                     else LeverageTier(maxLeverage, maintenance, maxNotional)
                 }.sortedBy { it.maxNominalValue }
                 brackets.firstOrNull { notionalUsdt <= it.maxNominalValue }
