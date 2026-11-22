@@ -9,21 +9,20 @@ class XtAutomaticTradingPolicyTest {
         liveArmed = true,
         automaticEnabled = true,
         credentialsPresent = true,
-        modelValidated = true,
         emergencyStop = false
     )
 
     @Test fun allAutomaticGatesMustPass() {
         assertTrue(ready())
-        assertFalse(XtAutomaticTradingPolicy.mayRun(true, false, true, true, false))
-        assertFalse(XtAutomaticTradingPolicy.mayRun(false, true, true, true, false))
-        assertFalse(XtAutomaticTradingPolicy.mayRun(true, true, false, true, false))
+        assertFalse(XtAutomaticTradingPolicy.mayRun(true, false, true, false))
+        assertFalse(XtAutomaticTradingPolicy.mayRun(false, true, true, false))
+        assertFalse(XtAutomaticTradingPolicy.mayRun(true, true, false, false))
         assertFalse(XtAutomaticTradingPolicy.mayRun(true, true, true, false, false))
         assertFalse(XtAutomaticTradingPolicy.mayRun(true, true, true, true, true))
     }
 
-    @Test fun unvalidatedNeuralModelBlocksAutomaticTrading() {
-        assertFalse(XtAutomaticTradingPolicy.mayRun(true, true, true, false, false))
+    @Test fun unvalidatedNeuralModelDoesNotBlockIndependentBrain() {
+        assertTrue(XtAutomaticTradingPolicy.mayRun(true, true, true, false))
     }
 
     @Test fun automaticModeIsNeverEnabledByDefault() {
@@ -31,7 +30,6 @@ class XtAutomaticTradingPolicyTest {
             liveArmed = false,
             automaticEnabled = false,
             credentialsPresent = false,
-            modelValidated = false,
             emergencyStop = false
         ))
     }
