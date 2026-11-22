@@ -125,6 +125,8 @@ data class MarketSignal(
     val multiHorizonOutlook: ZoroMultiHorizonEngine.Outlook? = null,
     // Full OHLCV chart interpretation: indicators, patterns, structure and liquidity concepts.
     val advancedTechnical: ZoroAdvancedTechnicalEngine.Report? = null,
+    // Human-style chart reading from OHLCV structure/auction/volume context; not image vision.
+    val humanChartReadout: ZoroHumanMarketReader.Readout? = null,
     val cognitiveRiskMultiplier: Double = 1.0
 )
 
@@ -294,6 +296,8 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
         }
         // The neural commander selects direction; risk geometry only determines whether the setup is executable.
         val commander = HopeCommander.decide(neuralGeometry, neuralValidated)
+        val humanChart = ZoroHumanMarketReader.analyze(reviewed.candles)
+        val humanChartConflict = humanChart.blocks(neuralSide)
         // Publish a technically valid 5m scalp candidate from 56/100 so the user can
         // inspect the Commander's decision instead of seeing every sub-62 setup capped
         // at 49. This threshold only publishes a candidate; actual XT order authorization
@@ -310,7 +314,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             commanderQualified -> "نوع ۳ • فرمانده عصبی اعتبارسنجی‌شده"
             else -> "بدون رتبه"
         }
-        val promoted = commanderQualified && neuralAgreement && tier != "بدون رتبه"
+        val promoted = commanderQualified && neuralAgreement && tier != "بدون رتبه" && !humanChartConflict
         val finalSignal = neuralGeometry.copy(
             direction = if (promoted) commander.direction else "NEUTRAL",
             score = if (promoted) commander.score else 0,
@@ -320,10 +324,12 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                 commander.status == "ABSTAIN_NEURAL_CONFLICT" -> commander.explanation
                 !neuralValidated -> "مدل عصبی هنوز از آزمون مستقل عبور نکرده؛ صدور سیگنال و معامله خودکار مسدود است"
                 tech != neural -> "شبکه عصبی و فیلتر ساختار بازار همسو نیستند؛ ورود متوقف شد"
+                humanChartConflict -> "خوانش مستقل چارت با جهت شبکه عصبی تعارض قوی دارد؛ ورود متوقف شد"
                 else -> commander.explanation
             },
             multiHorizonOutlook = ZoroMultiHorizonEngine.analyze(reviewed),
-            advancedTechnical = ZoroAdvancedTechnicalEngine.analyze(reviewed.candles, reviewed.price, reviewed.neuralCandles)
+            advancedTechnical = ZoroAdvancedTechnicalEngine.analyze(reviewed.candles, reviewed.price, reviewed.neuralCandles),
+            humanChartReadout = humanChart
         )
         val thought = NexusCognitiveEngine.think(finalSignal, neuralValidated)
         val cognitiveSignal = finalSignal.copy(
@@ -1473,6 +1479,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                         Text("قدرت خوشه سطوح: ${item.technical.liquidityStrength}/10 • برآورد از پیوت‌ها و سقف/کف ۹۶ کندل؛ نه داده قطعی لیکوییدیشن صرافی",
                             color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
                         TraderChartReadoutPanel(item)
+                        HumanMarketReaderPanel(item.humanChartReadout)
                         Text("تحلیل خودکار چارت و ساختار قیمت توسط موتور داخلی انجام شده است؛ نمایش نمودار خام غیرفعال است.", color = Gold, fontSize = 9.sp, lineHeight = 14.sp)
                         Text("الگوها احتمالی‌اند؛ هیچ الگویی جهت قیمت را تضمین نمی‌کند.", color = Muted, fontSize = 9.sp)
                     }
@@ -1530,6 +1537,47 @@ private fun TraderChartReadoutPanel(signal: MarketSignal) {
                     readout.cautions.forEach { Text("• $it", color = Muted, fontSize = 8.sp, lineHeight = 12.sp) }
                 }
                 Text("سناریوها شرطی‌اند؛ شکست سطح باید با بسته‌شدن کندل و حجم تأیید شود. این گزارش به‌تنهایی مجوز معامله نیست.",
+                    color = Gold, fontSize = 8.sp, lineHeight = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HumanMarketReaderPanel(readout: ZoroHumanMarketReader.Readout?) {
+    Surface(
+        color = Color(0xFF111714),
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.32f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("مغز خوانش رفتار بازار • Price Action & Auction", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black)
+            if (readout == null || !readout.available) {
+                Text(readout?.warnings?.joinToString(" • ") ?: "تاریخچه کافی برای خوانش مستقل چارت وجود ندارد.",
+                    color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("شاخص شواهد چارت: " + readout.score + "/100", color = if (readout.score >= 25) Green else if (readout.score <= -25) Red else Gold,
+                        fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text(readout.phase, color = Gold, fontSize = 9.sp)
+                }
+                Text("ساختار بازار: " + readout.structure, color = Color.White, fontSize = 9.sp)
+                Text("حراج و ارزش: " + readout.auction, color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                Text("رفتار حجم: " + readout.flow, color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                if (readout.poc != null && readout.valueLow != null && readout.valueHigh != null) {
+                    Text("Volume Profile تقریبی • POC " + formatPrice(readout.poc) +
+                        " • Value Area " + formatPrice(readout.valueLow) + " — " + formatPrice(readout.valueHigh),
+                        color = Blue, fontSize = 8.sp)
+                }
+                Text("الگوهای پرایس‌اکشن", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Text(readout.patterns.joinToString(" • ").ifBlank { "الگوی واضحی تأیید نشد" },
+                    color = Muted, fontSize = 8.sp, lineHeight = 13.sp)
+                Text("سناریوی صعودی: " + readout.bullishScenario, color = Green, fontSize = 8.sp, lineHeight = 13.sp)
+                Text("سناریوی نزولی: " + readout.bearishScenario, color = Red, fontSize = 8.sp, lineHeight = 13.sp)
+                readout.evidence.forEach { Text("• " + it, color = Muted, fontSize = 8.sp, lineHeight = 12.sp) }
+                readout.warnings.forEach { Text("احتیاط: " + it, color = Gold, fontSize = 8.sp, lineHeight = 12.sp) }
+                Text("دلتا از OHLCV تخمین زده می‌شود؛ برای دلتا و لیکوییدیشن واقعی باید داده اختصاصی معاملات/صرافی موجود باشد.",
                     color = Gold, fontSize = 8.sp, lineHeight = 12.sp)
             }
         }
