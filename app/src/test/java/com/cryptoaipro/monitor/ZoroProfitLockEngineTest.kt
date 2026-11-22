@@ -65,11 +65,11 @@ class ZoroProfitLockEngineTest {
         val long = ZoroProfitLockEngine.plan(
             "LONG", 1.0, 0.1, 1.15, 1.14, 0.9, 0.00001, 2
         )!!
-        assertTrue(long.stopPrice <= 1.0 + 0.00001)
+        assertEquals(1.05, long.stopPrice, 1e-8)
 
         val short = ZoroProfitLockEngine.plan(
             "SHORT", 1.0, 0.1, 0.85, 0.86, 1.1, 0.00001, 2
         )!!
-        assertTrue(short.stopPrice >= 1.0 - 0.00001)
+        assertEquals(0.95, short.stopPrice, 1e-8)
     }
 }
