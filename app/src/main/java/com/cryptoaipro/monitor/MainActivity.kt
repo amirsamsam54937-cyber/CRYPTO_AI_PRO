@@ -82,14 +82,14 @@ import java.util.Locale
 import kotlin.math.abs
 
 // ZORO APEX visual system: obsidian graphite, champagne metal and emerald signal accents.
-private val Navy = Color(0xFF090B0D)
-private val Panel = Color(0xFF171C1F)
-private val Muted = Color(0xFF9BA7A8)
-private val Green = Color(0xFF9BE3A6)
-private val Red = Color(0xFFFF6878)
-private val Blue = Color(0xFF54D8C2)
-private val Purple = Color(0xFFC8A96B)
-private val Gold = Color(0xFFD8B878)
+private val Navy = Color(0xFF050505)
+private val Panel = Color(0xFF101112)
+private val Muted = Color(0xFF96928A)
+private val Green = Color(0xFF39D98A)
+private val Red = Color(0xFFFF5364)
+private val Blue = Color(0xFFD8B878)
+private val Purple = Color(0xFFB9954B)
+private val Gold = Color(0xFFE2C477)
 
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
@@ -639,13 +639,13 @@ fun CryptoMonitorScreen() {
     val selectedSignal = rows.firstOrNull { it.symbol == selectedSymbol } ?: rows.firstOrNull()
 
     MaterialTheme(colorScheme = darkColorScheme(
-        primary = Blue, secondary = Purple, background = Navy, surface = Panel,
+        primary = Gold, secondary = Green, background = Navy, surface = Panel,
         onBackground = Color.White, onSurface = Color.White
     )) {
         Scaffold(
             containerColor = Navy,
             bottomBar = {
-                NavigationBar(containerColor = Color(0xFF111619), contentColor = Color.White) {
+                NavigationBar(containerColor = Color(0xFF090909), contentColor = Color.White) {
                     listOf("فرمانده", "بازار", "قدرت سیگنال", "دفترچه", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
@@ -653,9 +653,9 @@ fun CryptoMonitorScreen() {
                             icon = { Icon(imageVector = when (entry) { "خانه" -> Icons.Outlined.Home; "بازار" -> Icons.Outlined.ShowChart; "قدرت سیگنال" -> Icons.Outlined.Insights; "فرمانده" -> Icons.Outlined.Psychology; "جریان بازار" -> Icons.Outlined.Timeline; "دفترچه" -> Icons.Outlined.MenuBook; "عیب‌یابی" -> Icons.Outlined.Insights; "هوش مصنوعی" -> Icons.Outlined.Psychology; else -> Icons.Outlined.Settings }, contentDescription = entry, modifier = Modifier.size(19.dp)) },
                             label = { Text(entry, fontSize = 9.sp, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Blue,
-                                selectedTextColor = Blue,
-                                indicatorColor = Color(0xFF263B36),
+                                selectedIconColor = Gold,
+                                selectedTextColor = Gold,
+                                indicatorColor = Color(0xFF332713),
                                 unselectedIconColor = Muted,
                                 unselectedTextColor = Muted
                             )
@@ -669,10 +669,10 @@ fun CryptoMonitorScreen() {
                     painter = painterResource(id = R.drawable.hope_hunter_hero),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(190.dp).align(Alignment.TopCenter).graphicsLayer { alpha = 0.34f }
+                    modifier = Modifier.fillMaxWidth().height(230.dp).align(Alignment.TopCenter).graphicsLayer { alpha = 0.22f }
                 )
                 Box(Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(listOf(Color(0xE6090B0D), Color(0xF2090B0D), Color(0xEA171C1F)))
+                    Brush.verticalGradient(listOf(Color(0xF2050505), Color(0xFF080808), Color(0xFF050505)))
                 ))
                 Column(Modifier.fillMaxSize()) {
                 if (selectedTab !in setOf("خانه", "فرمانده")) {
@@ -682,10 +682,11 @@ fun CryptoMonitorScreen() {
                     ) {
                         if (selectedTab != "خانه") TextButton(onClick = { selectedTab = "خانه" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("‹ بازگشت", color = Blue, fontSize = 11.sp) }
                         Surface(
-                            color = Color(0xFF202628),
-                            shape = RoundedCornerShape(13.dp),
-                            modifier = Modifier.size(52.dp),
-                            shadowElevation = 8.dp
+                            color = Color(0xFF17130A),
+                            shape = RoundedCornerShape(18.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.62f)),
+                            modifier = Modifier.size(54.dp),
+                            shadowElevation = 12.dp
                         ) {
                             Image(
                                 painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
@@ -695,14 +696,16 @@ fun CryptoMonitorScreen() {
                         }
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("ZORO APEX", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
+                            Text("ZORO APEX", color = Color(0xFFF5E7C2), fontSize = 17.sp, fontWeight = FontWeight.Black, letterSpacing = 1.1.sp)
+                            Text("WOLF TRADING TERMINAL", color = Gold, fontSize = 8.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold)
                         }
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("WOLF TERMINAL", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Surface(color = if (loading) Color(0xFF24463D) else Color(0xFF203D32),
-                                shape = RoundedCornerShape(20.dp)) {
-                                Text(if (loading) "در حال اسکن" else "● $selectedExchange",
-                                    color = if (loading) Gold else Green,
+                            Surface(color = Color(0xFF17130A),
+                                shape = RoundedCornerShape(20.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.38f))) {
+                                Text(if (loading) "● در حال اسکن" else "● $selectedExchange",
+                                    color = Gold,
                                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp), fontSize = 9.sp)
                             }
                         }
@@ -1384,8 +1387,8 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
         "SHORT_BIAS" -> "SHORT"
         else -> "NO TRADE"
     }
-    Surface(color = Color(0xFF102033), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.25f)), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(15.dp)) {
+    Surface(color = Color(0xFF101010), shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.30f)), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(item.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
                 TextButton(onClick = onSelect, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
@@ -2097,7 +2100,7 @@ private fun TradingViewPairChart(selectedSymbol: String, interval: String) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("چارت آنلاین " + selectedSymbol + " • TradingView", color = Color.White, fontWeight = FontWeight.Bold)
             Text("فقط نمودار همان ارزی که سیگنال آن انتخاب شده نمایش داده می‌شود.", color = Muted, fontSize = 9.sp)
-            AndroidView(modifier = Modifier.fillMaxWidth().height(320.dp),
+            AndroidView(modifier = Modifier.fillMaxWidth().height(430.dp),
                 factory = { context -> WebView(context).apply {
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
