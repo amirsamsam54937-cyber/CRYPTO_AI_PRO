@@ -824,7 +824,7 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                 }
-                                item { TradingViewPairChart(liveSignal.symbol, chartInterval) }
+                                item { ZoroNativeSignalChart(liveSignal, chartInterval) }
                             }
                             item {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -2091,32 +2091,105 @@ private fun PriceLevelRow(label: String, price: Double, tint: Color) {
 }
 
 @Composable
-private fun TradingViewPairChart(selectedSymbol: String, interval: String) {
-    val symbol = "XT:" + selectedSymbol.replace("/", "").replace(":USDT", "").replace("_", "") + ".P"
-    val chartUrl = "https://www.tradingview.com/chart/?symbol=" +
-        java.net.URLEncoder.encode(symbol, "UTF-8") + "&interval=" +
-        java.net.URLEncoder.encode(interval, "UTF-8")
-    Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("چارت آنلاین " + selectedSymbol + " • TradingView", color = Color.White, fontWeight = FontWeight.Bold)
-            Text("فقط نمودار همان ارزی که سیگنال آن انتخاب شده نمایش داده می‌شود.", color = Muted, fontSize = 9.sp)
-            AndroidView(modifier = Modifier.fillMaxWidth().height(430.dp),
-                factory = { context -> WebView(context).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.allowFileAccess = false
-                    settings.allowContentAccess = false
-                    settings.setSupportZoom(true)
-                    webViewClient = WebViewClient()
-                } },
-                update = { view ->
-                    // Avoid reloading the full chart on every Compose state update.
-                    if (view.tag != chartUrl) {
-                        view.tag = chartUrl
-                        view.loadUrl(chartUrl)
+private fun ZoroNativeSignalChart(signal: MarketSignal, interval: String) {
+    val timeframeKey = when (interval) {
+        "5" -> "5m"
+        "15" -> "15m"
+        "60" -> "1h"
+        "240" -> "4h"
+        "D" -> "1d"
+        else -> signal.tradeTimeframe.substringBefore(" ").lowercase()
+    }
+    val candles = signal.timeframeCandles[timeframeKey]
+        ?: signal.timeframeCandles[timeframeKey.replace("m", "")]
+        ?: signal.candles
+    val valid = candles.filter { candle ->
+        candle.size >= 6 && candle.take(6).all { it.isFinite() } &&
+            candle[1] >= candle[2] && candle[1] >= maxOf(candle[0], candle[3]) &&
+            candle[2] <= minOf(candle[0], candle[3])
+    }.takeLast(100)
+    Surface(
+        color = Color(0xFF0D0D0D),
+        shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.38f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(signal.symbol, color = Color(0xFFF4E7C8), fontSize = 15.sp, fontWeight = FontWeight.Black)
+                    Text("نمودار اختصاصی ZORO • $timeframeKey", color = Muted, fontSize = 9.sp)
+                }
+                Text(
+                    if (signal.direction == "LONG_BIAS") "صعودی" else "نزولی",
+                    color = if (signal.direction == "LONG_BIAS") Green else Red,
+                    fontSize = 10.sp, fontWeight = FontWeight.Bold
+                )
+            }
+            if (valid.size >= 3) {
+                val high = maxOf(valid.maxOf { it[1] }, signal.tp3, signal.entry, signal.stop)
+                val low = minOf(valid.minOf { it[2] }, signal.tp3, signal.entry, signal.stop)
+                val span = (high - low).coerceAtLeast(kotlin.math.abs(high) * 1e-8).coerceAtLeast(1e-10)
+                Canvas(Modifier.fillMaxWidth().height(300.dp)) {
+                    val left = 4f
+                    val right = size.width - 76f
+                    val top = 12f
+                    val bottom = size.height - 12f
+                    val plotWidth = (right - left).coerceAtLeast(1f)
+                    val plotHeight = (bottom - top).coerceAtLeast(1f)
+                    fun y(price: Double): Float = bottom - ((price - low) / span).toFloat() * plotHeight
+                    repeat(5) { index ->
+                        val yy = top + plotHeight * index / 4f
+                        drawLine(Color(0xFF29251D), Offset(left, yy), Offset(right, yy), 1f)
                     }
-                })
-            Text("نمودار مرجع TradingView است؛ محاسبات سیگنال از کندل‌های صرافی انجام می‌شود.", color = Muted, fontSize = 9.sp)
+                    val step = plotWidth / valid.size
+                    val bodyWidth = (step * 0.62f).coerceIn(2f, 11f)
+                    valid.forEachIndexed { index, candle ->
+                        val x = left + step * (index + 0.5f)
+                        val up = candle[3] >= candle[0]
+                        val tint = if (up) Green else Red
+                        drawLine(tint, Offset(x, y(candle[1])), Offset(x, y(candle[2])), 1.35f)
+                        val bodyTop = minOf(y(candle[0]), y(candle[3]))
+                        val bodyBottom = maxOf(y(candle[0]), y(candle[3]))
+                        drawRect(tint, Offset(x - bodyWidth / 2f, bodyTop),
+                            androidx.compose.ui.geometry.Size(bodyWidth, (bodyBottom - bodyTop).coerceAtLeast(2f)))
+                    }
+                    val levels = listOf(
+                        signal.entry to Gold,
+                        signal.stop to Red,
+                        signal.tp1 to Green,
+                        signal.tp2 to Green.copy(alpha = 0.72f),
+                        signal.tp3 to Green.copy(alpha = 0.48f)
+                    )
+                    levels.forEach { (price, color) ->
+                        if (price.isFinite() && price in low..high) {
+                            val yy = y(price)
+                            drawLine(color, Offset(left, yy), Offset(right, yy), 1.25f,
+                                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(7f, 5f)))
+                        }
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    listOf(
+                        "ورود" to signal.entry to Gold,
+                        "حدضرر" to signal.stop to Red,
+                        "هدف ۱" to signal.tp1 to Green,
+                        "هدف ۲" to signal.tp2 to Green,
+                        "هدف ۳" to signal.tp3 to Green
+                    ).forEach { item ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(item.first.first, color = Muted, fontSize = 10.sp)
+                            Text(formatPrice(item.first.second), color = item.second, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            } else {
+                Text("کندل کافی برای این تایم‌فریم دریافت نشده است؛ نمودار با داده ساختگی پر نمی‌شود.",
+                    color = Muted, fontSize = 10.sp)
+            }
+            Text("این نمودار با کندل‌های دریافت‌شده توسط ZORO رسم می‌شود؛ بدون TradingView و بدون وب‌ویو خارجی.",
+                color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
         }
     }
 }
