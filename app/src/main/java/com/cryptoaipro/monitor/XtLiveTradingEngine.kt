@@ -15,8 +15,8 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * XT USDT-M execution with separate manual-confirmed and explicitly armed automatic paths.
- * Automatic scans may submit at most one qualified technical candidate per scan only when LIVE,
- * auto mode, credentials, account checks and every risk gate pass. Neural validation is advisory.
+ * Automatic scans may submit at most one brain-approved candidate per scan only when LIVE,
+ * auto mode, verified connection, credentials, account checks and every risk gate pass.
  * Manual execution still requires a reviewed preview and explicit confirmation.
  * All gates fail closed. Ambiguous order POSTs are reconciled, never blindly retried.
  */
@@ -26,6 +26,7 @@ internal object XtLiveTradingEngine {
     private const val KEY_AUTO_ENABLED = "automatic_execution_enabled"
     private val autoScanMutex = Mutex()
     private val executionMutex = Mutex()
+    private val positionMonitorMutex = Mutex()
     private const val KEY_EMERGENCY = "emergency_stop"
     private const val KEY_STATUS = "last_status"
     private const val KEY_MANAGED = "managed_symbols"
@@ -49,6 +50,12 @@ internal object XtLiveTradingEngine {
         val netRewardRisk: Double,
         val contractSize: Double,
         val takerFeeRate: Double,
+        val actualFundingRatePer8h: Double,
+        val estimatedEntryFeeUsdt: Double,
+        val estimatedStopExitFeeUsdt: Double,
+        val estimatedFundingCostUsdt: Double,
+        val estimatedSlippageCostUsdt: Double,
+        val slippageRatePerSide: Double,
         val expiresAt: Long,
         val clientOrderId: String
     )
@@ -61,11 +68,13 @@ internal object XtLiveTradingEngine {
     fun isAutoEnabled(context: Context): Boolean =
         prefs(context).getBoolean(KEY_AUTO_ENABLED, false) &&
             isEnabled(context) && !isEmergencyStopped(context) &&
-            XtCredentialVault.hasCredentials(context)
+            XtCredentialVault.hasCredentials(context) &&
+            XtCredentialVault.isConnectionVerified(context)
 
     fun canArmAutomatic(context: Context): Boolean =
         isEnabled(context) && !isEmergencyStopped(context) &&
-            XtCredentialVault.hasCredentials(context)
+            XtCredentialVault.hasCredentials(context) &&
+            XtCredentialVault.isConnectionVerified(context)
 
     fun setAutoEnabled(context: Context, enabled: Boolean) {
         val allowed = enabled && canArmAutomatic(context)
@@ -73,7 +82,7 @@ internal object XtLiveTradingEngine {
             .putBoolean(KEY_AUTO_ENABLED, allowed)
             .putString(
                 KEY_STATUS,
-                if (allowed) "معامله‌گر خودکار مسلح شد؛ رأی عصبی در صورت اعتبارسنجی‌نشدن صرفاً نمایشی است و ورود با کنترل‌های مستقل تکنیکال، حساب و ریسک انجام می‌شود."
+                if (allowed) "معامله‌گر خودکار مسلح شد؛ فقط اجماع عصبی اعتبارسنجی‌شده همراه با آزمون سناریو و اقتصاد خالص معامله مجاز است."
                 else if (enabled) "فعال‌سازی خودکار رد شد؛ LIVE، کلید API و وضعیت توقف اضطراری را بررسی کن."
                 else "معامله‌گر خودکار خاموش شد؛ پایش و تحلیل ادامه دارد."
             )
@@ -91,6 +100,9 @@ internal object XtLiveTradingEngine {
     fun hasManagedSymbols(context: Context): Boolean =
         prefs(context).getStringSet(KEY_MANAGED, emptySet())?.isNotEmpty() == true
 
+    internal fun isManagedPosition(context: Context, symbol: String): Boolean =
+        normalized(symbol) in (prefs(context).getStringSet(KEY_MANAGED, emptySet())?.toSet().orEmpty())
+
     suspend fun canClearCredentials(context: Context): Boolean {
         val client = XtAuthenticatedFuturesClient(context)
         if (client.activePositions().isNotEmpty() || client.activeOpenOrders().isNotEmpty()) return false
@@ -101,10 +113,14 @@ internal object XtLiveTradingEngine {
     }
 
     fun setEnabled(context: Context, enabled: Boolean) {
-        val editor = prefs(context).edit().putBoolean(KEY_ENABLED, enabled)
+        val safeEnabled = enabled && XtCredentialVault.hasCredentials(context) &&
+            XtCredentialVault.isConnectionVerified(context) && !isEmergencyStopped(context)
+        val editor = prefs(context).edit().putBoolean(KEY_ENABLED, safeEnabled)
         if (!enabled) editor.putBoolean(KEY_AUTO_ENABLED, false)
-        editor.putString(KEY_STATUS, if (enabled)
-            "حالت LIVE مسلح شد؛ فعال‌سازی خودکار جداگانه است و به اعتبارسنجی مدل عصبی وابسته نیست؛ کنترل‌های ریسک اجباری‌اند."
+        editor.putString(KEY_STATUS, if (safeEnabled)
+            "حالت LIVE مسلح شد؛ اتصال خصوصی و مجوزهای Futures قبلاً تأیید شده‌اند. کنترل‌های ریسک اجباری‌اند."
+        else if (enabled)
+            "فعال‌سازی LIVE رد شد؛ ابتدا اتصال XT و مجوزهای Futures را با موفقیت آزمایش کن."
         else "حالت LIVE غیرفعال شد؛ معامله‌گر خودکار و سفارش‌های جدید متوقف شدند.")
         editor.apply()
     }
@@ -189,11 +205,22 @@ internal object XtLiveTradingEngine {
 
         val side = signalSide(signal)
         require(side.isNotBlank()) { "این سیگنال جهت قطعی LONG یا SHORT ندارد." }
+        require(WolfPretrainedEnsemble.status().validatedForScoring &&
+            signal.neuralDirection.equals(side + "_BIAS", true) &&
+            signal.neuralMemberProbabilities.size >= 7 &&
+            !signal.neuralUncertainty.highDisagreement) {
+            "معامله واقعی فقط با اجماع شبکه عصبی اعتبارسنجی‌شده مجاز است؛ رأی تکنیکال به‌تنهایی مجوز ورود نیست."
+        }
         require(signal.confidence >= 70 && signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه") {
             "قدرت یا رتبه سیگنال برای بررسی سفارش واقعی کافی نیست."
         }
-        require(directionSide(signal.technicalDirection) == side) {
-            "جهت سیگنال باید با تحلیل تکنیکال مستقل همسو باشد؛ رأی مدل عصبی به‌تنهایی مجوز ورود نیست."
+        val qualityReview = ZoroSignalIntelligence.assess(signal)
+        require(qualityReview.quality >= 65) {
+            "امتیاز کیفیت شواهد برای معامله واقعی کافی نیست (" + qualityReview.quality + "/100): " +
+                qualityReview.warnings.take(3).joinToString("، ")
+        }
+        require(signal.neuralDirection.equals(side + "_BIAS", true)) {
+            "جهت سفارش باید مستقیماً از خروجی شبکه عصبی اعتبارسنجی‌شده آمده باشد."
         }
         require(signal.technical.adx >= 16.0 && signal.technical.relativeVolume >= 0.65 &&
             (signal.consensus?.agreement ?: 0) >= 58) {
@@ -238,6 +265,8 @@ internal object XtLiveTradingEngine {
 
         val wallet = client.futuresWallet()
         val contract = client.contractSpec(signal.symbol)
+        val actualFundingRate = client.currentFundingRate(signal.symbol)
+            ?: throw IllegalStateException("نرخ Funding زنده XT برای این قرارداد تازه و معتبر دریافت نشد؛ معامله برای جلوگیری از محاسبه ناقص هزینه متوقف شد.")
         require(client.activeTakeProfitStopOrders(signal.symbol).isEmpty()) {
             "برای این نماد طرح TP/SL فعال یا باقی‌مانده در XT وجود دارد؛ ابتدا آن را تعیین تکلیف کن."
         }
@@ -258,7 +287,39 @@ internal object XtLiveTradingEngine {
         require(dailyLoss < MAX_DAILY_LOSS) { "ترمز زیان روزانه ۲٪ فعال است." }
         require(drawdown < MAX_PEAK_DRAWDOWN) { "ترمز افت سرمایه از اوج ۸٪ فعال است." }
 
-        val leverage = signal.leverage.coerceIn(1, 3)
+        require(signal.cognitiveRiskMultiplier.isFinite() && signal.cognitiveRiskMultiplier in 0.25..1.0) {
+            "موتور شناختی اجازه ریسک صفر یا نامعتبر را نمی‌دهد."
+        }
+        val desiredLeverage = signal.leverage.coerceIn(1, 50)
+        val projectedMaxNotional = minOf(wallet.availableMargin, wallet.equity * 0.05) * desiredLeverage
+        val xtLeverageTier = client.leverageTierForNotional(signal.symbol, projectedMaxNotional)
+            ?: throw IllegalStateException("جدول رسمی اهرم و مارجین XT برای این نماد دریافت یا اعتبارسنجی نشد؛ معامله متوقف شد.")
+        val liveLeverageDecision = AdaptiveLeverageEngine.recommend(
+            AdaptiveLeverageEngine.Input(
+                direction = signal.direction,
+                confidence = signal.confidence,
+                consensusStrength = signal.consensus?.agreement ?: signal.confidence,
+                neuralStrength = maxOf(signal.neuralScore, 100 - signal.neuralScore),
+                neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring,
+                neuralDisagreement = signal.neuralUncertainty.highDisagreement,
+                outOfDistribution = signal.neuralOutOfDistribution,
+                entry = signal.price,
+                stop = stopPrice,
+                tp1 = targetPrice,
+                atrPercent = signal.technical.atrPercent,
+                venueMaxLeverage = xtLeverageTier.maxLeverage,
+                maintenanceMarginRate = xtLeverageTier.maintenanceMarginRate,
+                simulation = false
+            )
+        )
+        val leverage = minOf(desiredLeverage, liveLeverageDecision.leverage)
+        val executionCost = XtExecutionCostModel.estimate(
+            atrPercent = signal.technical.atrPercent,
+            relativeVolume = signal.technical.relativeVolume,
+            liquidityStrength = signal.technical.liquidityStrength,
+            feePerSide = contract.takerFeeRate,
+            fundingReservePer8h = kotlin.math.abs(actualFundingRate)
+        )
         val decision = XtFuturesCapitalManager.planAdaptive(
             wallet = wallet,
             fees = XtFuturesCapitalManager.Fees(
@@ -278,11 +339,11 @@ internal object XtLiveTradingEngine {
                 stop = stopPrice,
                 takeProfit = targetPrice,
                 leverage = leverage,
-                riskFraction = 0.0025,
+                riskFraction = 0.0025 * signal.cognitiveRiskMultiplier.coerceIn(0.0, 1.0),
                 maxMarginFraction = 0.05,
-                expectedFundingRatePer8h = 0.0001,
+                expectedFundingRatePer8h = kotlin.math.abs(actualFundingRate),
                 expectedHoldingHours = 6.0,
-                slippageRatePerSide = 0.001,
+                slippageRatePerSide = executionCost.slippagePerSide,
                 extraSafetyBuffer = 0.20
             ),
             portfolio = portfolio
@@ -306,6 +367,12 @@ internal object XtLiveTradingEngine {
             netRewardRisk = plan.netRewardRisk,
             contractSize = contract.contractSize,
             takerFeeRate = contract.takerFeeRate,
+            actualFundingRatePer8h = actualFundingRate,
+            estimatedEntryFeeUsdt = plan.entryFeeUsdt,
+            estimatedStopExitFeeUsdt = plan.exitFeeUsdt,
+            estimatedFundingCostUsdt = plan.estimatedFundingCostUsdt,
+            estimatedSlippageCostUsdt = plan.estimatedRoundTripSlippageUsdt,
+            slippageRatePerSide = executionCost.slippagePerSide,
             expiresAt = System.currentTimeMillis() + PREVIEW_TTL_MS,
             clientOrderId = clientOrderId
         )
@@ -377,7 +444,7 @@ internal object XtLiveTradingEngine {
             }
 
             // Attach exchange-native MARKET delegates immediately after the confirmed fill.
-            client.createTakeProfitStopMarket(
+            val protectionReceipt = client.createTakeProfitStopMarket(
                 fresh.symbol, fresh.side, executed.toLong(), fresh.stop, fresh.target
             )
 
@@ -432,6 +499,16 @@ internal object XtLiveTradingEngine {
             managed += normalized(fresh.symbol)
             p.edit()
                 .putStringSet(KEY_MANAGED, managed)
+                .putString("managed_${normalized(fresh.symbol)}_side", fresh.side)
+                .putString("managed_${normalized(fresh.symbol)}_entry", averageFillPrice.toString())
+                .putString("managed_${normalized(fresh.symbol)}_initial_risk", abs(averageFillPrice - fresh.stop).toString())
+                .putString("managed_${normalized(fresh.symbol)}_current_stop", fresh.stop.toString())
+                .putString("managed_${normalized(fresh.symbol)}_target", fresh.target.toString())
+                .putString("managed_${normalized(fresh.symbol)}_favorable_extreme", averageFillPrice.toString())
+                .putString("managed_${normalized(fresh.symbol)}_profit_id", protectionReceipt.profitId)
+                .putString("managed_${normalized(fresh.symbol)}_funding_rate", fresh.actualFundingRatePer8h.toString())
+                .putString("managed_${normalized(fresh.symbol)}_initial_atr", signal.atr.takeIf { it.isFinite() && it > 0.0 }?.toString() ?: "")
+                .putInt("managed_${normalized(fresh.symbol)}_profit_lock_stage", 0)
                 .putInt("last_position_count", positions.size)
                 .putString(KEY_STATUS,
                     "سفارش واقعی تأیید شد • ${fresh.symbol} ${fresh.side} • ${fresh.contracts} قرارداد • SL و TP در XT فعال تأیید شدند.")
@@ -450,8 +527,11 @@ internal object XtLiveTradingEngine {
         }
     }
 
-    /** Monitor only ZORO-managed positions; never submits or modifies an order. */
-    suspend fun monitorOpenPositions(context: Context) {
+    /** Verify NEXUS-managed positions and tighten exchange-native protection; never increases position size. */
+    suspend fun monitorOpenPositions(context: Context) =
+        positionMonitorMutex.withLock { monitorOpenPositionsLocked(context) }
+
+    private suspend fun monitorOpenPositionsLocked(context: Context) {
         val p = prefs(context)
         val managed = p.getStringSet(KEY_MANAGED, emptySet())?.toSet().orEmpty()
         if (managed.isEmpty()) return
@@ -481,6 +561,12 @@ internal object XtLiveTradingEngine {
                         return
                     }
                     remainingManaged.remove(symbol)
+                    val prefix = "managed_" + symbol + "_"
+                    val cleanup = p.edit()
+                    listOf("side", "entry", "initial_risk", "current_stop", "target",
+                        "favorable_extreme", "profit_id", "funding_rate", "initial_atr",
+                        "profit_lock_stage", "last_trail_at").forEach { cleanup.remove(prefix + it) }
+                    cleanup.apply()
                     continue
                 }
                 val protections = client.activeTakeProfitStopOrders(position.symbol)
@@ -497,6 +583,80 @@ internal object XtLiveTradingEngine {
                     tripEmergencyStop(context,
                         "حفاظت TP/SL صرافی برای پوزیشن ${position.symbol} ناقص یا نامشخص است؛ ورود جدید متوقف شد. پوزیشن را فوراً در XT بررسی کن.")
                     return
+                }
+
+                // Five-stage fee-aware profit lock. XT remains the authority for the active exchange-side stop.
+                val keyPrefix = "managed_" + symbol + "_"
+                val entry = p.getString(keyPrefix + "entry", null)?.toDoubleOrNull()
+                val initialRisk = p.getString(keyPrefix + "initial_risk", null)?.toDoubleOrNull()
+                val storedProfitId = p.getString(keyPrefix + "profit_id", null)
+                val mark = position.markPrice
+                if (entry != null && initialRisk != null &&
+                    entry > 0.0 && initialRisk > 0.0 && mark.isFinite() && mark > 0.0 &&
+                    !storedProfitId.isNullOrBlank()) {
+                    val protection = protections.firstOrNull {
+                        it.opt("profitId")?.toString() == storedProfitId &&
+                            normalized(it.optString("symbol")) == symbol
+                    }
+                    if (protection != null) {
+                        val isLong = position.side.equals("LONG", true)
+                        val currentStop = protection.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0
+                        val targetPrice = protection.optString("triggerProfitPrice").toDoubleOrNull() ?: 0.0
+                        val oldExtreme = p.getString(keyPrefix + "favorable_extreme", null)
+                            ?.toDoubleOrNull() ?: entry
+                        val extreme = if (isLong) max(oldExtreme, mark) else kotlin.math.min(oldExtreme, mark)
+                        val contract = client.contractSpec(position.symbol)
+                        val fundingRate = p.getString(keyPrefix + "funding_rate", "0")
+                            ?.toDoubleOrNull()?.let { kotlin.math.abs(it) } ?: 0.0
+                        val atr = p.getString(keyPrefix + "initial_atr", null)
+                            ?.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+                        val feeBuffer = entry * (
+                            2.0 * contract.takerFeeRate +
+                                2.0 * 0.0005 +
+                                fundingRate * 6.0 / 8.0
+                            )
+                        val plan = ZoroProfitLockEngine.plan(
+                            side = position.side,
+                            entry = entry,
+                            initialRisk = initialRisk,
+                            favorableExtreme = extreme,
+                            mark = mark,
+                            currentStop = currentStop,
+                            feeBufferPrice = feeBuffer,
+                            pricePrecision = contract.pricePrecision,
+                            atrTrailDistance = atr?.times(2.0)
+                        )
+                        val oldStage = p.getInt(keyPrefix + "profit_lock_stage", 0)
+                        val trailEdit = p.edit()
+                            .putString(keyPrefix + "favorable_extreme", extreme.toString())
+                        val lastTrailAt = p.getLong(keyPrefix + "last_trail_at", 0L)
+                        if (plan != null && plan.shouldUpdate &&
+                            System.currentTimeMillis() - lastTrailAt >= 10_000L) {
+                            val updated = client.updateTakeProfitStopMarket(
+                                position.symbol, storedProfitId, plan.stopPrice, targetPrice
+                            )
+                            val verifiedStop = updated.optString("triggerStopPrice").toDoubleOrNull() ?: 0.0
+                            val tick = Math.pow(10.0, -contract.pricePrecision.coerceIn(0, 12).toDouble())
+                            if (verifiedStop <= 0.0 ||
+                                abs(verifiedStop - plan.stopPrice) > maxOf(tick, plan.stopPrice * 1e-8)) {
+                                tripEmergencyStop(context, "قفل سود مرحله ${plan.stage} برای ${position.symbol} در XT تأیید نشد.")
+                                return
+                            }
+                            trailEdit.putString(keyPrefix + "current_stop", verifiedStop.toString())
+                                .putInt(keyPrefix + "profit_lock_stage", maxOf(oldStage, plan.stage))
+                                .putLong(keyPrefix + "last_trail_at", System.currentTimeMillis())
+                            setStatus(
+                                context,
+                                "قفل سود مرحله ${plan.stage}/5 در XT تأیید شد • ${position.symbol} • " +
+                                    "حدضرر=${String.format(Locale.US, "%.8f", verifiedStop)} • " +
+                                    "سود مطلوب=${String.format(Locale.US, "%.2f", plan.favorableR)}R"
+                            )
+                        }
+                        trailEdit.apply()
+                    } else {
+                        tripEmergencyStop(context, "شناسه طرح TP/SL برای ${position.symbol} با داده مدیریت داخلی تطبیق ندارد؛ پوزیشن فوراً بررسی شود.")
+                        return
+                    }
                 }
             }
             p.edit().putStringSet(KEY_MANAGED, remainingManaged).apply()
@@ -518,33 +678,35 @@ internal object XtLiveTradingEngine {
      */
     suspend fun processScan(context: Context, signals: List<MarketSignal>): ExecutionResult? =
         autoScanMutex.withLock {
-            val modelValidated = WolfPretrainedEnsemble.status().validatedForScoring
             if (!XtAutomaticTradingPolicy.mayRun(
                     liveArmed = isEnabled(context),
-                    automaticEnabled = prefs(context).getBoolean(KEY_AUTO_ENABLED, false),
-                    credentialsPresent = XtCredentialVault.hasCredentials(context),
-                    modelValidated = modelValidated,
+                    automaticEnabled = isAutoEnabled(context),
+                    credentialsPresent = XtCredentialVault.hasCredentials(context) &&
+                        XtCredentialVault.isConnectionVerified(context),
                     emergencyStop = isEmergencyStopped(context)
                 )
             ) return@withLock null
 
+            // The independent brain nominates direction from chart structure when the neural
+            // ensemble is unvalidated. The scanner's candidate direction must agree with that
+            // decision; the brain may veto, but an untrusted model cannot reverse an order.
+            // XT preflight and hard account risk gates remain mandatory after this decision.
             val candidate = signals.asSequence()
                 .filter { signal ->
                     val side = directionSide(signal.direction)
                     side != null &&
-                        directionSide(signal.technicalDirection) == side &&
-                        signal.confidence >= 70 &&
-                        signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه" &&
-                        signal.technical.adx >= 16.0 && signal.technical.relativeVolume >= 0.65 &&
-                        (signal.consensus?.agreement ?: 0) >= 58 &&
-                        signal.price.isFinite() && signal.price > 0.0
+                        signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه"
+                }
+                .mapNotNull { signal ->
+                    val decision = ZoroLivingTraderBrain.evaluate(context, signal)
+                    if (decision.allowed && decision.side.equals(signal.direction, true)) signal to decision else null
                 }
                 .sortedWith(
-                    compareByDescending<MarketSignal> { it.confidence }
-                        .thenByDescending { it.score }
-                        .thenByDescending { it.volume }
+                    compareByDescending<Pair<MarketSignal, ZoroLivingTraderBrain.Decision>> { it.second.score }
+                        .thenByDescending { it.first.confidence }
+                        .thenByDescending { it.first.volume }
                 )
-                .firstOrNull()
+                .firstOrNull()?.first
                 ?: return@withLock null
 
             val candleTime = candidate.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L

@@ -29,6 +29,13 @@ class NeuralSignalAlignmentTest {
         assertEquals("NEUTRAL", NeuralSignalAlignment.predictedDirection(0.46))
     }
 
+    @Test fun calibrationThresholdControlsIndependentDirectionAndCanAbstain() {
+        assertEquals("LONG_BIAS", NeuralSignalAlignment.predictedDirection(0.82, 0.80))
+        assertEquals("SHORT_BIAS", NeuralSignalAlignment.predictedDirection(0.18, 0.80))
+        assertEquals("NEUTRAL", NeuralSignalAlignment.predictedDirection(0.75, 0.80))
+        assertEquals("NEUTRAL", NeuralSignalAlignment.predictedDirection(0.99, 1.01))
+    }
+
     @Test fun unvalidatedTenMemberPanelGetsOnlySmallResearchWeight() {
         assertEquals(0.08, NeuralSignalAlignment.influenceWeight(false, 10, false), 0.0001)
         assertEquals(0.0, NeuralSignalAlignment.influenceWeight(false, 10, true), 0.0001)

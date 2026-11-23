@@ -14,12 +14,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Foreground market scanner for ZORO.
+ * Foreground XT futures intelligence loop for NEXUS QUANT.
  * Analysis, signal publication, paper simulation, outcome learning and explicitly armed automatic execution.
  */
 class HopeHunterMonitorService : Service() {
@@ -28,22 +29,27 @@ class HopeHunterMonitorService : Service() {
     private val notificationId = 2401
     private val signalChannelId = "hope_hunter_new_signals"
     private var monitorJob: kotlinx.coroutines.Job? = null
+    private var positionMonitorJob: kotlinx.coroutines.Job? = null
+    private var voiceAnnouncer: NexusVoiceAnnouncer? = null
 
     override fun onCreate() {
         super.onCreate()
+        voiceAnnouncer = NexusVoiceAnnouncer(this)
         createChannel()
-        startForeground(notificationId, notification("در حال آماده‌سازی موتور تحلیل بازار ZORO"))
+        startForeground(notificationId, notification("در حال آماده‌سازی موتور تحلیل بازار NEXUS QUANT"))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
                 if (XtLiveTradingEngine.hasManagedSymbols(this)) {
-                    updateNotification("توقف سرویس مجاز نیست؛ ZORO تا تعیین تکلیف پوزیشن‌های ثبت‌شده باید حفاظت XT را پایش کند.")
+                    updateNotification("توقف سرویس مجاز نیست؛ NEXUS تا تعیین تکلیف پوزیشن‌های ثبت‌شده باید حفاظت XT را پایش کند.")
                     return START_STICKY
                 }
                 monitorJob?.cancel()
                 monitorJob = null
+                positionMonitorJob?.cancel()
+                positionMonitorJob = null
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
@@ -55,6 +61,23 @@ class HopeHunterMonitorService : Service() {
 
     private fun startMonitoring() {
         if (monitorJob?.isActive == true) return
+        if (positionMonitorJob?.isActive != true) {
+            positionMonitorJob = serviceScope.launch {
+                while (isActive) {
+                    runCatching {
+                        XtLiveTradingEngine.monitorOpenPositions(this@HopeHunterMonitorService)
+                    }.onFailure { monitorError ->
+                        ZoroDiagnostics.record(
+                            this@HopeHunterMonitorService,
+                            "ناظر مستقل حفاظت پوزیشن",
+                            "ERROR",
+                            monitorError.message ?: monitorError.javaClass.simpleName
+                        )
+                    }
+                    delay(10_000L)
+                }
+            }
+        }
         monitorJob = serviceScope.launch {
             val neuralStatus = WolfPretrainedEnsemble.initialize(this@HopeHunterMonitorService)
             ZoroDiagnostics.record(
@@ -69,13 +92,33 @@ class HopeHunterMonitorService : Service() {
                     "بارگذاری مدل ناموفق: " + neuralStatus.loadError
                 }
             )
+            // Independent knowledge refresh runs off the market-scan path. Public web results
+            // are cached with source URLs and remain research-only; they cannot alter orders or model weights.
+            serviceScope.launch {
+                runCatching {
+                    val refreshed = HopeResearchEngine.refreshCoreKnowledge(this@HopeHunterMonitorService)
+                    ZoroDiagnostics.record(
+                        this@HopeHunterMonitorService,
+                        "NEXUS Knowledge Research",
+                        "INFO",
+                        "refreshed=$refreshed; durableSources=${HopeResearchEngine.memoryCount(this@HopeHunterMonitorService)}; sourceContent=untrusted research context only"
+                    )
+                }.onFailure { researchError ->
+                    ZoroDiagnostics.record(
+                        this@HopeHunterMonitorService,
+                        "NEXUS Knowledge Research",
+                        "WARN",
+                        researchError.message ?: researchError.javaClass.simpleName
+                    )
+                }
+            }
             while (isActive) {
                 try {
-                    val signals = XtFuturesMonitor.scan { _, completed, universe, failed ->
-                        updateNotification("پایش XT • " + completed + " از " + universe + " قرارداد • خطا: " + failed)
-                    }
+                    // Position protection runs in its own 10-second coroutine, independent of scan latency.
+                    val signals = scanWithReconnect()
                     WolfMarketDataStore.recordLiveScan(this@HopeHunterMonitorService, "XT", signals)
                     WolfFlowNewsRepository.refreshForEngine(this@HopeHunterMonitorService, signals, "XT")
+                    refreshHiddenSentiment(signals)
                     val enrichedSignals = WolfFlowNewsRepository.enrichSignals(this@HopeHunterMonitorService, signals)
                     val scoredSignals = applyWolfNeuralScoring(this@HopeHunterMonitorService, enrichedSignals)
                     runCatching {
@@ -91,16 +134,6 @@ class HopeHunterMonitorService : Service() {
                         )
                     }
                     val paperSnapshot = HopePaperTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
-                    runCatching {
-                        XtLiveTradingEngine.monitorOpenPositions(this@HopeHunterMonitorService)
-                    }.onFailure { monitorError ->
-                        ZoroDiagnostics.record(
-                            this@HopeHunterMonitorService,
-                            "نظارت پوزیشن واقعی",
-                            "ERROR",
-                            monitorError.message ?: monitorError.javaClass.simpleName
-                        )
-                    }
                     val automaticExecution = runCatching {
                         XtLiveTradingEngine.processScan(this@HopeHunterMonitorService, scoredSignals)
                     }.onFailure { autoError ->
@@ -118,6 +151,24 @@ class HopeHunterMonitorService : Service() {
                     val outcomeSnapshot = WolfSignalOutcomeJournal.processScan(this@HopeHunterMonitorService, scoredSignals)
                     val learningStats = WolfLearningMemory.processScan(this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records)
                     HopeLivingBrain.runCycle(this@HopeHunterMonitorService, scoredSignals, learningStats, outcomeSnapshot.records)
+                    runCatching {
+                        val mind = NexusAutonomousMind.reflect(
+                            this@HopeHunterMonitorService, scoredSignals, outcomeSnapshot.records
+                        )
+                        ZoroDiagnostics.record(
+                            this@HopeHunterMonitorService,
+                            "NEXUS Autonomous Mind",
+                            "INFO",
+                            "cycle=${mind.cycles}; phase=${mind.phase}; evidence=${mind.evidenceCount}; closed=${mind.closedOutcomes}; hypothesis=${mind.currentHypothesis}"
+                        )
+                    }.onFailure { mindError ->
+                        ZoroDiagnostics.record(
+                            this@HopeHunterMonitorService,
+                            "NEXUS Autonomous Mind",
+                            "ERROR",
+                            mindError.message ?: mindError.javaClass.simpleName
+                        )
+                    }
                     val liveStatus = when {
                         XtLiveTradingEngine.isEmergencyStopped(this@HopeHunterMonitorService) ->
                             " • توقف اضطراری: " + XtLiveTradingEngine.lastStatus(this@HopeHunterMonitorService)
@@ -138,6 +189,76 @@ class HopeHunterMonitorService : Service() {
                 delay(minutes * 60_000L)
             }
         }
+    }
+
+    /**
+     * Refresh internal sentiment at a bounded cadence. It never renders a news panel
+     * or creates a direction; the trading brain uses only fresh, symbol-specific evidence.
+     */
+    private suspend fun refreshHiddenSentiment(signals: List<MarketSignal>) {
+        val prefs = getSharedPreferences("zoro_sentiment_refresh", Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val last = prefs.getLong("last_refresh_at", 0L)
+        if (now - last < 20L * 60L * 1000L) return
+        try {
+            val snapshot = ZoroSentimentNetwork.refresh(
+                this,
+                signals.map { it.symbol }.distinct()
+            )
+            prefs.edit().putLong("last_refresh_at", snapshot.updatedAtMs).apply()
+            ZoroDiagnostics.record(
+                this,
+                "تحلیل پنهان احساسات بازار",
+                "INFO",
+                "marketScore=${snapshot.marketScore}; articles=${snapshot.articleCount}; sources=${snapshot.sourceCount}; symbols=${snapshot.nodes.size}"
+            )
+        } catch (error: Exception) {
+            ZoroDiagnostics.record(
+                this,
+                "تحلیل پنهان احساسات بازار",
+                "WARN",
+                error.message ?: error.javaClass.simpleName
+            )
+        }
+    }
+
+    /**
+     * Retries read-only market discovery after transient network failures.
+     * Never retries order submission here: ambiguous trading requests must be reconciled,
+     * not blindly replayed. Backoff is bounded and cancellation-aware.
+     */
+    private suspend fun scanWithReconnect(): List<MarketSignal> {
+        var lastError: Throwable? = null
+        val delaysMs = longArrayOf(2_000L, 4_000L, 8_000L, 16_000L, 30_000L)
+        for (attempt in 0..delaysMs.size) {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            try {
+                updateNotification(
+                    if (attempt == 0) "اتصال XT • شروع اسکن بازار"
+                    else "اتصال XT قطع شد • تلاش مجدد " + attempt + "/" + delaysMs.size
+                )
+                return XtFuturesMonitor.scan { _, completed, universe, failed ->
+                    updateNotification("پایش XT • " + completed + " از " + universe + " قرارداد • خطا: " + failed)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                lastError = error
+                ZoroDiagnostics.record(
+                    this,
+                    "بازیابی اتصال XT",
+                    "WARN",
+                    "attempt=" + (attempt + 1) + "/" + (delaysMs.size + 1) + "; " +
+                        (error.message ?: error.javaClass.simpleName)
+                )
+                if (attempt < delaysMs.size) delay(delaysMs[attempt])
+            }
+        }
+        throw IllegalStateException(
+            "پس از " + (delaysMs.size + 1) +
+                " تلاش، اسکن XT برقرار نشد؛ سرویس زنده می‌ماند و چرخه بعدی دوباره تلاش می‌کند.",
+            lastError
+        )
     }
 
     private fun notifyNewPublishedSignals(signals: List<MarketSignal>) {
@@ -163,13 +284,22 @@ class HopeHunterMonitorService : Service() {
                 Notification.Builder(this, signalChannelId) else Notification.Builder(this)
             val notification = builder
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
-                .setContentTitle("ZORO • سیگنال جدید " + signal.symbol + " • " + side)
+                .setContentTitle("NEXUS QUANT • سیگنال جدید " + signal.symbol + " • " + side)
                 .setContentText(details)
                 .setStyle(Notification.BigTextStyle().bigText(details + " • قدرت: " + signal.confidence + "٪ • تایم‌فریم: " + signal.tradeTimeframe))
                 .setAutoCancel(true)
                 .build()
             val id = 3000 + (signal.symbol.hashCode() and 0x00FFFFFF)
             getSystemService(NotificationManager::class.java).notify(id, notification)
+            voiceAnnouncer?.announceSignal(
+                signal.symbol,
+                signal.direction,
+                signal.tradeTimeframe,
+                signal.confidence,
+                signal.entry,
+                signal.stop,
+                signal.tp1
+            )
         }
         prefs.edit().putStringSet("active_signal_keys", active).apply()
     }
@@ -178,13 +308,13 @@ class HopeHunterMonitorService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(
-                NotificationChannel(channelId, "پایش بازار ZORO", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "وضعیت اسکن و تحلیل عمومی بازار قراردادهای XT"
+                NotificationChannel(channelId, "پایش بازار NEXUS QUANT", NotificationManager.IMPORTANCE_LOW).apply {
+                    description = "وضعیت پایش پیوسته و تحلیل قراردادهای XT"
                     setShowBadge(false)
                 }
             )
             manager.createNotificationChannel(
-                NotificationChannel(signalChannelId, "سیگنال‌های جدید ZORO", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                NotificationChannel(signalChannelId, "سیگنال‌های جدید NEXUS QUANT", NotificationManager.IMPORTANCE_DEFAULT).apply {
                     description = "اعلان فرصت‌های تازه و تأییدشده تحلیل بازار XT"
                     setShowBadge(true)
                 }
@@ -196,7 +326,7 @@ class HopeHunterMonitorService : Service() {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             Notification.Builder(this, channelId) else Notification.Builder(this)
         return builder.setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setContentTitle("ZORO • XT Futures Analysis")
+            .setContentTitle("NEXUS QUANT • XT Futures Intelligence")
             .setContentText(message)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -209,7 +339,10 @@ class HopeHunterMonitorService : Service() {
 
     override fun onDestroy() {
         monitorJob?.cancel()
+        positionMonitorJob?.cancel()
         serviceScope.cancel()
+        voiceAnnouncer?.shutdown()
+        voiceAnnouncer = null
         super.onDestroy()
     }
 

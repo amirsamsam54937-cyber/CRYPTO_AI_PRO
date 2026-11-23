@@ -79,7 +79,7 @@ internal object XtFuturesMonitor {
         }
     }.getOrNull()
 
-    private suspend fun candles(symbol: String, interval: String): List<DoubleArray> = gate.withPermit {
+    private suspend fun candles(symbol: String, interval: String, minimumBars: Int = 210): List<DoubleArray> = gate.withPermit {
         withContext(Dispatchers.IO) {
             val encoded = URLEncoder.encode(symbol, "UTF-8")
             val raw = get("/future/market/v1/public/q/kline?symbol=$encoded&interval=$interval&limit=500")
@@ -87,15 +87,18 @@ internal object XtFuturesMonitor {
             val parsed = (0 until rows.length()).mapNotNull { parseCandle(rows.opt(it)) }
                 .sortedBy { it[5] }.distinctBy { it[5].toLong() }
             val ms = when (interval) {
+                "1m" -> 60000L
                 "5m" -> 300000L
                 "15m" -> 900000L
+                "30m" -> 1800000L
                 "1h" -> 3600000L
                 "4h" -> 14400000L
                 "1d" -> 86400000L
+                "1w" -> 604800000L
                 else -> error("Unsupported XT timeframe")
             }
             val closed = parsed.filter { it[5].toLong() + ms <= System.currentTimeMillis() }
-            require(closed.size >= 210) { "XT برای $symbol کندل بسته‌شده کافی برنگرداند (${closed.size})" }
+            require(closed.size >= minimumBars) { "XT برای $symbol/$interval کندل بسته‌شده کافی برنگرداند (${closed.size}/$minimumBars)" }
             require(closed.all { x -> x.all(Double::isFinite) && x[0] > 0 && x[1] >= maxOf(x[0], x[3]) &&
                 x[2] <= minOf(x[0], x[3]) && x[1] >= x[2] && x[4] >= 0 && x[5] > 0 }) { "ساختار OHLCV دریافتی XT معتبر نیست: $symbol" }
             require(closed.zipWithNext().all { (a,b) -> b[5] > a[5] && b[5]-a[5] <= ms*2.0 }) { "کندل‌های XT تکراری یا دارای شکاف زمانی هستند: $symbol" }
@@ -198,6 +201,25 @@ internal object XtFuturesMonitor {
                                 val macro = async { runCatching { candles(item.first,"1d") }.getOrNull() }
                                 listOf(micro.await(), a.await(), b.await(), d.await()) to macro.await()
                             }
+                            // XT REST exposes 1m, 5m, 15m, 30m, 1h, 4h, 1d and 1w.
+                            // Extra frames are optional so sparse weekly history cannot discard a valid intraday candidate.
+                            val extraFrames = coroutineScope {
+                                val oneMinute = async { runCatching { candles(item.first,"1m",80) }.getOrNull() }
+                                val thirtyMinute = async { runCatching { candles(item.first,"30m",80) }.getOrNull() }
+                                val oneWeek = async { runCatching { candles(item.first,"1w",80) }.getOrNull() }
+                                buildMap {
+                                    oneMinute.await()?.let { put("1m", it) }
+                                    thirtyMinute.await()?.let { put("30m", it) }
+                                    oneWeek.await()?.let { put("1w", it) }
+                                }
+                            }
+                            val allTimeframes = linkedMapOf(
+                                "5m" to f.first[0], "15m" to f.first[1],
+                                "1h" to f.first[2], "4h" to f.first[3]
+                            ).apply {
+                                f.second?.let { put("1d", it) }
+                                putAll(extraFrames)
+                            }
                             MarketAnalysisEngine.analyzeWithCandles(
                                 item.second, price, change, volume,
                                 f.first[0], f.first[1], f.first[3],
@@ -206,7 +228,8 @@ internal object XtFuturesMonitor {
                                 marketContext = marketContext,
                                 primaryLabel = "5m", confirmLabel = "15m", trendLabel = "4h",
                                 microLabel = "1h", macroLabel = "1D",
-                                neuralFrame = f.first[2]
+                                neuralFrame = f.first[2],
+                                timeframeFrames = allTimeframes
                             )
                         }
                     } }.awaitAll()

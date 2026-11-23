@@ -1,4 +1,4 @@
-name: Build ZORO APK
+name: Build NEXUS QUANT APK
 permissions:
   contents: read
   actions: read
@@ -37,6 +37,26 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Restore verified XT-only neural bundle from completed training
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/zoro-apex-unified-gen31' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ZORO-745K-XT-TRAINING-DATA
+          path: /tmp/zoro-verified-bundle
+          repository: ${{ github.repository }}
+          run-id: 45068487778
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install previously verified XT corpus and ten-model bundle
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/zoro-apex-unified-gen31' }}
+        run: |
+          set -euo pipefail
+          ASSETS=app/src/main/assets
+          cp /tmp/zoro-verified-bundle/market_seed.csv.gz "$ASSETS/market_seed.csv.gz"
+          cp /tmp/zoro-verified-bundle/wolf_corpus_manifest.json "$ASSETS/wolf_corpus_manifest.json"
+          cp /tmp/zoro-verified-bundle/wolf_model_training_report.json "$ASSETS/wolf_model_training_report.json"
+          cp /tmp/zoro-verified-bundle/wolf_pretrained_ensemble.json "$ASSETS/wolf_pretrained_ensemble.json"
+          gzip -t "$ASSETS/market_seed.csv.gz"
+          echo "Restored the already verified XT-only 898,920-row corpus and trained ensemble; no retraining required."
       - name: Set up Python for XT-only historical data and model training
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.train_models) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation' || github.ref == 'refs/heads/zoro-gen4-validation-audit' || github.ref == 'refs/heads/zoro-gen4-holdout-hardening' || github.ref == 'refs/heads/zoro-gen4-signal-consensus' || github.ref == 'refs/heads/zoro-gen4-crypto-identity' || github.ref == 'refs/heads/zoro-gen4-neural-probability-labels' || github.ref == 'refs/heads/zoro-gen5-training-efficiency' || github.ref == 'refs/heads/zoro-gen6-dynamic-autopilot' || github.ref == 'refs/heads/zoro-gen7-risk-correlation-guards' || github.ref == 'refs/heads/zoro-gen8-execution-integrity' || github.ref == 'refs/heads/zoro-gen9-candle-integrity' || github.ref == 'refs/heads/zoro-gen14-cognitive-market-engine' || github.ref == 'refs/heads/zoro-gen15-adaptive-consensus' || github.ref == 'refs/heads/zoro-gen16-triple-barrier-labels' || github.ref == 'refs/heads/zoro-gen17-wilder-indicators' || github.ref == 'refs/heads/zoro-gen18-regime-specialist-audit' || github.ref == 'refs/heads/zoro-gen19-regime-calibration' || github.ref == 'refs/heads/zoro-gen20-oos-regime-ensemble' || github.ref == 'refs/heads/zoro-gen21-research-bundle-release' || github.ref == 'refs/heads/zoro-gen22-neural-uncertainty-audit' || github.ref == 'refs/heads/zoro-gen23-concept-drift-guard' || github.ref == 'refs/heads/zoro-gen24-market-structure-audit' || github.ref == 'refs/heads/zoro-gen25-live-execution-safety' || github.ref == 'refs/heads/zoro-gen26-xt-shadow-readonly' || github.ref == 'refs/heads/zoro-gen28-live-execution' || github.ref == 'refs/heads/zoro-gen29-auto-execution' || github.ref == 'refs/heads/zoro-gen30-multihorizon-truth')) }}
         uses: actions/setup-python@v5
@@ -138,7 +158,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
       - name: Enforce complete offline AI bundle for release builds
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.require_trained_bundle) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation' || github.ref == 'refs/heads/zoro-gen4-validation-audit' || github.ref == 'refs/heads/zoro-gen4-holdout-hardening' || github.ref == 'refs/heads/zoro-gen4-signal-consensus' || github.ref == 'refs/heads/zoro-gen4-crypto-identity' || github.ref == 'refs/heads/zoro-gen4-neural-probability-labels' || github.ref == 'refs/heads/zoro-gen5-training-efficiency' || github.ref == 'refs/heads/zoro-gen6-dynamic-autopilot' || github.ref == 'refs/heads/zoro-gen7-risk-correlation-guards' || github.ref == 'refs/heads/zoro-gen8-execution-integrity' || github.ref == 'refs/heads/zoro-gen9-candle-integrity' || github.ref == 'refs/heads/zoro-gen14-cognitive-market-engine' || github.ref == 'refs/heads/zoro-gen15-adaptive-consensus' || github.ref == 'refs/heads/zoro-gen16-triple-barrier-labels' || github.ref == 'refs/heads/zoro-gen17-wilder-indicators' || github.ref == 'refs/heads/zoro-gen18-regime-specialist-audit' || github.ref == 'refs/heads/zoro-gen19-regime-calibration' || github.ref == 'refs/heads/zoro-gen20-oos-regime-ensemble' || github.ref == 'refs/heads/zoro-gen21-research-bundle-release' || github.ref == 'refs/heads/zoro-gen22-neural-uncertainty-audit' || github.ref == 'refs/heads/zoro-gen23-concept-drift-guard' || github.ref == 'refs/heads/zoro-gen24-market-structure-audit' || github.ref == 'refs/heads/zoro-gen25-live-execution-safety' || github.ref == 'refs/heads/zoro-gen26-xt-shadow-readonly' || github.ref == 'refs/heads/zoro-gen28-live-execution' || github.ref == 'refs/heads/zoro-gen29-auto-execution' || github.ref == 'refs/heads/zoro-gen30-multihorizon-truth')) }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.require_trained_bundle) || (github.event_name == 'push' && (github.ref == 'refs/heads/zoro-gen2-neural-calibration' || github.ref == 'refs/heads/zoro-gen3-walkforward-research' || github.ref == 'refs/heads/zoro-gen3-refinement' || github.ref == 'refs/heads/zoro-gen4-validation' || github.ref == 'refs/heads/zoro-gen4-validation-audit' || github.ref == 'refs/heads/zoro-gen4-holdout-hardening' || github.ref == 'refs/heads/zoro-gen4-signal-consensus' || github.ref == 'refs/heads/zoro-gen4-crypto-identity' || github.ref == 'refs/heads/zoro-gen4-neural-probability-labels' || github.ref == 'refs/heads/zoro-gen5-training-efficiency' || github.ref == 'refs/heads/zoro-gen6-dynamic-autopilot' || github.ref == 'refs/heads/zoro-gen7-risk-correlation-guards' || github.ref == 'refs/heads/zoro-gen8-execution-integrity' || github.ref == 'refs/heads/zoro-gen9-candle-integrity' || github.ref == 'refs/heads/zoro-gen14-cognitive-market-engine' || github.ref == 'refs/heads/zoro-gen15-adaptive-consensus' || github.ref == 'refs/heads/zoro-gen16-triple-barrier-labels' || github.ref == 'refs/heads/zoro-gen17-wilder-indicators' || github.ref == 'refs/heads/zoro-gen18-regime-specialist-audit' || github.ref == 'refs/heads/zoro-gen19-regime-calibration' || github.ref == 'refs/heads/zoro-gen20-oos-regime-ensemble' || github.ref == 'refs/heads/zoro-gen21-research-bundle-release' || github.ref == 'refs/heads/zoro-gen22-neural-uncertainty-audit' || github.ref == 'refs/heads/zoro-gen23-concept-drift-guard' || github.ref == 'refs/heads/zoro-gen24-market-structure-audit' || github.ref == 'refs/heads/zoro-gen25-live-execution-safety' || github.ref == 'refs/heads/zoro-gen26-xt-shadow-readonly' || github.ref == 'refs/heads/zoro-gen28-live-execution' || github.ref == 'refs/heads/zoro-gen29-auto-execution' || github.ref == 'refs/heads/zoro-gen30-multihorizon-truth' || github.ref == 'refs/heads/zoro-apex-unified-gen31')) }}
         run: |
           set -euo pipefail
           ASSETS=app/src/main/assets

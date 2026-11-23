@@ -46,6 +46,14 @@ class WolfEnsembleUncertaintyTest {
         assertTrue(result.highDisagreement)
     }
 
+    @Test fun disabledCalibrationThresholdSuppressesAllDirectionalVotes() {
+        val result = WolfEnsembleUncertainty.analyze(List(10) { 0.95 }, 1.01)
+        assertEquals(0, result.upVotes)
+        assertEquals(0, result.downVotes)
+        assertEquals(10, result.neutralVotes)
+        assertTrue(result.highDisagreement)
+    }
+
     @Test fun invalidOrIncompleteMemberSetFailsClosed() {
         assertFalse(WolfEnsembleUncertainty.analyze(List(9) { 0.8 }).available)
         assertFalse(WolfEnsembleUncertainty.analyze(List(10) { Double.NaN }).available)

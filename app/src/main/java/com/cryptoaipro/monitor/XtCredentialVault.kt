@@ -70,7 +70,7 @@ internal object XtCredentialVault {
         val encrypted = cipher.doFinal(plain.toByteArray(StandardCharsets.UTF_8))
         val packed = cipher.iv + encrypted
         val encoded = Base64.encodeToString(packed, Base64.NO_WRAP)
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(DATA, encoded).apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(DATA, encoded).putBoolean("connection_verified", false).apply()
     }
 
     @Synchronized
@@ -91,6 +91,16 @@ internal object XtCredentialVault {
     @Synchronized
     fun hasCredentials(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(DATA)
+
+    @Synchronized
+    fun isConnectionVerified(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("connection_verified", false)
+
+    @Synchronized
+    fun markConnectionVerified(context: Context, verified: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean("connection_verified", verified).apply()
+    }
 
     @Synchronized
     fun clear(context: Context) {
@@ -130,7 +140,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
             Text("اتصال امن XT Futures • حساب و مجوزها", color = ivory,
                 fontSize = 14.sp, fontWeight = FontWeight.Black)
             Text(
-                "آزمایش اتصال فقط وضعیت حساب USDT-M Futures، موجودی، Equity، مارجین آزاد و مجوزهای حساب را می‌خواند و هیچ سفارشی ارسال نمی‌کند. سفارش واقعی فقط از پنل اجرای دستی، پس از پیش‌نمایش ریسک و تأیید نهایی جداگانه قابل ارسال است.",
+                "آزمایش اتصال فقط وضعیت حساب USDT-M Futures، موجودی، Equity، مارجین آزاد و مجوزهای حساب را می‌خواند و هیچ سفارشی ارسال نمی‌کند. پس از ذخیره کلید و موفقیت این آزمون، LIVE را در پنل پایین روشن کن؛ سپس کلید معامله‌گر خودکار فعال می‌شود.",
                 color = muted, fontSize = 10.sp, lineHeight = 15.sp
             )
             OutlinedTextField(
@@ -190,9 +200,14 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                             val client = XtAuthenticatedFuturesClient(context)
                             val wallet = client.futuresWallet()
                             val account = client.accountSnapshot()
+                            XtCredentialVault.markConnectionVerified(context, account.canTrade && account.canOpenPosition)
                             accountLine = "Wallet: ${String.format(java.util.Locale.US, "%.4f", wallet.walletBalance)} USDT • Equity: ${String.format(java.util.Locale.US, "%.4f", wallet.equity)} USDT • Free margin: ${String.format(java.util.Locale.US, "%.4f", wallet.availableMargin)} USDT • Margin used: ${String.format(java.util.Locale.US, "%.4f", wallet.usedMargin)} USDT"
-                            status = "اتصال خصوصی خواندنی موفق شد. مجوز حساب برای معامله: ${if (account.canTrade) "مجاز" else "غیرفعال"} • مجوز بازکردن پوزیشن حساب: ${if (account.canOpenPosition) "مجاز" else "غیرفعال"}. این بررسی به‌هیچ‌وجه سفارش ارسال نکرد."
+                            status = if (account.canTrade && account.canOpenPosition)
+                                "اتصال خصوصی خواندنی موفق شد و مجوزهای Futures تأیید شدند. اکنون می‌توانی LIVE را روشن کنی. هیچ سفارشی ارسال نشد."
+                            else
+                                "اتصال برقرار شد، اما مجوز معامله یا بازکردن پوزیشن در XT فعال نیست؛ LIVE و خودکار مسدود ماندند."
                         } catch (error: Exception) {
+                            XtCredentialVault.markConnectionVerified(context, false)
                             accountLine = ""
                             status = "بررسی اتصال ناموفق: ${error.message ?: error.javaClass.simpleName}"
                         } finally {
@@ -249,7 +264,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 modifier = Modifier.align(Alignment.End)
             ) { Text("پاک‌کردن کلیدهای ذخیره‌شده", color = gold, fontSize = 10.sp) }
             Text(
-                "اتصال یا ذخیره کلید به‌تنهایی سفارش نمی‌فرستد. اجرای واقعی فقط با فعال‌سازی دستی LIVE و تأیید جداگانه هر سفارش انجام می‌شود؛ معامله خودکار با هر اسکن غیرفعال است.",
+                "ترتیب فعال‌سازی: ۱) ذخیره امن کلید ۲) آزمایش موفق اتصال ۳) روشن‌کردن LIVE در پنل اجرای XT ۴) روشن‌کردن معامله‌گر خودکار. ورود خودکار فقط پس از تأیید سیگنال، تازگی داده، موجودی و همه کنترل‌های ریسک مجاز است.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
             )
         }

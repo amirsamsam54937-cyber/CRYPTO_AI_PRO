@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 99
-  versionName = "2.78.0"
-  // Release 2.78.0: advanced chart technical analysis and neural-independent guarded XT live execution.
+  versionCode = 104
+  versionName = "3.0.0"
+  // Release 3.0.0: NEXUS QUANT interface and identity redesign.
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.

@@ -99,7 +99,8 @@ object ZoroAdvancedTechnicalEngine {
         val sweep = liquiditySweep(bars,highs,lows)
         val bos = breakOfStructure(last,highs,lows)
         val block = orderBlock(bars,atr)
-        val smartMoney = listOf(bos,sweep,fvg,block).filter { it.isNotBlank() && it != "مشاهده نشد" }
+        val stopPools = stopLiquidityPools(highs, lows, last, atr)
+        val smartMoney = (listOf(bos,sweep,fvg,block) + stopPools).filter { it.isNotBlank() && it != "مشاهده نشد" }
             .joinToString(" • ").ifBlank { "شواهد واضح نقدینگی/ساختار هوشمند در آخرین کندل‌ها دیده نشد" }
 
         val recentHigh = h.takeLast(120).maxOrNull() ?: last
@@ -476,6 +477,29 @@ object ZoroAdvancedTechnicalEngine {
             if(a[2]>b[1]) return "FVG نزولی احتمالی بین " + fmt(b[1]) + " و " + fmt(a[2])
         }
         return "مشاهده نشد"
+    }
+    /** Estimates clustered stop-liquidity around equal highs/lows; never claims access to hidden orders. */
+    private fun stopLiquidityPools(highs: List<Pivot>, lows: List<Pivot>, last: Double, atr: Double): List<String> {
+        val tolerance = max(atr * 0.18, last * 0.0008)
+        fun cluster(pivots: List<Pivot>, label: String, above: Boolean): String? {
+            val recent = pivots.takeLast(12)
+            if (recent.size < 2) return null
+            val candidates = recent.mapIndexedNotNull { index, pivot ->
+                val matches = recent.drop(index + 1).filter { abs(it.price - pivot.price) <= tolerance }
+                if (matches.isEmpty()) null else {
+                    val group = listOf(pivot) + matches
+                    val level = group.map { it.price }.average()
+                    if ((above && level <= last) || (!above && level >= last)) null
+                    else Triple(level, group.size, abs(level - last) / last)
+                }
+            }
+            val best = candidates.maxWithOrNull(compareBy<Triple<Double, Int, Double>> { it.second }.thenBy { -it.third }) ?: return null
+            return label + " • " + best.second + " برخورد نزدیک حوالی " + fmt(best.first) + " • فاصله " + fmt(best.third * 100.0) + "٪؛ ناحیه احتمالی، نه سفارش قطعی"
+        }
+        return listOfNotNull(
+            cluster(highs, "استخر نقدینگی خرید/Buy-side بالای سقف‌های هم‌سطح", true),
+            cluster(lows, "استخر نقدینگی فروش/Sell-side زیر کف‌های هم‌سطح", false)
+        )
     }
     private fun liquiditySweep(bars: List<DoubleArray>,highs: List<Pivot>,lows: List<Pivot>): String {
         val last=bars.last()

@@ -40,8 +40,9 @@ class XtFuturesCapitalManagerTest {
         assertFalse(decision.allowed)
     }
 
-    @Test fun refusesExcessiveLeverageAndInvalidAvailableMargin() {
-        assertFalse(XtFuturesCapitalManager.plan(wallet, fees, rules, request.copy(leverage = 10)).allowed)
+    @Test fun acceptsAdaptiveLeverageAboveThreeAndRejectsBeyondExchangeRange() {
+        assertTrue(XtFuturesCapitalManager.plan(wallet, fees, rules, request.copy(leverage = 10)).allowed)
+        assertFalse(XtFuturesCapitalManager.plan(wallet, fees, rules, request.copy(leverage = 126)).allowed)
         val corrupt = wallet.copy(availableMargin = 5000.0)
         assertFalse(XtFuturesCapitalManager.plan(corrupt, fees, rules, request).allowed)
     }
