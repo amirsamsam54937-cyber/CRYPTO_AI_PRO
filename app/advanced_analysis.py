@@ -4,6 +4,8 @@ No model is trained on future data: all values use candles supplied by caller.
 """
 from __future__ import annotations
 
+from math import gcd
+
 import numpy as np
 import pandas as pd
 
@@ -50,22 +52,46 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
     timestamp_interval_seconds = None
     timestamp_gap_count = 0
     estimated_missing_candles = 0
+    timestamp_irregular_interval_count = None
     if "timestamp" in f.columns:
         timestamps = pd.to_datetime(f["timestamp"], utc=True, errors="coerce")
         if timestamps.isna().any() or timestamps.duplicated().any() or not timestamps.is_monotonic_increasing:
             raise ValueError("Candle timestamps must be valid, unique and strictly increasing")
-        # Treat the median observed cadence as the timeframe proxy. Report gaps only;
-        # do not alter directional scoring or manufacture replacement candles.
+        # Infer cadence from integer-second intervals. Their GCD can recover the
+        # original timeframe even when missing candles are more common than intact
+        # intervals. Require repeated base intervals; otherwise use only a strongly
+        # dominant interval, and fail closed when cadence remains ambiguous.
         intervals = np.diff(timestamps.astype("int64").to_numpy(dtype=np.int64)) / 1_000_000_000.0
-        if intervals.size:
-            typical_interval = float(np.median(intervals))
-            timestamp_interval_seconds = round(typical_interval, 3)
-            gap_intervals = intervals[intervals > typical_interval * 1.5]
-            timestamp_gap_count = int(gap_intervals.size)
-            estimated_missing_candles = int(sum(
-                max(1, int(round(interval / typical_interval)) - 1)
-                for interval in gap_intervals
-            ))
+        if intervals.size and np.all(np.abs(intervals - np.rint(intervals)) <= 0.01):
+            integer_intervals = np.rint(intervals).astype(np.int64)
+            cadence = int(integer_intervals[0])
+            for interval in integer_intervals[1:]:
+                cadence = gcd(cadence, int(interval))
+
+            cadence_seconds = None
+            if cadence >= 1 and np.count_nonzero(integer_intervals == cadence) >= 2:
+                cadence_seconds = cadence
+            else:
+                values, counts = np.unique(integer_intervals, return_counts=True)
+                max_count = int(counts.max())
+                if (
+                    np.count_nonzero(counts == max_count) == 1
+                    and max_count >= max(2, int(np.ceil(0.8 * integer_intervals.size)))
+                ):
+                    cadence_seconds = int(values[int(np.argmax(counts))])
+
+            if cadence_seconds is not None:
+                timestamp_interval_seconds = float(cadence_seconds)
+                aligned = integer_intervals % cadence_seconds == 0
+                timestamp_irregular_interval_count = int((~aligned).sum())
+                gap_intervals = integer_intervals[
+                    aligned & (integer_intervals > cadence_seconds * 1.5)
+                ]
+                timestamp_gap_count = int(gap_intervals.size)
+                estimated_missing_candles = int(sum(
+                    int(interval // cadence_seconds) - 1
+                    for interval in gap_intervals
+                ))
 
     close, volume = f["close"], f["volume"]
     last = float(close.iloc[-1])
@@ -175,5 +201,6 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
         "timestamp_interval_seconds": timestamp_interval_seconds,
         "timestamp_gap_count": timestamp_gap_count,
         "estimated_missing_candles": estimated_missing_candles,
+        "timestamp_irregular_interval_count": timestamp_irregular_interval_count,
         "reasons": reasons,
     }
