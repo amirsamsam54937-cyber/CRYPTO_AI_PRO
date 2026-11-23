@@ -695,7 +695,7 @@ fun CryptoMonitorScreen() {
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text("wolfblack", color = Color(0xFFF5E7C2), fontSize = 17.sp, fontWeight = FontWeight.Black, letterSpacing = 1.1.sp)
-                            Text("WOLF TRADING TERMINAL", color = Gold, fontSize = 8.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold)
+                            Text("AI TRADING TERMINAL", color = Gold, fontSize = 8.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold)
                         }
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("wolfblack", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
