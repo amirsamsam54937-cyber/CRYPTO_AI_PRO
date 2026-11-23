@@ -10,9 +10,9 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 104
-  versionName = "3.0.0"
-  // Release 3.0.0: NEXUS QUANT interface and identity redesign.
+  versionCode = 105
+  versionName = "1.0.0"
+  // wolfblack branded Android application.
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
