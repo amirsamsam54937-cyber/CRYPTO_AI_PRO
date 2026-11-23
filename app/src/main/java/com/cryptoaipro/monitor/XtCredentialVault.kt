@@ -136,9 +136,20 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
         border = BorderStroke(1.dp, gold.copy(alpha = 0.35f)),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("اتصال امن XT Futures • حساب و مجوزها", color = ivory,
-                fontSize = 14.sp, fontWeight = FontWeight.Black)
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("ZORO • XT FUTURES", color = gold, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                    Text("مرکز اتصال و اجرای معاملات", color = ivory,
+                        fontSize = 17.sp, fontWeight = FontWeight.Black)
+                }
+                Surface(color = Color(0xFF263C32), shape = RoundedCornerShape(50)) {
+                    Text("USDT-M", color = Color(0xFF73E0B6), fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp))
+                }
+            }
+            Text("اتصال امن حساب و مجوزها", color = ivory,
+                fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text(
                 "آزمایش اتصال فقط وضعیت حساب USDT-M Futures، موجودی، Equity، مارجین آزاد و مجوزهای حساب را می‌خواند و هیچ سفارشی ارسال نمی‌کند. پس از ذخیره کلید و موفقیت این آزمون، LIVE را در پنل پایین روشن کن؛ سپس کلید معامله‌گر خودکار فعال می‌شود.",
                 color = muted, fontSize = 10.sp, lineHeight = 15.sp
@@ -218,8 +229,21 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 enabled = !busy && XtCredentialVault.hasCredentials(context),
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (busy) "در حال بررسی..." else "آزمایش اتصال و مجوزهای XT") }
-            if (accountLine.isNotBlank()) Text(accountLine, color = ivory, fontSize = 10.sp)
-            Text(status, color = gold, fontSize = 9.sp, lineHeight = 14.sp)
+            if (accountLine.isNotBlank()) {
+                Surface(color = Color(0xFF18231F), shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Color(0xFF39745E))) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Text("وضعیت حساب متصل", color = Color(0xFF73E0B6),
+                            fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(accountLine, color = ivory, fontSize = 10.sp, lineHeight = 16.sp)
+                    }
+                }
+            }
+            Surface(color = Color(0xFF201B12), shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, gold.copy(alpha = 0.35f))) {
+                Text(status, color = gold, fontSize = 10.sp, lineHeight = 16.sp,
+                    modifier = Modifier.fillMaxWidth().padding(12.dp))
+            }
             Text(
                 XtExecutionPolicy.label(
                     XtExecutionPolicy.State(
@@ -249,12 +273,19 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 color = if (autoReady) Green else gold,
                 fontSize = 10.sp, lineHeight = 15.sp
             )
-            Text(
-                "اعتبارسنجی شبکه عصبی: " + if (neuralStatus.validatedForScoring) "تأییدشده" else "تأییدنشده • فقط پژوهشی" +
-                    " | LIVE: " + if (liveReady) "روشن" else "خاموش" +
-                    " | خودکار: " + if (autoReady) "مسلح" else "خاموش",
-                color = muted, fontSize = 9.sp, lineHeight = 14.sp
-            )
+            Surface(color = Color(0xFF171717), shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, Color(0xFF34302A))) {
+                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("دروازه‌های ایمنی معامله", color = ivory, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("شبکه عصبی: " + (if (neuralStatus.validatedForScoring) "اعتبارسنجی‌شده" else "فقط پژوهشی / تأییدنشده"),
+                        color = if (neuralStatus.validatedForScoring) Green else gold, fontSize = 10.sp)
+                    Text("LIVE: " + (if (liveReady) "روشن" else "خاموش") +
+                        "     •     خودکار: " + (if (autoReady) "مسلح" else "خاموش"),
+                        color = muted, fontSize = 10.sp)
+                    Text("حداکثر ۲ پوزیشن هم‌زمان • حداکثر ۳ ورود روزانه • توقف زیان روزانه ۲٪ • افت سرمایه ۸٪",
+                        color = muted, fontSize = 9.sp, lineHeight = 14.sp)
+                }
+            }
             Text(
                 "مدیریت سرمایه ZORO موجودی آزاد را مبنای تخصیص می‌گیرد، نه کل Wallet. نرخ پایه محافظه‌کارانه کارمزد Futures برابر Maker=0.04% و Taker=0.06% است؛ نرخ واقعی VIP باید با کارمزد ثبت‌شده هر Fill تطبیق داده شود. مجوز Futures Trade برای سفارش‌گذاری لازم است؛ Withdrawal باید خاموش بماند و IP whitelist فعال باشد.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
