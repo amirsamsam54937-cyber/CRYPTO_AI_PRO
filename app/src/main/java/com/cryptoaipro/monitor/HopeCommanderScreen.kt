@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -33,16 +35,16 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.max
 import kotlin.math.min
 
-private val HGold = Color(0xFF24E6D3)
-private val HGoldBright = Color(0xFFE9FBFF)
-private val HInk = Color(0xFF07111F)
-private val HPanel = Color(0xFF102033)
-private val HPanel2 = Color(0xFF172D43)
-private val HMint = Color(0xFFB5F36B)
-private val HRed = Color(0xFFFF647C)
-private val HMuted = Color(0xFF91A9BD)
-private val HBlue = Color(0xFF24E6D3)
-private val HPurple = Color(0xFF9B8CFF)
+private val HGold = Color(0xFFE0B84F)
+private val HGoldBright = Color(0xFFFFE7A6)
+private val HInk = Color(0xFF050505)
+private val HPanel = Color(0xFF101010)
+private val HPanel2 = Color(0xFF17130A)
+private val HMint = Color(0xFF20D66B)
+private val HRed = Color(0xFFFF465A)
+private val HMuted = Color(0xFFB2A58B)
+private val HBlue = Color(0xFFD6A93E)
+private val HPurple = Color(0xFFB78A38)
 
 @Composable
 fun HopeCommanderBrain(modifier: Modifier = Modifier) {
@@ -138,18 +140,22 @@ internal fun HopeCommanderScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(42.dp).background(Brush.linearGradient(listOf(Color(0xFF12364A), HInk)), CircleShape)
-                    .border(1.dp, HGold, CircleShape), contentAlignment = Alignment.Center) {
-                    HopeCommanderBrain(Modifier.size(38.dp))
-                }
-                Spacer(Modifier.width(9.dp))
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("NEXUS", color = HGoldBright, fontSize = 17.sp, fontWeight = FontWeight.Black, letterSpacing = 1.1.sp)
-                    Text("هوش معاملاتی و تحلیل بازار در لحظه", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth().background(
+                Brush.horizontalGradient(listOf(Color(0xFF090806), Color(0xFF171109), Color(0xFF080706))),
+                RoundedCornerShape(18.dp)
+            ).border(1.dp, HGold.copy(alpha = .82f), RoundedCornerShape(18.dp)).padding(11.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Image(painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
+                    contentDescription = "wolfblack wolf crest",
+                    modifier = Modifier.size(58.dp))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("wolfblack", color = HGoldBright, fontSize = 22.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
+                    Text("AI TRADING TERMINAL", color = HGold, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                    Text("مغز تحلیل و اجرای معاملات XT", color = Color.White, fontSize = 10.sp)
                 }
                 IconButton(onClick = onOpenSettings) { Icon(Icons.Outlined.Settings, "تنظیمات", tint = HGold) }
-                Icon(Icons.Outlined.Notifications, contentDescription = "اعلان‌ها", tint = HGoldBright, modifier = Modifier.padding(8.dp))
+                Icon(Icons.Outlined.Notifications, contentDescription = "اعلان‌ها", tint = HGoldBright, modifier = Modifier.padding(7.dp))
             }
         }
         item {
@@ -192,7 +198,7 @@ internal fun HopeCommanderScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("فرمانده مرکزی سیستم", color = HMuted, fontSize = 10.sp)
-                        Text("NEXUS CORE", color = HGoldBright, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                        Text("wolfblack", color = HGoldBright, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                         Text("مغز یکپارچهٔ تحلیل و تصمیم‌گیری", color = Color.White, fontSize = 10.sp)
                         Surface(color = Color(0xFF18352E), shape = RoundedCornerShape(30.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, HMint.copy(alpha = glow))) {
@@ -268,7 +274,7 @@ internal fun HopeCommanderScreen(
                     }
                     Text("راهنمای تحلیل", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     ta.education.forEach { Text("• " + it, color = HMuted, fontSize = 8.sp, lineHeight = 12.sp) }
-                    Text("امتیاز این بخش شاخص قدرت شواهد است، نه احتمال برد. اصطلاح کوانتومی در NEXUS QUANT به سناریوسازی چندحالته اشاره دارد؛ ادعای استفاده از سخت‌افزار کوانتومی نمی‌شود.",
+                    Text("امتیاز این بخش شاخص قدرت شواهد است، نه احتمال برد. اصطلاح کوانتومی در wolfblack به سناریوسازی چندحالته اشاره دارد؛ ادعای استفاده از سخت‌افزار کوانتومی نمی‌شود.",
                         color = HMuted, fontSize = 8.sp, lineHeight = 12.sp)
                 }
             }
@@ -456,7 +462,7 @@ internal fun HopeCommanderScreen(
             }
         }
         item {
-            Text("NEXUS QUANT • تحلیل فرمانده و خودکارسازی آزمایشی پویا • اجرای واقعی قفل است",
+            Text("wolfblack • تحلیل فرمانده و خودکارسازی آزمایشی پویا • اجرای واقعی قفل است",
                 color = HMuted, fontSize = 8.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
