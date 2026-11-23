@@ -2148,7 +2148,7 @@ private fun ZoroNativeSignalChart(signal: MarketSignal, interval: String) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(signal.symbol, color = Color(0xFFF4E7C8), fontSize = 15.sp, fontWeight = FontWeight.Black)
-                    Text("نمودار اختصاصی ZORO • $timeframeKey", color = Muted, fontSize = 9.sp)
+                    Text("نمودار اختصاصی wolfblack • $timeframeKey", color = Muted, fontSize = 9.sp)
                 }
                 Text(if (signal.direction == "LONG_BIAS") "صعودی" else "نزولی",
                     color = if (signal.direction == "LONG_BIAS") Green else Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
