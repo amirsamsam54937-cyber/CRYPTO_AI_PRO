@@ -25,8 +25,8 @@ import kotlin.math.max
 /** Persistent simulated execution engine. It has no exchange account or order API access. */
 internal object HopePaperTradingEngine {
     private const val PREFS = "hope_paper_ledger"
-    private const val KEY = "ledger_v1"
-    private const val STARTING_EQUITY = 1000.0
+    internal const val LEDGER_KEY = "ledger_v2_start10"
+    internal const val STARTING_EQUITY_USDT = 10.0
     private const val FEE_PER_SIDE = 0.0006
     private const val SLIPPAGE_PER_SIDE = 0.0005
     private const val ESTIMATED_FUNDING_PER_8H = 0.0001
@@ -53,11 +53,11 @@ internal object HopePaperTradingEngine {
     @Synchronized
     fun processScan(context: Context, signals: List<MarketSignal>): Snapshot {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val root = runCatching { JSONObject(prefs.getString(KEY, null) ?: "{}") }.getOrDefault(JSONObject())
+        val root = runCatching { JSONObject(prefs.getString(LEDGER_KEY, null) ?: "{}") }.getOrDefault(JSONObject())
         val now = System.currentTimeMillis()
         val day = now / 86_400_000L
-        val equity = root.optDouble("equity", STARTING_EQUITY).takeIf { it.isFinite() && it > 0.0 } ?: STARTING_EQUITY
-        var peakEquity = root.optDouble("peakEquity", STARTING_EQUITY).takeIf { it.isFinite() && it > 0.0 } ?: STARTING_EQUITY
+        val equity = root.optDouble("equity", STARTING_EQUITY_USDT).takeIf { it.isFinite() && it > 0.0 } ?: STARTING_EQUITY_USDT
+        var peakEquity = root.optDouble("peakEquity", STARTING_EQUITY_USDT).takeIf { it.isFinite() && it > 0.0 } ?: STARTING_EQUITY_USDT
         var dailyStart = root.optDouble("dailyStartEquity", equity)
         var dailyDay = root.optLong("dailyDay", day)
         var dailyPnl = root.optDouble("dailyPnl", 0.0)
@@ -165,7 +165,7 @@ internal object HopePaperTradingEngine {
             return gross - fees - funding
         }
         val floatingPnl = survivors.sumOf { unrealizedNet(it) }
-        val currentEquity = max(0.0, STARTING_EQUITY + realized + floatingPnl)
+        val currentEquity = max(0.0, STARTING_EQUITY_USDT + realized + floatingPnl)
         val dailyLossPct = if (dailyStart > 0.0) max(0.0, -(dailyPnl + floatingPnl) / dailyStart * 100.0) else 100.0
         peakEquity = max(peakEquity, currentEquity)
         val peakDrawdownPct = if (peakEquity > 0.0) max(0.0, (peakEquity - currentEquity) / peakEquity * 100.0) else 100.0
@@ -258,7 +258,7 @@ internal object HopePaperTradingEngine {
         }
 
         val updatedFloatingPnl = survivors.sumOf { unrealizedNet(it) }
-        val updatedEquity = max(0.0, STARTING_EQUITY + realized + updatedFloatingPnl)
+        val updatedEquity = max(0.0, STARTING_EQUITY_USDT + realized + updatedFloatingPnl)
         val updatedDailyLossPct = if (dailyStart > 0.0) max(0.0, -(dailyPnl + updatedFloatingPnl) / dailyStart * 100.0) else 100.0
         val updatedOpenRiskPct = if (updatedEquity > 0.0) survivors.sumOf { it.riskUsdt } / updatedEquity * 100.0 else 100.0
         val out = JSONObject().apply {
@@ -279,8 +279,8 @@ internal object HopePaperTradingEngine {
                 })
             } })
         }
-        prefs.edit().putString(KEY, out.toString()).apply()
-        return Snapshot(updatedEquity, STARTING_EQUITY, realized, dailyPnl, updatedDailyLossPct,
+        prefs.edit().putString(LEDGER_KEY, out.toString()).apply()
+        return Snapshot(updatedEquity, STARTING_EQUITY_USDT, realized, dailyPnl, updatedDailyLossPct,
             updatedOpenRiskPct, closed, wins, losses, survivors, lastAction)
     }
 
@@ -337,7 +337,7 @@ internal object HopePaperTradingEngine {
 
     fun snapshot(context: Context): Snapshot {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val root = runCatching { JSONObject(prefs.getString(KEY, null) ?: "{}") }.getOrDefault(JSONObject())
+        val root = runCatching { JSONObject(prefs.getString(LEDGER_KEY, null) ?: "{}") }.getOrDefault(JSONObject())
         val array = root.optJSONArray("positions") ?: JSONArray()
         val positions = (0 until array.length()).mapNotNull { i ->
             val p = array.optJSONObject(i) ?: return@mapNotNull null
@@ -346,10 +346,10 @@ internal object HopePaperTradingEngine {
                 p.getLong("openedAt"), p.optDouble("mark", p.getDouble("entry")), p.optDouble("riskUsdt"),
                 p.optDouble("notionalUsdt"), p.optDouble("initialRiskDistance", abs(p.getDouble("entry") - p.getDouble("stop")))) }.getOrNull()
         }
-        val equity = root.optDouble("equity", STARTING_EQUITY)
+        val equity = root.optDouble("equity", STARTING_EQUITY_USDT)
         val dailyStart = root.optDouble("dailyStartEquity", equity)
         val dailyPnl = root.optDouble("dailyPnl", 0.0)
-        return Snapshot(equity, STARTING_EQUITY, root.optDouble("realizedPnl", 0.0), dailyPnl,
+        return Snapshot(equity, STARTING_EQUITY_USDT, root.optDouble("realizedPnl", 0.0), dailyPnl,
             if (dailyStart > 0) max(0.0, -dailyPnl / dailyStart * 100.0) else 100.0,
             if (equity > 0) positions.sumOf { it.riskUsdt } / equity * 100.0 else 100.0,
             root.optInt("closedTrades"), root.optInt("wins"), root.optInt("losses"), positions,

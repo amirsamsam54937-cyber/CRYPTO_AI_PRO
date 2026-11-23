@@ -163,7 +163,7 @@ object PaperTradingEngine {
     }
 
     @Synchronized
-    fun snapshot(context: Context, fallback: Double = 1000.0): Snapshot {
+    fun snapshot(context: Context, fallback: Double = 10.0): Snapshot {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val equity = p.getString("equity", null)?.toDoubleOrNull() ?: fallback
         val initial = p.getString("initial", null)?.toDoubleOrNull() ?: fallback

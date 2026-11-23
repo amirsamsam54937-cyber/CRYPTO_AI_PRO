@@ -5,6 +5,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PaperOutcomeEconomicsTest {
+    @Test fun paperAutopilotStartsWithTenUsdtOnAFreshLedger() {
+        assertEquals(10.0, HopePaperTradingEngine.STARTING_EQUITY_USDT, 0.0)
+        assertEquals("ledger_v2_start10", HopePaperTradingEngine.LEDGER_KEY)
+    }
+
     @Test fun roundTripCostsAreChargedBeforeLeverage() {
         val net = PaperOutcomeEconomics.netMarginPercent(0.50, 2, 60L * 60L * 1000L)
         assertEquals(0.5575, net, 1e-6)

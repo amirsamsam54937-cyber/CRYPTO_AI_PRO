@@ -135,7 +135,7 @@ internal fun PaperTradingSafetyPanel(context: Context, prefs: android.content.Sh
                 )
             }
             Text(
-                "پس از تأیید شما، شبیه‌ساز با ۱۰۰۰ تتر مجازی و داده زنده بازار XT آغاز می‌شود. هیچ سفارش واقعی به صرافی ارسال نمی‌شود و سرمایه واقعی درگیر نیست.",
+                "پس از تأیید شما، شبیه‌ساز با ۱۰ تتر مجازی و داده زنده بازار XT آغاز می‌شود. هیچ سفارش واقعی به صرافی ارسال نمی‌شود و سرمایه واقعی درگیر نیست.",
                 color = ivory, fontSize = 10.sp, lineHeight = 16.sp
             )
             Divider(color = gold.copy(alpha = 0.22f))
