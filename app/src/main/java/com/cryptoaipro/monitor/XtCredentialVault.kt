@@ -229,6 +229,32 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 ),
                 color = gold, fontSize = 10.sp, fontWeight = FontWeight.Bold
             )
+            val neuralStatus = WolfPretrainedEnsemble.status()
+            val liveReady = XtLiveTradingEngine.isEnabled(context)
+            val autoReady = XtLiveTradingEngine.isAutoEnabled(context)
+            val readiness = when {
+                !XtCredentialVault.hasCredentials(context) -> "مسدود: کلید API هنوز ذخیره نشده است."
+                !XtCredentialVault.isConnectionVerified(context) -> "مسدود: اتصال خصوصی و مجوزهای Futures هنوز تأیید نشده‌اند."
+                !neuralStatus.validatedForScoring -> "مسدود: مدل عصبی هنوز اعتبارسنجی مستقل لازم برای امتیازدهی زنده را نگرفته است."
+                !liveReady -> "آماده‌سازی ناقص: اتصال تأیید شده، اما LIVE عمداً خاموش است."
+                !autoReady -> "LIVE فعال است؛ معامله‌گر خودکار هنوز مسلح نیست."
+                else -> "دروازه‌های اولیه فعال‌اند؛ پیش‌بررسی هر سفارش و حفاظت صرافی همچنان اجباری است."
+            }
+            Text(
+                "آمادگی معامله واقعی",
+                color = ivory, fontSize = 12.sp, fontWeight = FontWeight.Bold
+            )
+            Text(
+                readiness,
+                color = if (autoReady) Green else gold,
+                fontSize = 10.sp, lineHeight = 15.sp
+            )
+            Text(
+                "اعتبارسنجی شبکه عصبی: " + if (neuralStatus.validatedForScoring) "تأییدشده" else "تأییدنشده • فقط پژوهشی" +
+                    " | LIVE: " + if (liveReady) "روشن" else "خاموش" +
+                    " | خودکار: " + if (autoReady) "مسلح" else "خاموش",
+                color = muted, fontSize = 9.sp, lineHeight = 14.sp
+            )
             Text(
                 "مدیریت سرمایه ZORO موجودی آزاد را مبنای تخصیص می‌گیرد، نه کل Wallet. نرخ پایه محافظه‌کارانه کارمزد Futures برابر Maker=0.04% و Taker=0.06% است؛ نرخ واقعی VIP باید با کارمزد ثبت‌شده هر Fill تطبیق داده شود. مجوز Futures Trade برای سفارش‌گذاری لازم است؛ Withdrawal باید خاموش بماند و IP whitelist فعال باشد.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
