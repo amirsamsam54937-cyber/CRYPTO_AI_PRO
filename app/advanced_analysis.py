@@ -53,6 +53,7 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
     timestamp_gap_count = 0
     estimated_missing_candles = 0
     timestamp_irregular_interval_count = None
+    timestamp_cadence_method = None
     if "timestamp" in f.columns:
         timestamps = pd.to_datetime(f["timestamp"], utc=True, errors="coerce")
         if timestamps.isna().any() or timestamps.duplicated().any() or not timestamps.is_monotonic_increasing:
@@ -71,6 +72,7 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
             cadence_seconds = None
             if cadence >= 1 and np.count_nonzero(integer_intervals == cadence) >= 2:
                 cadence_seconds = cadence
+                timestamp_cadence_method = "gcd"
             else:
                 values, counts = np.unique(integer_intervals, return_counts=True)
                 max_count = int(counts.max())
@@ -79,6 +81,7 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
                     and max_count >= max(2, int(np.ceil(0.8 * integer_intervals.size)))
                 ):
                     cadence_seconds = int(values[int(np.argmax(counts))])
+                    timestamp_cadence_method = "dominant_interval"
 
             if cadence_seconds is not None:
                 timestamp_interval_seconds = float(cadence_seconds)
@@ -202,5 +205,6 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
         "timestamp_gap_count": timestamp_gap_count,
         "estimated_missing_candles": estimated_missing_candles,
         "timestamp_irregular_interval_count": timestamp_irregular_interval_count,
+        "timestamp_cadence_method": timestamp_cadence_method,
         "reasons": reasons,
     }
