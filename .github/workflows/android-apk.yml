@@ -1,9 +1,9 @@
-name: Build NEXUS QUANT APK
+name: Build wolfblack APK
 permissions:
   contents: read
   actions: read
 concurrency:
-  group: hope-hunter-apk-${{ github.ref }}
+  group: wolfblack-apk-${{ github.ref }}
   cancel-in-progress: true
 on:
   workflow_dispatch:
@@ -335,7 +335,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ZORO-2.77.0-build-diagnostics
+          name: wolfblack-1.0.0-build-diagnostics
           path: |
             build.log
             apk-metadata.txt
@@ -344,7 +344,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZORO-2.77.0-APK
+          name: wolfblack-1.0.0-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
