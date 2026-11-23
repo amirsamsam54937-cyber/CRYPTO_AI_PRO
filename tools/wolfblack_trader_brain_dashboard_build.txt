@@ -1,0 +1,1 @@
+Build wolfblack with obsidian/gold commander redesign, native black wolf crest, human-style OHLCV chart reader scenarios, and visible XT live position/profit-lock panel. Source dashboard commit d93060d97201caa8f841fb55f6a0c98ab8c37114.
