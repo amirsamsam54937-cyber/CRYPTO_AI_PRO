@@ -389,6 +389,40 @@ internal fun HopeCommanderScreen(
             }
         }
         item {
+            val humanRead = remember(best?.symbol, best?.candles?.size, best?.price) {
+                best?.let { ZoroHumanMarketReader.analyze(it.candles) }
+            }
+            HPanelCard(Modifier.fillMaxWidth(), "خوانش رفتاری چارت • تحلیل ساختار مثل تریدر") {
+                if (humanRead == null || !humanRead.available) {
+                    Text(humanRead?.warnings?.firstOrNull() ?: "برای خوانش رفتار قیمت حداقل ۸۰ کندل معتبر لازم است.",
+                        color = HMuted, fontSize = 9.sp, lineHeight = 13.sp)
+                } else {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(humanRead.phase, color = HGoldBright, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("شاخص شواهد ${humanRead.score}/100",
+                            color = if (humanRead.score > 15) HMint else if (humanRead.score < -15) HRed else HGold,
+                            fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Text("ساختار سوئینگ: ${humanRead.structure}", color = Color.White, fontSize = 9.sp, lineHeight = 13.sp)
+                    Text("حراج و پذیرش قیمت: ${humanRead.auction}", color = HMuted, fontSize = 9.sp, lineHeight = 13.sp)
+                    Text("جریان حجم: ${humanRead.flow}", color = HMuted, fontSize = 9.sp, lineHeight = 13.sp)
+                    Text("الگوهای مشاهده‌شده: ${humanRead.patterns.take(8).joinToString(" • ").ifBlank { "الگوی معتبر کافی نیست" }}",
+                        color = HGoldBright, fontSize = 9.sp, lineHeight = 13.sp)
+                    Divider(color = Color(0xFF46371D))
+                    Text("سناریوی صعودی", color = HMint, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Text(humanRead.bullishScenario, color = Color.White, fontSize = 9.sp, lineHeight = 13.sp)
+                    Text("سناریوی نزولی", color = HRed, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Text(humanRead.bearishScenario, color = Color.White, fontSize = 9.sp, lineHeight = 13.sp)
+                    if (humanRead.warnings.isNotEmpty()) {
+                        Text("احتیاط: ${humanRead.warnings.take(3).joinToString(" • ")}",
+                            color = HGold, fontSize = 8.sp, lineHeight = 12.sp)
+                    }
+                    Text("خوانش از توالی OHLCV و رفتار قیمت انجام می‌شود؛ دلتا و استخر نقدینگی در صورت نبود داده صرافی، تخمینی‌اند.",
+                        color = HMuted, fontSize = 8.sp, lineHeight = 12.sp)
+                }
+            }
+        }
+        item {
             HPanelCard(Modifier.fillMaxWidth(), "پیش‌بینی چندافقی • Truth Engine") {
                 val outlook = best?.multiHorizonOutlook
                 if (outlook == null || !outlook.available) {
