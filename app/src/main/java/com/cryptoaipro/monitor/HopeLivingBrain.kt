@@ -191,9 +191,11 @@ internal object HopeLivingBrain {
 @Composable
 internal fun HopeLivingBrainPanel(context: Context, onIntervalChanged: (Int) -> Unit = {}) {
     var status by remember { mutableStateOf(HopeLivingBrain.status(context)) }
+    var mind by remember { mutableStateOf(NexusAutonomousMind.status(context)) }
     LaunchedEffect(context) {
         while (true) {
             status = HopeLivingBrain.status(context)
+            mind = NexusAutonomousMind.status(context)
             delay(5000)
         }
     }
@@ -206,9 +208,37 @@ internal fun HopeLivingBrainPanel(context: Context, onIntervalChanged: (Int) -> 
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("مغز زنده HOPE HUNTER", color = Color.White, fontSize = 14.sp)
+            Text("NEXUS • ذهن خودبازبین", color = Color.White, fontSize = 14.sp)
             Text("وضعیت: ${status.mode}", color = gold, fontSize = 11.sp)
             Text("مدیریت شبکه عصبی: ${status.neuralManagement}", color = if (status.neuralReady) Color(0xFF73D6A0) else gold, fontSize = 10.sp, lineHeight = 14.sp)
+            Surface(
+                color = Color(0xFF17251F),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color(0xFF73D6A0).copy(alpha = 0.35f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("NEXUS AUTONOMOUS MIND • چرخه تفکر مستقل", color = Color(0xFFB5F36B), fontSize = 11.sp)
+                    Text("فاز ذهنی: ${mind.phase} • چرخه: ${mind.cycles}", color = Color.White, fontSize = 10.sp)
+                    Text(mind.awareness, color = Color(0xFFE3E9E5), fontSize = 10.sp, lineHeight = 14.sp)
+                    Text(mind.currentHypothesis, color = Color(0xFFB5F36B), fontSize = 9.sp, lineHeight = 13.sp)
+                    Text("هدف بعدی: ${mind.nextGoal}", color = Color(0xFFE3E9E5), fontSize = 9.sp, lineHeight = 13.sp)
+                    Text("حافظه اپیزودیک: ${mind.memoryCount} چرخه ثبت‌شده", color = muted, fontSize = 9.sp)
+                    Text("نقد خودکار شواهد: ${mind.selfCritique}", color = Color(0xFFE3E9E5), fontSize = 9.sp, lineHeight = 13.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("شواهد معتبر: ${mind.evidenceCount}", color = muted, fontSize = 9.sp)
+                        Text("نتایج بسته‌شده: ${mind.closedOutcomes}", color = muted, fontSize = 9.sp)
+                        Text("نرخ برد خالص: ${mind.netWinRate}٪", color = muted, fontSize = 9.sp)
+                    }
+                    Text(
+                        "میانگین بازده خالص: ${String.format(java.util.Locale.US, "%.3f", mind.meanNetPnlPct)}٪ • مدل: " +
+                            if (mind.modelValidated) "اعتبارسنجی‌شده" else "پژوهشی / مسدود",
+                        color = if (mind.modelValidated) Color(0xFF73D6A0) else gold,
+                        fontSize = 9.sp
+                    )
+                    Text("این چرخه فرضیه می‌سازد و خودش را نقد می‌کند؛ مجوز معامله یا تغییر سقف ریسک را صادر نمی‌کند.", color = muted, fontSize = 8.sp, lineHeight = 12.sp)
+                }
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("چرخه‌های نظارت: ${status.cycles}", color = muted, fontSize = 10.sp)
                 Text("نمونه‌های یادگرفته‌شده: ${status.learnedSamples}", color = muted, fontSize = 10.sp)

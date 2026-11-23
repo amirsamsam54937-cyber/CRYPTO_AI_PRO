@@ -51,12 +51,13 @@ class ZoroSignalIntelligenceTest {
         assertTrue(result.reason.contains("ارزیابی کیفیت ZORO"))
     }
 
-    @Test fun neuralDisagreementReducesConfidenceButNeverChangesDirection() {
+    @Test fun unvalidatedNeuralDisagreementIsAdvisoryAndNeverChangesTradeConfidence() {
         val input = signal(neuralDirection = "SHORT_BIAS")
         val result = ZoroSignalIntelligence.enrich(listOf(input)).single()
         assertEquals(input.direction, result.direction)
-        assertTrue(result.confidence < input.confidence)
-        assertTrue(result.reason.contains("تعارض نظر شبکه عصبی"))
+        assertEquals(input.confidence, result.confidence)
+        assertTrue(result.reason.contains("مستقل اعتبارسنجی نشده"))
+        assertTrue(!result.reason.contains("تعارض نظر شبکه عصبی اعتبارسنجی‌شده"))
     }
 
     @Test fun invalidRiskRewardCannotIncreaseConfidence() {

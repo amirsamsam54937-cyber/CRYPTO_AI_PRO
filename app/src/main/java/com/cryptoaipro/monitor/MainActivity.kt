@@ -81,15 +81,15 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
-// ZORO visual system: cinematic black, silver and crimson.
-private val Navy = Color(0xFF050505)
-private val Panel = Color(0xFF111111)
-private val Muted = Color(0xFFB8B0A0)
-private val Green = Color(0xFF20D477)
-private val Red = Color(0xFFFF4655)
-private val Blue = Color(0xFFE8B85B)
-private val Purple = Color(0xFFB88635)
-private val Gold = Color(0xFFFFD45A)
+// ZORO APEX visual system: obsidian graphite, champagne metal and emerald signal accents.
+private val Navy = Color(0xFF090B0D)
+private val Panel = Color(0xFF171C1F)
+private val Muted = Color(0xFF9BA7A8)
+private val Green = Color(0xFF9BE3A6)
+private val Red = Color(0xFFFF6878)
+private val Blue = Color(0xFF54D8C2)
+private val Purple = Color(0xFFC8A96B)
+private val Gold = Color(0xFFD8B878)
 
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
@@ -100,6 +100,9 @@ data class MarketSignal(
     val consensus: WolfConsensus? = null,
     val neuralScore: Int = 50,
     val timeframeCoverage: String = "15m / 1h / 4h",
+    val timeframeAnalysis: List<ZoroTimeframeAnalysisEngine.Frame> = emptyList(),
+    val timeframeCandles: Map<String, List<DoubleArray>> = emptyMap(),
+    val scenarioCandles: List<DoubleArray> = emptyList(),
     val neuralDirection: String = "NEUTRAL",
     val neuralModelSource: String = "در انتظار مدل",
     val technicalDirection: String = "NEUTRAL",
@@ -113,13 +116,21 @@ data class MarketSignal(
     val neuralMemberVotes: List<String> = emptyList(),
     val neuralMemberProbabilities: List<Double> = emptyList(),
     val neuralUncertainty: WolfEnsembleUncertainty.Summary = WolfEnsembleUncertainty.analyze(emptyList()),
+    val neuralOutOfDistribution: Boolean = true,
+    val neuralInputDistance: Double = Double.POSITIVE_INFINITY,
+    val neuralDecisionThreshold: Double = 1.01,
+    val deepNeuralSuccessProbability: Double? = null,
+    val deepNeuralReviewedSamples: Int = 0,
     // Internal XT microstructure features; deliberately not rendered in any UI or notification.
     val hiddenFlowScore: Int = 0,
     val hiddenFlowFresh: Boolean = false,
     // Scenario evidence scores for 1h/4h/6h/24h; never a calibrated win probability.
     val multiHorizonOutlook: ZoroMultiHorizonEngine.Outlook? = null,
     // Full OHLCV chart interpretation: indicators, patterns, structure and liquidity concepts.
-    val advancedTechnical: ZoroAdvancedTechnicalEngine.Report? = null
+    val advancedTechnical: ZoroAdvancedTechnicalEngine.Report? = null,
+    // Human-style chart reading from OHLCV structure/auction/volume context; not image vision.
+    val humanChartReadout: ZoroHumanMarketReader.Readout? = null,
+    val cognitiveRiskMultiplier: Double = 1.0
 )
 
 data class TechnicalSnapshot(
@@ -147,28 +158,31 @@ data class TechnicalSnapshot(
 
 internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal>): List<MarketSignal> {
     // The ten-expert model reads completed 1h OHLCV candles plus chart-derived technical features.
-    // Until strict chronological holdout validation passes, neural outputs remain visible as
-    // research context only; the commander uses independent technical evidence for direction.
+    // The neural ensemble owns direction; until strict holdout validation passes it remains research-only and all live entries are blocked.
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
-    // Historical 6h outcomes calibrate member influence only after a minimum sample count.
-    val adaptiveMemberWeights = WolfNeuralForecastJournal.adaptiveMemberWeights(context)
+    // Member-level outcomes are tracked for diagnostics; weights stay equal until separately calibrated.
     return signals.map { signal ->
         val candidate = when {
             signal.direction != "NEUTRAL" -> signal
             signal.score > 0 -> signal.copy(direction = "LONG_BIAS")
             signal.score < 0 -> signal.copy(direction = "SHORT_BIAS")
-            else -> null
+            else -> signal.copy(direction = "LONG_BIAS")
         }
         if (candidate == null) signal.copy(neuralScore = 50, neuralDirection = "NEUTRAL",
             neuralModelSource = if (pretrainedStatus.validatedForScoring) "۱۰ مدل • چارت ۱ساعته OHLCV + اندیکاتورها • افق ۶ساعت • معتبر" else "۱۰ مدل • در انتظار اعتبارسنجی")
         else {
             // Always expose all ten chart-conditioned specialist outputs. Unvalidated outputs
             // are advisory-only and have zero directional-score influence until strict validation.
-            val research = WolfPretrainedEnsemble.predictResearch(candidate, adaptiveMemberWeights)
-            val uncertainty = WolfEnsembleUncertainty.analyze(research?.memberProbabilities.orEmpty())
+            val research = WolfPretrainedEnsemble.predictResearch(candidate)
+            val decisionThreshold = research?.decisionThreshold ?: pretrainedStatus.decisionThreshold
+            val uncertainty = WolfEnsembleUncertainty.analyze(research?.memberProbabilities.orEmpty(), decisionThreshold)
             val memberVotes = research?.let { prediction ->
                 prediction.memberProbabilities.mapIndexed { index, p ->
-                    val side = when { p >= 0.55 -> "LONG_BIAS"; p <= 0.45 -> "SHORT_BIAS"; else -> "NEUTRAL" }
+                    val side = when {
+                        prediction.decisionThreshold <= 1.0 && p >= prediction.decisionThreshold -> "LONG_BIAS"
+                        prediction.decisionThreshold <= 1.0 && p <= 1.0 - prediction.decisionThreshold -> "SHORT_BIAS"
+                        else -> "NEUTRAL"
+                    }
                     val label = when (side) { "LONG_BIAS" -> "LONG"; "SHORT_BIAS" -> "SHORT"; else -> "خنثی" }
                     "شبکه ${index + 1}: $label ${(maxOf(p,1.0-p)*100.0).toInt()}٪"
                 }
@@ -190,7 +204,10 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     neuralModelSource = "۱۰ شبکه عصبی • تحلیل کندل‌های بسته ۱ساعته و اندیکاتورهای چارت • افق ۶ساعت • آزمایشی تا اعتبارسنجی",
                     neuralMemberVotes = memberVotes,
                     neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
-                    neuralUncertainty = uncertainty
+                    neuralUncertainty = uncertainty,
+                    neuralOutOfDistribution = research?.outOfDistribution ?: true,
+                    neuralInputDistance = research?.inputDistance ?: Double.POSITIVE_INFINITY,
+                    neuralDecisionThreshold = decisionThreshold
                 )
             } else {
                 val probability = research?.upProbability
@@ -201,7 +218,10 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                         neuralModelSource = "مدل معتبر در دسترس نیست",
                         neuralMemberVotes = memberVotes,
                         neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
-                        neuralUncertainty = uncertainty
+                        neuralUncertainty = uncertainty,
+                        neuralOutOfDistribution = research?.outOfDistribution ?: true,
+                        neuralInputDistance = research?.inputDistance ?: Double.POSITIVE_INFINITY,
+                        neuralDecisionThreshold = decisionThreshold
                     )
                 } else {
                     // This model is trained on 1h inputs with a 6h forecast horizon,
@@ -209,14 +229,17 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
                     // Keep its ten specialist opinions visible as higher-timeframe context;
                     // never blend a mismatched horizon into 15m signal confidence.
                     val directionalScore = (probability * 100.0).toInt().coerceIn(1, 99)
-                    val predictedSide = NeuralSignalAlignment.predictedDirection(probability)
+                    val predictedSide = NeuralSignalAlignment.predictedDirection(probability, decisionThreshold)
                     signal.copy(
                         neuralScore = directionalScore,
                         neuralDirection = predictedSide,
                         neuralModelSource = "۱۰ شبکه عصبی • تحلیل کندل‌های بسته ۱ساعته و اندیکاتورهای چارت • افق ۶ساعت • معتبر",
                         neuralMemberVotes = memberVotes,
                         neuralMemberProbabilities = research?.memberProbabilities.orEmpty(),
-                        neuralUncertainty = uncertainty
+                        neuralUncertainty = uncertainty,
+                        neuralOutOfDistribution = research?.outOfDistribution ?: true,
+                        neuralInputDistance = research?.inputDistance ?: Double.POSITIVE_INFINITY,
+                        neuralDecisionThreshold = decisionThreshold
                     )
                 }
             }
@@ -227,73 +250,155 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
     }.map { rawReviewed ->
         // Apply only a small, fresh, signed XT order-flow adjustment. Raw order-book/trade
         // observations remain private to the model and never appear in UI or notifications.
-        val directionSign = when (rawReviewed.technicalDirection) {
-            "LONG_BIAS" -> 1
-            "SHORT_BIAS" -> -1
-            else -> 0
+        val dnnPrefs = context.getSharedPreferences("wolf_signal_outcomes", Context.MODE_PRIVATE)
+        val dnnSamples = WolfDeepNeuralNetwork.reviewedSamples(dnnPrefs)
+        val dnnLongProbability = runCatching {
+            WolfDeepNeuralNetwork.predict(dnnPrefs, rawReviewed.copy(direction = "LONG_BIAS"), context)
+        }.getOrNull()
+        val dnnShortProbability = runCatching {
+            WolfDeepNeuralNetwork.predict(dnnPrefs, rawReviewed.copy(direction = "SHORT_BIAS"), context)
+        }.getOrNull()
+        val dnnProbability = when (rawReviewed.neuralDirection) {
+            "LONG_BIAS" -> dnnLongProbability
+            "SHORT_BIAS" -> dnnShortProbability
+            else -> null
         }
-        val alignedFlow = if (rawReviewed.hiddenFlowFresh) rawReviewed.hiddenFlowScore * directionSign else 0
-        val flowConfidenceAdjustment = (alignedFlow / 5).coerceIn(-5, 5)
-        val reviewed = if (directionSign == 0 || !rawReviewed.hiddenFlowFresh) rawReviewed else rawReviewed.copy(
-            confidence = (rawReviewed.confidence + flowConfidenceAdjustment).coerceIn(0, 100),
-            score = (rawReviewed.score + alignedFlow / 4).coerceIn(-100, 100)
+        val withMemoryModel = rawReviewed.copy(
+            deepNeuralSuccessProbability = dnnProbability,
+            deepNeuralReviewedSamples = dnnSamples
         )
-        // A not-yet-validated neural model must never become a hard lock on all live signals.
-        // Until it beats the chronological baseline, publish only independently strong
-        // technical setups; keep the neural vote visibly disabled and advisory-only.
+        // Flow/news/sentiment are neural inputs, never deterministic directional score injection.
+        val reviewed = withMemoryModel
+        // Only the validated neural specialist ensemble may originate LONG/SHORT.
+        // Technical features remain context and risk inputs, never a competing direction.
         val tech = reviewed.technicalDirection
         val neural = reviewed.neuralDirection
         val bothDirectional = (tech == "LONG_BIAS" || tech == "SHORT_BIAS") &&
             (neural == "LONG_BIAS" || neural == "SHORT_BIAS")
         val neuralStrength = maxOf(reviewed.neuralScore, 100 - reviewed.neuralScore)
         val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
-        // One central authority arbitrates every specialist, the technical consensus and
-        // the neural ensemble. The neural model is directional only after holdout validation.
-        val commander = HopeCommander.decide(reviewed, neuralValidated)
-        // Publish a technically valid 5m scalp candidate from 56/100 so the user can
+        // Independent chart authority is used when the neural ensemble is unvalidated.
+        // The chart reader and weighted XT timeframe panel nominate direction; the neural
+        // ensemble remains visible as research-only context until it passes holdout tests.
+        val humanChart = ZoroHumanMarketReader.analyze(reviewed.candles)
+        val timeframeFrames = reviewed.timeframeAnalysis.filter { it.available }
+        val timeframeScore = ZoroTimeframeAnalysisEngine.consensusScore(timeframeFrames)
+        val combinedChartScore = if (timeframeFrames.size >= 3)
+            (humanChart.score * 0.55 + timeframeScore * 0.45).toInt().coerceIn(-100, 100)
+        else humanChart.score
+        val chartSide = when {
+            humanChart.available && combinedChartScore >= 25 -> "LONG_BIAS"
+            humanChart.available && combinedChartScore <= -25 -> "SHORT_BIAS"
+            else -> "NEUTRAL"
+        }
+        val neuralSide = reviewed.neuralDirection
+        val selectedSide = if (neuralValidated) neuralSide else chartSide
+        val humanChartConflict = humanChart.blocks(selectedSide)
+        val neuralEntry = reviewed.price.takeIf { it.isFinite() && it > 0.0 } ?: reviewed.entry
+        val atrPercentForRisk = reviewed.technical.atrPercent.takeIf { it.isFinite() }?.coerceIn(0.1, 8.0) ?: 1.0
+        val neuralRiskDistance = (neuralEntry * (atrPercentForRisk / 100.0) * 1.2)
+            .coerceAtLeast(neuralEntry * 0.0025)
+        val neuralGeometry = when (selectedSide) {
+            "LONG_BIAS" -> reviewed.copy(
+                direction = selectedSide, entry = neuralEntry,
+                stop = neuralEntry - neuralRiskDistance,
+                tp1 = neuralEntry + neuralRiskDistance * 1.8,
+                tp2 = neuralEntry + neuralRiskDistance * 2.4,
+                tp3 = neuralEntry + neuralRiskDistance * 3.0
+            )
+            "SHORT_BIAS" -> reviewed.copy(
+                direction = selectedSide, entry = neuralEntry,
+                stop = neuralEntry + neuralRiskDistance,
+                tp1 = neuralEntry - neuralRiskDistance * 1.8,
+                tp2 = neuralEntry - neuralRiskDistance * 2.4,
+                tp3 = neuralEntry - neuralRiskDistance * 3.0
+            )
+            else -> reviewed
+        }
+        val commander = if (neuralValidated) HopeCommander.decide(neuralGeometry, true) else {
+            val independentDirection = if (timeframeFrames.size >= 4) chartSide else "NEUTRAL"
+            val evidenceConfidence = (50.0 + kotlin.math.abs(combinedChartScore) * 0.45)
+                .toInt().coerceIn(50, 85)
+            HopeCommander.Decision(
+                direction = independentDirection,
+                score = if (independentDirection == "NEUTRAL") 0 else evidenceConfidence,
+                confidence = evidenceConfidence,
+                neuralInfluence = 0,
+                status = if (independentDirection == "NEUTRAL") "ABSTAIN_CHART_CONFLICT" else "INDEPENDENT_CHART_AUTHORITY",
+                explanation = if (independentDirection == "NEUTRAL")
+                    "مغز مستقل: جهت چارت یا پوشش حداقل چهار تایم‌فریم کافی نیست؛ WAIT"
+                else "مغز مستقل: ساختار قیمت و اجماع وزنی " + timeframeFrames.size + " تایم‌فریم جهت " + independentDirection + " را انتخاب کردند؛ رأی عصبی اعتبارسنجی‌نشده فقط نمایشی است"
+            )
+        }        // Publish a technically valid 5m scalp candidate from 56/100 so the user can
         // inspect the Commander's decision instead of seeing every sub-62 setup capped
-        // at 49. This is a signal-publication threshold, NOT an order authorization:
-        // ZORO is an analysis-and-signals app; it never authorizes or submits exchange orders.
+        // at 49. This threshold only publishes a candidate; actual XT order authorization
+        // is performed independently by XtLiveTradingEngine after LIVE, account, freshness,
+        // fee-aware sizing, position, TP/SL and portfolio risk gates all pass.
         val publishThreshold = if (reviewed.tradeTimeframe.startsWith("5m")) 56 else 62
         val commanderQualified = commander.direction != "NEUTRAL" && commander.confidence >= publishThreshold
         val neuralAgreement = neuralValidated && bothDirectional && tech == neural && neuralStrength >= 55 &&
             !reviewed.neuralUncertainty.highDisagreement
-        val neuralExperimentalAgreement = !neuralValidated && bothDirectional && tech == neural &&
-            neuralStrength >= 55 && !reviewed.neuralUncertainty.highDisagreement &&
-            (if (tech == "LONG_BIAS") reviewed.neuralUncertainty.upVotes else reviewed.neuralUncertainty.downVotes) >= 7
-        val technicalOnlyQualified = !neuralValidated &&
-            (tech == "LONG_BIAS" || tech == "SHORT_BIAS") &&
-            reviewed.confidence >= 58 &&
-            (reviewed.consensus?.agreement ?: 0) >= 58 &&
-            reviewed.technical.adx >= 16.0 &&
-            reviewed.technical.relativeVolume >= 0.65
+        val independentChartQualified = !neuralValidated && timeframeFrames.size >= 4 &&
+            humanChart.available && chartSide != "NEUTRAL" && kotlin.math.abs(combinedChartScore) >= 25
+        val directionalAuthority = if (neuralValidated) neuralAgreement else independentChartQualified
         val tier = when {
-            commander.direction == "NEUTRAL" -> "بدون رتبه"
-            neuralAgreement && commander.confidence >= 82 && neuralStrength >= 70 -> "نوع ۱ • ممتاز"
-            neuralAgreement && commander.confidence >= 72 && neuralStrength >= 62 -> "نوع ۲ • تأییدشده"
-            commanderQualified && neuralValidated -> "نوع ۳ • فرمانده تکنیکال + عصبی"
-            commanderQualified && technicalOnlyQualified && neuralExperimentalAgreement ->
-                "آزمایشی • تکنیکال + ۱۰ شبکه عصبی"
-            commanderQualified && technicalOnlyQualified -> "نوع ۳ • فرمانده تکنیکال مستقل"
-            else -> "بدون رتبه"
+            !directionalAuthority || commander.direction == "NEUTRAL" -> "بدون رتبه"
+            neuralValidated && commander.confidence >= 82 && neuralStrength >= 70 -> "نوع ۱ • ممتاز"
+            neuralValidated && commander.confidence >= 72 && neuralStrength >= 62 -> "نوع ۲ • تأییدشده"
+            neuralValidated -> "نوع ۳ • فرمانده عصبی اعتبارسنجی‌شده"
+            else -> "نوع ۳ • اجماع مستقل چارت"
         }
-        val promoted = commanderQualified &&
-            (neuralValidated || technicalOnlyQualified) && tier != "بدون رتبه"
-        reviewed.copy(
+        val promoted = commanderQualified && directionalAuthority && tier != "بدون رتبه" &&
+            humanChart.available && !humanChartConflict && kotlin.math.abs(combinedChartScore) >= 25
+        val finalSignal = neuralGeometry.copy(
             direction = if (promoted) commander.direction else "NEUTRAL",
             score = if (promoted) commander.score else 0,
             confidence = if (promoted) commander.confidence else minOf(commander.confidence, 49),
             signalTier = if (promoted) tier else "بدون رتبه",
             agreementStatus = if (promoted) commander.explanation else when {
                 commander.status == "ABSTAIN_NEURAL_CONFLICT" -> commander.explanation
-                !neuralValidated && neuralExperimentalAgreement -> "سیگنال آزمایشی: ۱۰ شبکه عصبی با جهت تکنیکال همسو هستند؛ مدل هنوز اعتبارسنجی مستقل را پاس نکرده است"
-                !neuralValidated -> "مدل عصبی هنوز از آزمون مستقل عبور نکرده؛ فقط اثر کمکی محدود دارد"
-                tech != neural -> "اختلاف تحلیل تکنیکال و شبکه عصبی • فرمانده سیگنال را متوقف کرد"
+                !neuralValidated -> "مدل عصبی اعتبارسنجی نشده و در جهت دخالت ندارد؛ مغز مستقل چارت/تایم‌فریم‌ها هنوز به آستانه سیگنال نرسیده است"
+                tech != neural -> "شبکه عصبی و فیلتر ساختار بازار همسو نیستند؛ ورود متوقف شد"
+                !humanChart.available -> "تاریخچه کافی برای خوانش مستقل چارت وجود ندارد؛ ورود متوقف شد"
+                humanChartConflict -> "خوانش مستقل چارت با جهت شبکه عصبی تعارض قوی دارد؛ ورود متوقف شد"
                 else -> commander.explanation
             },
             multiHorizonOutlook = ZoroMultiHorizonEngine.analyze(reviewed),
-            advancedTechnical = ZoroAdvancedTechnicalEngine.analyze(reviewed.candles, reviewed.price, reviewed.neuralCandles)
+            advancedTechnical = ZoroAdvancedTechnicalEngine.analyze(reviewed.candles, reviewed.price, reviewed.neuralCandles),
+            humanChartReadout = humanChart
         )
+        val thought = NexusCognitiveEngine.think(finalSignal, neuralValidated)
+        val cognitiveSignal = finalSignal.copy(
+            direction = if (promoted && thought.allowed) finalSignal.direction else "NEUTRAL",
+            score = if (promoted && thought.allowed) finalSignal.score else 0,
+            confidence = if (promoted && thought.allowed) finalSignal.confidence else minOf(finalSignal.confidence, 45),
+            cognitiveRiskMultiplier = thought.riskMultiplier,
+            agreementStatus = finalSignal.agreementStatus + " • NEXUS " + thought.phase +
+                " • اجماع " + thought.neuralAgreement + "/10 • RR خالص " +
+                String.format(java.util.Locale.US, "%.2f", thought.netRewardRisk) +
+                " • هزینه تخمینی " + String.format(java.util.Locale.US, "%.3f", thought.estimatedRoundTripCostPct) + "%"
+        )
+        ZoroCognitiveMemory.observe(context, cognitiveSignal)
+        val adaptiveLeverage = AdaptiveLeverageEngine.recommend(
+            AdaptiveLeverageEngine.Input(
+                direction = cognitiveSignal.direction,
+                confidence = (cognitiveSignal.confidence * cognitiveSignal.cognitiveRiskMultiplier)
+                    .toInt().coerceIn(0, 100),
+                consensusStrength = commander.confidence,
+                neuralStrength = neuralStrength,
+                neuralValidated = neuralValidated,
+                neuralDisagreement = reviewed.neuralUncertainty.highDisagreement,
+                outOfDistribution = reviewed.neuralOutOfDistribution,
+                entry = cognitiveSignal.entry,
+                stop = cognitiveSignal.stop,
+                tp1 = cognitiveSignal.tp1,
+                atrPercent = cognitiveSignal.technical.atrPercent,
+                venueMaxLeverage = null,
+                simulation = true,
+                simulationMaxLeverage = 50
+            )
+        )
+        cognitiveSignal.copy(leverage = adaptiveLeverage.leverage)
     }.sortedWith(compareByDescending<MarketSignal> {
         if (it.direction == "NEUTRAL") it.score.toDouble() else it.confidence.toDouble()
     }.thenByDescending { it.volume })
@@ -317,7 +422,7 @@ fun CryptoMonitorScreen() {
     var scanProgress by remember { mutableStateOf("آماده اسکن") }
     var scannedCount by remember { mutableIntStateOf(0) }
     var totalContracts by remember { mutableIntStateOf(0) }
-    var selectedTab by remember { mutableStateOf("قدرت سیگنال") }
+    var selectedTab by remember { mutableStateOf("فرمانده") }
     var selectedSymbol by remember { mutableStateOf("") }
     var chartInterval by remember { mutableStateOf("15") }
     var voiceTranscript by remember { mutableStateOf("") }
@@ -357,9 +462,51 @@ fun CryptoMonitorScreen() {
             HopeScenarioLab.recordAndEvaluate(context, rows)
         }
     }
-    val voiceEngine = remember(context) { TextToSpeech(context) { } }
+    var voiceReady by remember { mutableStateOf(false) }
+    var voiceLanguageReady by remember { mutableStateOf(false) }
+    val voiceEngine = remember(context) {
+        TextToSpeech(context) { status -> voiceReady = status == TextToSpeech.SUCCESS }
+    }
     DisposableEffect(voiceEngine) { onDispose { voiceEngine.stop(); voiceEngine.shutdown() } }
-    LaunchedEffect(voiceReply) { if (voiceReply.isNotBlank()) { voiceEngine.language = Locale("fa", "IR"); voiceEngine.speak(voiceReply, TextToSpeech.QUEUE_FLUSH, null, "hope-hunter-voice-reply") } }
+    LaunchedEffect(voiceReady) {
+        if (voiceReady) {
+            val localeResult = voiceEngine.setLanguage(Locale("fa", "IR"))
+            voiceLanguageReady = localeResult != TextToSpeech.LANG_MISSING_DATA &&
+                localeResult != TextToSpeech.LANG_NOT_SUPPORTED
+        }
+    }
+    LaunchedEffect(voiceReply, voiceReady) {
+        if (voiceReady && voiceReply.isNotBlank()) {
+            voiceEngine.speak(voiceReply, TextToSpeech.QUEUE_FLUSH, null, "nexus-voice-reply")
+        }
+    }
+    // Announce each newly confirmed signal once, after a complete scan.
+    LaunchedEffect(rows, loading, voiceReady, voiceLanguageReady) {
+        if (!loading && voiceReady && voiceLanguageReady && appSettings.getBoolean("voice_signal_announcements", true)) {
+            val signal = rows.firstOrNull {
+                (it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS") &&
+                    it.signalTier != "بدون رتبه" && it.confidence >= 60
+            }
+            if (signal != null) {
+                val candleTime = signal.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L
+                val marker = signal.symbol + "|" + signal.tradeTimeframe + "|" + signal.direction + "|" + candleTime
+                val spoken = appSettings.getString("last_voice_signal_marker", "")
+                if (candleTime > 0L && marker != spoken) {
+                    val side = if (signal.direction == "LONG_BIAS") "لانگ" else "شورت"
+                    val message = "سیگنال جدید تأیید شد. " + signal.symbol + ". جهت " + side +
+                        ". تایم فریم " + signal.tradeTimeframe + ". قیمت ورود " + formatPrice(signal.entry) +
+                        ". حد ضرر " + formatPrice(signal.stop) + ". هدف اول " + formatPrice(signal.tp1) +
+                        "، هدف دوم " + formatPrice(signal.tp2) + "، هدف سوم " + formatPrice(signal.tp3) +
+                        ". درجه سیگنال " + signal.signalTier + ". اطمینان " + signal.confidence +
+                        " درصد. لطفاً شرایط بازار و ریسک را بررسی کن."
+                    val result = voiceEngine.speak(message, TextToSpeech.QUEUE_ADD, null, "nexus-signal-" + signal.symbol + "-" + candleTime)
+                    if (result == TextToSpeech.SUCCESS) {
+                        appSettings.edit().putString("last_voice_signal_marker", marker).apply()
+                    }
+                }
+            }
+        }
+    }
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
         if (spoken.isNotBlank()) {
@@ -386,6 +533,8 @@ fun CryptoMonitorScreen() {
 
 
     suspend fun performScan() {
+        // Prevent overlapping manual and scheduled scans from racing over shared UI state.
+        if (loading) return
         loading = true
         error = null
         ZoroDiagnostics.record(context, "اسکن", "INFO", "شروع اسکن زنده؛ صرافی=" + selectedExchange)
@@ -441,11 +590,17 @@ fun CryptoMonitorScreen() {
         } catch (e: Exception) {
             ZoroDiagnostics.record(context, "اسکن", "ERROR", e.javaClass.simpleName + ": " + (e.message ?: "خطای نامشخص"))
             val rawMessage = e.message ?: "خطا در دریافت اطلاعات بازار"
-            error = if (rawMessage.contains("<html", ignoreCase = true) ||
-                rawMessage.contains("<!doctype", ignoreCase = true) ||
-                rawMessage.contains("<head", ignoreCase = true)) {
-                "پاسخ وب به‌جای داده بازار دریافت شد؛ احتمالاً WAF یا محدودیت دسترسی صرافی است. HTML خام حذف شد. در صورت تداوم خطای XT، منبع XT را انتخاب کن."
-            } else rawMessage.replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ").trim().take(240)
+            error = when {
+                rawMessage.contains("Unable to resolve host", ignoreCase = true) ||
+                    rawMessage.contains("UnknownHostException", ignoreCase = true) ||
+                    rawMessage.contains("fapi.xt.com", ignoreCase = true) && rawMessage.contains("resolve", ignoreCase = true) ->
+                    "DNS گوشی نتوانست میزبان رسمی XT (fapi.xt.com) را پیدا کند؛ این خطا پیش از احراز هویت API رخ می‌دهد. اینترنت را عوض کن (Wi‑Fi/داده همراه)، Private DNS اندروید را روی Automatic بگذار یا موقتاً خاموش کن، سپس «تلاش مجدد» را بزن. کلید API را دوباره وارد نکن؛ این خطا از کلید نیست."
+                rawMessage.contains("<html", ignoreCase = true) ||
+                    rawMessage.contains("<!doctype", ignoreCase = true) ||
+                    rawMessage.contains("<head", ignoreCase = true) ->
+                    "پاسخ وب به‌جای داده بازار دریافت شد؛ احتمالاً WAF یا محدودیت دسترسی صرافی است. HTML خام حذف شد. در صورت تداوم خطای XT، منبع XT را انتخاب کن."
+                else -> rawMessage.replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ").trim().take(240)
+            }
         } finally {
             loading = false
         }
@@ -490,8 +645,8 @@ fun CryptoMonitorScreen() {
         Scaffold(
             containerColor = Navy,
             bottomBar = {
-                NavigationBar(containerColor = Color(0xFF080808), contentColor = Color.White) {
-                    listOf("قدرت سیگنال", "دفترچه", "عیب‌یابی", "تنظیمات").forEach { entry ->
+                NavigationBar(containerColor = Color(0xFF111619), contentColor = Color.White) {
+                    listOf("فرمانده", "بازار", "قدرت سیگنال", "دفترچه", "تنظیمات").forEach { entry ->
                         NavigationBarItem(
                             selected = selectedTab == entry,
                             onClick = { selectedTab = entry },
@@ -500,7 +655,7 @@ fun CryptoMonitorScreen() {
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Blue,
                                 selectedTextColor = Blue,
-                                indicatorColor = Color(0xFF342607),
+                                indicatorColor = Color(0xFF263B36),
                                 unselectedIconColor = Muted,
                                 unselectedTextColor = Muted
                             )
@@ -517,7 +672,7 @@ fun CryptoMonitorScreen() {
                     modifier = Modifier.fillMaxWidth().height(190.dp).align(Alignment.TopCenter).graphicsLayer { alpha = 0.34f }
                 )
                 Box(Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(listOf(Color(0xE6080808), Color(0xF2050505), Color(0xEA171006)))
+                    Brush.verticalGradient(listOf(Color(0xE6090B0D), Color(0xF2090B0D), Color(0xEA171C1F)))
                 ))
                 Column(Modifier.fillMaxSize()) {
                 if (selectedTab !in setOf("خانه", "فرمانده")) {
@@ -527,24 +682,24 @@ fun CryptoMonitorScreen() {
                     ) {
                         if (selectedTab != "خانه") TextButton(onClick = { selectedTab = "خانه" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("‹ بازگشت", color = Blue, fontSize = 11.sp) }
                         Surface(
-                            color = Color(0xFF17130A),
+                            color = Color(0xFF202628),
                             shape = RoundedCornerShape(13.dp),
                             modifier = Modifier.size(52.dp),
                             shadowElevation = 8.dp
                         ) {
                             Image(
                                 painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
-                                contentDescription = "نشان ZORO",
+                                contentDescription = "نشان ZORO APEX",
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("ZORO", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
+                            Text("ZORO APEX", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
                         }
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("XT FUTURES", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Surface(color = if (loading) Color(0xFF3A2B0B) else Color(0xFF2B2108),
+                            Text("WOLF TERMINAL", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Surface(color = if (loading) Color(0xFF24463D) else Color(0xFF203D32),
                                 shape = RoundedCornerShape(20.dp)) {
                                 Text(if (loading) "در حال اسکن" else "● $selectedExchange",
                                     color = if (loading) Gold else Green,
@@ -571,7 +726,7 @@ fun CryptoMonitorScreen() {
                             onToggleBackground = {
                                 val enabled = !backgroundMonitoring
                                 if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
-                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط ZORO متوقف نمی‌شود."
+                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط NEXUS متوقف نمی‌شود."
                                 } else {
                                     val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
                                     if (enabled) {
@@ -608,7 +763,7 @@ fun CryptoMonitorScreen() {
                             onToggleBackground = {
                                 val enabled = !backgroundMonitoring
                                 if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
-                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط ZORO متوقف نمی‌شود."
+                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط NEXUS متوقف نمی‌شود."
                                 } else {
                                     val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
                                     if (enabled) {
@@ -743,7 +898,7 @@ fun CryptoMonitorScreen() {
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Text("تنظیمات و پایش پس‌زمینه", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
-                            OutlinedButton(onClick = { selectedTab = "عیب‌یابی" }, modifier = Modifier.fillMaxWidth()) { Text("مرکز عیب‌یابی و گزارش خطاهای ZORO", color = Blue) }
+                            OutlinedButton(onClick = { selectedTab = "عیب‌یابی" }, modifier = Modifier.fillMaxWidth()) { Text("مرکز عیب‌یابی و گزارش خطاهای NEXUS", color = Blue) }
                             HopeAnimatedBrainBanner()
                             XtConnectionAndExecutionScreen(context, rows) { backgroundMonitoring = true; appSettings.edit().putBoolean("background_monitoring", true).apply() }
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
@@ -757,7 +912,7 @@ fun CryptoMonitorScreen() {
                                             checked = backgroundMonitoring,
                                             onCheckedChange = { enabled ->
                                                 if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
-                                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط ZORO متوقف نمی‌شود."
+                                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط NEXUS متوقف نمی‌شود."
                                                 } else {
                                                     val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
                                                     if (enabled) {
@@ -777,10 +932,14 @@ fun CryptoMonitorScreen() {
                                             }
                                         )
                                     }
-                                    Text("با فعال‌سازی، سرویس پیش‌زمینه ZORO فقط داده‌های بازار را دریافت می‌کند، تحلیل چندتایم‌فریمی و شبکه‌های عصبی را اجرا می‌کند و سیگنال‌های تازه را اطلاع می‌دهد؛ هیچ سفارش واقعی یا مدیریت پوزیشن حسابی انجام نمی‌شود. توقف اجباری برنامه، قطع اینترنت یا محدودیت باتری می‌تواند سرویس را مختل کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                                    Text("با فعال‌سازی، سرویس پس‌زمینه NEXUS داده‌های XT را پایش می‌کند، تحلیل چندتایم‌فریمی و شبکه‌های عصبی را اجرا می‌کند و معاملات PAPER را به‌روزرسانی می‌کند. فقط اگر LIVE و معامله‌گر خودکار را جداگانه فعال کرده باشی، مدل از اعتبارسنجی عبور کند، اتصال API تأیید باشد و همه فیلترهای حساب و ریسک پاس شوند، امکان ارسال سفارش واقعی وجود دارد؛ پوزیشن‌های ثبت‌شده نیز با TP/SL صرافی و حدضرر شناور پویا پایش می‌شوند. توقف اجباری برنامه، قطع اینترنت یا محدودیت باتری می‌تواند سرویس را مختل کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                                 }
                             }
                             HopeLivingBrainPanel(context) { scanIntervalMinutes = it }
+                            ZoroLivingTraderBrainPanel(context)
+                            ZoroTraderResearchPanel(context, rows.map { it.symbol })
+                            ZoroTraderEvidenceCapturePanel(context)
+                            // News and sentiment remain internal decision features; no user-facing feed.
                                                                                     Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
@@ -802,11 +961,11 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("نسخه: 2.75.0 • XT USDT-M • ده متخصص عصبی مستقل + اعتبارسنجی زمانی + تحلیل چندلایه", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("ZORO APEX • XT USDT-M • شبکه عصبی چندمتخصصی • تحلیل چندلایه", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
-                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← ZORO ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← NEXUS ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                         }
                     }
                 }
@@ -879,7 +1038,7 @@ internal fun ActiveCommandSignals(
     records: List<WolfSignalOutcomeJournal.Record>,
     onOpenJournal: () -> Unit
 ) {
-    Surface(color = Color(0xFF100D07), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.38f)), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(0xFF102033), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.38f)), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("سیگنال‌های فعال فرماندهی", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
@@ -1213,7 +1372,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
         "SHORT_BIAS" -> "SHORT"
         else -> "NO TRADE"
     }
-    Surface(color = Color(0xFF101010), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.25f)), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(0xFF102033), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.25f)), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(15.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(item.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
@@ -1287,6 +1446,23 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                             (if (neuralValidated && item.neuralDirection != "NEUTRAL") " • احتمال صعود مدل (P↑): ${item.neuralScore}/100" else ""),
                         color = Muted, fontSize = 9.sp
                     )
+                    Text(
+                        if (item.neuralOutOfDistribution)
+                            "هشدار تعمیم: ورودی خارج از توزیع آموزش یا آمار نامعتبر • فاصله استاندارد: " +
+                                (if (item.neuralInputDistance.isFinite()) String.format(Locale.US, "%.2fσ", item.neuralInputDistance) else "ناموجود") +
+                                " • تصمیم اجرایی: توقف"
+                        else
+                            "ممیزی دامنه ورودی: در محدوده آماری آموزش • فاصله استاندارد: ${String.format(Locale.US, "%.2fσ", item.neuralInputDistance)}",
+                        color = if (item.neuralOutOfDistribution) Red else Green,
+                        fontSize = 9.sp, lineHeight = 13.sp
+                    )
+                    Text(
+                        if (item.deepNeuralSuccessProbability != null)
+                            "شبکه زمینه‌ای ۱۳ ویژگی (خبر، احساسات، فاندینگ، جریان/دفتر سفارش و تکنیکال): احتمال موفقیت سمت عصبی ${String.format(Locale.US, "%.1f", item.deepNeuralSuccessProbability * 100.0)}٪ • سوابق یادگیری ${item.deepNeuralReviewedSamples}"
+                        else
+                            "شبکه زمینه‌ای ۱۳ ویژگی در حال یادگیری از نتایج ثبت‌شده است • سوابق ${item.deepNeuralReviewedSamples}",
+                        color = Gold, fontSize = 9.sp, lineHeight = 13.sp
+                    )
                     if (item.neuralMemberVotes.isNotEmpty()) {
                         val uncertainty = item.neuralUncertainty
                         Text(
@@ -1302,17 +1478,17 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                     }
                     Divider(color = Gold.copy(alpha = 0.22f))
                     Text(
-                        "نظر سیستم ZORO (تحلیل تکنیکال و ساختار بازار): " + (if (item.technicalDirection == "LONG_BIAS") "صعودی LONG" else if (item.technicalDirection == "SHORT_BIAS") "نزولی SHORT" else "خنثی"),
+                        "جهت تحلیل تکنیکال (فقط داده زمینه‌ای): " + (if (item.technicalDirection == "LONG_BIAS") "صعودی LONG" else if (item.technicalDirection == "SHORT_BIAS") "نزولی SHORT" else "خنثی"),
                         color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "نتیجه مقایسه دو موتور: " + item.agreementStatus,
+                        "تصمیم فرمانده عصبی: " + item.agreementStatus,
                         color = if (item.agreementStatus.contains("توافق") || item.agreementStatus.contains("تأیید مستقل")) Green else Gold,
                         fontSize = 9.sp, lineHeight = 14.sp
                     )
                     if (!neuralValidated) {
                         Text(
-                            "نظر شبکه عصبی فعالانه محاسبه و برای مقایسه نمایش داده می‌شود؛ اما چون هنوز اعتبارسنجی زمانی را نگذرانده، مغز هوشمند اجازه دخالت آن در تأیید یا رد سیگنال نهایی را نمی‌دهد. امتیاز خام، احتمال برد نیست.",
+                            "شبکه عصبی در حال محاسبه است؛ چون هنوز اعتبارسنجی زمانی مستقل را نگذرانده، جهت سیگنال و معامله خودکار مسدود است. امتیاز خام، احتمال برد نیست.",
                             color = Gold, fontSize = 9.sp, lineHeight = 14.sp
                         )
                     }
@@ -1330,7 +1506,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
             )
             if (item.direction != "NEUTRAL") {
                 Spacer(Modifier.height(8.dp))
-                Surface(color = Color(0xFF19150B), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.22f)), modifier = Modifier.fillMaxWidth()) {
+                Surface(color = Color(0xFF10283A), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.22f)), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("ENTRY: " + formatPrice(item.entry) + "   |   SMART LEVERAGE: " + item.leverage + "x", color = Blue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1399,10 +1575,107 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                         }
                         Text("قدرت خوشه سطوح: ${item.technical.liquidityStrength}/10 • برآورد از پیوت‌ها و سقف/کف ۹۶ کندل؛ نه داده قطعی لیکوییدیشن صرافی",
                             color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
+                        TraderChartReadoutPanel(item)
+                        HumanMarketReaderPanel(item.humanChartReadout)
                         Text("تحلیل خودکار چارت و ساختار قیمت توسط موتور داخلی انجام شده است؛ نمایش نمودار خام غیرفعال است.", color = Gold, fontSize = 9.sp, lineHeight = 14.sp)
                         Text("الگوها احتمالی‌اند؛ هیچ الگویی جهت قیمت را تضمین نمی‌کند.", color = Muted, fontSize = 9.sp)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TraderChartReadoutPanel(signal: MarketSignal) {
+    val report = signal.advancedTechnical
+    val readout = remember(signal.symbol, signal.price, signal.direction, report) {
+        report?.let {
+            ZoroTraderChartReadout.analyze(
+                report = it,
+                price = signal.price,
+                support = signal.technical.support,
+                resistance = signal.technical.resistance,
+                relativeVolume = signal.technical.relativeVolume,
+                signalDirection = signal.direction
+            )
+        }
+    }
+    Surface(
+        color = Color(0xFF101719),
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Blue.copy(alpha = 0.38f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("گزارش تحلیل‌گر چارت • سناریو و استدلال", color = Blue, fontSize = 12.sp, fontWeight = FontWeight.Black)
+            if (readout == null || !readout.available) {
+                Text("داده کافی برای تحلیل ساختار بازار وجود ندارد؛ تا تکمیل تاریخچه از صدور برداشت قطعی خودداری کن.",
+                    color = Gold, fontSize = 10.sp, lineHeight = 15.sp)
+            } else {
+                Text(readout.marketSummary, color = Color.White, fontSize = 10.sp, lineHeight = 15.sp)
+                Divider(color = Blue.copy(alpha = 0.2f))
+                Text("ساختار و رفتار قیمت", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(readout.structureStory, color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                Text("سناریوی صعودی", color = Green, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(readout.bullishScenario, color = Color.White, fontSize = 9.sp, lineHeight = 14.sp)
+                Text("سناریوی نزولی", color = Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(readout.bearishScenario, color = Color.White, fontSize = 9.sp, lineHeight = 14.sp)
+                Divider(color = Blue.copy(alpha = 0.2f))
+                Text("ارزیابی سیگنال فعلی", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(readout.activeSignalAssessment, color = if (signal.direction == "NEUTRAL") Gold else Color.White,
+                    fontSize = 9.sp, lineHeight = 14.sp)
+                Text("هم‌گرایی شواهد", color = Blue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                readout.confluences.forEach { Text("• $it", color = Muted, fontSize = 8.sp, lineHeight = 12.sp) }
+                Text("الگوهای شناسایی‌شده", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(readout.patterns.joinToString(" • "), color = Muted, fontSize = 9.sp, lineHeight = 13.sp)
+                if (readout.cautions.isNotEmpty()) {
+                    Text("ریسک‌ها و موارد احتیاط", color = Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    readout.cautions.forEach { Text("• $it", color = Muted, fontSize = 8.sp, lineHeight = 12.sp) }
+                }
+                Text("سناریوها شرطی‌اند؛ شکست سطح باید با بسته‌شدن کندل و حجم تأیید شود. این گزارش به‌تنهایی مجوز معامله نیست.",
+                    color = Gold, fontSize = 8.sp, lineHeight = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HumanMarketReaderPanel(readout: ZoroHumanMarketReader.Readout?) {
+    Surface(
+        color = Color(0xFF111714),
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.32f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("مغز خوانش رفتار بازار • Price Action & Auction", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black)
+            if (readout == null || !readout.available) {
+                Text(readout?.warnings?.joinToString(" • ") ?: "تاریخچه کافی برای خوانش مستقل چارت وجود ندارد.",
+                    color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("شاخص شواهد چارت: " + readout.score + "/100", color = if (readout.score >= 25) Green else if (readout.score <= -25) Red else Gold,
+                        fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text(readout.phase, color = Gold, fontSize = 9.sp)
+                }
+                Text("ساختار بازار: " + readout.structure, color = Color.White, fontSize = 9.sp)
+                Text("حراج و ارزش: " + readout.auction, color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                Text("رفتار حجم: " + readout.flow, color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                if (readout.poc != null && readout.valueLow != null && readout.valueHigh != null) {
+                    Text("Volume Profile تقریبی • POC " + formatPrice(readout.poc) +
+                        " • Value Area " + formatPrice(readout.valueLow) + " — " + formatPrice(readout.valueHigh),
+                        color = Blue, fontSize = 8.sp)
+                }
+                Text("الگوهای پرایس‌اکشن", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Text(readout.patterns.joinToString(" • ").ifBlank { "الگوی واضحی تأیید نشد" },
+                    color = Muted, fontSize = 8.sp, lineHeight = 13.sp)
+                Text("سناریوی صعودی: " + readout.bullishScenario, color = Green, fontSize = 8.sp, lineHeight = 13.sp)
+                Text("سناریوی نزولی: " + readout.bearishScenario, color = Red, fontSize = 8.sp, lineHeight = 13.sp)
+                readout.evidence.forEach { Text("• " + it, color = Muted, fontSize = 8.sp, lineHeight = 12.sp) }
+                readout.warnings.forEach { Text("احتیاط: " + it, color = Gold, fontSize = 8.sp, lineHeight = 12.sp) }
+                Text("دلتا از OHLCV تخمین زده می‌شود؛ برای دلتا و لیکوییدیشن واقعی باید داده اختصاصی معاملات/صرافی موجود باشد.",
+                    color = Gold, fontSize = 8.sp, lineHeight = 12.sp)
             }
         }
     }
@@ -1554,7 +1827,13 @@ private fun SignalOutcomePanel(snapshot: WolfSignalOutcomeJournal.Snapshot) {
 
 @Composable
 private fun SignalLevelsChart(signal: MarketSignal) {
-    val candles = signal.candles.filter { it.size >= 4 && it.take(4).all(Double::isFinite) }.takeLast(96)
+    val timeframeOptions = listOf("1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w")
+        .filter { it in signal.timeframeCandles }
+    var selectedTimeframe by remember(signal.symbol) {
+        mutableStateOf(if ("5m" in timeframeOptions) "5m" else timeframeOptions.firstOrNull() ?: "5m")
+    }
+    val sourceCandles = signal.timeframeCandles[selectedTimeframe] ?: signal.candles
+    val candles = sourceCandles.filter { it.size >= 6 && it.take(6).all(Double::isFinite) }.takeLast(120)
     data class Pivot(val index: Int, val price: Double, val isHigh: Boolean)
     val pivots = buildList {
         for (i in 2 until candles.size - 2) {
@@ -1578,11 +1857,32 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                 add(Gap(i - 2, i, currentHigh, olderLow, false))
         }
     }.takeLast(5)
-    val prices = candles.flatMap { listOf(it[1], it[2]) } + listOf(
-        signal.technical.support, signal.technical.resistance, signal.entry,
-        signal.stop, signal.tp1, signal.tp2, signal.tp3, signal.price,
-        signal.technical.ema20, signal.technical.vwap
-    ).filter { it.isFinite() && it > 0.0 }
+    val marketReader = remember(signal.symbol, selectedTimeframe, candles.lastOrNull()?.getOrNull(5)) {
+        ZoroHumanMarketReader.analyze(candles)
+    }
+    val advancedReport = remember(signal.symbol, selectedTimeframe, candles.lastOrNull()?.getOrNull(5), signal.price) {
+        ZoroAdvancedTechnicalEngine.analyze(candles, signal.price)
+    }
+    val advancedLevels = advancedReport.levels
+    val chartSupport = advancedLevels.firstOrNull { it.name.contains("حمایت") }?.price ?: signal.technical.support
+    val chartResistance = advancedLevels.firstOrNull { it.name.contains("مقاومت") }?.price ?: signal.technical.resistance
+    val chartPatterns = (marketReader.patterns + advancedReport.candlePatterns + advancedReport.chartPatterns).distinct().take(6)
+    val liquiditySnapshot = remember(signal.symbol, selectedTimeframe, candles.lastOrNull()?.getOrNull(5), signal.price) {
+        val rows = candles.mapNotNull { row ->
+            if (row.size < 6) null else runCatching {
+                ZoroLiquidityMapEngine.Candle(
+                    time = row[5].toLong(), open = row[0], high = row[1], low = row[2],
+                    close = row[3], volume = row[4]
+                )
+            }.getOrNull()
+        }
+        ZoroLiquidityMapEngine.analyze(rows)
+    }
+    val prices = (candles.flatMap { listOf(it[1], it[2]) } + listOf(
+        signal.entry, signal.stop, signal.tp1, signal.tp2, signal.tp3, signal.price,
+        marketReader.poc ?: Double.NaN, marketReader.valueLow ?: Double.NaN,
+        marketReader.valueHigh ?: Double.NaN
+    ) + advancedLevels.map { it.price }).filter { it.isFinite() && it > 0.0 }
     val rawLow = prices.minOrNull() ?: signal.price * 0.98
     val rawHigh = prices.maxOrNull() ?: signal.price * 1.02
     val pad = (rawHigh - rawLow).coerceAtLeast(signal.price * 0.001) * 0.1
@@ -1595,7 +1895,7 @@ private fun SignalLevelsChart(signal: MarketSignal) {
     val structureText = when {
         brokenHigh != null -> "BOS صعودی احتمالی"
         brokenLow != null -> "BOS نزولی احتمالی"
-        signal.technical.marketStructure.isNotBlank() -> signal.technical.marketStructure
+        marketReader.structure.isNotBlank() -> marketReader.structure
         else -> "ساختار در حال ارزیابی"
     }
     Surface(
@@ -1607,10 +1907,23 @@ private fun SignalLevelsChart(signal: MarketSignal) {
         Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("تحلیل خودکار روی چارت", color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
-                    Text(signal.symbol + " • داده کندلی XT • بدون ترسیم دستی", color = Gold, fontSize = 9.sp)
+                    Text("تحلیل خودکار روی چارت • " + selectedTimeframe, color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                    Text(signal.symbol + " • تحلیل و ترسیم خودکار ساختار و سناریو", color = Gold, fontSize = 9.sp)
                 }
                 Text("HOPE AI", color = Green, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+            if (timeframeOptions.isNotEmpty()) {
+                timeframeOptions.chunked(4).forEach { group ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        group.forEach { frame ->
+                            TextButton(onClick = { selectedTimeframe = frame }, modifier = Modifier.weight(1f)) {
+                                Text(frame, color = if (selectedTimeframe == frame) Gold else Muted,
+                                    fontSize = 9.sp, fontWeight = if (selectedTimeframe == frame) FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                        repeat(4 - group.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
             }
             if (candles.size < 10) {
                 Text("کندل کافی برای تحلیل ساختار و علامت‌گذاری خودکار دریافت نشده است.", color = Muted, fontSize = 10.sp)
@@ -1653,6 +1966,21 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                     val endX = (xx + 18f).coerceAtMost(right)
                     drawLine(tint.copy(alpha = 0.65f), Offset(xx, yy), Offset(endX, yy), 1f)
                 }
+                // The chart engine projects the last two confirmed swing pivots as dynamic trendlines.
+                fun trendline(points: List<Pivot>, tint: Color) {
+                    if (points.size >= 2) {
+                        val a = points[points.lastIndex - 1]
+                        val b = points.last()
+                        if (b.index > a.index) {
+                            val slope = (b.price - a.price) / (b.index - a.index).toDouble()
+                            val projectedAtLast = b.price + slope * (candles.lastIndex - b.index)
+                            drawLine(tint.copy(alpha = 0.72f), Offset(x(a.index), y(a.price)),
+                                Offset(x(candles.lastIndex), y(projectedAtLast)), 1.5f)
+                        }
+                    }
+                }
+                trendline(recentHigh, Red)
+                trendline(recentLow, Green)
                 fun level(price: Double, color: Color, width: Float = 1.5f, dashed: Boolean = false) {
                     if (price.isFinite() && price > low && price < high) {
                         val yy = y(price)
@@ -1665,10 +1993,27 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                         } else drawLine(color, Offset(left, yy), Offset(right, yy), width)
                     }
                 }
-                level(signal.technical.support, Green, 1.6f, true)
-                level(signal.technical.resistance, Red, 1.6f, true)
-                level(signal.technical.ema20, Gold, 1.4f)
-                level(signal.technical.vwap, Color(0xFF69B8E8), 1.3f, true)
+                // Overlay the engine's named structural levels and inferred liquidity pools.
+                advancedLevels.forEach { candidate ->
+                    val name = candidate.name.lowercase()
+                    val tint = when {
+                        name.contains("resistance") || name.contains("supply") || name.contains("مقاومت") -> Red
+                        name.contains("support") || name.contains("demand") || name.contains("حمایت") -> Green
+                        else -> Gold.copy(alpha = 0.75f)
+                    }
+                    level(candidate.price, tint, 1.0f, true)
+                }
+                liquiditySnapshot.pools.take(8).forEach { pool ->
+                    val tint = if (pool.side == ZoroLiquidityMapEngine.Side.BUY_SIDE) Red else Green
+                    level(pool.price, tint.copy(alpha = 0.8f), 1.2f, true)
+                }
+                if (selectedTimeframe == "5m") {
+                    level(signal.technical.ema20, Gold, 1.4f)
+                    level(signal.technical.vwap, Color(0xFF69B8E8), 1.3f, true)
+                }
+                level(marketReader.poc ?: Double.NaN, Gold, 1.8f)
+                level(marketReader.valueLow ?: Double.NaN, Blue.copy(alpha = 0.7f), 1.0f, true)
+                level(marketReader.valueHigh ?: Double.NaN, Blue.copy(alpha = 0.7f), 1.0f, true)
                 if (signal.direction != "NEUTRAL") {
                     level(signal.entry, Blue, 2f)
                     level(signal.stop, Red, 2f, true)
@@ -1685,13 +2030,39 @@ private fun SignalLevelsChart(signal: MarketSignal) {
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                SmallStat("سقف محلی", formatPrice(recentHigh.lastOrNull()?.price ?: signal.technical.resistance), Red)
+                SmallStat("سقف محلی", formatPrice(recentHigh.lastOrNull()?.price ?: chartResistance), Red)
                 SmallStat("قیمت", formatPrice(signal.price), Color.White)
-                SmallStat("کف محلی", formatPrice(recentLow.lastOrNull()?.price ?: signal.technical.support), Green)
+                SmallStat("کف محلی", formatPrice(recentLow.lastOrNull()?.price ?: chartSupport), Green)
             }
-            Text("ساختار: $structureText • رژیم: " + signal.technical.regime, color = Gold, fontSize = 9.sp)
+            Text("ساختار: $structureText • رژیم: " + advancedReport.regime, color = Gold, fontSize = 9.sp)
             Text("نقاط قرمز/سبز: سقف و کف خودکار • نواحی سایه‌دار: FVG شناسایی‌شده • خطوط: سطوح محاسبه‌شده", color = Muted, fontSize = 8.sp)
-            Text("حمایت/مقاومت، EMA20، VWAP، ورود، حد ضرر و اهداف از تحلیل داخلی نمایش داده می‌شوند. برچسب BOS فقط در صورت عبور قیمت بسته‌شدن از آخرین پیوت نمایش داده می‌شود.", color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
+            if (marketReader.available) Text("خط طلایی: POC • خطوط فیروزه‌ای: Value Area • فاز: " + marketReader.phase, color = Blue, fontSize = 8.sp)
+            if (chartPatterns.isNotEmpty()) Text("الگوهای چارت: " + chartPatterns.joinToString(" • "), color = Gold, fontSize = 8.sp, lineHeight = 12.sp)
+            if (advancedReport.smartMoney.isNotBlank()) Text("ساختار پول هوشمند: " + advancedReport.smartMoney, color = Blue, fontSize = 8.sp, lineHeight = 12.sp)
+            Text("سناریوی صعودی: " + marketReader.bullishScenario, color = Green, fontSize = 8.sp, lineHeight = 12.sp)
+            Text("سناریوی نزولی: " + marketReader.bearishScenario, color = Red, fontSize = 8.sp, lineHeight = 12.sp)
+            if (liquiditySnapshot.pools.isNotEmpty()) Text("خطوط نقدینگی: خوشه‌های احتمالی حدضرر بالای سقف‌ها و زیر کف‌ها • " + liquiditySnapshot.summary, color = Gold, fontSize = 8.sp, lineHeight = 12.sp)
+            Text("حمایت/مقاومت، EMA20، VWAP، ورود، حد ضرر و اهداف از تحلیل داخلی نمایش داده می‌شوند. برچسب BOS فقط در صورت عبور قیمت بسته‌شدن از آخرین پیوت نمایش داده می‌شود. خطوط روند از پیوت‌های تأییدشده ترسیم می‌شوند.", color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
+            if (signal.timeframeAnalysis.isNotEmpty()) {
+                Text("خوانش مستقل همه تایم‌فریم‌های XT • وزن بیشتر برای تایم‌فریم‌های بالاتر", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                signal.timeframeAnalysis.chunked(4).forEach { group ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        group.forEach { frame ->
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(frame.timeframe, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text(if (frame.available) frame.direction else "داده ناکافی",
+                                    color = when (frame.direction) { "LONG" -> Green; "SHORT" -> Red; else -> Muted },
+                                    fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                Text(if (frame.available) "امتیاز " + frame.score else "—",
+                                    color = Muted, fontSize = 7.sp)
+                            }
+                        }
+                        repeat(4 - group.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+                Text("فاز و ساختار هر بازه جداگانه بررسی می‌شود؛ تعارض تایم‌فریم‌ها در داوری مغز مرکزی لحاظ می‌شود، نه اینکه میانگین ساده گرفته شود.",
+                    color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
+            }
         }
     }
 }
@@ -1827,7 +2198,8 @@ internal object MarketAnalysisEngine {
                                     primaryLabel: String = "15m", confirmLabel: String = "1h",
                                     trendLabel: String = "4h", microLabel: String = "5m",
                                     macroLabel: String = "1D",
-                                    neuralFrame: List<DoubleArray>? = null): MarketSignal {
+                                    neuralFrame: List<DoubleArray>? = null,
+                                    timeframeFrames: Map<String, List<DoubleArray>> = emptyMap()): MarketSignal {
         val a = indicators(short)
         val b = indicators(confirm)
         val c = indicators(trend)
@@ -1898,7 +2270,25 @@ internal object MarketAnalysisEngine {
         }
         val tp3 = structuralTp3
         val stopPct = stopDistance / price * 100.0
-        val leverage = when { !isLong && !isShort -> 1; stopPct <= 0.8 -> 5; stopPct <= 1.5 -> 3; stopPct <= 3.0 -> 2; else -> 1 }
+        val leverageDecision = AdaptiveLeverageEngine.recommend(
+            AdaptiveLeverageEngine.Input(
+                direction = direction,
+                confidence = confidence,
+                consensusStrength = wolf.strengthIndex,
+                neuralStrength = 0,
+                neuralValidated = false,
+                neuralDisagreement = false,
+                outOfDistribution = true,
+                entry = price,
+                stop = stop,
+                tp1 = tp1,
+                atrPercent = a.technical.atrPercent,
+                venueMaxLeverage = null,
+                simulation = true,
+                simulationMaxLeverage = 50
+            )
+        )
+        val leverage = leverageDecision.leverage
         val agentSummary = wolf.votes.joinToString("، ") { it.name + ":" + it.direction }
         val filterNote = when {
             stretched -> " | فیلتر: قیمت بیش از حد از EMA20 فاصله گرفته؛ تعقیب نکن"
@@ -1916,9 +2306,9 @@ internal object MarketAnalysisEngine {
                 (microStats?.let { " | ۵د: " + it.second } ?: "") +
                 (macroStats?.let { " | ۱روز: " + it.second } ?: "") +
                 (marketContext?.let { " | " + it.conciseSummary() } ?: " | نمای کلان بازار فعلاً در دسترس نیست") +
-                filterNote,
+                filterNote + " | اهرم تطبیقی: " + leverageDecision.reason,
             price, stop, tp1, tp2, tp3, leverage, atrValue, a.technical, short.takeLast(80), wolf,
-            timeframeCoverage = listOfNotNull(primaryLabel, confirmLabel, microLabel.takeIf { microStats != null }, trendLabel, macroLabel.takeIf { macroStats != null }).distinct().joinToString(" / "),
+            timeframeCoverage = listOf("1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w").filter { it in timeframeFrames }.joinToString(" / "),
             technicalDirection = direction,
             tradeTimeframe = when {
                 direction == "NEUTRAL" -> "بدون معامله"
@@ -1931,7 +2321,10 @@ internal object MarketAnalysisEngine {
             },
             neuralTechnical = neuralStats?.technical ?: b.technical,
             neuralRsi = neuralStats?.third ?: b.third,
-            neuralCandles = (neuralFrame ?: confirm).takeLast(80)
+            neuralCandles = (neuralFrame ?: confirm).takeLast(80),
+            timeframeAnalysis = ZoroTimeframeAnalysisEngine.analyze(timeframeFrames),
+            timeframeCandles = timeframeFrames.mapValues { it.value.takeLast(120) },
+            scenarioCandles = timeframeFrames["15m"].orEmpty().takeLast(240)
         )
     }
 

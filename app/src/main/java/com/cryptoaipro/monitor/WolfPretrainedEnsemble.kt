@@ -12,11 +12,15 @@ import kotlin.math.tanh
  */
 internal object WolfPretrainedEnsemble {
     data class ResearchPrediction(
-        val upProbability:Double, val memberProbabilities:List<Double>
+        val upProbability:Double,
+        val memberProbabilities:List<Double>,
+        val inputDistance:Double = 0.0,
+        val outOfDistribution:Boolean = false,
+        val decisionThreshold:Double = 1.01
     ) {
         val predictedDirection:String get() = when {
-            upProbability >= 0.55 -> "LONG_BIAS"
-            upProbability <= 0.45 -> "SHORT_BIAS"
+            decisionThreshold <= 1.0 && upProbability >= decisionThreshold -> "LONG_BIAS"
+            decisionThreshold <= 1.0 && upProbability <= 1.0 - decisionThreshold -> "SHORT_BIAS"
             else -> "NEUTRAL"
         }
         val strength:Int get() = (maxOf(upProbability, 1.0-upProbability) * 100.0).toInt().coerceIn(1,99)
@@ -24,7 +28,8 @@ internal object WolfPretrainedEnsemble {
     data class Status(val loaded:Boolean,val members:Int,val samples:Int,val trainedAt:String,val testAccuracy:Double,
         val baselineAccuracy:Double=0.0,val balancedAccuracy:Double=0.0,val logLoss:Double=0.0,
         val validatedForScoring:Boolean=false,val corpusRows:Int=0,val brierScore:Double=0.0,
-        val rocAuc:Double=0.0,val calibrationError:Double=1.0,val loadError:String="")
+        val rocAuc:Double=0.0,val calibrationError:Double=1.0,val loadError:String="",
+        val decisionThreshold:Double=1.01,val abstentionEnabled:Boolean=false)
     private data class Member(
         val role:String,val featureMask:BooleanArray,
         val w1:Array<DoubleArray>,val b1:DoubleArray,
@@ -36,6 +41,8 @@ internal object WolfPretrainedEnsemble {
     @Volatile private var mean=DoubleArray(7)
     @Volatile private var scale=DoubleArray(7){1.0}
     @Volatile private var trainingPriorLogOdds=0.0
+    @Volatile private var decisionThreshold=1.01
+    @Volatile private var abstentionEnabled=false
     @Volatile private var status=Status(false,0,0,"",0.0)
 
     @Synchronized fun initialize(context:Context):Status {
@@ -44,6 +51,7 @@ internal object WolfPretrainedEnsemble {
             val root=JSONObject(context.assets.open("wolf_pretrained_ensemble.json").bufferedReader().use{it.readText()})
             require(root.optString("format")=="amir-wolf-ensemble-v2")
             require(root.optString("target_definition")=="future_return_6h_up_vs_down_neutral_band_excluded")
+            require(root.optString("ensemble_aggregation")=="equal_weight_mean")
             val corpus=JSONObject(context.assets.open("wolf_corpus_manifest.json").bufferedReader().use{it.readText()})
             val corpusRows=corpus.optInt("rows",0)
             val sources=corpus.optJSONArray("source_exchanges")
@@ -101,9 +109,12 @@ internal object WolfPretrainedEnsemble {
             val testSamples=root.optInt("test_samples",0)
             val calibrationSamples=root.optInt("calibration_samples",0)
             val signalPolicy=root.optJSONObject("signal_policy")
+            val policyEnabled=signalPolicy?.optBoolean("enabled",false)==true
+            val policyThreshold=signalPolicy?.optDouble("threshold",1.01) ?: 1.01
             val signalPolicyWellFormed=signalPolicy!=null && signalPolicy.optInt("calibration_samples",0)>=100 &&
-                signalPolicy.optDouble("threshold",0.0).isFinite() &&
-                (signalPolicy.optBoolean("enabled",false) || signalPolicy.optDouble("threshold",0.0)>1.0)
+                policyEnabled && policyThreshold.isFinite() && policyThreshold>0.5 && policyThreshold<=1.0
+            decisionThreshold=if(signalPolicyWellFormed) policyThreshold else 1.01
+            abstentionEnabled=signalPolicyWellFormed
             val chronological=evaluation?.optString("split","")=="purged_train_calibration_final_test"
             val correctTarget=evaluation?.optString("target","")=="future_price_direction_up_vs_down"
             val walk=root.optJSONObject("walk_forward")
@@ -124,10 +135,14 @@ internal object WolfPretrainedEnsemble {
                 brier<baselineBrier && auc.isFinite() && auc>=0.55 && ece.isFinite() && ece<=0.10 &&
                 walkForwardValid && unseenSymbolValid
             status=Status(true,members.size,root.optInt("samples"),root.optString("trained_at_utc"),
-                accuracy,baseline,balanced,loss,validated,corpusRows,brier,auc,ece)
+                accuracy,baseline,balanced,loss,validated,corpusRows,brier,auc,ece,
+                decisionThreshold=decisionThreshold,abstentionEnabled=abstentionEnabled)
         }.onFailure { error ->
             members=emptyList()
-            status=Status(false,0,0,"",0.0,loadError=(error.message ?: error.javaClass.simpleName).take(240))
+            decisionThreshold=1.01
+            abstentionEnabled=false
+            status=Status(false,0,0,"",0.0,loadError=(error.message ?: error.javaClass.simpleName).take(240),
+                decisionThreshold=1.01,abstentionEnabled=false)
         }
         return status
     }
@@ -139,7 +154,7 @@ internal object WolfPretrainedEnsemble {
     }
 
     /** Research-only inference; probabilities are converted to P(correct relative to the technical reference side). */
-    fun predictResearch(signal:MarketSignal, memberWeights: List<Double> = emptyList()):ResearchPrediction? {
+    fun predictResearch(signal:MarketSignal):ResearchPrediction? {
         if(members.size!=10) return null
         val technical=signal.neuralTechnical ?: return null
         val rsiValue=signal.neuralRsi?.takeIf{it.isFinite()} ?: return null
@@ -158,6 +173,8 @@ internal object WolfPretrainedEnsemble {
         val momentum6=(((candle[3]/oldClose.coerceAtLeast(1e-9)-1.0)*100.0)/5.0).coerceIn(-1.0,1.0)
         // Feature order exactly matches tools/train_wolf_ensemble.py.
         val raw=doubleArrayOf(trend,rsi,adx,volume,body,volatility,momentum6)
+        val inputGuard = WolfModelInputGuard.assess(raw, mean, scale)
+        if (!inputGuard.available) return null
         val predictions=members.map { member ->
             val x=DoubleArray(7){i->if(member.featureMask[i])
                 ((raw[i]-mean[i])/scale[i]).coerceIn(-8.0,8.0) else 0.0}
@@ -169,10 +186,15 @@ internal object WolfPretrainedEnsemble {
             val pUp=1.0/(1.0+exp(-logit.coerceIn(-30.0,30.0)))
             pUp
         }
-        val weights = if (memberWeights.size == 10 && memberWeights.all { it.isFinite() && it in 0.5..2.0 })
-            memberWeights else List(10) { 1.0 }
-        val weightTotal = weights.sum().coerceAtLeast(1e-9)
-        val weightedProbability = predictions.indices.sumOf { predictions[it] * weights[it] } / weightTotal
-        return ResearchPrediction(weightedProbability.coerceIn(.01,.99),predictions)
+        // Must match the exact aggregation used for calibration and untouched holdout metrics.
+        // Online member reweighting is diagnostic-only until it receives its own calibration.
+        val weightedProbability = predictions.average()
+        return ResearchPrediction(
+            weightedProbability.coerceIn(.01,.99),
+            predictions,
+            inputGuard.rmsZScore,
+            inputGuard.outOfDistribution,
+            decisionThreshold
+        )
     }
 }

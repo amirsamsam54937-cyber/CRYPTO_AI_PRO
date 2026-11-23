@@ -38,13 +38,18 @@ internal object ZoroSignalIntelligence {
         }
 
         val neuralSide = signal.neuralDirection.uppercase()
-        if (neuralSide == side) quality += 10
-        else if (neuralSide == "LONG_BIAS" || neuralSide == "SHORT_BIAS") {
-            quality -= 14
-            warnings += "تعارض نظر شبکه عصبی"
+        val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
+        if (neuralValidated) {
+            if (neuralSide == side) quality += 10
+            else if (neuralSide == "LONG_BIAS" || neuralSide == "SHORT_BIAS") {
+                quality -= 14
+                warnings += "تعارض نظر شبکه عصبی اعتبارسنجی‌شده"
+            } else {
+                quality -= 2
+                warnings += "نظر شبکه عصبی خنثی"
+            }
         } else {
-            quality -= 2
-            warnings += "نظر شبکه عصبی خنثی"
+            warnings += "شبکه عصبی هنوز مستقل اعتبارسنجی نشده و در امتیاز کیفیت/مجوز معامله دخالت ندارد"
         }
 
         val adx = technical.adx.takeIf { it.isFinite() } ?: 0.0
@@ -110,7 +115,7 @@ internal object ZoroSignalIntelligence {
         }
         val evidencePenalty =
             (if (technicalSide != side && technicalSide != "NEUTRAL") 6 else 0) +
-            (if (neuralSide == "LONG_BIAS" || neuralSide == "SHORT_BIAS") {
+            (if (neuralValidated && (neuralSide == "LONG_BIAS" || neuralSide == "SHORT_BIAS")) {
                 if (neuralSide != side) 8 else 0
             } else 0) +
             (if (rr == null) 8 else if (rr < 1.0) 10 else if (rr < 1.5) 5 else 0) +

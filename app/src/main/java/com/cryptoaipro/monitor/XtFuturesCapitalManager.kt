@@ -211,7 +211,7 @@ internal object XtFuturesCapitalManager {
             r.expectedFundingRatePer8h, r.expectedHoldingHours, r.slippageRatePerSide,
             r.extraSafetyBuffer).all { it.isFinite() })
         require(r.entry > 0 && r.stop > 0 && r.takeProfit > 0 && r.entry != r.stop)
-        require(r.leverage in 1..3) { "اهرم از سقف محافظه‌کارانه 3x بیشتر است." }
+        require(r.leverage in 1..125) { "اهرم باید در محدوده مجاز XT باشد؛ سقف هر نماد پیش از اجرا بررسی می‌شود." }
         require(r.riskFraction in 0.001..0.01)
         require(r.maxMarginFraction in 0.02..0.15)
         require(abs(r.expectedFundingRatePer8h) <= 0.02)

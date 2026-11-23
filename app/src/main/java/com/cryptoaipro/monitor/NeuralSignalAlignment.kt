@@ -41,11 +41,13 @@ internal object NeuralSignalAlignment {
         }
     }
 
-    fun predictedDirection(probabilityUp: Double): String {
+    fun predictedDirection(probabilityUp: Double, decisionThreshold: Double = 0.55): String {
         require(probabilityUp.isFinite() && probabilityUp in 0.0..1.0)
+        require(decisionThreshold.isFinite() && decisionThreshold in 0.5..1.01)
         return when {
-            probabilityUp >= 0.55 -> "LONG_BIAS"
-            probabilityUp <= 0.45 -> "SHORT_BIAS"
+            decisionThreshold > 1.0 -> "NEUTRAL"
+            probabilityUp >= decisionThreshold -> "LONG_BIAS"
+            probabilityUp <= 1.0 - decisionThreshold -> "SHORT_BIAS"
             else -> "NEUTRAL"
         }
     }

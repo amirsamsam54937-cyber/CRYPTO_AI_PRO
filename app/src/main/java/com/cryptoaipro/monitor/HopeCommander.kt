@@ -3,6 +3,7 @@ package com.cryptoaipro.monitor
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/** Neural-only directional commander: technical data can veto risk geometry, never choose a side. */
 internal object HopeCommander {
     data class Decision(
         val direction: String, val score: Int, val confidence: Int,
@@ -10,117 +11,71 @@ internal object HopeCommander {
     )
 
     fun decide(signal: MarketSignal, neuralValidated: Boolean): Decision {
-        val technicalDirection = signal.technicalDirection
-        val technicalSign = when (technicalDirection) {
-            "LONG_BIAS" -> 1.0
-            "SHORT_BIAS" -> -1.0
-            else -> 0.0
+        if (!neuralValidated) return Decision(
+            "NEUTRAL", 0, minOf(signal.confidence, 35), 0,
+            "ABSTAIN_MODEL_NOT_VALIDATED",
+            "فرمانده عصبی: مدل از اعتبارسنجی زمانی مستقل عبور نکرده؛ صدور سیگنال و معامله متوقف است"
+        )
+        if (signal.neuralOutOfDistribution || !signal.neuralInputDistance.isFinite()) return Decision(
+            "NEUTRAL", 0, minOf(signal.confidence, 30), 0,
+            "ABSTAIN_OUT_OF_DISTRIBUTION",
+            "فرمانده عصبی: شرایط ورودی از دامنه داده‌های آموزش فاصله دارد؛ برای جلوگیری از تعمیم نامعتبر، از معامله خودداری شد"
+        )
+        val threshold = signal.neuralDecisionThreshold
+        if (!threshold.isFinite() || threshold !in 0.5..1.0) return Decision(
+            "NEUTRAL", 0, minOf(signal.confidence, 30), 0,
+            "ABSTAIN_CALIBRATION_GATE_DISABLED",
+            "فرمانده عصبی: آستانهٔ تصمیم روی دادهٔ کالیبراسیون تأیید نشده؛ مدل فقط پژوهشی است"
+        )
+        val probabilities = signal.neuralMemberProbabilities.filter { it.isFinite() && it in 0.0..1.0 }
+        if (probabilities.size < 7) return Decision(
+            "NEUTRAL", 0, minOf(signal.confidence, 35), 0,
+            "ABSTAIN_INSUFFICIENT_NEURAL_VOTES",
+            "فرمانده عصبی: کمتر از ۷ رأی معتبر از متخصصان شبکه عصبی دریافت شد"
+        )
+        val meanUp = probabilities.average()
+        val longVotes = probabilities.count { it >= threshold }
+        val shortVotes = probabilities.count { it <= 1.0 - threshold }
+        val side = when {
+            signal.neuralDirection == "LONG_BIAS" && longVotes >= 7 && meanUp >= threshold -> "LONG_BIAS"
+            signal.neuralDirection == "SHORT_BIAS" && shortVotes >= 7 && meanUp <= 1.0 - threshold -> "SHORT_BIAS"
+            else -> "NEUTRAL"
         }
-        val consensus = signal.consensus
-        val directionalVotes = consensus?.votes.orEmpty().filter {
-            it.direction == "LONG" || it.direction == "SHORT"
-        }
-        val totalWeight = directionalVotes.sumOf { it.weight.coerceAtLeast(0.0) }
-        val alignedWeight = directionalVotes.filter {
-            (it.direction == "LONG" && technicalSign > 0.0) ||
-                (it.direction == "SHORT" && technicalSign < 0.0)
-        }.sumOf { it.weight.coerceAtLeast(0.0) }
-        val technicalAgreement = if (totalWeight > 0.0) alignedWeight / totalWeight else 0.0
-        val weightedTechnicalVote = if (totalWeight > 0.0) directionalVotes.sumOf {
-            val signed = if (it.direction == "LONG") abs(it.score) else -abs(it.score)
-            signed * it.weight.coerceAtLeast(0.0)
-        } / totalWeight else 0.0
-        val aggregateTechnical = (consensus?.score ?: technicalSign * 0.35).coerceIn(-1.0, 1.0)
-        val technicalEvidence = ((weightedTechnicalVote * 0.65 + aggregateTechnical * 0.35) * 100.0)
-            .coerceIn(-100.0, 100.0)
-
-        val memberProbabilities = signal.neuralMemberProbabilities.filter { it.isFinite() && it in 0.0..1.0 }
-        val neuralMembersMean = memberProbabilities.map { (it - 0.5) * 200.0 }.average()
-            .takeIf { it.isFinite() } ?: 0.0
-        val neuralEnsembleSigned = (signal.neuralScore - 50) * 2.0
-        val neuralEvidence = (neuralMembersMean * 0.60 + neuralEnsembleSigned * 0.40).coerceIn(-100.0, 100.0)
-        val neuralLong = memberProbabilities.count { it >= 0.55 }
-        val neuralShort = memberProbabilities.count { it <= 0.45 }
-        val neuralNeutral = memberProbabilities.size - neuralLong - neuralShort
-        val neuralAligned = if (technicalSign > 0.0) neuralLong else if (technicalSign < 0.0) neuralShort else 0
-        val neuralOpposed = if (technicalSign > 0.0) neuralShort else if (technicalSign < 0.0) neuralLong else 0
-        val neuralSign = when {
-            neuralEvidence >= 10.0 -> 1.0
-            neuralEvidence <= -10.0 -> -1.0
-            else -> 0.0
-        }
-        val neuralStrength = abs(neuralEvidence).roundToInt().coerceIn(0, 100)
-
+        if (side == "NEUTRAL") return Decision(
+            "NEUTRAL", 0, minOf(signal.confidence, 45), maxOf(longVotes, shortVotes),
+            "ABSTAIN_NEURAL_DISAGREEMENT",
+            "فرمانده عصبی: اجماع کافی نیست؛ رأی صعود $longVotes از ${probabilities.size} و رأی نزول $shortVotes از ${probabilities.size}"
+        )
+        if (signal.neuralUncertainty.highDisagreement) return Decision(
+            "NEUTRAL", 0, minOf(signal.confidence, 40), maxOf(longVotes, shortVotes),
+            "ABSTAIN_NEURAL_UNCERTAINTY", "فرمانده عصبی: اختلاف متخصصان بیش از حد مجاز است"
+        )
         val longGeometry = signal.stop < signal.entry && signal.tp1 > signal.entry
         val shortGeometry = signal.stop > signal.entry && signal.tp1 < signal.entry
-        val geometryValid = signal.entry.isFinite() && signal.stop.isFinite() &&
-            signal.tp1.isFinite() && signal.entry > 0.0 && (longGeometry || shortGeometry)
-        if (!geometryValid) return Decision("NEUTRAL", 0, minOf(signal.confidence, 35), 0,
-            "VETO_INVALID_GEOMETRY", "فرمانده: هندسه ورود، حدضرر یا هدف نامعتبر است")
-
-        val riskDistance = abs(signal.entry - signal.stop)
-        val rewardDistance = abs(signal.tp1 - signal.entry)
-        // Scalping accepts a small first target when it is directionally valid.
-        // The live XT executor separately checks actual taker fees + slippage and
-        // refuses any TP1 whose estimated net return is not positive.
-        val scalpMode = signal.tradeTimeframe.startsWith("5m")
-        if (riskDistance <= 0.0 || rewardDistance <= 0.0 ||
-            (!scalpMode && rewardDistance / riskDistance < 1.8))
-            return Decision("NEUTRAL", 0, minOf(signal.confidence, 39), 0,
-                "VETO_REWARD_RISK", if (scalpMode)
-                    "فرمانده: هندسه هدف اسکالپ معتبر نیست"
-                else "فرمانده: نسبت سود به زیان کمتر از حداقل ۱٫۸ است")
-        if (technicalSign == 0.0)
-            return Decision("NEUTRAL", 0, minOf(signal.confidence, 45), 0,
-                "ABSTAIN_NO_TECHNICAL_DIRECTION", "فرمانده: جهت تکنیکال شواهد کافی ندارد")
-
-        // Unvalidated neural outputs stay visible for research, but have zero authority over
-        // directional scoring or live eligibility until chronological holdout validation passes.
-        val neuralWeight = if (neuralValidated) NeuralSignalAlignment.influenceWeight(
-            true, memberProbabilities.size, signal.neuralUncertainty.highDisagreement
-        ) else 0.0
-        val combined = technicalEvidence * (1.0 - neuralWeight) + neuralEvidence * neuralWeight
-        val technicalConflict = technicalEvidence * technicalSign < -8.0
-        val neuralConflict = neuralValidated && neuralSign != 0.0 && neuralSign != technicalSign
-        val agreement = consensus?.agreement ?: 0
-        if (neuralConflict && neuralOpposed >= 7 && neuralStrength >= 18 && technicalAgreement < 0.80)
-            return Decision("NEUTRAL", 0, minOf(signal.confidence, 45), neuralStrength,
-                "ABSTAIN_NEURAL_PANEL_CONFLICT",
-                "فرمانده: تعارض پنل عصبی؛ صعود " + neuralLong + "، نزول " + neuralShort + "، خنثی " + neuralNeutral)
-        if (technicalConflict || abs(combined) < 18.0 || agreement < 58 ||
-            directionalVotes.size < 3 || signal.technical.adx < 16.0 || signal.technical.relativeVolume < 0.65)
-            return Decision("NEUTRAL", 0, minOf(signal.confidence, 49), neuralStrength,
-                "ABSTAIN_WEAK_EVIDENCE",
-                "فرمانده: شواهد ناکافی؛ رأی تکنیکال همسو " + alignedWeight.roundToInt() +
-                    " از " + totalWeight.roundToInt() + "؛ اجماع " + agreement + "٪")
-
-        val chosen = if (combined > 0.0) "LONG_BIAS" else "SHORT_BIAS"
-        if (chosen != technicalDirection)
-            return Decision("NEUTRAL", 0, minOf(signal.confidence, 45), neuralStrength,
-                "ABSTAIN_DIRECTION_CONFLICT", "فرمانده: جهت ترکیبی با تکنیکال همسو نیست")
-        val neuralImpact = if (neuralWeight > 0.0) (combined - technicalEvidence).roundToInt() else 0
-        val neuralAdjustment = if (neuralWeight == 0.0) 0 else
-            NeuralSignalAlignment.experimentalConfidenceAdjustment(
-                neuralValidated, neuralAligned, neuralOpposed, neuralStrength
-            )
-        val voteAdjustment = when {
-            technicalAgreement >= 0.85 -> 3
-            technicalAgreement < 0.60 -> -5
-            else -> 0
-        }
-        val finalConfidence = (signal.confidence + neuralAdjustment + voteAdjustment).coerceIn(0, 95)
-        val finalScore = combined.roundToInt().coerceIn(-100, 100)
-        val explanation = "فرمانده: امتیاز نهایی " + finalScore +
-            "/100؛ تکنیکال " + (100 - (neuralWeight * 100.0).roundToInt()) + "% + شبکه عصبی " +
-            (neuralWeight * 100.0).roundToInt() + "% " + (if (neuralValidated) "معتبر" else "آزمایشی") +
-            "؛ متخصصان تکنیکال همسو " + (technicalAgreement * 100.0).roundToInt() +
-            "٪؛ رأی عصبی صعود " + neuralLong + "، نزول " + neuralShort +
-            "، خنثی " + neuralNeutral + "؛ اثر خالص عصبی " + neuralImpact
-        val status = when {
-            neuralWeight == 0.0 -> "COMMANDER_TECH_ONLY_AI_UNVALIDATED"
-            neuralValidated -> "COMMANDER_FULL_PANEL_REVIEW"
-            else -> "COMMANDER_EXPERIMENTAL_NEURAL_ASSIST"
-        }
-        return Decision(chosen, finalScore, finalConfidence, neuralImpact, status, explanation)
+        val geometryValid = signal.entry.isFinite() && signal.entry > 0.0 &&
+            signal.stop.isFinite() && signal.tp1.isFinite() &&
+            (if (side == "LONG_BIAS") longGeometry else shortGeometry)
+        if (!geometryValid) return Decision(
+            "NEUTRAL", 0, minOf(signal.confidence, 35), maxOf(longVotes, shortVotes),
+            "ABSTAIN_RISK_GEOMETRY",
+            "فرمانده عصبی: جهت شبکه با هندسه حدضرر/هدف فعلی سازگار نیست؛ سیگنال متوقف شد"
+        )
+        val risk = abs(signal.entry - signal.stop)
+        val reward = abs(signal.tp1 - signal.entry)
+        val scalp = signal.tradeTimeframe.startsWith("5m")
+        if (risk <= 0.0 || reward <= 0.0 || (!scalp && reward / risk < 1.8)) return Decision(
+            "NEUTRAL", 0, minOf(signal.confidence, 39), maxOf(longVotes, shortVotes),
+            "ABSTAIN_REWARD_RISK", "فرمانده عصبی: نسبت سود به زیان یا هندسه هدف برای اجرا کافی نیست"
+        )
+        val sideProbability = if (side == "LONG_BIAS") meanUp else 1.0 - meanUp
+        val strength = ((sideProbability - 0.5) * 200.0).roundToInt().coerceIn(0, 100)
+        val score = if (side == "LONG_BIAS") (meanUp * 100.0).roundToInt()
+            else -((1.0 - meanUp) * 100.0).roundToInt()
+        val confidence = minOf(signal.confidence, (50 + strength).coerceIn(0, 95))
+        val explanation = "جهت فقط از اجماع شبکه عصبی: $side • میانگین احتمال صعود " +
+            "${(meanUp * 100.0).roundToInt()}٪ • رأی صعود $longVotes/${probabilities.size} • " +
+            "رأی نزول $shortVotes/${probabilities.size} • قدرت عصبی $strength/100"
+        return Decision(side, score.coerceIn(-100, 100), confidence, strength,
+            "NEURAL_ONLY_VALIDATED", explanation)
     }
 }
