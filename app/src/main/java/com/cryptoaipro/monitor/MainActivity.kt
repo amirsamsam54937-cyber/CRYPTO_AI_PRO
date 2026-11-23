@@ -2090,12 +2090,12 @@ private fun PriceLevelRow(label: String, price: Double, tint: Color) {
 
 @Composable
 private fun ZoroNativeSignalChart(signal: MarketSignal, interval: String) {
+    var showEma by remember { mutableStateOf(true) }
+    var showBands by remember { mutableStateOf(true) }
+    var showLevels by remember { mutableStateOf(true) }
+    var showVolume by remember { mutableStateOf(true) }
     val timeframeKey = when (interval) {
-        "5" -> "5m"
-        "15" -> "15m"
-        "60" -> "1h"
-        "240" -> "4h"
-        "D" -> "1d"
+        "5" -> "5m"; "15" -> "15m"; "60" -> "1h"; "240" -> "4h"; "D" -> "1d"
         else -> signal.tradeTimeframe.substringBefore(" ").lowercase()
     }
     val candles = signal.timeframeCandles[timeframeKey]
@@ -2104,36 +2104,72 @@ private fun ZoroNativeSignalChart(signal: MarketSignal, interval: String) {
     val valid = candles.filter { candle ->
         candle.size >= 6 && candle.take(6).all { it.isFinite() } &&
             candle[1] >= candle[2] && candle[1] >= maxOf(candle[0], candle[3]) &&
-            candle[2] <= minOf(candle[0], candle[3])
-    }.takeLast(100)
+            candle[2] <= minOf(candle[0], candle[3]) && candle[4] >= 0.0
+    }.takeLast(120)
+    fun ema(period: Int): List<Double> {
+        if (valid.isEmpty()) return emptyList()
+        val alpha = 2.0 / (period + 1.0)
+        val out = ArrayList<Double>(valid.size)
+        var value = valid.first()[3]
+        valid.forEachIndexed { index, candle ->
+            value = if (index == 0) candle[3] else candle[3] * alpha + value * (1.0 - alpha)
+            out.add(value)
+        }
+        return out
+    }
+    val ema20 = ema(20)
+    val ema50 = ema(50)
+    val closes = valid.map { it[3] }
+    val bbMid = closes.mapIndexed { index, _ ->
+        val from = maxOf(0, index - 19)
+        val window = closes.subList(from, index + 1)
+        window.average()
+    }
+    val bbUpper = bbMid.mapIndexed { index, mid ->
+        val from = maxOf(0, index - 19)
+        val window = closes.subList(from, index + 1)
+        mid + 2.0 * kotlin.math.sqrt(window.map { (it - mid) * (it - mid) }.average())
+    }
+    val bbLower = bbMid.mapIndexed { index, mid ->
+        val from = maxOf(0, index - 19)
+        val window = closes.subList(from, index + 1)
+        mid - 2.0 * kotlin.math.sqrt(window.map { (it - mid) * (it - mid) }.average())
+    }
+    val patternRead = detectHarmonicPattern(valid)
+    val emaBias = if (ema20.lastOrNull() != null && ema50.lastOrNull() != null) {
+        if (ema20.last() >= ema50.last()) "EMA20 بالای EMA50 • تمایل صعودی" else "EMA20 زیر EMA50 • تمایل نزولی"
+    } else "داده کافی برای EMA نیست"
     Surface(
-        color = Color(0xFF0D0D0D),
-        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFF0D0D0D), shape = RoundedCornerShape(20.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.38f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(signal.symbol, color = Color(0xFFF4E7C8), fontSize = 15.sp, fontWeight = FontWeight.Black)
                     Text("نمودار اختصاصی ZORO • $timeframeKey", color = Muted, fontSize = 9.sp)
                 }
-                Text(
-                    if (signal.direction == "LONG_BIAS") "صعودی" else "نزولی",
-                    color = if (signal.direction == "LONG_BIAS") Green else Red,
-                    fontSize = 10.sp, fontWeight = FontWeight.Bold
-                )
+                Text(if (signal.direction == "LONG_BIAS") "صعودی" else "نزولی",
+                    color = if (signal.direction == "LONG_BIAS") Green else Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxWidth()) {
+                FilterChip(selected = showEma, onClick = { showEma = !showEma }, label = { Text("EMA 20/50") })
+                FilterChip(selected = showBands, onClick = { showBands = !showBands }, label = { Text("Bollinger") })
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxWidth()) {
+                FilterChip(selected = showLevels, onClick = { showLevels = !showLevels }, label = { Text("ورود و اهداف") })
+                FilterChip(selected = showVolume, onClick = { showVolume = !showVolume }, label = { Text("حجم") })
             }
             if (valid.size >= 3) {
-                val high = maxOf(valid.maxOf { it[1] }, signal.tp3, signal.entry, signal.stop)
-                val low = minOf(valid.minOf { it[2] }, signal.tp3, signal.entry, signal.stop)
+                val levelPrices = if (showLevels) listOf(signal.tp3, signal.entry, signal.stop) else emptyList()
+                val high = maxOf(valid.maxOf { it[1] }, (levelPrices + bbUpper).filter { it.isFinite() }.maxOrNull() ?: valid.maxOf { it[1] })
+                val low = minOf(valid.minOf { it[2] }, (levelPrices + bbLower).filter { it.isFinite() }.minOrNull() ?: valid.minOf { it[2] })
                 val span = (high - low).coerceAtLeast(kotlin.math.abs(high) * 1e-8).coerceAtLeast(1e-10)
-                Canvas(Modifier.fillMaxWidth().height(300.dp)) {
-                    val left = 4f
-                    val right = size.width - 76f
-                    val top = 12f
-                    val bottom = size.height - 12f
+                Canvas(Modifier.fillMaxWidth().height(330.dp)) {
+                    val left = 4f; val right = size.width - 76f
+                    val top = 12f; val volumeHeight = if (showVolume) 44f else 0f
+                    val bottom = size.height - volumeHeight - 12f
                     val plotWidth = (right - left).coerceAtLeast(1f)
                     val plotHeight = (bottom - top).coerceAtLeast(1f)
                     fun y(price: Double): Float = bottom - ((price - low) / span).toFloat() * plotHeight
@@ -2145,48 +2181,59 @@ private fun ZoroNativeSignalChart(signal: MarketSignal, interval: String) {
                     val bodyWidth = (step * 0.62f).coerceIn(2f, 11f)
                     valid.forEachIndexed { index, candle ->
                         val x = left + step * (index + 0.5f)
-                        val up = candle[3] >= candle[0]
-                        val tint = if (up) Green else Red
-                        drawLine(tint, Offset(x, y(candle[1])), Offset(x, y(candle[2])), 1.35f)
+                        val tint = if (candle[3] >= candle[0]) Green else Red
+                        drawLine(tint, Offset(x, y(candle[1])), Offset(x, y(candle[2])), 1.25f)
                         val bodyTop = minOf(y(candle[0]), y(candle[3]))
                         val bodyBottom = maxOf(y(candle[0]), y(candle[3]))
                         drawRect(tint, Offset(x - bodyWidth / 2f, bodyTop),
                             androidx.compose.ui.geometry.Size(bodyWidth, (bodyBottom - bodyTop).coerceAtLeast(2f)))
-                    }
-                    val levels = listOf(
-                        signal.entry to Gold,
-                        signal.stop to Red,
-                        signal.tp1 to Green,
-                        signal.tp2 to Green.copy(alpha = 0.72f),
-                        signal.tp3 to Green.copy(alpha = 0.48f)
-                    )
-                    levels.forEach { (price, color) ->
-                        if (price.isFinite() && price in low..high) {
-                            val yy = y(price)
-                            drawLine(color, Offset(left, yy), Offset(right, yy), 1.25f,
-                                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(7f, 5f)))
+                        if (showVolume) {
+                            val maxVolume = valid.maxOf { it[4] }.coerceAtLeast(1e-12)
+                            val barHeight = (candle[4] / maxVolume).toFloat() * volumeHeight
+                            drawRect(tint.copy(alpha = 0.42f),
+                                Offset(x - bodyWidth / 2f, size.height - 5f - barHeight),
+                                androidx.compose.ui.geometry.Size(bodyWidth, barHeight))
                         }
+                    }
+                    fun drawSeries(values: List<Double>, color: Color, width: Float) {
+                        for (index in 1 until values.size) {
+                            drawLine(color, Offset(left + step * (index - 0.5f), y(values[index - 1])),
+                                Offset(left + step * (index + 0.5f), y(values[index])), width)
+                        }
+                    }
+                    if (showEma) { drawSeries(ema20, Gold, 2f); drawSeries(ema50, Color(0xFF4FC3F7), 1.8f) }
+                    if (showBands) { drawSeries(bbUpper, Color(0xFFB58CE6), 1.2f); drawSeries(bbLower, Color(0xFFB58CE6), 1.2f) }
+                    if (showLevels) {
+                        listOf(signal.entry to Gold, signal.stop to Red, signal.tp1 to Green,
+                            signal.tp2 to Green.copy(alpha = 0.72f), signal.tp3 to Green.copy(alpha = 0.48f))
+                            .forEach { (price, color) ->
+                                if (price.isFinite() && price in low..high) {
+                                    val yy = y(price)
+                                    drawLine(color, Offset(left, yy), Offset(right, yy), 1.25f,
+                                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(7f, 5f)))
+                                }
+                            }
                     }
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    listOf(
-                        "ورود" to signal.entry to Gold,
-                        "حدضرر" to signal.stop to Red,
-                        "هدف ۱" to signal.tp1 to Green,
-                        "هدف ۲" to signal.tp2 to Green,
-                        "هدف ۳" to signal.tp3 to Green
-                    ).forEach { item ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(item.first.first, color = Muted, fontSize = 10.sp)
-                            Text(formatPrice(item.first.second), color = item.second, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
+                val lastRsi = signal.rsi
+                val lastMacd = signal.technical.macd
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("خوانش ابزارهای نمودار", color = Gold, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(emaBias, color = if (ema20.last() >= ema50.last()) Green else Red, fontSize = 10.sp)
+                    Text("RSI: ${"%.1f".format(java.util.Locale.US, lastRsi)} • MACD: ${"%.5f".format(java.util.Locale.US, lastMacd)}",
+                        color = Muted, fontSize = 10.sp)
+                    Text("باند بولینگر بالا: ${formatPrice(bbUpper.last())}  |  پایین: ${formatPrice(bbLower.last())}",
+                        color = Muted, fontSize = 9.sp)
+                    Text("الگوی هارمونیک: $patternRead", color = Gold, fontSize = 10.sp)
+                    Text("ورود: ${formatPrice(signal.entry)}  •  حدضرر: ${formatPrice(signal.stop)}",
+                        color = Muted, fontSize = 10.sp)
+                    Text("TP1: ${formatPrice(signal.tp1)}  •  TP2: ${formatPrice(signal.tp2)}  •  TP3: ${formatPrice(signal.tp3)}",
+                        color = Green, fontSize = 10.sp)
                 }
             } else {
-                Text("کندل کافی برای این تایم‌فریم دریافت نشده است؛ نمودار با داده ساختگی پر نمی‌شود.",
-                    color = Muted, fontSize = 10.sp)
+                Text("کندل کافی برای این تایم‌فریم دریافت نشده است؛ نمودار با داده ساختگی پر نمی‌شود.", color = Muted, fontSize = 10.sp)
             }
-            Text("این نمودار با کندل‌های دریافت‌شده توسط ZORO رسم می‌شود؛ بدون TradingView و بدون وب‌ویو خارجی.",
+            Text("ابزارهای داخلی: کندل OHLCV، EMA20/50، Bollinger، RSI، MACD، حجم و الگوی هارمونیک؛ خروجی‌ها تحلیلی‌اند و تضمین سیگنال نیستند.",
                 color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
         }
     }
