@@ -31,6 +31,7 @@ internal object XtLiveTradingEngine {
     private const val KEY_STATUS = "last_status"
     private const val KEY_MANAGED = "managed_symbols"
     private const val MAX_DAILY_ENTRIES = 3
+    private const val MAX_CONCURRENT_POSITIONS = 2
     private const val MAX_DAILY_LOSS = 0.02
     private const val MAX_PEAK_DRAWDOWN = 0.08
     private const val PREVIEW_TTL_MS = 45_000L
@@ -256,8 +257,16 @@ internal object XtLiveTradingEngine {
         require(XtExecutionPolicy.maySendOrder(policyState)) {
             "مجوز معامله و بازکردن پوزیشن در XT یا وضعیت فعال‌سازی LIVE تأیید نشد."
         }
-        require(client.activePositions().isEmpty()) {
-            "برای جلوگیری از تداخل با پوزیشن‌های دستی یا قبلی، تا وقتی حساب XT پوزیشن باز دارد سفارش جدید مسدود است."
+        val activePositions = client.activePositions()
+        val managedSymbols = prefs(context).getStringSet(KEY_MANAGED, emptySet())?.toSet().orEmpty()
+        require(activePositions.size < MAX_CONCURRENT_POSITIONS) {
+            "سقف دو پوزیشن هم‌زمان ZORO تکمیل شده است."
+        }
+        require(activePositions.all { normalized(it.symbol) in managedSymbols }) {
+            "حساب XT پوزیشن دستی یا ناشناخته دارد؛ برای جلوگیری از تداخل، ورود خودکار جدید مسدود است."
+        }
+        require(activePositions.map { normalized(it.symbol) }.distinct().size == activePositions.size) {
+            "برای هر نماد فقط یک پوزیشن تحت مدیریت ZORO مجاز است."
         }
         require(client.activeOpenOrders().isEmpty()) {
             "در حساب XT سفارش باز یا نیمه‌تمام وجود دارد؛ تا تعیین تکلیف آن سفارش‌ها، ورود جدید مسدود است."
