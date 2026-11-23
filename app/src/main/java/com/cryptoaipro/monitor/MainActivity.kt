@@ -636,7 +636,8 @@ fun CryptoMonitorScreen() {
         "نزولی" -> rows.filter { it.direction == "SHORT_BIAS" }
         else -> rows
     }
-    val selectedSignal = rows.firstOrNull { it.symbol == selectedSymbol } ?: rows.firstOrNull()
+    val signalRows = rows.filter { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
+    val selectedSignal = signalRows.firstOrNull { it.symbol == selectedSymbol } ?: signalRows.firstOrNull()
 
     MaterialTheme(colorScheme = darkColorScheme(
         primary = Gold, secondary = Green, background = Navy, surface = Panel,
