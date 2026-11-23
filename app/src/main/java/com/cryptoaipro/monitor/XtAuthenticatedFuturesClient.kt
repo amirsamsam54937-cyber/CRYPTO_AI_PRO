@@ -98,6 +98,7 @@ internal class XtAuthenticatedFuturesClient(
             connection.setRequestProperty("validate-timestamp", timestamp)
             connection.setRequestProperty("validate-signature", sig)
             connection.setRequestProperty("validate-recvwindow", "5000")
+            connection.setRequestProperty("validate-algorithms", "HmacSHA256")
             if (method != "GET") {
                 connection.doOutput = true
                 connection.outputStream.use { it.write(bodyText.toByteArray(StandardCharsets.UTF_8)) }
@@ -106,15 +107,22 @@ internal class XtAuthenticatedFuturesClient(
             val raw = (if (code in 200..299) connection.inputStream else connection.errorStream)
                 ?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
-                val message = runCatching {
+                val parsed = runCatching {
                     val root = JSONObject(raw)
                     val nested = root.optJSONObject("error")
-                    listOf(root.optString("msgInfo"), nested?.optString("msg").orEmpty(),
-                        nested?.optString("code").orEmpty())
+                    val errorCode = nested?.optString("code").orEmpty()
+                    val message = listOf(nested?.optString("msg").orEmpty(), root.optString("msgInfo"))
                         .firstOrNull { it.isNotBlank() && it != "null" }.orEmpty()
+                    listOf(errorCode, message).filter { it.isNotBlank() && it != "null" }.joinToString(" • ")
                 }.getOrDefault("")
-                val detail = message.ifBlank { raw.take(120) }
-                throw IllegalStateException("XT $method $path • HTTP $code: ${detail.take(220)}")
+                val detail = parsed.ifBlank { raw.replace(Regex("\\s+"), " ").take(260).ifBlank { "پاسخ خالی از سرور" } }
+                val serverDate = connection.getHeaderField("Date")?.take(64) ?: "ناموجود"
+                val requestId = connection.getHeaderField("X-Request-Id")
+                    ?: connection.getHeaderField("X-Trace-Id") ?: "ناموجود"
+                val contentType = connection.contentType?.take(80) ?: "نامشخص"
+                throw IllegalStateException(
+                    "XT $method $path • HTTP $code • $detail • Server-Date=$serverDate • Request-ID=$requestId • Content-Type=$contentType"
+                )
             }
             val response = JSONObject(raw)
             require(response.has("returnCode")) { "پاسخ XT فاقد returnCode است؛ نتیجه درخواست قابل تأیید نیست." }
