@@ -71,6 +71,7 @@ def test_analysis_rejects_invalid_or_non_monotonic_timestamps(timestamp_mutation
     elif timestamp_mutation == "out_of_order":
         frame.loc[100, "timestamp"] = frame.loc[99, "timestamp"] - pd.Timedelta(minutes=15)
     else:
+        frame["timestamp"] = frame["timestamp"].astype("object")
         frame.loc[100, "timestamp"] = "not-a-timestamp"
 
     with pytest.raises(ValueError, match="timestamps"):
@@ -130,3 +131,53 @@ def test_analysis_reports_no_timestamp_gaps_for_regular_or_untimestamped_data():
     assert untimestamped_result["timestamp_interval_seconds"] is None
     assert untimestamped_result["timestamp_gap_count"] == 0
     assert untimestamped_result["estimated_missing_candles"] == 0
+
+def test_timestamp_cadence_detects_gaps_even_when_gaps_are_the_majority():
+    frame = candles()
+    intervals = np.full(len(frame) - 1, 1800, dtype=np.int64)
+    intervals[:20] = 900
+    offsets = np.concatenate(([0], np.cumsum(intervals)))
+    timestamps = pd.Timestamp("2024-01-01", tz="UTC") + pd.to_timedelta(offsets, unit="s")
+    frame.insert(0, "timestamp", timestamps)
+
+    result = analyze_ohlcv(frame)
+    baseline = analyze_ohlcv(candles())
+
+    assert result["timestamp_interval_seconds"] == 900.0
+    assert result["timestamp_gap_count"] == len(frame) - 1 - 20
+    assert result["estimated_missing_candles"] == len(frame) - 1 - 20
+    assert result["timestamp_irregular_interval_count"] == 0
+    assert result["direction"] == baseline["direction"]
+    assert result["score"] == baseline["score"]
+    assert result["confidence"] == baseline["confidence"]
+
+
+def test_timestamp_cadence_fails_closed_when_intervals_are_ambiguous():
+    frame = candles()
+    intervals = np.resize(np.array([900, 1200], dtype=np.int64), len(frame) - 1)
+    offsets = np.concatenate(([0], np.cumsum(intervals)))
+    timestamps = pd.Timestamp("2024-01-01", tz="UTC") + pd.to_timedelta(offsets, unit="s")
+    frame.insert(0, "timestamp", timestamps)
+
+    result = analyze_ohlcv(frame)
+
+    assert result["timestamp_interval_seconds"] is None
+    assert result["timestamp_gap_count"] == 0
+    assert result["estimated_missing_candles"] == 0
+    assert result["timestamp_irregular_interval_count"] is None
+
+
+def test_timestamp_cadence_reports_irregular_intervals_separately_from_gaps():
+    frame = candles()
+    intervals = np.full(len(frame) - 1, 900, dtype=np.int64)
+    intervals[100] = 600
+    offsets = np.concatenate(([0], np.cumsum(intervals)))
+    timestamps = pd.Timestamp("2024-01-01", tz="UTC") + pd.to_timedelta(offsets, unit="s")
+    frame.insert(0, "timestamp", timestamps)
+
+    result = analyze_ohlcv(frame)
+
+    assert result["timestamp_interval_seconds"] == 900.0
+    assert result["timestamp_gap_count"] == 0
+    assert result["estimated_missing_candles"] == 0
+    assert result["timestamp_irregular_interval_count"] == 1
