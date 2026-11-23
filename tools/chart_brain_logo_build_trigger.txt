@@ -1,0 +1,1 @@
+Build ZORO with native chart overlays and chart-reading indicators plus premium crowned wolf icon. Source commit 9ecf3d39250394cfbb6fc2b0147f593f84f05e8f.
