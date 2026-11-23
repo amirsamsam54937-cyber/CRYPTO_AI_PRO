@@ -1,0 +1,3 @@
+ZORO APEX build validation marker
+Market full-page scroll fix: 7e42558dccce0722d5799debe604488328c99824
+XT diagnostics now include HTTP method and endpoint path: 796bd63de6663131176a2f48d54b94cc975d0931
