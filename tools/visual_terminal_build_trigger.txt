@@ -1,0 +1,1 @@
+Build ZORO after obsidian-gold visual foundation redesign. Source commit 102d870af5efc9b984e4e07dad68059cd6070d47.
