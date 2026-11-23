@@ -114,7 +114,7 @@ internal class XtAuthenticatedFuturesClient(
                         .firstOrNull { it.isNotBlank() && it != "null" }.orEmpty()
                 }.getOrDefault("")
                 val detail = message.ifBlank { raw.take(120) }
-                throw IllegalStateException("XT HTTP $code: ${detail.take(160)}")
+                throw IllegalStateException("XT $method $path • HTTP $code: ${detail.take(220)}")
             }
             val response = JSONObject(raw)
             require(response.has("returnCode")) { "پاسخ XT فاقد returnCode است؛ نتیجه درخواست قابل تأیید نیست." }
