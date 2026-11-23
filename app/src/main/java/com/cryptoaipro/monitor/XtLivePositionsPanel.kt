@@ -44,14 +44,15 @@ internal fun XtLivePositionsPanel(context: Context = LocalContext.current) {
             delay(2_000L)
         }
     }
-    val panel = Color(0xFF101211)
-    val silver = Color(0xFFE1E5EA)
+    val panel = Color(0xFF0B0B0A)
+    val silver = Color(0xFFF2E5C8)
     val muted = Color(0xFFB8B0A0)
     val green = Color(0xFF25D978)
     val red = Color(0xFFFF5361)
     Surface(
         color = panel,
         shape = RoundedCornerShape(15.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFB88A32).copy(alpha = 0.55f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -81,7 +82,7 @@ internal fun XtLivePositionsPanel(context: Context = LocalContext.current) {
                     val savedStop = tradePrefs.getString(managedPrefix + "current_stop", null)?.toDoubleOrNull() ?: 0.0
                     val savedTarget = tradePrefs.getString(managedPrefix + "target", null)?.toDoubleOrNull() ?: 0.0
                     val lockStage = tradePrefs.getInt(managedPrefix + "profit_lock_stage", 0)
-                    Surface(color = Color(0xFF191D1B), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Surface(color = Color(0xFF12110E), shape = RoundedCornerShape(10.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF8F6A2C).copy(alpha = 0.35f)), modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(symbol, color = silver, fontWeight = FontWeight.Bold, fontSize = 12.sp,
@@ -104,6 +105,22 @@ internal fun XtLivePositionsPanel(context: Context = LocalContext.current) {
                                 )
                                 Text("قفل سود خودکار: مرحله ${lockStage.coerceIn(0, 5)}/5 • حفاظت XT",
                                     color = if (lockStage > 0) green else muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    listOf("1R", "1.5R", "2R", "2.5R", "3R").forEachIndexed { index, label ->
+                                        Surface(
+                                            color = if (lockStage >= index + 1) Color(0xFF17442C) else Color(0xFF211B10),
+                                            shape = RoundedCornerShape(6.dp),
+                                            border = androidx.compose.foundation.BorderStroke(
+                                                1.dp, if (lockStage >= index + 1) green.copy(alpha = 0.8f) else Color(0xFF6E5425).copy(alpha = 0.55f)
+                                            ),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text(label, color = if (lockStage >= index + 1) green else muted,
+                                                fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(vertical = 5.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                        }
+                                    }
+                                }
                             } else {
                                 Text("حدود حفاظتی ثبت‌شده در حافظه برنامه موجود نیست؛ وضعیت XT باید بررسی شود.", color = red, fontSize = 9.sp)
                             }
