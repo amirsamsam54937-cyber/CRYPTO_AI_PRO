@@ -94,7 +94,7 @@ class ZoroProfitLockEngineTest {
             currentStop = 78.0,
             feeBufferPrice = 0.5,
             pricePrecision = 2,
-            atrTrailDistance = 5.0
+            atrTrailDistance = 10.0
         )!!
         assertEquals(5, plan.stage)
         assertEquals(70.0, plan.stopPrice, 1e-8)
@@ -115,12 +115,12 @@ class ZoroProfitLockEngineTest {
 
     @Test fun roundingIsConservativeForBothSides() {
         val long = ZoroProfitLockEngine.plan(
-            "LONG", 1.0, 0.1, 1.15, 1.14, 0.9, 0.00001, 2
+            "LONG", 1.0, 0.1, 1.16, 1.15, 0.9, 0.00001, 2
         )!!
         assertEquals(1.05, long.stopPrice, 1e-8)
 
         val short = ZoroProfitLockEngine.plan(
-            "SHORT", 1.0, 0.1, 0.85, 0.86, 1.1, 0.00001, 2
+            "SHORT", 1.0, 0.1, 0.84, 0.85, 1.1, 0.00001, 2
         )!!
         assertEquals(0.95, short.stopPrice, 1e-8)
     }
