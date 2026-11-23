@@ -177,6 +177,9 @@ internal fun HopeCommanderScreen(
             HopeLivingBrainPanel(context)
         }
         item {
+            XtLivePositionsPanel(context)
+        }
+        item {
             NeuralEnsemblePulse(
                 probabilities = best?.neuralMemberProbabilities.orEmpty(),
                 validated = validated,
@@ -215,7 +218,7 @@ internal fun HopeCommanderScreen(
                         Text("فرمانده مرکزی سیستم", color = HMuted, fontSize = 10.sp)
                         Text("wolfblack", color = HGoldBright, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                         Text("مغز یکپارچهٔ تحلیل و تصمیم‌گیری", color = Color.White, fontSize = 10.sp)
-                        Surface(color = Color(0xFF18352E), shape = RoundedCornerShape(30.dp),
+                        Surface(color = Color(0xFF15291E), shape = RoundedCornerShape(30.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, HMint.copy(alpha = glow))) {
                             Text(if (signals.isEmpty()) "در انتظار دریافت داده…" else "در حال پایش و داوری شواهد",
                                 color = HMint, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 15.dp, vertical = 7.dp))
@@ -240,7 +243,7 @@ internal fun HopeCommanderScreen(
                     Text(ta.trend + " • " + ta.regime + " • " + ta.momentum, color = HMuted, fontSize = 9.sp)
                     Text(ta.structure + " • " + ta.higherTimeframe, color = Color.White, fontSize = 9.sp)
                     Text("حجم: " + ta.volumeState, color = HMuted, fontSize = 9.sp)
-                    Divider(color = Color(0xFF29445A))
+                    Divider(color = Color(0xFF46371D))
                     Text("الگوهای کندلی: " + ta.candlePatterns.joinToString(" • ").ifBlank { "الگوی قوی تأیید نشد" },
                         color = HGoldBright, fontSize = 9.sp)
                     Text("الگوهای نموداری: " + ta.chartPatterns.joinToString(" • "),
@@ -311,8 +314,8 @@ internal fun HopeCommanderScreen(
                             val vote = votes.getOrNull(index)
                             val active = vote != null && vote.isNotBlank() && vote != "NEUTRAL"
                             Column(Modifier.weight(1f).height(82.dp)
-                                .background(Color(0xFF0B1B2B), RoundedCornerShape(9.dp))
-                                .border(1.dp, if (neuralActive && active) HGold else Color(0xFF27515A), RoundedCornerShape(9.dp))
+                                .background(Color(0xFF0D0C0A), RoundedCornerShape(9.dp))
+                                .border(1.dp, if (neuralActive && active) HGold else Color(0xFF554323), RoundedCornerShape(9.dp))
                                 .padding(horizontal = 2.dp, vertical = 5.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                                 Text(listOf("⌁","ϟ","▤","∿","◉","⇄","◇","▧","⟳","◎")[index],
@@ -404,7 +407,7 @@ internal fun HopeCommanderScreen(
                             else -> HGold
                         }
                         Row(
-                            Modifier.fillMaxWidth().background(Color(0xFF0B1B2B), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 7.dp),
+                            Modifier.fillMaxWidth().background(Color(0xFF0D0C0A), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(horizon.label, color = Color.White, fontSize = 9.sp, modifier = Modifier.weight(1f))
@@ -448,7 +451,7 @@ internal fun HopeCommanderScreen(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onOpenMarket, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16414A))) { Text("بازارها", color = HGoldBright) }
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B3715))) { Text("بازارها", color = HGoldBright) }
                 OutlinedButton(onClick = onOpenJournal, modifier = Modifier.weight(1f)) { Text("دفترچه و نتایج", color = HGold) }
                 OutlinedButton(onClick = onOpenSettings, modifier = Modifier.weight(1f)) { Text("تنظیمات", color = HGold) }
             }
@@ -477,7 +480,7 @@ internal fun HopeCommanderScreen(
             }
         }
         item {
-            Text("wolfblack • تحلیل فرمانده و خودکارسازی آزمایشی پویا • اجرای واقعی قفل است",
+            Text("wolfblack • مغز تحلیل بازار، اجرای XT و حفاظت پویا از پوزیشن",
                 color = HMuted, fontSize = 8.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
@@ -535,7 +538,7 @@ private fun NeuralEnsemblePulse(
                     (kotlin.math.abs(p - 0.5) * 2.0).toFloat().coerceIn(0.08f, 1f)
                 val top = base - (size.height - 10.dp.toPx()) * magnitude
                 drawLine(
-                    color = Color(0xFF24445A),
+                    color = Color(0xFF554323),
                     start = Offset(x, 3.dp.toPx()),
                     end = Offset(x, base),
                     strokeWidth = barWidth.coerceAtLeast(2.dp.toPx()),
@@ -566,7 +569,7 @@ private fun NeuralEnsemblePulse(
 
 @Composable
 private fun HPanelCard(modifier: Modifier, title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.background(Brush.verticalGradient(listOf(Color(0xFF132A3F), Color(0xFF07111F))), RoundedCornerShape(15.dp))
+    Column(modifier.background(Brush.verticalGradient(listOf(Color(0xFF17130D), Color(0xFF070707))), RoundedCornerShape(15.dp))
         .border(1.dp, HGold.copy(alpha = .78f), RoundedCornerShape(15.dp)).padding(9.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp)) {
         if (title.isNotBlank()) Text(title, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -646,7 +649,7 @@ private fun CommanderCandlestickChart(signal: MarketSignal) {
         fun y(price: Double) = bottom - (((price-low)/span).toFloat()*(bottom-top))
         for (i in 0..4) {
             val yy = top + (bottom-top)*i/4
-            drawLine(Color(0xFF1B3449), Offset(left,yy), Offset(right,yy), 1.dp.toPx())
+            drawLine(Color(0xFF302718), Offset(left,yy), Offset(right,yy), 1.dp.toPx())
         }
         val step = (right-left)/candles.size
         candles.forEachIndexed { index, c ->
