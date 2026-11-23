@@ -786,48 +786,60 @@ fun CryptoMonitorScreen() {
                     }
 
                     "بازار" -> {
-                        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Text("$selectedExchange • قراردادهای دائمی USDT", color = Blue, fontSize = 10.sp, modifier = Modifier.weight(1f))
-                                Text(rows.size.toString() + " نتیجه", color = Muted, fontSize = 10.sp)
+                        // One scroll owner for the complete market workspace. The previous
+                        // fixed Column left the chart/timeframe controls outside the LazyColumn,
+                        // so vertical gestures on the chart could not move the page.
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(9.dp),
+                            contentPadding = PaddingValues(top = 2.dp, bottom = 18.dp)
+                        ) {
+                            item {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("$selectedExchange • قراردادهای دائمی USDT", color = Blue, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                                    Text(rows.size.toString() + " نتیجه", color = Muted, fontSize = 10.sp)
+                                }
+                                if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Blue)
+                                Text(scanProgress, color = Muted, fontSize = 10.sp)
                             }
-                            if (loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Blue)
-                            Text(scanProgress, color = Muted, fontSize = 10.sp)
-                            // The market screen must expose the actual analyzed candle chart, not only signal cards.
                             selectedSignal?.let { liveSignal ->
-                                LiveMarketChartPanel(liveSignal) {
-                                    selectedSymbol = liveSignal.symbol
-                                    selectedTab = "قدرت سیگنال"
-                                }
-                                Text("تایم‌فریم نمودار آنلاین", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    listOf("5" to "۵د", "15" to "۱۵د", "60" to "۱س", "240" to "۴س", "D" to "۱روز").forEach { (interval, label) ->
-                                        FilterChip(
-                                            selected = chartInterval == interval,
-                                            onClick = { chartInterval = interval },
-                                            label = { Text(label, fontSize = 9.sp) }
-                                        )
+                                item {
+                                    LiveMarketChartPanel(liveSignal) {
+                                        selectedSymbol = liveSignal.symbol
+                                        selectedTab = "قدرت سیگنال"
                                     }
                                 }
-                                TradingViewPairChart(liveSignal.symbol, chartInterval)
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                                listOf("همه", "صعودی", "نزولی").forEach { option ->
-                                    FilterChip(selected = filter == option, onClick = { filter = option }, label = { Text(option) })
-                                }
-                                Spacer(Modifier.weight(1f))
-                                TextButton(onClick = { scope.launch { performScan() } }, enabled = !loading) { Text("اسکن مجدد", color = Blue) }
-                            }
-                            error?.let { Text(it, color = Red, fontSize = 11.sp) }
-                            if (loading && rows.isEmpty()) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Blue) }
-                            } else {
-                                // LiveMarketChartPanel above renders the selected symbol's real closed candles and analysis levels.
-                                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
-                                    items(shown, key = { it.symbol }) { signal ->
-                                        SignalCard(signal, onSelect = { selectedSymbol = signal.symbol })
+                                item {
+                                    Text("تایم‌فریم نمودار آنلاین", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        listOf("5" to "۵د", "15" to "۱۵د", "60" to "۱س", "240" to "۴س", "D" to "۱روز").forEach { (interval, label) ->
+                                            FilterChip(
+                                                selected = chartInterval == interval,
+                                                onClick = { chartInterval = interval },
+                                                label = { Text(label, fontSize = 9.sp) }
+                                            )
+                                        }
                                     }
                                 }
+                                item { TradingViewPairChart(liveSignal.symbol, chartInterval) }
+                            }
+                            item {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                    listOf("همه", "صعودی", "نزولی").forEach { option ->
+                                        FilterChip(selected = filter == option, onClick = { filter = option }, label = { Text(option) })
+                                    }
+                                    Spacer(Modifier.weight(1f))
+                                    TextButton(onClick = { scope.launch { performScan() } }, enabled = !loading) { Text("اسکن مجدد", color = Blue) }
+                                }
+                                error?.let { Text(it, color = Red, fontSize = 11.sp) }
+                                if (loading && rows.isEmpty()) {
+                                    Box(Modifier.fillMaxWidth().height(170.dp), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(color = Blue)
+                                    }
+                                }
+                            }
+                            items(shown, key = { it.symbol }) { signal ->
+                                SignalCard(signal, onSelect = { selectedSymbol = signal.symbol })
                             }
                         }
                     }
