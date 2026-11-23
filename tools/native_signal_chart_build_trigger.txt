@@ -1,0 +1,1 @@
+Build ZORO with native in-app candlestick chart; only directional signal symbols are chartable. Source commit b9312c4ebd4738a4ca5a304ca8a95dc59697f577.
