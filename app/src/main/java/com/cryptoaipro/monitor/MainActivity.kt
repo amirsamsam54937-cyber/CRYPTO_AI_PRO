@@ -2216,7 +2216,7 @@ private fun ZoroNativeSignalChart(signal: MarketSignal, interval: String) {
                     }
                 }
                 val lastRsi = signal.rsi
-                val lastMacd = signal.technical.macd
+                val lastMacd = signal.technical.macdLine
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("خوانش ابزارهای نمودار", color = Gold, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Text(emaBias, color = if (ema20.last() >= ema50.last()) Green else Red, fontSize = 10.sp)
@@ -2225,6 +2225,14 @@ private fun ZoroNativeSignalChart(signal: MarketSignal, interval: String) {
                     Text("باند بولینگر بالا: ${formatPrice(bbUpper.last())}  |  پایین: ${formatPrice(bbLower.last())}",
                         color = Muted, fontSize = 9.sp)
                     Text("الگوی هارمونیک: $patternRead", color = Gold, fontSize = 10.sp)
+                    Text("ساختار بازار: ${signal.technical.marketStructure} • الگوی کندلی: ${signal.technical.candlePattern}",
+                        color = Muted, fontSize = 9.sp)
+                    Text("Supertrend: ${signal.technical.supertrendDirection} • واگرایی RSI: ${signal.technical.rsiDivergence}",
+                        color = Muted, fontSize = 9.sp)
+                    Text("نقدینگی: ${signal.technical.liquidityRead} • FVG: ${signal.technical.fairValueGap}",
+                        color = Muted, fontSize = 9.sp)
+                    Text("ADX: ${"%.1f".format(java.util.Locale.US, signal.technical.adx)} • RVOL: ${"%.2f".format(java.util.Locale.US, signal.technical.relativeVolume)}x • ATR: ${"%.2f".format(java.util.Locale.US, signal.technical.atrPercent)}%",
+                        color = Muted, fontSize = 9.sp)
                     Text("ورود: ${formatPrice(signal.entry)}  •  حدضرر: ${formatPrice(signal.stop)}",
                         color = Muted, fontSize = 10.sp)
                     Text("TP1: ${formatPrice(signal.tp1)}  •  TP2: ${formatPrice(signal.tp2)}  •  TP3: ${formatPrice(signal.tp3)}",
