@@ -159,6 +159,21 @@ internal fun HopeCommanderScreen(
             }
         }
         item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                MetricTile("سرمایه آزمایشی USDT",
+                    paperSnapshot?.let { fmt(it.equity) } ?: "—",
+                    HGoldBright, Modifier.weight(1f))
+                MetricTile("سود امروز PAPER",
+                    paperSnapshot?.let { String.format(java.util.Locale.US, "%+.2f", it.dailyPnl) } ?: "—",
+                    if ((paperSnapshot?.dailyPnl ?: 0.0) >= 0.0) HMint else HRed, Modifier.weight(1f))
+                MetricTile("پوزیشن‌های آزمایشی",
+                    paperSnapshot?.positions?.size?.toString() ?: "۰",
+                    HGold, Modifier.weight(1f))
+            }
+            Text("اعداد این سه کارت فقط دفترکل آزمایشی‌اند؛ موجودی و سود حساب واقعی XT نیستند.",
+                color = HMuted, fontSize = 8.sp, modifier = Modifier.padding(start = 3.dp))
+        }
+        item {
             HopeLivingBrainPanel(context)
         }
         item {
