@@ -82,7 +82,7 @@ import kotlin.math.abs
 private val Navy = Color(0xFF050505)
 private val Panel = Color(0xFF101112)
 private val Muted = Color(0xFF96928A)
-private val Green = Color(0xFF39D98A)
+val Green = Color(0xFF39D98A)
 private val Red = Color(0xFFFF5364)
 private val Blue = Color(0xFFD8B878)
 private val Purple = Color(0xFFB9954B)
