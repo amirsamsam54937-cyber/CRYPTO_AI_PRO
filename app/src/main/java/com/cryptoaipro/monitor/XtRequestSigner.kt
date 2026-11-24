@@ -31,10 +31,11 @@ internal object XtRequestSigner {
             "XT Futures v1 request must sign query parameters or body, not both."
         }
         val fixedHeader = "validate-appkey=$appKey&validate-timestamp=$timestampMs"
-        val requestData = when {
-            queryString.isNotEmpty() -> "$endpoint#$queryString"
-            exactBody.isNotEmpty() -> "$endpoint#$exactBody"
-            else -> endpoint
+        // XT Futures v1 always keeps the third canonical segment, even for an empty GET query.
+        val requestData = if (exactBody.isNotEmpty()) {
+            "$endpoint#$exactBody"
+        } else {
+            "$endpoint#$queryString"
         }
         return "$fixedHeader#$requestData"
     }
