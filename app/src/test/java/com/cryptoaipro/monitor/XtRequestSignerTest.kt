@@ -4,6 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class XtRequestSignerTest {
+    // Futures v1 canonicalization keeps the final '#' when a GET has no query parameters.
     @Test fun emptyGetQueryRetainsDocumentedThirdCanonicalSegment() {
         assertEquals(
             "validate-appkey=test-key&validate-timestamp=1700000000000#/future/user/v1/account/info#",
