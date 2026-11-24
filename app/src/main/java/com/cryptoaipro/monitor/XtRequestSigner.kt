@@ -5,9 +5,11 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * XT API signature canonicalization.
- * X = sorted authentication headers; Y = #METHOD#PATH#QUERY#BODY.
- * The exact query/body bytes used here must also be sent on the wire.
+ * XT USDT-M Futures v1 signature format.
+ * fixed_header = validate-appkey=...&validate-timestamp=...
+ * unencrypted = fixed_header#endpoint#sorted-query OR fixed_header#endpoint#exact-json-body
+ *
+ * Do not use the separate generic XT v4 signing format for fapi.xt.com Futures v1.
  */
 internal object XtRequestSigner {
     fun canonicalQuery(values: Map<String, String>): String =
@@ -17,31 +19,24 @@ internal object XtRequestSigner {
         }
 
     fun signingPayload(
-        method: String,
         appKey: String,
         timestampMs: String,
-        recvWindow: String,
         endpoint: String,
         queryString: String = "",
         exactBody: String = ""
     ): String {
-        require(method in setOf("GET", "POST", "PUT", "DELETE"))
         require(appKey.isNotBlank() && timestampMs.matches(Regex("[0-9]{13}")))
-        require(recvWindow.toLongOrNull() in 1L..60000L)
         require(endpoint.startsWith("/future/") && !endpoint.contains(".."))
-        val headers = sortedMapOf(
-            "validate-algorithms" to "HmacSHA256",
-            "validate-appkey" to appKey,
-            "validate-recvwindow" to recvWindow,
-            "validate-timestamp" to timestampMs
-        )
-        val headerPart = headers.entries.joinToString("&") { "${it.key}=${it.value}" }
-        val requestPart = buildString {
-            append("#").append(method).append("#").append(endpoint)
-            if (queryString.isNotEmpty()) append("#").append(queryString)
-            if (exactBody.isNotEmpty()) append("#").append(exactBody)
+        require(queryString.isEmpty() || exactBody.isEmpty()) {
+            "XT Futures v1 request must sign query parameters or body, not both."
         }
-        return headerPart + requestPart
+        val fixedHeader = "validate-appkey=$appKey&validate-timestamp=$timestampMs"
+        val requestData = when {
+            queryString.isNotEmpty() -> "$endpoint#$queryString"
+            exactBody.isNotEmpty() -> "$endpoint#$exactBody"
+            else -> endpoint
+        }
+        return "$fixedHeader#$requestData"
     }
 
     fun sign(secret: String, payload: String): String {
