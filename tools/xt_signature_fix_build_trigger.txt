@@ -1,0 +1,1 @@
+Build wolfblack after correcting XT Futures signature canonicalization. Commits: 8abf573255555d642f5a1551c289382ba57535af, 82f8627f1be479517a3e6704a68ce558e40cb94e.
