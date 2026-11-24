@@ -28,18 +28,18 @@ class XtRequestSignerTest {
         )
     }
 
-    @Test fun exactJsonBodyIsSignedWithoutReSerialization() {
+    @Test fun exactBodyIsSignedWithoutReSerialization() {
         val body = """{"symbol":"btc_usdt","leverage":2}"""
         assertEquals(
             "validate-appkey=k&validate-timestamp=1700000000000#/future/user/v1/position/adjust-leverage#$body",
             XtRequestSigner.signingPayload("k", "1700000000000",
-                "/future/user/v1/position/adjust-leverage", exactJsonBody = body)
+                "/future/user/v1/position/adjust-leverage", exactBody = body)
         )
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun queryAndBodyCannotBothBeSigned() {
         XtRequestSigner.signingPayload("k", "1700000000000",
-            "/future/user/v1/account/info", queryString = "symbol=btc_usdt", exactJsonBody = "{}")
+            "/future/user/v1/account/info", queryString = "symbol=btc_usdt", exactBody = "{}")
     }
 }
