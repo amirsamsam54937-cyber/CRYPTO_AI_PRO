@@ -110,6 +110,7 @@ def test_analysis_reports_timestamp_gaps_without_changing_signal_metrics():
     assert result["timestamp_interval_seconds"] == 900.0
     assert result["timestamp_gap_count"] == 1
     assert result["estimated_missing_candles"] == 1
+    assert result["timestamp_cadence_coverage_percent"] == 100.0
     assert result["direction"] == baseline["direction"]
     assert result["score"] == baseline["score"]
     assert result["confidence"] == baseline["confidence"]
@@ -126,11 +127,13 @@ def test_analysis_reports_no_timestamp_gaps_for_regular_or_untimestamped_data():
     assert regular_result["timestamp_interval_seconds"] == 900.0
     assert regular_result["timestamp_gap_count"] == 0
     assert regular_result["estimated_missing_candles"] == 0
+    assert regular_result["timestamp_cadence_coverage_percent"] == 100.0
 
     untimestamped_result = analyze_ohlcv(candles())
     assert untimestamped_result["timestamp_interval_seconds"] is None
     assert untimestamped_result["timestamp_gap_count"] == 0
     assert untimestamped_result["estimated_missing_candles"] == 0
+    assert untimestamped_result["timestamp_cadence_coverage_percent"] is None
 
 def test_timestamp_cadence_detects_gaps_even_when_gaps_are_the_majority():
     frame = candles()
@@ -148,6 +151,7 @@ def test_timestamp_cadence_detects_gaps_even_when_gaps_are_the_majority():
     assert result["estimated_missing_candles"] == len(frame) - 1 - 20
     assert result["timestamp_irregular_interval_count"] == 0
     assert result["timestamp_cadence_method"] == "gcd"
+    assert result["timestamp_cadence_coverage_percent"] == 100.0
     assert result["direction"] == baseline["direction"]
     assert result["score"] == baseline["score"]
     assert result["confidence"] == baseline["confidence"]
@@ -167,6 +171,7 @@ def test_timestamp_cadence_fails_closed_when_intervals_are_ambiguous():
     assert result["estimated_missing_candles"] == 0
     assert result["timestamp_irregular_interval_count"] is None
     assert result["timestamp_cadence_method"] is None
+    assert result["timestamp_cadence_coverage_percent"] is None
 
 
 def test_timestamp_cadence_reports_irregular_intervals_separately_from_gaps():
@@ -184,3 +189,4 @@ def test_timestamp_cadence_reports_irregular_intervals_separately_from_gaps():
     assert result["estimated_missing_candles"] == 0
     assert result["timestamp_irregular_interval_count"] == 1
     assert result["timestamp_cadence_method"] == "dominant_interval"
+    assert result["timestamp_cadence_coverage_percent"] == 99.58
