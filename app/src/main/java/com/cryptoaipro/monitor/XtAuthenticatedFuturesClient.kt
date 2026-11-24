@@ -75,14 +75,15 @@ internal class XtAuthenticatedFuturesClient(
         val timestamp = System.currentTimeMillis().toString()
         val queryString = canonicalQuery(query)
         val bodyText = formBody?.let { XtRequestSigner.canonicalQuery(it) } ?: body?.toString().orEmpty()
+        require(queryString.isEmpty() || bodyText.isEmpty()) {
+            "XT Futures v1 request parameters must be sent in query or body, not both."
+        }
         val signingText = XtRequestSigner.signingPayload(
-            method = method,
             appKey = appKey,
             timestampMs = timestamp,
-            recvWindow = "5000",
             endpoint = path,
-            queryString = queryString,
-            exactBody = bodyText
+            queryString = if (method == "GET") queryString else "",
+            exactBody = if (method == "GET") "" else bodyText
         )
         val sig = XtRequestSigner.sign(secret, signingText)
         val urlText = baseUrl + path + if (method == "GET" && queryString.isNotEmpty()) "?$queryString" else ""
