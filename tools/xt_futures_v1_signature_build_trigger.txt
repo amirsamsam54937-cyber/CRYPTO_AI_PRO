@@ -1,0 +1,1 @@
+Build wolfblack with XT Futures v1 official signature canonicalization. Signer commit b5b3d52af943340fad0fccc90b966a5627e26715; transport commit 193a2507b2805e28b04cb74f27d6e1e7662bd6bb.
