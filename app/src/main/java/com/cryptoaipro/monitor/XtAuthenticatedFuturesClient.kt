@@ -76,11 +76,13 @@ internal class XtAuthenticatedFuturesClient(
         val queryString = canonicalQuery(query)
         val bodyText = formBody?.let { XtRequestSigner.canonicalQuery(it) } ?: body?.toString().orEmpty()
         val signingText = XtRequestSigner.signingPayload(
+            method = method,
             appKey = appKey,
             timestampMs = timestamp,
+            recvWindow = "5000",
             endpoint = path,
-            queryString = if (method == "GET") queryString else "",
-            exactJsonBody = if (method == "GET") null else bodyText
+            queryString = queryString,
+            exactBody = bodyText
         )
         val sig = XtRequestSigner.sign(secret, signingText)
         val urlText = baseUrl + path + if (method == "GET" && queryString.isNotEmpty()) "?$queryString" else ""
