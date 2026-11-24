@@ -54,6 +54,7 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
     estimated_missing_candles = 0
     timestamp_irregular_interval_count = None
     timestamp_cadence_method = None
+    timestamp_cadence_coverage_percent = None
     if "timestamp" in f.columns:
         timestamps = pd.to_datetime(f["timestamp"], utc=True, errors="coerce")
         if timestamps.isna().any() or timestamps.duplicated().any() or not timestamps.is_monotonic_increasing:
@@ -87,6 +88,10 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
                 timestamp_interval_seconds = float(cadence_seconds)
                 aligned = integer_intervals % cadence_seconds == 0
                 timestamp_irregular_interval_count = int((~aligned).sum())
+                timestamp_cadence_coverage_percent = round(
+                    float(np.count_nonzero(aligned)) / int(integer_intervals.size) * 100.0,
+                    2,
+                )
                 gap_intervals = integer_intervals[
                     aligned & (integer_intervals > cadence_seconds * 1.5)
                 ]
@@ -206,5 +211,6 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
         "estimated_missing_candles": estimated_missing_candles,
         "timestamp_irregular_interval_count": timestamp_irregular_interval_count,
         "timestamp_cadence_method": timestamp_cadence_method,
+        "timestamp_cadence_coverage_percent": timestamp_cadence_coverage_percent,
         "reasons": reasons,
     }
