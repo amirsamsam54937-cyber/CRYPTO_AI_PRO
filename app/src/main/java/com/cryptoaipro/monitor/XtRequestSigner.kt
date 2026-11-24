@@ -4,7 +4,11 @@ import java.nio.charset.StandardCharsets
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-/** XT Futures request canonicalization from the official SignatureGeneration guide. */
+/**
+ * XT API signature canonicalization.
+ * X = sorted authentication headers; Y = #METHOD#PATH#QUERY#BODY.
+ * The exact query/body bytes used here must also be sent on the wire.
+ */
 internal object XtRequestSigner {
     fun canonicalQuery(values: Map<String, String>): String =
         values.toSortedMap().entries.joinToString("&") { (key, value) ->
@@ -13,20 +17,31 @@ internal object XtRequestSigner {
         }
 
     fun signingPayload(
+        method: String,
         appKey: String,
         timestampMs: String,
+        recvWindow: String,
         endpoint: String,
         queryString: String = "",
-        exactJsonBody: String? = null
+        exactBody: String = ""
     ): String {
+        require(method in setOf("GET", "POST", "PUT", "DELETE"))
         require(appKey.isNotBlank() && timestampMs.matches(Regex("[0-9]{13}")))
+        require(recvWindow.toLongOrNull() in 1L..60000L)
         require(endpoint.startsWith("/future/") && !endpoint.contains(".."))
-        require(exactJsonBody == null || queryString.isEmpty()) {
-            "XT signs either query parameters or the exact request body, never both."
+        val headers = sortedMapOf(
+            "validate-algorithms" to "HmacSHA256",
+            "validate-appkey" to appKey,
+            "validate-recvwindow" to recvWindow,
+            "validate-timestamp" to timestampMs
+        )
+        val headerPart = headers.entries.joinToString("&") { "${it.key}=${it.value}" }
+        val requestPart = buildString {
+            append("#").append(method).append("#").append(endpoint)
+            if (queryString.isNotEmpty()) append("#").append(queryString)
+            if (exactBody.isNotEmpty()) append("#").append(exactBody)
         }
-        val fixed = "validate-appkey=$appKey&validate-timestamp=$timestampMs"
-        val signedPart = exactJsonBody ?: queryString
-        return "$fixed#$endpoint#$signedPart"
+        return headerPart + requestPart
     }
 
     fun sign(secret: String, payload: String): String {
