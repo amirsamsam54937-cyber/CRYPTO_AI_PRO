@@ -8,6 +8,7 @@ on:
     paths:
       - "app/**"
       - "tests/test_backtest.py"
+      - "tests/test_advanced_analysis.py"
       - ".github/workflows/android-apk.yml"
       - ".github/workflows/python-tests.yml"
 jobs:
