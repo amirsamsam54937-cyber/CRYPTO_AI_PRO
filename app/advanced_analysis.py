@@ -55,6 +55,7 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
     timestamp_irregular_interval_count = None
     timestamp_cadence_method = None
     timestamp_cadence_coverage_percent = None
+    timestamp_data_completeness_percent = None
     if "timestamp" in f.columns:
         timestamps = pd.to_datetime(f["timestamp"], utc=True, errors="coerce")
         if timestamps.isna().any() or timestamps.duplicated().any() or not timestamps.is_monotonic_increasing:
@@ -100,6 +101,13 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
                     int(interval // cadence_seconds) - 1
                     for interval in gap_intervals
                 ))
+                # Alignment is not completeness: aligned intervals may still contain gaps.
+                if timestamp_irregular_interval_count == 0:
+                    expected_candle_count = len(timestamps) + estimated_missing_candles
+                    timestamp_data_completeness_percent = round(
+                        len(timestamps) / expected_candle_count * 100.0,
+                        2,
+                    )
 
     close, volume = f["close"], f["volume"]
     last = float(close.iloc[-1])
@@ -212,5 +220,6 @@ def analyze_ohlcv(frame: pd.DataFrame) -> dict:
         "timestamp_irregular_interval_count": timestamp_irregular_interval_count,
         "timestamp_cadence_method": timestamp_cadence_method,
         "timestamp_cadence_coverage_percent": timestamp_cadence_coverage_percent,
+        "timestamp_data_completeness_percent": timestamp_data_completeness_percent,
         "reasons": reasons,
     }
