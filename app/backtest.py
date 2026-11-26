@@ -145,6 +145,10 @@ def run_backtest(
         # followed by a new fill at that same candle's earlier open.
         had_position_at_bar_start = position is not None
         ts = str(data.iloc[i]["timestamp"]) if "timestamp" in data.columns else str(i)
+        signal_ts = (
+            str(data.iloc[i - 1]["timestamp"])
+            if "timestamp" in data.columns else str(i - 1)
+        )
 
         # Manage existing trade using this candle's OHLC. Stop wins if both levels hit.
         if position is not None:
@@ -231,7 +235,7 @@ def run_backtest(
                     "side": side, "entry": entry_price, "stop": stop_raw, "target": target,
                     "quantity": qty, "notional": notional, "leverage": notional/equity if equity else 0,
                     "entry_fee": entry_fee, "entry_slip_cost": entry_slip,
-                    "entry_index": i, "entry_time": ts, "signal_time": str(i-1),
+                    "entry_index": i, "entry_time": ts, "signal_time": signal_ts,
                     "bar_hours": bar_hours,
                 }
                 # Entry fee is reserved immediately so equity curve reflects actual costs.

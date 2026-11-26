@@ -108,6 +108,8 @@ def test_backtest_terminal_liquidation_updates_equity_curve_and_drawdown(monkeyp
     )
 
     assert result["trade_count"] == 1
+    assert result["trades"][0]["signal_time"] == str(frame.loc[100, "timestamp"])
+    assert result["trades"][0]["entry_time"] == str(frame.loc[101, "timestamp"])
     assert result["trades"][0]["exit_reason"] == "END_OF_DATA"
     assert result["trades"][0]["net_pnl"] == pytest.approx(result["final_equity"] - 1000.0)
     assert result["trades"][0]["fees"] > 0
