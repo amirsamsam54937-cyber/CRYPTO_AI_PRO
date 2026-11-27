@@ -52,6 +52,28 @@ internal object ZoroLivingTraderBrain {
         // compression/expansion and an approximate volume-at-price profile.
         // These are measured proxies, not proof of hidden orders or true exchange delta.
         val chart = ZoroHumanMarketReader.analyze(signal.candles)
+        val trapDefense = WolfTrapDefenseEngine.analyze(signal.candles)
+        val trapBlocksCandidate = trapDefense.available && when (side) {
+            "LONG_BIAS" -> trapDefense.blocksLong
+            "SHORT_BIAS" -> trapDefense.blocksShort
+            else -> true
+        }
+        if (trapDefense.available) {
+            if (trapBlocksCandidate) {
+                score -= 24
+                reasons += "دفاع ضدتله بازار: ${trapDefense.explanation}"
+            } else if (trapDefense.severity >= 25) {
+                score -= 5
+                reasons += "هشدار ساختاری بازار: ${trapDefense.explanation}"
+            } else {
+                reasons += "دفاع ضدتله: ${trapDefense.explanation}"
+            }
+            reasons += trapDefense.evidence.take(3)
+        } else {
+            score -= 5
+            reasons += "دفاع ضدتله به‌دلیل ناکافی‌بودن کندل‌ها سکوت کرد"
+        }
+
         val timeframeFrames = signal.timeframeAnalysis.filter { it.available }
         val timeframeScore = ZoroTimeframeAnalysisEngine.consensusScore(timeframeFrames)
         val combinedChartScore = if (timeframeFrames.size >= 3)
@@ -172,7 +194,7 @@ internal object ZoroLivingTraderBrain {
             !signal.neuralUncertainty.highDisagreement &&
             signal.confidence >= 70
         )
-        val hardGates = thought.allowed && neuralGate &&
+        val hardGates = thought.allowed && neuralGate && !trapBlocksCandidate &&
             chartSupportsSide && !chart.blocks(side) && !timeframeConflict &&
             adx >= 18.0 && relativeVolume >= 0.75 &&
             atrPct.isFinite() && atrPct in 0.2..6.0 &&
