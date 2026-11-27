@@ -1,4 +1,4 @@
-# WOLFBLACK Cloud Memory API
+# TENAXIS Cloud Memory API
 
 A minimal, self-hostable sync service for **non-secret** journal records. It uses Python's standard library and SQLite; no paid database or proprietary SDK is required.
 
