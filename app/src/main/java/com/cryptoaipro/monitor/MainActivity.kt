@@ -365,7 +365,7 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             advancedTechnical = ZoroAdvancedTechnicalEngine.analyze(reviewed.candles, reviewed.price, reviewed.neuralCandles),
             humanChartReadout = humanChart
         )
-        val thought = NexusCognitiveEngine.think(finalSignal, neuralValidated)
+        val thought = NexusCognitiveEngine.think(finalSignal, neuralValidated, context)
         val cognitiveSignal = finalSignal.copy(
             direction = if (promoted && thought.allowed) finalSignal.direction else "NEUTRAL",
             score = if (promoted && thought.allowed) finalSignal.score else 0,
