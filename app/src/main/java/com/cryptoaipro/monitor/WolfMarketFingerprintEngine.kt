@@ -39,7 +39,7 @@ internal object WolfMarketFingerprintEngine {
                 c[0] > 0.0 && c[1] >= max(c[0], c[3]) &&
                 c[2] <= minOf(c[0], c[3]) && c[2] > 0.0 &&
                 c[3] > 0.0 && c[4] >= 0.0 && c[5] > 0.0 }
-            .sortedBy { it[5] }.distinctBy { it[5].toLong() }.takeLast(240).toList()
+            .sortedBy { it[5] }.distinctBy { it[5].toLong() }.toList().takeLast(240)
         if (bars.size < 80) return unavailable()
 
         val reader = runCatching { ZoroHumanMarketReader.analyze(bars) }.getOrNull()
