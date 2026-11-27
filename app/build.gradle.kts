@@ -15,6 +15,7 @@ android {
   // TENAXIS branded Android application.
  }
  buildFeatures { compose = true }
+ androidResources { noCompress += "csv" }
  // Preserve the complete market corpus and all model features; do not prune training rows or inputs.
  compileOptions {
   sourceCompatibility = JavaVersion.VERSION_17
