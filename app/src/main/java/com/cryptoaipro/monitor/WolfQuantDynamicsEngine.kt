@@ -71,8 +71,8 @@ internal object WolfQuantDynamicsEngine {
         val horizons = listOf(3, 6, 12)
         val drift = (velocity*.55 + trend*.45).coerceIn(-sigma*1.5, sigma*1.5)
         val scenarios = horizons.map { h ->
-            val move = (drift*h).coerceIn(-sigma*sqrt(h)*2.0, sigma*sqrt(h)*2.0)
-            val band = sigma*sqrt(h)*1.28
+            val move = (drift*h).coerceIn(-sigma*sqrt(h.toDouble())*2.0, sigma*sqrt(h.toDouble())*2.0)
+            val band = sigma*sqrt(h.toDouble())*1.28
             Scenario(h, move, move-band, move+band)
         }
         val directive = when(state) {
