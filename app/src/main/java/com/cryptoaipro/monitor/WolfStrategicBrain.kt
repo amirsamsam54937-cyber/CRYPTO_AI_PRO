@@ -52,6 +52,7 @@ internal object WolfStrategicBrain {
         val neuralScenarioAdvisoryPct: Double?,
         val objectiveScore: Int,
         val vetoes: List<String>,
+        val chartCognition: TenaxisChartCognition.Report,
         val explanation: String
     )
 
@@ -61,6 +62,7 @@ internal object WolfStrategicBrain {
         history: WolfSignalOutcomeJournal.Snapshot? = null
     ): Report {
         val t = signal.technical
+        val chartCognition = TenaxisChartCognition.analyze(context, signal)
         val price = signal.price
         val candles = signal.candles
         val liquidity = candles.mapNotNull { r ->
@@ -177,6 +179,12 @@ internal object WolfStrategicBrain {
         }
         val sentimentConflict = (long && sentiment == Sentiment.RISK_OFF) ||
             (short && sentiment == Sentiment.RISK_ON)
+        val chartConflict = (long && chartCognition.score <= -35) ||
+            (short && chartCognition.score >= 35)
+        val chartNeuralConflict = chartCognition.prediction?.let { prediction ->
+            (long && prediction.direction == "DOWN" && prediction.confidencePct >= 60) ||
+                (short && prediction.direction == "UP" && prediction.confidencePct >= 60)
+        } ?: false
         if (baseCandidates.isEmpty()) add(Strategy.NO_TRADE, 20, "هیچ ستاپ ساختاری به‌اندازه کافی تأیید نشد")
         if (sentimentConflict) {
             for (i in baseCandidates.indices) {
@@ -209,6 +217,7 @@ internal object WolfStrategicBrain {
             if (selected.strategy == Strategy.NO_TRADE) add("هیچ استراتژی معتبر شناسایی نشد")
             if (selected.robustScore < 35) add("سناریو در پاسخ بدبینانه امتیاز کافی ندارد")
             if (sentimentConflict) add("احساسات قابل مشاهده خلاف جهت سیگنال است")
+            if (chartConflict) add("خوانش چندعاملی چارت خلاف جهت سیگنال است")
             if (liquidity.pools.isEmpty()) add("استخر نقدینگی معتبر از کندل‌ها استخراج نشد")
             if (t.atrPercent > 8.0) add("ریسک نوسان شدید")
             if (rr == null || rr < 1.2) add("نسبت سود به زیان خام ناکافی")
@@ -219,6 +228,13 @@ internal object WolfStrategicBrain {
             append(" • امتیاز مقاوم: ").append(selected.robustScore)
             append(" • اعتماد تاریخی: ").append(trustScore).append("/100 از ").append(n).append(" نتیجه بسته")
             append(" • هدف بقا/بازده خالص: ").append(objective).append("/100")
+            append(" • TENAXIS Chart Cognition: ").append(chartCognition.score).append("/100؛ ")
+                .append(chartCognition.regime).append("؛ ").append(chartCognition.structure)
+            if (chartCognition.prediction != null) append(" • پیش‌بینی پژوهشی چارت DOWN/NEUTRAL/UP: ")
+                .append(String.format(java.util.Locale.US, "%.0f/%.0f/%.0f%%", chartCognition.prediction.down * 100,
+                    chartCognition.prediction.neutral * 100, chartCognition.prediction.up * 100))
+                .append(" از ").append(chartCognition.reviewedSamples).append(" نمونه؛ بدون اعتبارسنجی مستقل، فقط هشدار")
+            if (chartNeuralConflict) append(" • شبکه چارت با جهت سیگنال تعارض قوی دارد")
             if (selected.neuralAdvisoryPct != null) append(" • برآورد پژوهشی DNN: ")
                 .append(String.format(java.util.Locale.US, "%.1f%%", selected.neuralAdvisoryPct))
                 .append(" (بدون مجوز تصمیم؛ اعتبارسنجی مستقل لازم است)")
@@ -226,7 +242,7 @@ internal object WolfStrategicBrain {
         }
         return Report(liquidity, sentiment, sentimentScore, sentimentBasis, recognized,
             baseCandidates.sortedByDescending { it.robustScore }, selected, trustScore, n,
-            selected.neuralAdvisoryPct, objective, vetoes, explanation)
+            selected.neuralAdvisoryPct, objective, vetoes, chartCognition, explanation)
     }
 
     /** Only veto or reduce confidence; never creates a new directional signal. */
@@ -240,11 +256,17 @@ internal object WolfStrategicBrain {
                 it == "هیچ استراتژی معتبر شناسایی نشد" ||
                     it == "سناریو در پاسخ بدبینانه امتیاز کافی ندارد" ||
                     it == "احساسات قابل مشاهده خلاف جهت سیگنال است" ||
+                    it == "خوانش چندعاملی چارت خلاف جهت سیگنال است" ||
                     it == "ریسک نوسان شدید" ||
                     it == "نسبت سود به زیان خام ناکافی"
             }
             val penalty = when {
                 mustVeto -> 22
+                report.chartCognition.prediction?.let { p ->
+                    val opposite = (signal.direction == "LONG_BIAS" && p.direction == "DOWN") ||
+                        (signal.direction == "SHORT_BIAS" && p.direction == "UP")
+                    if (opposite && p.confidencePct >= 60) 8 else 0
+                } ?: 0 > 0 -> 8
                 report.selected.robustScore < 48 -> 12
                 report.trustSamples < 10 -> 4
                 else -> 0
