@@ -125,6 +125,9 @@ internal fun HopeCommanderScreen(
     val chartForensics = remember(best?.symbol, best?.candles?.size, best?.price) {
         WolfChartForensicsEngine.analyze(best?.candles.orEmpty())
     }
+    val quantDynamics = remember(best?.symbol, best?.candles?.size, best?.price) {
+        WolfQuantDynamicsEngine.analyze(best?.candles.orEmpty())
+    }
     // Read the model gate from the ensemble itself; display strings are not a source of truth.
     val validated = WolfPretrainedEnsemble.status().validatedForScoring
     val votes = best?.neuralMemberVotes.orEmpty()
@@ -364,6 +367,48 @@ internal fun HopeCommanderScreen(
                 }
                 Text("تمام برآوردها از کندل‌های OHLCV هستند؛ دفتر سفارش پنهان یا لیکوییدیشن قطعی را نشان نمی‌دهند.",
                     color = HMuted, fontSize = 8.sp, lineHeight = 11.sp)
+            }
+        }
+        item {
+            HPanelCard(Modifier.fillMaxWidth(), "موتور دینامیک و ریاضیات بازار • WOLF QUANT DYNAMICS") {
+                if (!quantDynamics.available) {
+                    Text(quantDynamics.riskDirective, color = HRed, fontSize = 9.sp)
+                } else {
+                    Text("رژیم: " + quantDynamics.state.name + " • اطمینان طبقه‌بندی: " +
+                        String.format(java.util.Locale.US, "%.0f%%", quantDynamics.stateConfidence * 100),
+                        color = HGoldBright, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("سرعت: " + String.format(java.util.Locale.US, "%+.4f%%", quantDynamics.trendVelocityPct) +
+                        " • شتاب: " + String.format(java.util.Locale.US, "%+.4f", quantDynamics.accelerationPct) +
+                        " • نوسان تحقق‌یافته: " + String.format(java.util.Locale.US, "%.3f%%", quantDynamics.realizedVolPct),
+                        color = Color.White, fontSize = 9.sp)
+                    Text("انرژی مومنتوم: " + String.format(java.util.Locale.US, "%.2f", quantDynamics.momentumEnergy) +
+                        " • کارایی مسیر: " + String.format(java.util.Locale.US, "%.2f", quantDynamics.efficiencyRatio) +
+                        " • آنتروپی: " + String.format(java.util.Locale.US, "%.2f", quantDynamics.returnEntropy),
+                        color = HMuted, fontSize = 9.sp)
+                    Text("نسبت نوسان اخیر/گذشته: " + String.format(java.util.Locale.US, "%.2f", quantDynamics.volatilityRatio) +
+                        " • نسبت واریانس: " + String.format(java.util.Locale.US, "%.2f", quantDynamics.varianceRatio),
+                        color = HGoldBright, fontSize = 9.sp)
+                    Text("فیلتر روند: " + String.format(java.util.Locale.US, "%.6f", quantDynamics.kalmanPrice) +
+                        " • شیب: " + String.format(java.util.Locale.US, "%+.4f", quantDynamics.kalmanTrendPct),
+                        color = HMuted, fontSize = 9.sp)
+                    Text("تمایل: " + quantDynamics.directionalBias, color = Color.White, fontSize = 9.sp)
+                    Text("احتمال‌های نسبی رژیم — روند " +
+                        String.format(java.util.Locale.US, "%.0f%%", quantDynamics.trendProbability*100) +
+                        " | تعادل " + String.format(java.util.Locale.US, "%.0f%%", quantDynamics.rangeProbability*100) +
+                        " | آشفتگی " + String.format(java.util.Locale.US, "%.0f%%", quantDynamics.chaosProbability*100) +
+                        " | فشردگی " + String.format(java.util.Locale.US, "%.0f%%", quantDynamics.compressionProbability*100),
+                        color = HGold, fontSize = 8.sp, lineHeight = 11.sp)
+                    Text("سناریوهای آماری مشروط:", color = HGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    quantDynamics.scenarios.forEach { scenario ->
+                        Text(scenario.horizonBars.toString() + " کندل: مرکز " +
+                            String.format(java.util.Locale.US, "%+.2f%%", scenario.expectedMovePct) +
+                            " • باند " + String.format(java.util.Locale.US, "%+.2f تا %+.2f%%",
+                                scenario.lowerBandPct, scenario.upperBandPct),
+                            color = HMuted, fontSize = 8.sp)
+                    }
+                    Text(quantDynamics.riskDirective, color = HGoldBright, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    quantDynamics.notes.forEach { Text("• " + it, color = HMuted, fontSize = 8.sp, lineHeight = 11.sp) }
+                }
             }
         }
         item {
