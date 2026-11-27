@@ -86,7 +86,7 @@ internal object WolfStrategicBrain {
         val sentimentJson = runCatching {
             org.json.JSONObject(prefs.getString("sentiment_network_snapshot", "{}") ?: "{}")
         }.getOrElse { org.json.JSONObject() }
-        val sentimentAge = System.currentTimeMillis() - sentimentJson.optLong("updatedAtMs", 0L)
+        val sentimentAge = System.currentTimeMillis() - sentimentJson.optLong("updatedAt", 0L)
         val sentimentFresh = sentimentAge in 0L..7_200_000L
         val normalizedSymbol = signal.symbol.uppercase().replace(Regex("[^A-Z0-9]"), "")
             .removeSuffix("USDT").removeSuffix("USD")
