@@ -328,8 +328,14 @@ internal object TenaxisChartCognition {
         if (resolved.isNotEmpty()) {
             var model = loadModel(prefs)
             resolved.forEach { (features, label) -> model = train(model, features, label) }
+            val totalReviewed = prefs.getInt(COUNT_KEY, 0) + resolved.size
             prefs.edit().putString(MODEL_KEY, encode(model))
-                .putInt(COUNT_KEY, prefs.getInt(COUNT_KEY, 0) + resolved.size).apply()
+                .putInt(COUNT_KEY, totalReviewed).apply()
+            recordMemoryEvent(context, "chart_training_batch",
+                "$symbol|$timeframe|$time|chart_training",
+                JSONObject().put("symbol", symbol).put("timeframe", timeframe)
+                    .put("newResolvedExamples", resolved.size).put("totalReviewedExamples", totalReviewed)
+                    .put("horizonBars", HORIZON_BARS).put("classes", "DOWN/NEUTRAL/UP").toString())
         }
         helper.close()
     }
