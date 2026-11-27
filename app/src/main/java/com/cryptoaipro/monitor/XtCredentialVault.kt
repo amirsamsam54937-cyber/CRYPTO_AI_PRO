@@ -383,6 +383,7 @@ internal fun XtLiveManualExecutionPanel(context: Context, signals: List<MarketSi
                     onCheckedChange = { enabled ->
                         XtLiveTradingEngine.setEnabled(context, enabled)
                         liveEnabled = XtLiveTradingEngine.isEnabled(context)
+                        autoEnabled = XtLiveTradingEngine.isAutoEnabled(context)
                         preview = null
                         status = XtLiveTradingEngine.lastStatus(context)
                     }
