@@ -230,6 +230,8 @@ internal object WolfStrategicBrain {
             append(" • هدف بقا/بازده خالص: ").append(objective).append("/100")
             append(" • TENAXIS Chart Cognition: ").append(chartCognition.score).append("/100؛ ")
                 .append(chartCognition.regime).append("؛ ").append(chartCognition.structure)
+                .append(" • حافظه آموزش چارت: ").append(chartCognition.reviewedSamples)
+                .append(" نمونه حل‌شده؛ برچسب‌گذاری پس از ۱۲ کندل بسته")
             if (chartCognition.prediction != null) append(" • پیش‌بینی پژوهشی چارت DOWN/NEUTRAL/UP: ")
                 .append(String.format(java.util.Locale.US, "%.0f/%.0f/%.0f%%", chartCognition.prediction.down * 100,
                     chartCognition.prediction.neutral * 100, chartCognition.prediction.up * 100))
