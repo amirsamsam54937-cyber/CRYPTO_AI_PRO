@@ -78,7 +78,7 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
-// TENAXIS visual system: obsidian graphite, champagne metal and emerald signal accents.
+// TENAXIS visual system: graphite forest, warm copper, mint execution accents; no layout compression.
 private val Navy = Color(0xFF080D0B)
 private val Panel = Color(0xFF111A16)
 private val Muted = Color(0xFF9BAAA1)
