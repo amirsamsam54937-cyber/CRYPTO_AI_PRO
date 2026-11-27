@@ -31,7 +31,7 @@ internal object ZoroLivingTraderBrain {
     fun evaluate(context: Context, signal: MarketSignal): Decision {
         val reasons = mutableListOf<String>()
         val neuralValidatedAtEntry = WolfPretrainedEnsemble.status().validatedForScoring
-        val thought = NexusCognitiveEngine.think(signal, neuralValidatedAtEntry)
+        val thought = NexusCognitiveEngine.think(signal, neuralValidatedAtEntry, context)
         reasons += thought.reasons
         val side = thought.side.uppercase()
         if (side != "LONG_BIAS" && side != "SHORT_BIAS") {
