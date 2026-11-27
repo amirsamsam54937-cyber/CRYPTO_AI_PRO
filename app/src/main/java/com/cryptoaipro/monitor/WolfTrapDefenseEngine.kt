@@ -30,7 +30,7 @@ internal object WolfTrapDefenseEngine {
             .distinctBy { it[5].toLong() }.toList().takeLast(lookback.coerceIn(20, 160))
         if (bars.size < 22) return unavailable()
         val last = bars.last()
-        val prior = bars.dropLast(1).takeLast(20)
+        val prior = bars.dropLast(2).takeLast(20)
         val priorHigh = prior.maxOf { it[1] }
         val priorLow = prior.minOf { it[2] }
         val range = (last[1] - last[2]).coerceAtLeast(1e-12)
