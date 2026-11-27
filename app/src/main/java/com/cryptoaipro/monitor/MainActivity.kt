@@ -705,7 +705,7 @@ fun CryptoMonitorScreen() {
                             shadowElevation = 12.dp
                         ) {
                             Image(
-                                painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
+                                painter = painterResource(id = R.drawable.tenaxis_crest),
                                 contentDescription = "نشان TENAXIS",
                                 modifier = Modifier.fillMaxSize()
                             )
