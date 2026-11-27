@@ -15,7 +15,7 @@ android {
   // TENAXIS branded Android application.
  }
  buildFeatures { compose = true }
- // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
+ // Preserve the complete market corpus and all model features; do not prune training rows or inputs.
  compileOptions {
   sourceCompatibility = JavaVersion.VERSION_17
   targetCompatibility = JavaVersion.VERSION_17
