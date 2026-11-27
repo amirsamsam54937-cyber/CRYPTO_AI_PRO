@@ -23,18 +23,18 @@ import java.util.Locale
 import java.util.Random
 import kotlin.math.*
 
-internal data class HopePriceScenario(
+data class HopePriceScenario(
     val label: String, val probabilityPct: Double, val medianMovePct: Double,
     val lowerMovePct: Double, val upperMovePct: Double, val samples: Int,
     val medianPrice: Double, val lowerPrice: Double, val upperPrice: Double,
     val invalidationPrice: Double?
 )
-internal data class HopePathScenario(
+data class HopePathScenario(
     val label: String, val probabilityPct: Double, val medianMovePct: Double,
     val medianFavorableExcursionPct: Double, val medianAdverseExcursionPct: Double,
     val medianPrice: Double, val samples: Int
 )
-internal data class HopeScenarioForecast(
+data class HopeScenarioForecast(
     val symbol: String, val basePrice: Double, val candleTimeMs: Long,
     val horizonBars: Int, val thresholdPct: Double, val scenarios: List<HopePriceScenario>,
     val method: String, val pathScenarios: List<HopePathScenario> = emptyList(),
