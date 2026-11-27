@@ -538,7 +538,10 @@ fun CryptoMonitorScreen() {
         try {
             val progress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { partial, completed, total, failed ->
                 val reviewedPartial = withContext(Dispatchers.Default) {
-                    ZoroSignalIntelligence.enrich(applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial)))
+                    val reviewed = ZoroSignalIntelligence.enrich(
+                        applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial))
+                    )
+                    WolfStrategicBrain.enrich(reviewed, WolfSignalOutcomeJournal.snapshot(context))
                 }
                 withContext(Dispatchers.Main) {
                     rows = reviewedPartial
@@ -551,7 +554,9 @@ fun CryptoMonitorScreen() {
             appSettings.edit().putString("market_exchange", selectedExchange).apply()
             val scanned = XtFuturesMonitor.scan(progress)
             researchStats = WolfMarketDataStore.recordLiveScan(context, selectedExchange, scanned)
-            val scoredRows = ZoroSignalIntelligence.enrich(applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned)))
+            val scoredRows = ZoroSignalIntelligence.enrich(
+                applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned))
+            )
             val publishedCount = scoredRows.count { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
             val blockedCount = scoredRows.size - publishedCount
             val blockReasons = scoredRows.filter { it.direction == "NEUTRAL" }
@@ -561,7 +566,10 @@ fun CryptoMonitorScreen() {
             ZoroDiagnostics.record(context, "اسکن", "INFO", "داده تحلیل‌شده=${scanned.size}؛ منتشرشده=${publishedCount}؛ متوقف‌شده=${blockedCount}")
             ZoroDiagnostics.record(context, "شبکه عصبی", if (neuralStatus.validatedForScoring) "INFO" else "WARN", "معتبر=${neuralStatus.validatedForScoring}؛ اعضا=${neuralStatus.members}/10؛ corpus=${neuralStatus.corpusRows}")
             if (blockReasons.isNotBlank()) ZoroDiagnostics.record(context, "فیلتر سیگنال", "WARN", blockReasons)
-            rows = withContext(Dispatchers.Default) { HopeScenarioLab.applySignalImpact(scoredRows) }
+            rows = withContext(Dispatchers.Default) {
+                val scenarioReviewed = HopeScenarioLab.applySignalImpact(scoredRows)
+                WolfStrategicBrain.enrich(scenarioReviewed, WolfSignalOutcomeJournal.snapshot(context))
+            }
             scannedCount = totalContracts
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
