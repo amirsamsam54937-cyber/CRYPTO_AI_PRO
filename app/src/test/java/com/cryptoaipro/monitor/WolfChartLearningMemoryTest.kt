@@ -28,7 +28,7 @@ class WolfChartLearningMemoryTest {
     @Test fun refusesShortOrInvalidChartWindows() {
         assertNull(WolfChartLearningMemory.study("BTC_USDT", "15m", candles(40)))
         val invalid = candles(100).toMutableList()
-        invalid[99] = doubleArrayOf(100.0, 90.0, 95.0, 92.0, 10.0, 99_000.0)
+        for (i in 70 until 100) invalid[i] = doubleArrayOf(100.0, 90.0, 95.0, 92.0, 10.0, ((i + 1L) * 900_000L).toDouble())
         assertNull(WolfChartLearningMemory.study("BTC_USDT", "15m", invalid))
     }
 }
