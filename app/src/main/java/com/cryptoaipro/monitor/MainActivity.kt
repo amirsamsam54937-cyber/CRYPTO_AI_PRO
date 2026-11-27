@@ -79,14 +79,14 @@ import java.util.Locale
 import kotlin.math.abs
 
 // TENAXIS visual system: graphite forest, warm copper, mint execution accents; no layout compression.
-private val Navy = Color(0xFF080D0B)
-private val Panel = Color(0xFF111A16)
-private val Muted = Color(0xFF9BAAA1)
-val Green = Color(0xFF43E0A0)
-private val Red = Color(0xFFFF6474)
-private val Blue = Color(0xFFA8C8B7)
-private val Purple = Color(0xFFB7C8B8)
-private val Gold = Color(0xFFD98B45)
+private val Navy = Color(0xFF070707)
+private val Panel = Color(0xFF121212)
+private val Muted = Color(0xFFAAA49A)
+val Green = Color(0xFF39D6A0)
+private val Red = Color(0xFFFF626F)
+private val Blue = Color(0xFFE4D5B5)
+private val Purple = Color(0xFFC8A66A)
+private val Gold = Color(0xFFE2B65C)
 
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
@@ -1404,7 +1404,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
         "SHORT_BIAS" -> "SHORT"
         else -> "NO TRADE"
     }
-    Surface(color = Color(0xFF111A16), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF355848)), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(0xFF121212), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF5A4729)), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(item.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
@@ -1538,7 +1538,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
             )
             if (item.direction != "NEUTRAL") {
                 Spacer(Modifier.height(8.dp))
-                Surface(color = Color(0xFF14221B), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF355848)), modifier = Modifier.fillMaxWidth()) {
+                Surface(color = Color(0xFF1B1710), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF355848)), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("ENTRY: " + formatPrice(item.entry) + "   |   SMART LEVERAGE: " + item.leverage + "x", color = Blue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1549,6 +1549,25 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                             SmallStat("TP2 • 2R", formatPrice(item.tp2), Green)
                             SmallStat("TP3 • 3R / ساختاری", formatPrice(item.tp3), Gold)
                         }
+                        val riskDistance = abs(item.entry - item.stop)
+                        val riskPct = if (item.entry > 0.0) riskDistance / item.entry * 100.0 else 0.0
+                        val rr1 = if (riskDistance > 0.0) abs(item.tp1 - item.entry) / riskDistance else 0.0
+                        val rr2 = if (riskDistance > 0.0) abs(item.tp2 - item.entry) / riskDistance else 0.0
+                        val rr3 = if (riskDistance > 0.0) abs(item.tp3 - item.entry) / riskDistance else 0.0
+                        Divider(color = Gold.copy(alpha = 0.22f))
+                        Text(
+                            "ممیزی ریسک معامله • فاصله استاپ ${String.format(Locale.US, "%.2f", riskPct)}٪ از ورود",
+                            color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SmallStat("بازده/ریسک TP1", String.format(Locale.US, "%.2fR", rr1), Green)
+                            SmallStat("TP2", String.format(Locale.US, "%.2fR", rr2), Green)
+                            SmallStat("TP3", String.format(Locale.US, "%.2fR", rr3), Gold)
+                        }
+                        Text(
+                            "این نسبت‌ها از قیمت‌های واقعی همین سیگنال محاسبه شده‌اند؛ کارمزد، فاندینگ، لغزش و اندازه قرارداد در آن‌ها لحاظ نشده و سود خالص محسوب نمی‌شوند.",
+                            color = Muted, fontSize = 9.sp, lineHeight = 13.sp
+                        )
                         Text("سه پله هدف بر اساس فاصله ریسک: ۱R، ۲R و ۳R؛ هدف سوم در صورت وجود مانع ساختاری معتبر نزدیک، با آن تطبیق داده می‌شود. برخورد قیمت تضمین‌شده نیست.", color = Muted, fontSize = 9.sp)
                     }
                 }
