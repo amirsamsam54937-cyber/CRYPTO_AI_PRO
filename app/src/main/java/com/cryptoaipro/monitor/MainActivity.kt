@@ -932,6 +932,7 @@ fun CryptoMonitorScreen() {
                             OutlinedButton(onClick = { selectedTab = "عیب‌یابی" }, modifier = Modifier.fillMaxWidth()) { Text("مرکز عیب‌یابی و گزارش خطاهای TENAXIS", color = Blue) }
                             HopeAnimatedBrainBanner()
                             XtConnectionAndExecutionScreen(context, rows) { backgroundMonitoring = true; appSettings.edit().putBoolean("background_monitoring", true).apply() }
+                            XtLiveManualExecutionPanel(context, rows)
                             Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
