@@ -34,7 +34,9 @@ internal object WolfStrategicBrain {
         val worstResponse: Response,
         val responseScore: Int,
         val robustScore: Int,
-        val rationale: String
+        val rationale: String,
+        val pathSupportPct: Double? = null,
+        val neuralAdvisoryPct: Double? = null
     )
 
     data class Report(
@@ -47,6 +49,7 @@ internal object WolfStrategicBrain {
         val selected: Scenario,
         val trustScore: Int,
         val trustSamples: Int,
+        val neuralScenarioAdvisoryPct: Double?,
         val objectiveScore: Int,
         val vetoes: List<String>,
         val explanation: String
@@ -145,8 +148,18 @@ internal object WolfStrategicBrain {
             )
             val worst = responsePairs.minByOrNull { it.second }!!
             // Conservative two-ply choice: strategy score plus the weakest plausible reply.
-            val robust = (base + worst.second * 0.55).toInt().coerceIn(-100, 100)
-            baseCandidates += Scenario(strategy, side, base, worst.first, worst.second, robust, rationale)
+            val pathLabel = if (side == "LONG_BIAS") "صعودی" else "نزولی"
+            val pathSupport = signal.scenarioForecast?.scenarios
+                ?.firstOrNull { it.label == pathLabel }?.probabilityPct
+            val pathAdjustment = pathSupport?.let { ((it - 33.333) * 0.24).toInt().coerceIn(-8, 16) } ?: 0
+            val adjustedBase = base + pathAdjustment
+            val robust = (adjustedBase + worst.second * 0.55).toInt().coerceIn(-100, 100)
+            val neuralAdvisory = signal.deepNeuralSuccessProbability
+                ?.takeIf { signal.deepNeuralReviewedSamples >= 100 && it.isFinite() }
+                ?.times(100.0)
+            baseCandidates += Scenario(strategy, side, adjustedBase, worst.first, worst.second, robust,
+                rationale + if (pathSupport != null) "؛ پشتیبانی مسیرهای شبیه‌سازی‌شده %.1f%%".format(java.util.Locale.US, pathSupport) else "",
+                pathSupport, neuralAdvisory)
         }
 
         if (long || short) {
@@ -206,11 +219,14 @@ internal object WolfStrategicBrain {
             append(" • امتیاز مقاوم: ").append(selected.robustScore)
             append(" • اعتماد تاریخی: ").append(trustScore).append("/100 از ").append(n).append(" نتیجه بسته")
             append(" • هدف بقا/بازده خالص: ").append(objective).append("/100")
+            if (selected.neuralAdvisoryPct != null) append(" • برآورد پژوهشی DNN: ")
+                .append(String.format(java.util.Locale.US, "%.1f%%", selected.neuralAdvisoryPct))
+                .append(" (بدون مجوز تصمیم؛ اعتبارسنجی مستقل لازم است)")
             if (vetoes.isNotEmpty()) append(" • توقف: ").append(vetoes.joinToString("، "))
         }
         return Report(liquidity, sentiment, sentimentScore, sentimentBasis, recognized,
             baseCandidates.sortedByDescending { it.robustScore }, selected, trustScore, n,
-            objective, vetoes, explanation)
+            selected.neuralAdvisoryPct, objective, vetoes, explanation)
     }
 
     /** Only veto or reduce confidence; never creates a new directional signal. */
