@@ -146,11 +146,11 @@ internal fun HopeCommanderScreen(
             ).border(1.dp, HGold.copy(alpha = .82f), RoundedCornerShape(18.dp)).padding(11.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Image(painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
-                    contentDescription = "wolfblack wolf crest",
+                    contentDescription = "TENAXIS wolf crest",
                     modifier = Modifier.size(58.dp))
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("wolfblack", color = HGoldBright, fontSize = 22.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
+                    Text("TENAXIS", color = HGoldBright, fontSize = 22.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
                     Text("AI TRADING TERMINAL", color = HGold, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                     Text("مغز تحلیل و اجرای معاملات XT", color = Color.White, fontSize = 10.sp)
                 }
@@ -216,7 +216,7 @@ internal fun HopeCommanderScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("فرمانده مرکزی سیستم", color = HMuted, fontSize = 10.sp)
-                        Text("wolfblack", color = HGoldBright, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                        Text("TENAXIS", color = HGoldBright, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                         Text("مغز یکپارچهٔ تحلیل و تصمیم‌گیری", color = Color.White, fontSize = 10.sp)
                         Surface(color = Color(0xFF15291E), shape = RoundedCornerShape(30.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, HMint.copy(alpha = glow))) {
@@ -292,7 +292,7 @@ internal fun HopeCommanderScreen(
                     }
                     Text("راهنمای تحلیل", color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     ta.education.forEach { Text("• " + it, color = HMuted, fontSize = 8.sp, lineHeight = 12.sp) }
-                    Text("امتیاز این بخش شاخص قدرت شواهد است، نه احتمال برد. اصطلاح کوانتومی در wolfblack به سناریوسازی چندحالته اشاره دارد؛ ادعای استفاده از سخت‌افزار کوانتومی نمی‌شود.",
+                    Text("امتیاز این بخش شاخص قدرت شواهد است، نه احتمال برد. اصطلاح کوانتومی در TENAXIS به سناریوسازی چندحالته اشاره دارد؛ ادعای استفاده از سخت‌افزار کوانتومی نمی‌شود.",
                         color = HMuted, fontSize = 8.sp, lineHeight = 12.sp)
                 }
             }
@@ -514,7 +514,7 @@ internal fun HopeCommanderScreen(
             }
         }
         item {
-            Text("wolfblack • مغز تحلیل بازار، اجرای XT و حفاظت پویا از پوزیشن",
+            Text("TENAXIS • مغز تحلیل بازار، اجرای XT و حفاظت پویا از پوزیشن",
                 color = HMuted, fontSize = 8.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
