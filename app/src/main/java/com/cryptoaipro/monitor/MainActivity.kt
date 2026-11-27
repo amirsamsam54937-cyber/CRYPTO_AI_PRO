@@ -541,7 +541,7 @@ fun CryptoMonitorScreen() {
                     val reviewed = ZoroSignalIntelligence.enrich(
                         applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial))
                     )
-                    WolfStrategicBrain.enrich(reviewed, WolfSignalOutcomeJournal.snapshot(context))
+                    WolfStrategicBrain.enrich(context, reviewed, WolfSignalOutcomeJournal.snapshot(context))
                 }
                 withContext(Dispatchers.Main) {
                     rows = reviewedPartial
@@ -568,7 +568,7 @@ fun CryptoMonitorScreen() {
             if (blockReasons.isNotBlank()) ZoroDiagnostics.record(context, "فیلتر سیگنال", "WARN", blockReasons)
             rows = withContext(Dispatchers.Default) {
                 val scenarioReviewed = HopeScenarioLab.applySignalImpact(scoredRows)
-                WolfStrategicBrain.enrich(scenarioReviewed, WolfSignalOutcomeJournal.snapshot(context))
+                WolfStrategicBrain.enrich(context, scenarioReviewed, WolfSignalOutcomeJournal.snapshot(context))
             }
             scannedCount = totalContracts
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
