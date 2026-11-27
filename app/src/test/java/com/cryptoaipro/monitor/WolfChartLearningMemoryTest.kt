@@ -9,7 +9,7 @@ class WolfChartLearningMemoryTest {
         doubleArrayOf(
             close - 0.1, close + 0.6, close - 0.5, close,
             1000.0 + if (i == count - 1) 1800.0 else 0.0,
-            (i + 1L) * 900_000.0
+            ((i + 1L) * 900_000L).toDouble()
         )
     }
 
