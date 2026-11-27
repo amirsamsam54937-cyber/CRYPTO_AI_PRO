@@ -25,6 +25,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -35,16 +36,16 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.max
 import kotlin.math.min
 
-private val HGold = Color(0xFFD98B45)
-private val HGoldBright = Color(0xFFFFE0B8)
-private val HInk = Color(0xFF080D0B)
-private val HPanel = Color(0xFF111A16)
-private val HPanel2 = Color(0xFF18221D)
+private val HGold = Color(0xFFC9A45B)
+private val HGoldBright = Color(0xFFF1D78A)
+private val HInk = Color(0xFF030303)
+private val HPanel = Color(0xFF0B0B0B)
+private val HPanel2 = Color(0xFF15120A)
 private val HMint = Color(0xFF43E0A0)
 private val HRed = Color(0xFFFF6474)
-private val HMuted = Color(0xFF9BAAA1)
-private val HBlue = Color(0xFFA8C8B7)
-private val HPurple = Color(0xFFB7C8B8)
+private val HMuted = Color(0xFFB2A58B)
+private val HBlue = Color(0xFFD6A93E)
+private val HPurple = Color(0xFFB78A38)
 
 @Composable
 fun HopeCommanderBrain(modifier: Modifier = Modifier) {
@@ -55,7 +56,7 @@ fun HopeCommanderBrain(modifier: Modifier = Modifier) {
         val cx = size.width / 2f
         val cy = size.height / 2f
         val r = size.minDimension * .34f
-        drawCircle(Color(0x4424E6D3), r * 1.65f * pulse, Offset(cx, cy))
+        drawCircle(Color(0x44D8B96E), r * 1.65f * pulse, Offset(cx, cy))
         drawCircle(HGold.copy(alpha = .9f), r * 1.28f, Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
         drawCircle(HGold.copy(alpha = .42f), r, Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
         for (i in 0 until 24) {
@@ -79,7 +80,7 @@ fun HopeCommanderBrain(modifier: Modifier = Modifier) {
                 drawLine(HGold.copy(alpha=.7f), Offset(cx, yy), Offset(cx+side*r*(.18f+j*.075f), yy-r*.06f), 1.dp.toPx())
             }
         }
-        drawCircle(Color(0xFFB5F36B), 4.dp.toPx()*pulse, Offset(cx, cy))
+        drawCircle(Color(0xFFF1D78A), 4.dp.toPx()*pulse, Offset(cx, cy))
     }
 }
 
@@ -140,10 +141,17 @@ internal fun HopeCommanderScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
+            Image(painter = painterResource(id = R.drawable.tenaxis_hero),
+                contentDescription = "TENAXIS gold wolf hero artwork",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().height(132.dp)
+                    .border(1.dp, HGold.copy(alpha = .75f), RoundedCornerShape(16.dp)))
+        }
+        item {
             Row(Modifier.fillMaxWidth().background(
-                Brush.horizontalGradient(listOf(Color(0xFF14221B), Color(0xFF0D1511), Color(0xFF1B241E))),
+                Brush.horizontalGradient(listOf(Color(0xFF171208), Color(0xFF050505), Color(0xFF211A0D))),
                 RoundedCornerShape(18.dp)
-            ).border(1.dp, Color(0xFF355848), RoundedCornerShape(18.dp)).padding(11.dp),
+            ).border(1.dp, Color(0xFF8C6B32), RoundedCornerShape(18.dp)).padding(11.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Image(painter = painterResource(id = R.drawable.tenaxis_crest),
                     contentDescription = "TENAXIS wolf crest",
