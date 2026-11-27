@@ -127,6 +127,7 @@ data class MarketSignal(
     val advancedTechnical: ZoroAdvancedTechnicalEngine.Report? = null,
     // Human-style chart reading from OHLCV structure/auction/volume context; not image vision.
     val humanChartReadout: ZoroHumanMarketReader.Readout? = null,
+    val scenarioForecast: HopeScenarioForecast? = null,
     val cognitiveRiskMultiplier: Double = 1.0
 )
 
