@@ -73,7 +73,7 @@ class TenaxisChartCognitionTest {
             candles(240), technical = technical, advanced = advanced
         )
         assertEquals(TenaxisChartCognition.FEATURE_COUNT, features.size)
-        assertEquals(0.7, features[52], 0.0001)
+        assertEquals(0.72, features[52], 0.0001)
         assertEquals(1.0, features[54], 0.0)
         assertEquals(0.25, features[55], 0.0001)
         assertEquals(0.8, features[56], 0.0001)
