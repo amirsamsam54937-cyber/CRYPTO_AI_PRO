@@ -146,7 +146,6 @@ internal object NexusCognitiveEngine {
 
         val riskMultiplier = when {
             chartBrainConflict -> 0.0
-            chartNeuralConflict -> 0.50
             !atr.isFinite() || atr >= 5.0 -> 0.0
             atr >= 3.5 || adx < 20.0 -> 0.50
             atr >= 2.5 || volume < 1.0 -> 0.75
