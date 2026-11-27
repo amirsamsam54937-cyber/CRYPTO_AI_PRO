@@ -73,7 +73,7 @@ internal object TenaxisChartCognition {
     fun analyze(context: Context, signal: MarketSignal): Report {
         val primary = valid(signal.timeframeCandles["15m"] ?: signal.candles)
         val hourly = valid(signal.timeframeCandles["1h"] ?: signal.neuralCandles)
-        val fourHour = valid(signal.timeframeCandles["4h"])
+        val fourHour = valid(signal.timeframeCandles["4h"] ?: emptyList())
         val x = extractFeatures(primary, hourly, fourHour)
         if (primary.size >= 80) {
             runCatching { captureAndResolve(context, signal.symbol, "15m", primary, x) }
