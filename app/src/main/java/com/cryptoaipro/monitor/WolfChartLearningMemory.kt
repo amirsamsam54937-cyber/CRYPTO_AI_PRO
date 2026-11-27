@@ -35,6 +35,7 @@ internal object WolfChartLearningMemory {
         val patterns: List<String>,
         val support: Double?,
         val resistance: Double?,
+        val candleCloseTime: Long,
         val createdAt: Long
     )
 
@@ -120,14 +121,17 @@ internal object WolfChartLearningMemory {
         return Lesson(
             UUID.randomUUID().toString(), symbol, timeframe, bars.size, trend, structure,
             volatility, volume, "مومنتوم ۱۲ کندلی: %.2f%%".format(java.util.Locale.US, momentum),
-            patterns, priorLow, priorHigh, System.currentTimeMillis()
+            patterns, priorLow, priorHigh, bars.last()[5].toLong(), System.currentTimeMillis()
         )
     }
 
     fun remember(context: Context, lesson: Lesson) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val cursorKey = "cursor_" + lesson.symbol.replace(Regex("[^A-Za-z0-9_]"), "_") + "_" + lesson.timeframe
+        if (prefs.getLong(cursorKey, Long.MIN_VALUE) >= lesson.candleCloseTime) return
         val rows = runCatching { JSONArray(prefs.getString(LESSONS, "[]")) }.getOrElse { JSONArray() }
         rows.put(lesson.toJson())
+        prefs.edit().putLong(cursorKey, lesson.candleCloseTime).apply()
         trim(rows)
         prefs.edit().putString(LESSONS, rows.toString()).apply()
     }
@@ -171,7 +175,7 @@ internal object WolfChartLearningMemory {
         put("candleCount", candleCount); put("trend", trend); put("structure", structure)
         put("volatility", volatility); put("volume", volume); put("momentum", momentum)
         put("patterns", JSONArray(patterns)); put("support", support ?: JSONObject.NULL)
-        put("resistance", resistance ?: JSONObject.NULL); put("createdAt", createdAt)
+        put("resistance", resistance ?: JSONObject.NULL); put("candleCloseTime", candleCloseTime); put("createdAt", createdAt)
     }
 
     private fun Outcome.toJson() = JSONObject().apply {
