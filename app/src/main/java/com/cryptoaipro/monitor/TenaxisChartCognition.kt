@@ -19,7 +19,7 @@ import kotlin.math.tanh
  * It is research/advisory until independent chronological and cross-symbol validation passes.
  */
 internal object TenaxisChartCognition {
-    const val FEATURE_COUNT = 40
+    const val FEATURE_COUNT = 67
     private const val H1 = 24
     private const val H2 = 12
     private const val HORIZON_BARS = 12
@@ -74,7 +74,7 @@ internal object TenaxisChartCognition {
         val primary = valid(signal.timeframeCandles["15m"] ?: signal.candles)
         val hourly = valid(signal.timeframeCandles["1h"] ?: signal.neuralCandles)
         val fourHour = valid(signal.timeframeCandles["4h"] ?: emptyList())
-        val x = extractFeatures(primary, hourly, fourHour)
+        val x = extractFeatures(primary, hourly, fourHour, signal.technical, signal.advancedTechnical, signal.humanChartReadout)
         if (primary.size >= 80) {
             runCatching { captureAndResolve(context, signal.symbol, "15m", primary, x) }
         }
@@ -123,7 +123,10 @@ internal object TenaxisChartCognition {
     fun extractFeatures(
         primaryInput: List<DoubleArray>,
         hourlyInput: List<DoubleArray> = emptyList(),
-        fourHourInput: List<DoubleArray> = emptyList()
+        fourHourInput: List<DoubleArray> = emptyList(),
+        technical: TechnicalSnapshot? = null,
+        advanced: ZoroAdvancedTechnicalEngine.Report? = null,
+        human: ZoroHumanMarketReader.Readout? = null
     ): DoubleArray {
         val bars = valid(primaryInput)
         if (bars.size < 30) return DoubleArray(FEATURE_COUNT)
@@ -206,6 +209,42 @@ internal object TenaxisChartCognition {
         out[37] = ((ema(closes, 50) - ema(closes, 200)) / price * 80.0).coerceIn(-1.0, 1.0)
         out[38] = ((last[3] - last[0]) / price * 80.0).coerceIn(-1.0, 1.0)
         out[39] = ((bars.takeLast(5).sumOf { it[4] } / bars.takeLast(30).sumOf { it[4] }.coerceAtLeast(1e-12)) * 6.0 - 1.0).coerceIn(-1.0, 1.0)
+        // Reuse the full ZORO technical stack instead of teaching the network indicator-only snapshots.
+        if (technical != null) {
+            out[40] = (technical.cci / 200.0).coerceIn(-1.0, 1.0)
+            out[41] = (technical.rocPercent / 10.0).coerceIn(-1.0, 1.0)
+            out[42] = ((technical.mfi - 50.0) / 50.0).coerceIn(-1.0, 1.0)
+            out[43] = technical.obvTrend.coerceIn(-1.0, 1.0)
+            out[44] = directionValue(technical.supertrendDirection)
+            out[45] = directionValue(technical.liquiditySweep)
+            out[46] = directionValue(technical.fairValueGap)
+            out[47] = directionValue(technical.rsiDivergence)
+            out[48] = ((technical.macdLine - technical.macdSignalLine) / price * 120.0).coerceIn(-1.0, 1.0)
+            out[49] = ((technical.buySideLiquidity / price - 1.0) * 15.0).coerceIn(-1.0, 1.0)
+            out[50] = ((technical.sellSideLiquidity / price - 1.0) * 15.0).coerceIn(-1.0, 1.0)
+            out[51] = (technical.liquidityStrength / 100.0).coerceIn(0.0, 1.0)
+        }
+        if (advanced?.available == true) {
+            out[52] = (advanced.evidenceScore / 100.0).coerceIn(-1.0, 1.0)
+            out[54] = directionValue(advanced.indicators.firstOrNull { it.name == "Ichimoku" }?.value.orEmpty())
+            out[55] = (metricNumber(advanced, "Chaikin Money Flow") ?: 0.0).coerceIn(-1.0, 1.0)
+            out[56] = ((metricNumber(advanced, "Aroon Oscillator") ?: 0.0) / 100.0).coerceIn(-1.0, 1.0)
+            out[57] = (((metricNumber(advanced, "Donchian 20") ?: 50.0) / 50.0) - 1.0).coerceIn(-1.0, 1.0)
+            out[58] = (((metricNumber(advanced, "Keltner 20,2") ?: 50.0) / 50.0) - 1.0).coerceIn(-1.0, 1.0)
+            out[59] = (((metricNumber(advanced, "Williams %R") ?: -50.0) + 50.0) / 50.0).coerceIn(-1.0, 1.0)
+            out[60] = (((metricNumber(advanced, "Stoch RSI") ?: 50.0) - 50.0) / 50.0).coerceIn(-1.0, 1.0)
+            out[61] = (((metricNumber(advanced, "Bollinger 20,2") ?: 50.0) - 50.0) / 50.0).coerceIn(-1.0, 1.0)
+            out[62] = ((metricNumber(advanced, "VWAP") ?: 0.0) / 4.0).coerceIn(-1.0, 1.0)
+            val psar = metricNumber(advanced, "Parabolic SAR")
+            if (psar != null && psar > 0.0) out[63] = ((price / psar - 1.0) * 40.0).coerceIn(-1.0, 1.0)
+            val supports = advanced.levels.filter { it.name.contains("حمایت") || it.name.contains("Pivot S") }.map { it.price }
+            val resistances = advanced.levels.filter { it.name.contains("مقاومت") || it.name.contains("Pivot R") }.map { it.price }
+            out[64] = supports.filter { it > 0.0 }.minByOrNull { abs(price - it) }?.let { ((price / it - 1.0) * 15.0).coerceIn(-1.0,1.0) } ?: 0.0
+            out[65] = resistances.filter { it > 0.0 }.minByOrNull { abs(price - it) }?.let { ((price / it - 1.0) * 15.0).coerceIn(-1.0,1.0) } ?: 0.0
+            val fibs = advanced.levels.filter { it.name.contains("فیبوناچی") }
+            out[66] = fibs.minByOrNull { abs(price - it.price) }?.let { ((price / it.price - 1.0) * 30.0).coerceIn(-1.0,1.0) } ?: 0.0
+        }
+        if (human?.available == true) out[53] = (human.score / 100.0).coerceIn(-1.0, 1.0)
         return DoubleArray(FEATURE_COUNT) { i -> out[i].takeIf { it.isFinite() }?.coerceIn(-1.0, 1.0) ?: 0.0 }
     }
 
@@ -315,9 +354,28 @@ internal object TenaxisChartCognition {
             .put("b2",v(m.b2)).put("w3",matrix(m.w3)).put("b3",v(m.b3)).toString()
     }
 
+    private fun metricNumber(report: ZoroAdvancedTechnicalEngine.Report, name: String): Double? {
+        val raw = report.indicators.firstOrNull { it.name == name }?.value ?: return null
+        val numeric = raw.filter { it.isDigit() || it == '.' || it == '-' }
+        return numeric.toDoubleOrNull()?.takeIf { it.isFinite() }
+    }
+
+    private fun directionValue(text: String): Double {
+        val value = text.lowercase()
+        return when {
+            value.contains("صعودی") || value.contains("مثبت") || value.contains("bull") ||
+                value.contains("بالای ابر") || value.contains("برگشت صعودی") -> 1.0
+            value.contains("نزولی") || value.contains("منفی") || value.contains("bear") ||
+                value.contains("زیر ابر") || value.contains("برگشت نزولی") -> -1.0
+            else -> 0.0
+        }
+    }
+
     private fun chartScore(x: DoubleArray): Int =
         ((x[0]*8 + x[1]*8 + x[2]*8 + x[3]*6 + x[6]*8 + x[7]*7 + x[8]*6 +
-            x[20]*5 + x[23]*6 + x[24]*6 + x[27]*5 - x[28]*5 + x[33]*5 + x[34]*6) * 1.8)
+            x[20]*5 + x[23]*6 + x[24]*6 + x[27]*5 - x[28]*5 + x[33]*5 + x[34]*6 +
+            x[40]*3 + x[42]*3 + x[44]*4 + x[45]*5 + x[46]*3 + x[52]*4 + x[53]*5 +
+            x[54]*2 + x[55]*2 + x[56]*2 + x[64]*2 + x[65]*2) * 1.45)
             .toInt().coerceIn(-100,100)
 
     private fun timeframeTrend(input: List<DoubleArray>): Double {
