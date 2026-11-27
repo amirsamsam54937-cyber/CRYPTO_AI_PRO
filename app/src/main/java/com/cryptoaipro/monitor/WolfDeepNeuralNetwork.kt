@@ -182,11 +182,13 @@ internal object WolfDeepNeuralNetwork {
             (s.score / 100.0).coerceIn(-1.0, 1.0), news * direction,
             marketSentiment * direction, fearGreed * direction, flow * direction,
             book * direction, -funding * direction,
-            chartStructure, timeframeConsensus, timeframeCoverage,
-            supportDistance, resistanceDistance, vwapDistance,
-            obv, mfi, cci, roc, sweep, fvg, macd,
-            bodyPressure, wickImbalance, volumeSurprise, rangePosition,
-            return3, return12, volRatio, sessionSin, sessionCos, regimeFeature
+            chartStructure * direction, timeframeConsensus * direction, timeframeCoverage,
+            supportDistance * direction, resistanceDistance * direction, vwapDistance * direction,
+            obv * direction, mfi * direction, cci * direction, roc * direction,
+            sweep * direction, fvg * direction, macd * direction,
+            bodyPressure * direction, wickImbalance * direction, volumeSurprise,
+            rangePosition * direction, return3 * direction, return12 * direction,
+            volRatio, sessionSin, sessionCos, regimeFeature
         ).map { it.takeIf(Double::isFinite)?.coerceIn(-1.0, 1.0) ?: 0.0 }.toDoubleArray()
     }
 
