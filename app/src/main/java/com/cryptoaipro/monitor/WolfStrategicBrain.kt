@@ -273,7 +273,7 @@ internal object WolfStrategicBrain {
                 direction = if (downgrade) "NEUTRAL" else signal.direction,
                 score = if (downgrade) 0 else signal.score,
                 confidence = (signal.confidence - penalty).coerceIn(0, 100),
-                reason = (signal.reason + " | مغز استراتژیک WOLFBLACK: " + report.explanation +
+                reason = (signal.reason + " | مغز استراتژیک TENAXIS: " + report.explanation +
                     " | احساسات: " + sentimentLabel(report.sentiment) + " (" + report.sentimentScore +
                     ") | " + report.sentimentBasis + " | نقدینگی: " + (report.liquidity?.summary ?: "ناموجود"))
                     .take(1800)
