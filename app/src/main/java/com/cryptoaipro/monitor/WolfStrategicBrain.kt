@@ -260,13 +260,13 @@ internal object WolfStrategicBrain {
                     it == "ریسک نوسان شدید" ||
                     it == "نسبت سود به زیان خام ناکافی"
             }
+            val chartNeuralConflict = report.chartCognition.prediction?.let { p ->
+                (signal.direction == "LONG_BIAS" && p.direction == "DOWN" ||
+                    signal.direction == "SHORT_BIAS" && p.direction == "UP") && p.confidencePct >= 60
+            } ?: false
             val penalty = when {
                 mustVeto -> 22
-                report.chartCognition.prediction?.let { p ->
-                    val opposite = (signal.direction == "LONG_BIAS" && p.direction == "DOWN") ||
-                        (signal.direction == "SHORT_BIAS" && p.direction == "UP")
-                    if (opposite && p.confidencePct >= 60) 8 else 0
-                } ?: 0 > 0 -> 8
+                chartNeuralConflict -> 8
                 report.selected.robustScore < 48 -> 12
                 report.trustSamples < 10 -> 4
                 else -> 0
