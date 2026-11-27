@@ -164,7 +164,7 @@ internal object TenaxisChartCognition {
         }
     }
 
-    /** 40 normalized features; no future candles are read. */
+    /** 67 normalized chart features; no future candles are read. */
     fun extractFeatures(
         primaryInput: List<DoubleArray>,
         hourlyInput: List<DoubleArray> = emptyList(),
