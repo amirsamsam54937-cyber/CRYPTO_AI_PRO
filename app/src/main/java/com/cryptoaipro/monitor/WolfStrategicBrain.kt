@@ -52,7 +52,11 @@ internal object WolfStrategicBrain {
         val explanation: String
     )
 
-    fun analyze(signal: MarketSignal, history: WolfSignalOutcomeJournal.Snapshot? = null): Report {
+    fun analyze(
+        context: android.content.Context,
+        signal: MarketSignal,
+        history: WolfSignalOutcomeJournal.Snapshot? = null
+    ): Report {
         val t = signal.technical
         val price = signal.price
         val candles = signal.candles
@@ -73,18 +77,37 @@ internal object WolfStrategicBrain {
             t.relativeVolume < 0.65 -> 0
             else -> 0
         }
-        val rawSentiment = (flow * if (signal.hiddenFlowFresh) 0.35 else 0.0) +
+        val rawMarketProxy = (flow * if (signal.hiddenFlowFresh) 0.35 else 0.0) +
             priceMomentum + rsiBias + volumeConfirm
-        val sentimentScore = rawSentiment.toInt().coerceIn(-100, 100)
+        val prefs = context.getSharedPreferences("wolf_background_intelligence", android.content.Context.MODE_PRIVATE)
+        val sentimentJson = runCatching {
+            org.json.JSONObject(prefs.getString("sentiment_network_snapshot", "{}") ?: "{}")
+        }.getOrElse { org.json.JSONObject() }
+        val sentimentAge = System.currentTimeMillis() - sentimentJson.optLong("updatedAtMs", 0L)
+        val sentimentFresh = sentimentAge in 0L..7_200_000L
+        val normalizedSymbol = signal.symbol.uppercase().replace(Regex("[^A-Z0-9]"), "")
+            .removeSuffix("USDT").removeSuffix("USD")
+        val nodes = sentimentJson.optJSONArray("nodes")
+        val node = (0 until (nodes?.length() ?: 0)).mapNotNull { nodes?.optJSONObject(it) }
+            .firstOrNull { it.optString("id").equals(normalizedSymbol, true) }
+        val articleScore = node?.optInt("score")?.coerceIn(-100, 100)
+        val sentimentScore = if (sentimentFresh && articleScore != null)
+            (articleScore * 0.65 + rawMarketProxy * 0.35).toInt().coerceIn(-100, 100)
+        else rawMarketProxy.toInt().coerceIn(-100, 100)
         val sentiment = when {
-            !signal.hiddenFlowFresh && t.relativeVolume <= 0.0 -> Sentiment.UNKNOWN
+            !sentimentFresh && !signal.hiddenFlowFresh && t.relativeVolume <= 0.0 -> Sentiment.UNKNOWN
             sentimentScore >= 18 -> Sentiment.RISK_ON
             sentimentScore <= -18 -> Sentiment.RISK_OFF
             else -> Sentiment.MIXED
         }
-        val sentimentBasis = if (signal.hiddenFlowFresh)
-            "قیمت/حجم/مومنتوم + جریان داخلی تازه؛ خبر و شبکه اجتماعی به این امتیاز تزریق نشده"
-        else "فقط قیمت/حجم/مومنتوم؛ جریان سفارش تازه و احساسات خبر/شبکه اجتماعی در دسترس نیست"
+        val sentimentBasis = when {
+            sentimentFresh && articleScore != null ->
+                "شبکه احساسات خبر تازه: " + node?.optInt("evidenceCount", 0) + " شاهد؛ ترکیب با قیمت/حجم/مومنتوم"
+            signal.hiddenFlowFresh ->
+                "قیمت/حجم/مومنتوم + جریان داخلی تازه؛ خوراک خبر تازه برای این نماد موجود نیست"
+            else ->
+                "پروکسی قیمت/حجم/مومنتوم؛ داده تازه خبر/جریان سفارش برای این نماد موجود نیست"
+        }
 
         val long = signal.direction == "LONG_BIAS"
         val short = signal.direction == "SHORT_BIAS"
@@ -191,9 +214,12 @@ internal object WolfStrategicBrain {
     }
 
     /** Only veto or reduce confidence; never creates a new directional signal. */
-    fun enrich(signals: List<MarketSignal>, history: WolfSignalOutcomeJournal.Snapshot? = null): List<MarketSignal> =
-        signals.map { signal ->
-            val report = analyze(signal, history)
+    fun enrich(
+        context: android.content.Context,
+        signals: List<MarketSignal>,
+        history: WolfSignalOutcomeJournal.Snapshot? = null
+    ): List<MarketSignal> = signals.map { signal ->
+            val report = analyze(context, signal, history)
             val mustVeto = report.vetoes.any {
                 it == "هیچ استراتژی معتبر شناسایی نشد" ||
                     it == "سناریو در پاسخ بدبینانه امتیاز کافی ندارد" ||
