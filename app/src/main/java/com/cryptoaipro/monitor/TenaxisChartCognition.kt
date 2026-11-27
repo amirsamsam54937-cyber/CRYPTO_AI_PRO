@@ -71,9 +71,9 @@ internal object TenaxisChartCognition {
     )
 
     fun analyze(context: Context, signal: MarketSignal): Report {
-        val primary = valid(signal.timeframeCandles["15m"] ?: signal.candles)
-        val hourly = valid(signal.timeframeCandles["1h"] ?: signal.neuralCandles)
-        val fourHour = valid(signal.timeframeCandles["4h"] ?: emptyList())
+        val primary = closedBars(valid(signal.timeframeCandles["15m"] ?: signal.candles), 15L * 60L * 1000L)
+        val hourly = closedBars(valid(signal.timeframeCandles["1h"] ?: signal.neuralCandles), 60L * 60L * 1000L)
+        val fourHour = closedBars(valid(signal.timeframeCandles["4h"] ?: emptyList()), 4L * 60L * 60L * 1000L)
         val x = extractFeatures(primary, hourly, fourHour, signal.technical, signal.advancedTechnical, signal.humanChartReadout)
         if (primary.size >= 80) {
             runCatching { captureAndResolve(context, signal.symbol, "15m", primary, x) }
@@ -386,8 +386,16 @@ internal object TenaxisChartCognition {
         val e20 = ema(c,20); val e50 = ema(c,50)
         return (((if (p > e20) 0.5 else -0.5) + (if (e20 > e50) 0.5 else -0.5))).coerceIn(-1.0,1.0)
     }
+    private fun closedBars(input: List<DoubleArray>, intervalMs: Long): List<DoubleArray> {
+        val now = System.currentTimeMillis()
+        return input.filter { row ->
+            row.size >= 6 && row[5].isFinite() &&
+                row[5].toLong() > 0L && now - row[5].toLong() >= intervalMs
+        }
+    }
+
     private fun valid(input: List<DoubleArray>) = input.filter {
-        it.size >= 6 && it.take(5).all(Double::isFinite) && it[0] > 0.0 &&
+        it.size >= 6 && it.take(5).all { value -> value.isFinite() } && it[0] > 0.0 &&
             it[1] >= max(it[0],it[3]) && it[2] <= min(it[0],it[3]) &&
             it[2] > 0.0 && it[4] >= 0.0 && it[5].isFinite()
     }
