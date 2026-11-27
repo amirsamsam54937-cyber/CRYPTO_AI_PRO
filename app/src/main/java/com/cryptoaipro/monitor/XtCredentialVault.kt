@@ -259,7 +259,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
             val readiness = when {
                 !XtCredentialVault.hasCredentials(context) -> "مسدود: کلید API هنوز ذخیره نشده است."
                 !XtCredentialVault.isConnectionVerified(context) -> "مسدود: اتصال خصوصی و مجوزهای Futures هنوز تأیید نشده‌اند."
-                !neuralStatus.validatedForScoring -> "مسدود: مدل عصبی هنوز اعتبارسنجی مستقل لازم برای امتیازدهی زنده را نگرفته است."
+                !neuralStatus.validatedForScoring -> "معامله خودکار مسدود است: مدل عصبی هنوز اعتبارسنجی مستقل ندارد؛ سفارش دستی با پیش‌نمایش، کنترل ریسک و تأیید نهایی در پنل پایین در دسترس است."
                 !liveReady -> "آماده‌سازی ناقص: اتصال تأیید شده، اما LIVE عمداً خاموش است."
                 !autoReady -> "LIVE فعال است؛ معامله‌گر خودکار هنوز مسلح نیست."
                 else -> "دروازه‌های اولیه فعال‌اند؛ پیش‌بررسی هر سفارش و حفاظت صرافی همچنان اجباری است."
