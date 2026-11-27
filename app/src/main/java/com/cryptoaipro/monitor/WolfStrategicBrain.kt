@@ -63,6 +63,7 @@ internal object WolfStrategicBrain {
     ): Report {
         val t = signal.technical
         val chartCognition = TenaxisChartCognition.analyze(context, signal)
+        val persistentMemoryStats = TenaxisChartCognition.memoryStats(context)
         val price = signal.price
         val candles = signal.candles
         val liquidity = candles.mapNotNull { r ->
@@ -232,6 +233,8 @@ internal object WolfStrategicBrain {
                 .append(chartCognition.regime).append("؛ ").append(chartCognition.structure)
                 .append(" • حافظه آموزش چارت: ").append(chartCognition.reviewedSamples)
                 .append(" نمونه حل‌شده؛ برچسب‌گذاری پس از ۱۲ کندل بسته")
+                .append(" • حافظه پایدار دستگاه: ").append(persistentMemoryStats.first)
+                .append(" رویداد / ").append(persistentMemoryStats.second).append(" نمونه چارت")
             if (chartCognition.prediction != null) append(" • پیش‌بینی پژوهشی چارت DOWN/NEUTRAL/UP: ")
                 .append(String.format(java.util.Locale.US, "%.0f/%.0f/%.0f%%", chartCognition.prediction.down * 100,
                     chartCognition.prediction.neutral * 100, chartCognition.prediction.up * 100))
