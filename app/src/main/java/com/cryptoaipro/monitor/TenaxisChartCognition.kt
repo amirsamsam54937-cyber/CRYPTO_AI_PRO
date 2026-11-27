@@ -220,8 +220,8 @@ internal object TenaxisChartCognition {
             out[46] = directionValue(technical.fairValueGap)
             out[47] = directionValue(technical.rsiDivergence)
             out[48] = ((technical.macdLine - technical.macdSignalLine) / price * 120.0).coerceIn(-1.0, 1.0)
-            out[49] = ((technical.buySideLiquidity / price - 1.0) * 15.0).coerceIn(-1.0, 1.0)
-            out[50] = ((technical.sellSideLiquidity / price - 1.0) * 15.0).coerceIn(-1.0, 1.0)
+            out[49] = if (technical.buySideLiquidity > 0.0) ((technical.buySideLiquidity / price - 1.0) * 15.0).coerceIn(-1.0, 1.0) else 0.0
+            out[50] = if (technical.sellSideLiquidity > 0.0) ((technical.sellSideLiquidity / price - 1.0) * 15.0).coerceIn(-1.0, 1.0) else 0.0
             out[51] = (technical.liquidityStrength / 100.0).coerceIn(0.0, 1.0)
         }
         if (advanced?.available == true) {
