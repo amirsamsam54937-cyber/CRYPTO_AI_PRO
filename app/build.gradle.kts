@@ -10,8 +10,8 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 106
-  versionName = "1.0.1"
+  versionCode = 107
+  versionName = "1.0.2"
   // TENAXIS branded Android application.
  }
  buildFeatures { compose = true }
