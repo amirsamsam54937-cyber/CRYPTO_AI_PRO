@@ -40,7 +40,7 @@ internal object WolfTrapDefenseEngine {
         val lowerWick = min(last[0], last[3]) - last[2]
         val avgVolume = prior.takeLast(20).map { it[4] }.average().coerceAtLeast(1e-12)
         val volumeMultiple = last[4] / avgVolume
-        val atr = (1 until bars.size).takeLast(14).map { i ->
+        val atr = (1 until bars.size).toList().takeLast(14).map { i ->
             max(bars[i][1] - bars[i][2],
                 max(abs(bars[i][1] - bars[i - 1][3]), abs(bars[i][2] - bars[i - 1][3])))
         }.average().coerceAtLeast(last[3] * 0.0001)
