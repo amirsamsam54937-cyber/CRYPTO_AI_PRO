@@ -119,6 +119,12 @@ internal fun HopeCommanderScreen(
         }
         ZoroLiquidityMapEngine.analyze(rows)
     }
+    val marketFingerprint = remember(best?.symbol, best?.candles?.size, best?.price) {
+        WolfMarketFingerprintEngine.analyze(best?.candles.orEmpty())
+    }
+    val chartForensics = remember(best?.symbol, best?.candles?.size, best?.price) {
+        WolfChartForensicsEngine.analyze(best?.candles.orEmpty())
+    }
     // Read the model gate from the ensemble itself; display strings are not a source of truth.
     val validated = WolfPretrainedEnsemble.status().validatedForScoring
     val votes = best?.neuralMemberVotes.orEmpty()
@@ -307,6 +313,57 @@ internal fun HopeCommanderScreen(
                     Text("امتیاز این بخش شاخص قدرت شواهد است، نه احتمال برد. اصطلاح کوانتومی در TENAXIS به سناریوسازی چندحالته اشاره دارد؛ ادعای استفاده از سخت‌افزار کوانتومی نمی‌شود.",
                         color = HMuted, fontSize = 8.sp, lineHeight = 12.sp)
                 }
+            }
+        }
+        item {
+            HPanelCard(Modifier.fillMaxWidth(), "شناسنامه بازار و رادار تله‌ها • WOLF MARKET FINGERPRINT") {
+                if (!marketFingerprint.available) {
+                    Text(marketFingerprint.decision, color = HMuted, fontSize = 9.sp)
+                } else {
+                    Text(marketFingerprint.identity + " • " + marketFingerprint.regime.name,
+                        color = HGoldBright, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("تشخیص رفتار: " + marketFingerprint.deception.name +
+                        " • شدت هشدار " + marketFingerprint.trapSeverity + "/100",
+                        color = if (marketFingerprint.trapSeverity >= 60) HRed else HGold, fontSize = 9.sp)
+                    Text("نقدینگی: " + marketFingerprint.liquiditySummary, color = Color.White, fontSize = 9.sp)
+                    Text("ساختار: " + marketFingerprint.marketStructure, color = HMuted, fontSize = 9.sp)
+                    marketFingerprint.behaviorTraits.forEach { Text("• " + it, color = HGoldBright, fontSize = 8.sp) }
+                    Text(marketFingerprint.decision, color = HGoldBright, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+                Divider(color = Color(0xFF46371D))
+                Text("آزمایشگاه جرم‌شناسی چارت • WOLF CHART FORENSICS",
+                    color = HGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                if (!chartForensics.available) {
+                    Text("برای تحلیل عمیق، حداقل ۸۰ کندل معتبر لازم است.", color = HMuted, fontSize = 9.sp)
+                } else {
+                    Text(chartForensics.profile, color = Color.White, fontSize = 9.sp)
+                    Text("VWAP: " + (chartForensics.vwap?.let { String.format(java.util.Locale.US, "%.6f", it) } ?: "—") +
+                        " • فاصله: " + (chartForensics.vwapDistancePct?.let { String.format(java.util.Locale.US, "%+.2f%%", it) } ?: "—"),
+                        color = HGoldBright, fontSize = 9.sp)
+                    Text("RSI: " + (chartForensics.rsi?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: "—") +
+                        " • " + chartForensics.rsiDivergence, color = HMuted, fontSize = 9.sp)
+                    Text(chartForensics.obvDivergence + " • " + chartForensics.structure,
+                        color = Color.White, fontSize = 9.sp)
+                    Text(chartForensics.volatility + " • " + chartForensics.candleRead,
+                        color = HGoldBright, fontSize = 9.sp)
+                    if (chartForensics.gaps.isNotEmpty()) {
+                        Text("شکاف‌های ارزش منصفانه:", color = HGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        chartForensics.gaps.forEach { z ->
+                            Text(z.label + ": " + String.format(java.util.Locale.US, "%.6f–%.6f", z.low, z.high),
+                                color = HMuted, fontSize = 8.sp)
+                        }
+                    }
+                    if (chartForensics.supplyDemand.isNotEmpty()) {
+                        Text("نواحی عرضه/تقاضای احتمالی:", color = HGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        chartForensics.supplyDemand.forEach { z ->
+                            Text(z.label + ": " + String.format(java.util.Locale.US, "%.6f–%.6f", z.low, z.high) +
+                                " • قدرت نسبی " + z.strength, color = HMuted, fontSize = 8.sp)
+                        }
+                    }
+                    chartForensics.cautions.forEach { Text("• " + it, color = HMuted, fontSize = 8.sp, lineHeight = 11.sp) }
+                }
+                Text("تمام برآوردها از کندل‌های OHLCV هستند؛ دفتر سفارش پنهان یا لیکوییدیشن قطعی را نشان نمی‌دهند.",
+                    color = HMuted, fontSize = 8.sp, lineHeight = 11.sp)
             }
         }
         item {
