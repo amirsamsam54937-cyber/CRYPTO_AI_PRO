@@ -12,7 +12,7 @@ android {
   targetSdk = 35
   versionCode = 106
   versionName = "1.0.1"
-  // wolfblack branded Android application.
+  // TENAXIS branded Android application.
  }
  buildFeatures { compose = true }
  // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
