@@ -38,7 +38,7 @@ jobs:
         with:
           gradle-version: "8.9"
       - name: Restore verified XT-only neural bundle from completed training
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/zoro-apex-unified-gen31' }}
+        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/zoro-apex-unified-gen31' || github.ref == 'refs/heads/wolfblack-unified-brain-gen1') }}
         uses: actions/download-artifact@v4
         with:
           name: ZORO-745K-XT-TRAINING-DATA
@@ -47,7 +47,7 @@ jobs:
           run-id: 45068487778
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install previously verified XT corpus and ten-model bundle
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/zoro-apex-unified-gen31' }}
+        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/zoro-apex-unified-gen31' || github.ref == 'refs/heads/wolfblack-unified-brain-gen1') }}
         run: |
           set -euo pipefail
           ASSETS=app/src/main/assets
