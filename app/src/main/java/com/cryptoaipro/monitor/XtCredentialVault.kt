@@ -339,6 +339,7 @@ internal fun XtLiveManualExecutionPanel(context: Context, signals: List<MarketSi
     var preview by remember { mutableStateOf<XtLiveTradingEngine.ManualPreview?>(null) }
     var busy by remember { mutableStateOf(false) }
     var liveEnabled by remember { mutableStateOf(XtLiveTradingEngine.isEnabled(context)) }
+    var autoEnabled by remember { mutableStateOf(XtLiveTradingEngine.isAutoEnabled(context)) }
     var emergency by remember { mutableStateOf(XtLiveTradingEngine.isEmergencyStopped(context)) }
     var status by remember { mutableStateOf("برای ارسال سفارش واقعی، اتصال XT را آزمایش و LIVE را جداگانه فعال کن.") }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -383,6 +384,24 @@ internal fun XtLiveManualExecutionPanel(context: Context, signals: List<MarketSi
                         XtLiveTradingEngine.setEnabled(context, enabled)
                         liveEnabled = XtLiveTradingEngine.isEnabled(context)
                         preview = null
+                        status = XtLiveTradingEngine.lastStatus(context)
+                    }
+                )
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("معامله‌گر خودکار", color = Color(0xFFECE5D6),
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(if (autoEnabled) "مسلح؛ پس از اسکن و تأیید مغز راهبردی امکان ارسال خودکار دارد."
+                        else "خاموش؛ برای فعال‌سازی، LIVE و سپس این کلید را روشن کن.",
+                        color = Color(0xFFB8B0A0), fontSize = 9.sp)
+                }
+                Switch(
+                    checked = autoEnabled,
+                    enabled = liveEnabled && connected && !busy && !emergency,
+                    onCheckedChange = { enabled ->
+                        XtLiveTradingEngine.setAutoEnabled(context, enabled)
+                        autoEnabled = XtLiveTradingEngine.isAutoEnabled(context)
                         status = XtLiveTradingEngine.lastStatus(context)
                     }
                 )
@@ -485,6 +504,7 @@ internal fun XtLiveManualExecutionPanel(context: Context, signals: List<MarketSi
                                     } finally {
                                         emergency = XtLiveTradingEngine.isEmergencyStopped(context)
                                         liveEnabled = XtLiveTradingEngine.isEnabled(context)
+                                        autoEnabled = XtLiveTradingEngine.isAutoEnabled(context)
                                         busy = false
                                     }
                                 }
@@ -495,9 +515,9 @@ internal fun XtLiveManualExecutionPanel(context: Context, signals: List<MarketSi
             }
             Text(
                 if (!neuralValidated)
-                    "وضعیت هوش مصنوعی: مدل پیش‌آموزش فعلی هنوز اعتبارسنجی مستقل معاملاتی ندارد؛ بنابراین معامله خودکار مسدود است. سفارش دستی فقط پس از بررسی مستقل تکنیکال، کنترل ریسک و تأیید صریح همین صفحه ممکن است."
+                    "وضعیت هوش مصنوعی: مدل عصبی فعلی هنوز اعتبارسنجی مستقل معاملاتی ندارد و در تصمیم اجرای خودکار دخالت داده نمی‌شود. معامله خودکار فقط با رأی مستقل مغز راهبردی، اسکن پس‌زمینه، تأیید LIVE و کنترل‌های سخت ریسک انجام می‌شود؛ سفارش دستی نیز تأیید نهایی جداگانه می‌خواهد."
                 else
-                    "وضعیت هوش مصنوعی: مدل اعتبارسنجی شده است؛ بااین‌حال سفارش این صفحه همچنان نیازمند تأیید صریح کاربر است.",
+                    "وضعیت هوش مصنوعی: مدل عصبی اعتبارسنجی شده است؛ بااین‌حال هر سفارش دستی همچنان نیازمند تأیید صریح کاربر است.",
                 color = Color(0xFFE2C477), fontSize = 9.sp, lineHeight = 14.sp
             )
             Surface(color = Color(0xFF201B12), shape = RoundedCornerShape(10.dp),
