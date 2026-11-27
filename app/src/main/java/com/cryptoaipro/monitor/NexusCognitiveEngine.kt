@@ -166,7 +166,7 @@ internal object NexusCognitiveEngine {
                 it.contains("نسبت سود") || it.contains("مسدود")
         }
         val allowed = !blockingReason
-        return Thought(
+        val thought = Thought(
             allowed = allowed,
             side = if (allowed) side else "NEUTRAL",
             regime = regime,
@@ -178,5 +178,24 @@ internal object NexusCognitiveEngine {
             phase = if (allowed) "DECISION_READY" else "ABSTAIN",
             reasons = reasons.distinct()
         )
+        if (context != null) {
+            val candleAt = signal.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L
+            val eventId = "${signal.symbol}|${candleAt}|nexus_decision"
+            val payload = org.json.JSONObject()
+                .put("symbol", signal.symbol)
+                .put("candleAt", candleAt)
+                .put("candidateSide", side)
+                .put("finalSide", thought.side)
+                .put("allowed", thought.allowed)
+                .put("regime", thought.regime)
+                .put("riskMultiplier", thought.riskMultiplier)
+                .put("netRewardRisk", thought.netRewardRisk)
+                .put("chartScore", chartBrain?.score)
+                .put("chartReviewedSamples", chartBrain?.reviewedSamples ?: 0)
+                .put("reasons", org.json.JSONArray(thought.reasons))
+                .toString()
+            TenaxisChartCognition.recordMemoryEvent(context, "nexus_decision", eventId, payload)
+        }
+        return thought
     }
 }
