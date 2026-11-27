@@ -220,10 +220,12 @@ internal object HopeScenarioLab {
             if (weakSetup) signal.copy(
                 direction = "NEUTRAL", score = 0,
                 confidence = (signal.confidence - 12).coerceIn(0, 100),
+                scenarioForecast = forecast,
                 reason = signal.reason + summary + " • رد سیگنال: ریسک مسیر شبیه‌سازی‌شده نامطلوب است."
             ) else signal.copy(
                 score = (signal.score + side * adjustment).coerceIn(-100, 100),
                 confidence = (signal.confidence + adjustment).coerceIn(0, 100),
+                scenarioForecast = forecast,
                 reason = signal.reason + summary + if (adjustment > 0) " • شواهد مسیر تقویت‌کننده" else if (adjustment < 0) " • شواهد مسیر تضعیف‌کننده" else " • اثر مسیر خنثی"
             )
         }
