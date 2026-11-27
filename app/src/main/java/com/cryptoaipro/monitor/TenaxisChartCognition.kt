@@ -50,7 +50,7 @@ internal object TenaxisChartCognition {
     )
 
     private class Store(context: Context) : SQLiteOpenHelper(
-        context.applicationContext, "tenaxis_chart_experience.db", null, 1
+        context.applicationContext, "tenaxis_chart_experience.db", null, 2
     ) {
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL(
@@ -60,8 +60,18 @@ internal object TenaxisChartCognition {
                     "features TEXT NOT NULL, label INTEGER, forward_return REAL, resolved_at INTEGER)"
             )
             db.execSQL("CREATE INDEX chart_examples_pending ON chart_examples(symbol,timeframe,label,candle_time)")
+            createMemoryTable(db)
         }
-        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+            if (oldVersion < 2) createMemoryTable(db)
+        }
+        private fun createMemoryTable(db: SQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS memory_events (" +
+                "id TEXT PRIMARY KEY, kind TEXT NOT NULL, created_at INTEGER NOT NULL, " +
+                "payload TEXT NOT NULL, sync_state TEXT NOT NULL DEFAULT 'LOCAL_ONLY')")
+            db.execSQL("CREATE INDEX IF NOT EXISTS memory_events_time ON memory_events(created_at)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS memory_events_kind ON memory_events(kind,created_at)")
+        }
     }
 
     private data class Model(
@@ -117,6 +127,41 @@ internal object TenaxisChartCognition {
             add("هم‌جهتی مستقل 15m/1h/4h؛ داده مفقود به‌عنوان خنثی ثبت می‌شود")
         }
         return Report(score, trend, structure, liquidity, patterns, observations, prediction, reviewed, x)
+    }
+
+    /** Append-only local episodic memory. No retention cap and no exchange secrets are accepted. */
+    fun recordMemoryEvent(context: Context, kind: String, stableId: String, payload: String) {
+        if (kind.isBlank() || stableId.isBlank() || payload.length > 48_000) return
+        val helper = Store(context)
+        runCatching {
+            val values = android.content.ContentValues().apply {
+                put("id", stableId)
+                put("kind", kind.take(80))
+                put("created_at", System.currentTimeMillis())
+                put("payload", payload)
+                put("sync_state", "LOCAL_ONLY")
+            }
+            helper.writableDatabase.insertWithOnConflict(
+                "memory_events", null, values, SQLiteDatabase.CONFLICT_IGNORE
+            )
+        }
+        helper.close()
+    }
+
+    fun memoryStats(context: Context): Pair<Int, Int> {
+        val helper = Store(context)
+        return try {
+            val db = helper.readableDatabase
+            val events = db.rawQuery("SELECT COUNT(*) FROM memory_events", null).use {
+                if (it.moveToFirst()) it.getInt(0) else 0
+            }
+            val charts = db.rawQuery("SELECT COUNT(*) FROM chart_examples", null).use {
+                if (it.moveToFirst()) it.getInt(0) else 0
+            }
+            events to charts
+        } finally {
+            helper.close()
+        }
     }
 
     /** 40 normalized features; no future candles are read. */
