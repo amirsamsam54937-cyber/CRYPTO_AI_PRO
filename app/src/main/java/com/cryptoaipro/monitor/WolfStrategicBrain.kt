@@ -247,10 +247,10 @@ internal object WolfStrategicBrain {
             selected.neuralAdvisoryPct, objective, vetoes, chartCognition, explanation)
         val candleAt = signal.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L
         val candidateLedger = org.json.JSONArray().also { array ->
-            report.candidates.forEach { candidate ->
+            report.scenarios.forEach { candidate ->
                 array.put(org.json.JSONObject()
                     .put("strategy", candidate.strategy.name)
-                    .put("response", candidate.response.name)
+                    .put("worstResponse", candidate.worstResponse.name)
                     .put("baseScore", candidate.baseScore)
                     .put("robustScore", candidate.robustScore)
                     .put("rationale", candidate.rationale))
@@ -260,7 +260,7 @@ internal object WolfStrategicBrain {
             .put("symbol", signal.symbol)
             .put("candleAt", candleAt)
             .put("selectedStrategy", selected.strategy.name)
-            .put("selectedResponse", selected.response.name)
+            .put("selectedWorstResponse", selected.worstResponse.name)
             .put("selectedScore", selected.robustScore)
             .put("trustScore", trustScore)
             .put("trustSamples", n)
