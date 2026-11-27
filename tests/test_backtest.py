@@ -117,6 +117,7 @@ def test_backtest_terminal_liquidation_updates_equity_curve_and_drawdown(monkeyp
     expected_drawdown = (1000.0 - result["final_equity"]) / 1000.0 * 100.0
     assert result["max_drawdown_percent"] == pytest.approx(expected_drawdown, abs=5e-5)
 
+
 def test_backtest_does_not_reenter_at_same_bar_open_after_intrabar_exit(monkeypatch):
     frame = sample_frame(105)
     frame.loc[100:101, ["open", "high", "low", "close"]] = [100.0, 100.5, 99.5, 100.0]
@@ -144,6 +145,7 @@ def test_backtest_does_not_reenter_at_same_bar_open_after_intrabar_exit(monkeypa
     assert result["trades"][0]["exit_time"] == str(frame.loc[102, "timestamp"])
     assert result["trades"][1]["entry_time"] == str(frame.loc[103, "timestamp"])
     assert result["trades"][1]["exit_reason"] == "END_OF_DATA"
+
 
 def test_drawdown_marks_open_position_to_market(monkeypatch):
     frame = sample_frame(104)
@@ -179,6 +181,7 @@ def test_drawdown_marks_open_position_to_market(monkeypatch):
     assert bar_101_equity < result["initial_equity"]
     assert result["assumptions"]["drawdown_marking"].startswith("close-to-market")
 
+
 def test_funding_uses_actual_elapsed_time_for_irregular_candle_intervals(monkeypatch):
     frame = sample_frame(104)
     frame.loc[100:103, ["open", "high", "low", "close"]] = [
@@ -208,6 +211,7 @@ def test_funding_uses_actual_elapsed_time_for_irregular_candle_intervals(monkeyp
     expected_eight_hour_funding = trade["quantity"] * trade["entry"] * 0.001
     assert trade["exit_reason"] == "END_OF_DATA"
     assert trade["funding_estimate"] == pytest.approx(expected_eight_hour_funding)
+
 
 def test_position_size_caps_net_stop_loss_after_round_trip_fees_and_slippage(monkeypatch):
     frame = sample_frame(103)
@@ -243,6 +247,7 @@ def test_position_size_caps_net_stop_loss_after_round_trip_fees_and_slippage(mon
     assert trade["fees"] > 0
     assert trade["slippage_cost"] > 0
 
+
 @pytest.mark.parametrize(
     "parameter",
     [
@@ -260,6 +265,7 @@ def test_backtest_rejects_non_finite_execution_and_risk_parameters(parameter, ba
 def test_backtest_rejects_invalid_warmup_type_or_range(bad_warmup):
     with pytest.raises(ValueError, match="warmup"):
         run_backtest(sample_frame(), warmup=bad_warmup)
+
 
 def test_stop_market_exit_uses_worse_open_when_price_gaps_through_stop(monkeypatch):
     frame = sample_frame(103)
@@ -342,6 +348,7 @@ def test_funding_cashflow_sign_tracks_position_side_and_signed_rate(
         result["assumptions"]["funding_cashflow_convention"]
     )
 
+
 @pytest.mark.parametrize(
     ("side", "bar_high", "bar_low", "expected_reason", "expected_exit", "expected_pnl"),
     [
@@ -400,3 +407,33 @@ def test_entry_candle_intrabar_stop_and_target_are_processed(
     assert trade["net_pnl"] == pytest.approx(expected_pnl)
     assert result["final_equity"] == pytest.approx(1000.0 + expected_pnl)
 
+
+def test_backtest_uses_bar_indices_when_timestamp_column_is_absent(monkeypatch):
+    frame = sample_frame(104).drop(columns=["timestamp"])
+    frame.loc[100:102, ["open", "high", "low", "close"]] = [
+        100.0, 100.5, 99.5, 100.0
+    ]
+    frame.loc[103, ["open", "high", "low", "close"]] = [
+        100.0, 100.5, 98.9, 99.0
+    ]
+    monkeypatch.setattr(
+        "app.backtest.analyze_ohlcv",
+        lambda history: {"direction": "LONG_BIAS", "atr": 1.0},
+    )
+
+    result = run_backtest(
+        frame,
+        initial_equity=1000.0,
+        risk_per_trade=0.02,
+        fee_rate=0.0,
+        slippage_rate=0.0,
+        funding_rate_8h=0.0,
+        warmup=100,
+    )
+
+    assert result["trade_count"] == 1
+    trade = result["trades"][0]
+    assert trade["signal_time"] == "100"
+    assert trade["entry_time"] == "101"
+    assert trade["exit_time"] == "103"
+    assert trade["exit_reason"] == "END_OF_DATA"
