@@ -214,26 +214,19 @@ internal object WolfDeepNeuralNetwork {
         val j = JSONObject(raw)
         fun vector(key: String, size: Int): DoubleArray {
             val a = j.getJSONArray(key)
-            require(a.length() == size)
-            return DoubleArray(size) { a.getDouble(it).coerceIn(-8.0, 8.0) }
+            require(a.length() <= size)
+            return DoubleArray(size) { i -> if (i < a.length()) a.getDouble(i).coerceIn(-8.0, 8.0) else 0.0 }
         }
         fun matrix(key: String, rows: Int, cols: Int): Array<DoubleArray> {
             val a = j.getJSONArray(key)
-            require(a.length() == rows)
+            require(a.length() <= rows)
             return Array(rows) { r ->
-                val row = a.getJSONArray(r)
-                require(row.length() == cols)
-                DoubleArray(cols) { c -> row.getDouble(c).coerceIn(-8.0, 8.0) }
+                val old = if (r < a.length()) a.getJSONArray(r) else org.json.JSONArray()
+                require(old.length() <= cols)
+                DoubleArray(cols) { c -> if (c < old.length()) old.getDouble(c).coerceIn(-8.0, 8.0) else 0.0 }
             }
         }
-        val oldW1 = j.getJSONArray("w1")
-        require(oldW1.length() == H1)
-        val migratedW1 = Array(H1) { rowIndex ->
-            val row = oldW1.getJSONArray(rowIndex)
-            require(row.length() in setOf(INPUTS, 13, 7))
-            DoubleArray(INPUTS) { col -> if (col < row.length()) row.getDouble(col).coerceIn(-8.0, 8.0) else 0.0 }
-        }
-        Model(migratedW1, vector("b1", H1),
+        Model(matrix("w1", H1, INPUTS), vector("b1", H1),
             matrix("w2", H2, H1), vector("b2", H2),
             vector("w3", H2), j.optDouble("b3", 0.0).coerceIn(-8.0, 8.0))
     }.getOrNull()
