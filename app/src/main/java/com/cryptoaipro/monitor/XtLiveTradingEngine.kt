@@ -206,12 +206,11 @@ internal object XtLiveTradingEngine {
 
         val side = signalSide(signal)
         require(side.isNotBlank()) { "این سیگنال جهت قطعی LONG یا SHORT ندارد." }
-        require(WolfPretrainedEnsemble.status().validatedForScoring &&
-            signal.neuralDirection.equals(side + "_BIAS", true) &&
-            signal.neuralMemberProbabilities.size >= 7 &&
-            !signal.neuralUncertainty.highDisagreement) {
-            "معامله واقعی فقط با اجماع شبکه عصبی اعتبارسنجی‌شده مجاز است؛ رأی تکنیکال به‌تنهایی مجوز ورود نیست."
-        }
+        // Manual LIVE orders are explicitly human-confirmed. The pretrained ensemble is
+        // currently research-only, so its unvalidated vote must not silently become an
+        // execution gate that makes the real-order path permanently unreachable. The
+        // independent technical-quality, account, contract, fee, freshness and risk checks
+        // below remain mandatory. Automatic execution has a separate strict validation gate.
         require(signal.confidence >= 70 && signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه") {
             "قدرت یا رتبه سیگنال برای بررسی سفارش واقعی کافی نیست."
         }
@@ -220,9 +219,8 @@ internal object XtLiveTradingEngine {
             "امتیاز کیفیت شواهد برای معامله واقعی کافی نیست (" + qualityReview.quality + "/100): " +
                 qualityReview.warnings.take(3).joinToString("، ")
         }
-        require(signal.neuralDirection.equals(side + "_BIAS", true)) {
-            "جهت سفارش باید مستقیماً از خروجی شبکه عصبی اعتبارسنجی‌شده آمده باشد."
-        }
+        // Direction is taken from the selected signal and shown in the mandatory order
+        // preview. The user must explicitly confirm the exact side, size and risk before POST.
         require(signal.technical.adx >= 16.0 && signal.technical.relativeVolume >= 0.65 &&
             (signal.consensus?.agreement ?: 0) >= 58) {
             "قدرت روند، حجم نسبی یا اجماع تکنیکال برای ورود واقعی کافی نیست."
@@ -687,6 +685,13 @@ internal object XtLiveTradingEngine {
      */
     suspend fun processScan(context: Context, signals: List<MarketSignal>): ExecutionResult? =
         autoScanMutex.withLock {
+            // Do not let the manual-confirmation research exception leak into unattended
+            // trading. Auto mode remains locked until the ensemble passes independent
+            // walk-forward, symbol-holdout and calibration validation.
+            if (!WolfPretrainedEnsemble.status().validatedForScoring) {
+                setStatus(context, "معامله خودکار مسدود است: مدل عصبی هنوز اعتبارسنجی مستقل لازم را نگرفته؛ فقط سفارش LIVE با پیش‌نمایش و تأیید صریح کاربر مجاز است.")
+                return@withLock null
+            }
             if (!XtAutomaticTradingPolicy.mayRun(
                     liveArmed = isEnabled(context),
                     automaticEnabled = isAutoEnabled(context),
