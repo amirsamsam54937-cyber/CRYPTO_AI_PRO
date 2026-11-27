@@ -566,6 +566,15 @@ fun CryptoMonitorScreen() {
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
+            // Teach the chart curriculum from each newly closed candle window. Duplicate
+            // candle timestamps are ignored by the durable journal, so repeated scans do not
+            // inflate the learning corpus with identical observations.
+            rows.forEach { signal ->
+                val chartBars = signal.timeframeCandles["15m"]?.takeIf { it.size >= 80 } ?: signal.candles
+                WolfChartLearningMemory.study(signal.symbol, "15m", chartBars)?.let {
+                    WolfChartLearningMemory.remember(context, it)
+                }
+            }
             WolfNeuralForecastJournal.processScan(context, rows)
             paperSnapshot = withContext(Dispatchers.Default) {
                 HopePaperTradingEngine.processScan(context, rows)
