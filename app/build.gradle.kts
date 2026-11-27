@@ -10,8 +10,8 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 105
-  versionName = "1.0.0"
+  versionCode = 106
+  versionName = "1.0.1"
   // wolfblack branded Android application.
  }
  buildFeatures { compose = true }
