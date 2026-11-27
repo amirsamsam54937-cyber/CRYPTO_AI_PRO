@@ -685,13 +685,11 @@ internal object XtLiveTradingEngine {
      */
     suspend fun processScan(context: Context, signals: List<MarketSignal>): ExecutionResult? =
         autoScanMutex.withLock {
-            // Do not let the manual-confirmation research exception leak into unattended
-            // trading. Auto mode remains locked until the ensemble passes independent
-            // walk-forward, symbol-holdout and calibration validation.
-            if (!WolfPretrainedEnsemble.status().validatedForScoring) {
-                setStatus(context, "معامله خودکار مسدود است: مدل عصبی هنوز اعتبارسنجی مستقل لازم را نگرفته؛ فقط سفارش LIVE با پیش‌نمایش و تأیید صریح کاربر مجاز است.")
-                return@withLock null
-            }
+            // Unvalidated neural probabilities are never treated as an execution signal.
+            // The independent ZoroLivingTraderBrain must nominate and approve the exact
+            // chart direction; the full XT account, freshness, quality, fee and risk
+            // preflight below still applies. Auto mode requires the user to arm both LIVE
+            // and the separate automatic switch in the app.
             if (!XtAutomaticTradingPolicy.mayRun(
                     liveArmed = isEnabled(context),
                     automaticEnabled = isAutoEnabled(context),
