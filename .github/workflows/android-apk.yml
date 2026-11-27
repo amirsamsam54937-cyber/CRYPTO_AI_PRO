@@ -194,6 +194,23 @@ jobs:
               assert header=="exchange,symbol,timeframe,timestamp,open,high,low,close,volume"
           print("Verified release bundle: XT-only real corpus + ten neural specialists; scoring permission is determined separately by holdout validation.")
           PY
+      - name: Restore complete uncompressed market corpus for TENAXIS APK
+        run: |
+          set -euo pipefail
+          ASSETS=app/src/main/assets
+          if [ -s "$ASSETS/market_seed.csv.gz" ]; then
+            gzip -dc "$ASSETS/market_seed.csv.gz" > "$ASSETS/market_seed.csv"
+            rm "$ASSETS/market_seed.csv.gz"
+          fi
+          test -s "$ASSETS/market_seed.csv"
+          python3 - <<'PY'
+          import csv, pathlib
+          path=pathlib.Path("app/src/main/assets/market_seed.csv")
+          with path.open(newline="",encoding="utf-8") as handle:
+              rows=sum(1 for _ in csv.DictReader(handle))
+          assert rows >= 898920, f"Full market corpus is incomplete: {rows}"
+          print(f"Retained {rows:,} historical XT candles in uncompressed CSV form.")
+          PY
       - name: Verify mandatory offline neural bundle before every APK build
         run: |
           set -euo pipefail
@@ -320,7 +337,7 @@ jobs:
           python3 - <<'PY'
           import json, zipfile
           apk="app/build/outputs/apk/debug/app-debug.apk"
-          required=("assets/wolf_pretrained_ensemble.json","assets/wolf_corpus_manifest.json","assets/wolf_model_training_report.json")
+          required=("assets/wolf_pretrained_ensemble.json","assets/wolf_corpus_manifest.json","assets/wolf_model_training_report.json","assets/market_seed.csv")
           with zipfile.ZipFile(apk) as z:
               names=set(z.namelist())
               for name in required:
@@ -329,6 +346,11 @@ jobs:
               manifest=json.loads(z.read(required[1]))
               assert len(model.get("members",[]))==10
               assert manifest.get("rows",0)>=898920 and manifest.get("source_exchanges")==["XT"]
+              info=z.getinfo("assets/market_seed.csv")
+              assert info.compress_type == zipfile.ZIP_STORED, "Market corpus must remain uncompressed inside APK"
+              with z.open("assets/market_seed.csv") as stream:
+                  rows=sum(1 for _ in stream)-1
+              assert rows >= 898920, f"APK contains only {rows} market rows"
           print("APK package check passed: all neural assets and 10 models are present.")
           PY
       - name: Upload build diagnostics on failure
