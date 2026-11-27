@@ -79,14 +79,14 @@ import java.util.Locale
 import kotlin.math.abs
 
 // TENAXIS visual system: obsidian graphite, champagne metal and emerald signal accents.
-private val Navy = Color(0xFF050505)
-private val Panel = Color(0xFF101112)
-private val Muted = Color(0xFF96928A)
-val Green = Color(0xFF39D98A)
-private val Red = Color(0xFFFF5364)
-private val Blue = Color(0xFFD8B878)
-private val Purple = Color(0xFFB9954B)
-private val Gold = Color(0xFFE2C477)
+private val Navy = Color(0xFF080D0B)
+private val Panel = Color(0xFF111A16)
+private val Muted = Color(0xFF9BAAA1)
+val Green = Color(0xFF43E0A0)
+private val Red = Color(0xFFFF6474)
+private val Blue = Color(0xFFA8C8B7)
+private val Purple = Color(0xFFB7C8B8)
+private val Gold = Color(0xFFD98B45)
 
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
@@ -698,7 +698,7 @@ fun CryptoMonitorScreen() {
                     ) {
                         if (selectedTab != "خانه") TextButton(onClick = { selectedTab = "خانه" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("‹ بازگشت", color = Blue, fontSize = 11.sp) }
                         Surface(
-                            color = Color(0xFF17130A),
+                            color = Color(0xFF17231C),
                             shape = RoundedCornerShape(18.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.62f)),
                             modifier = Modifier.size(54.dp),
@@ -1404,7 +1404,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
         "SHORT_BIAS" -> "SHORT"
         else -> "NO TRADE"
     }
-    Surface(color = Color(0xFF101010), shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.30f)), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(0xFF111A16), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF355848)), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(item.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
@@ -1492,7 +1492,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                         if (item.deepNeuralSuccessProbability != null)
                             "شبکه زمینه‌ای ۱۳ ویژگی (خبر، احساسات، فاندینگ، جریان/دفتر سفارش و تکنیکال): احتمال موفقیت سمت عصبی ${String.format(Locale.US, "%.1f", item.deepNeuralSuccessProbability * 100.0)}٪ • سوابق یادگیری ${item.deepNeuralReviewedSamples}"
                         else
-                            "شبکه زمینه‌ای ۱۳ ویژگی در حال یادگیری از نتایج ثبت‌شده است • سوابق ${item.deepNeuralReviewedSamples}",
+                            "شبکه چنددامنه ۳۶ ویژگی در حال یادگیری از نتایج ثبت‌شده است • سوابق ${item.deepNeuralReviewedSamples}",
                         color = Gold, fontSize = 9.sp, lineHeight = 13.sp
                     )
                     if (item.neuralMemberVotes.isNotEmpty()) {
@@ -1520,7 +1520,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                     )
                     if (!neuralValidated) {
                         Text(
-                            "شبکه عصبی در حال محاسبه است؛ چون هنوز اعتبارسنجی زمانی مستقل را نگذرانده، جهت سیگنال و معامله خودکار مسدود است. امتیاز خام، احتمال برد نیست.",
+                            "رأی این مدل هنوز پژوهشی است و به‌تنهایی مجوز معامله نمی‌دهد. تصمیم سیستم جداگانه نمایش داده شده و سفارش فقط با عبور از کنترل‌های ریسک و تأیید لازم امکان‌پذیر است.",
                             color = Gold, fontSize = 9.sp, lineHeight = 14.sp
                         )
                     }
@@ -1538,7 +1538,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
             )
             if (item.direction != "NEUTRAL") {
                 Spacer(Modifier.height(8.dp))
-                Surface(color = Color(0xFF10283A), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.22f)), modifier = Modifier.fillMaxWidth()) {
+                Surface(color = Color(0xFF14221B), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF355848)), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("ENTRY: " + formatPrice(item.entry) + "   |   SMART LEVERAGE: " + item.leverage + "x", color = Blue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
