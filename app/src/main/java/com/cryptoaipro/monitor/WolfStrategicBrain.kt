@@ -242,9 +242,43 @@ internal object WolfStrategicBrain {
                 .append(" (بدون مجوز تصمیم؛ اعتبارسنجی مستقل لازم است)")
             if (vetoes.isNotEmpty()) append(" • توقف: ").append(vetoes.joinToString("، "))
         }
-        return Report(liquidity, sentiment, sentimentScore, sentimentBasis, recognized,
+        val report = Report(liquidity, sentiment, sentimentScore, sentimentBasis, recognized,
             baseCandidates.sortedByDescending { it.robustScore }, selected, trustScore, n,
             selected.neuralAdvisoryPct, objective, vetoes, chartCognition, explanation)
+        val candleAt = signal.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L
+        val candidateLedger = org.json.JSONArray().also { array ->
+            report.candidates.forEach { candidate ->
+                array.put(org.json.JSONObject()
+                    .put("strategy", candidate.strategy.name)
+                    .put("response", candidate.response.name)
+                    .put("baseScore", candidate.baseScore)
+                    .put("robustScore", candidate.robustScore)
+                    .put("rationale", candidate.rationale))
+            }
+        }
+        val memoryPayload = org.json.JSONObject()
+            .put("symbol", signal.symbol)
+            .put("candleAt", candleAt)
+            .put("selectedStrategy", selected.strategy.name)
+            .put("selectedResponse", selected.response.name)
+            .put("selectedScore", selected.robustScore)
+            .put("trustScore", trustScore)
+            .put("trustSamples", n)
+            .put("capitalPreservationObjective", objective)
+            .put("sentimentScore", sentimentScore)
+            .put("sentimentBasis", sentimentBasis)
+            .put("liquidity", liquidity?.summary ?: "unavailable")
+            .put("chartScore", chartCognition.score)
+            .put("chartRegime", chartCognition.regime)
+            .put("chartStructure", chartCognition.structure)
+            .put("chartPatterns", org.json.JSONArray(chartCognition.patterns))
+            .put("candidates", candidateLedger)
+            .put("vetoes", org.json.JSONArray(vetoes))
+            .toString()
+        TenaxisChartCognition.recordMemoryEvent(
+            context, "strategy_review", "${signal.symbol}|${candleAt}|strategy_review", memoryPayload
+        )
+        return report
     }
 
     /** Only veto or reduce confidence; never creates a new directional signal. */
