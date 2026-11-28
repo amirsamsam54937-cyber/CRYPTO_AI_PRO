@@ -134,48 +134,74 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
     val ivory = Color(0xFFECE5D6)
     val muted = Color(0xFFB8B0A0)
 
+    suspend fun verifyAndArmAfterCredentialSave() {
+        val account = XtAuthenticatedFuturesClient(context).accountSnapshot()
+        val verified = account.canTrade && account.canOpenPosition
+        XtCredentialVault.markConnectionVerified(context, verified)
+        accountLine = "Wallet: ${String.format(java.util.Locale.US, "%.4f", account.walletBalanceUsdt)} USDT • Equity: ${String.format(java.util.Locale.US, "%.4f", account.equityUsdt)} USDT • Free margin: ${String.format(java.util.Locale.US, "%.4f", account.availableBalanceUsdt)} USDT"
+        check(verified) {
+            "اتصال خواندنی برقرار شد، اما مجوز Futures Trade یا امکان بازکردن پوزیشن فعال نیست؛ معامله واقعی مسلح نشد."
+        }
+        XtLiveTradingEngine.setEnabled(context, true)
+        XtLiveTradingEngine.setAutoEnabled(context, true)
+        check(XtLiveTradingEngine.isAutoEnabled(context)) {
+            "اتصال تأیید شد اما دروازه‌های LIVE و معامله‌گر خودکار اجازه فعال‌سازی ندادند."
+        }
+        try {
+            val serviceIntent = Intent(context, HopeHunterMonitorService::class.java).apply {
+                action = HopeHunterMonitorService.ACTION_START
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+            onBackgroundStarted()
+        } catch (error: Exception) {
+            XtLiveTradingEngine.setAutoEnabled(context, false)
+            XtLiveTradingEngine.setEnabled(context, false)
+            throw error
+        }
+        status = "اتصال خصوصی XT و مجوزهای Futures تأیید شدند؛ LIVE و معامله‌گر خودکار فعال شد. هیچ سفارشی در مرحله ذخیره کلید ارسال نشد؛ ورود فقط پس از سیگنال واجد شرایط و عبور از تمام کنترل‌های ریسک انجام می‌شود."
+    }
+
     Surface(
         color = Color(0xFF111111),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, gold.copy(alpha = 0.35f)),
         modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("TENAXIS • XT FUTURES", color = gold, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                    Text("مرکز اتصال و اجرای معاملات", color = ivory,
-                        fontSize = 17.sp, fontWeight = FontWeight.Black)
-                }
-                Surface(color = Color(0xFF263C32), shape = RoundedCornerShape(50)) {
-                    Text("USDT-M", color = Color(0xFF73E0B6), fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp))
-                }
-            }
-            Text("اتصال امن حساب و مجوزها", color = ivory,
-                fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text(
-                "آزمایش اتصال فقط وضعیت حساب USDT-M Futures، موجودی، Equity، مارجین آزاد و مجوزهای حساب را می‌خواند و هیچ سفارشی ارسال نمی‌کند. پس از ذخیره کلید و موفقیت این آزمون، LIVE را در پنل پایین روشن کن؛ سپس کلید معامله‌گر خودکار فعال می‌شود.",
-                color = muted, fontSize = 10.sp, lineHeight = 15.sp
-            )
-            OutlinedTextField(
-                value = appKey, onValueChange = { appKey = it },
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-                label = { Text("XT API Key") }
-            )
-            OutlinedTextField(
-                value = secret, onValueChange = { secret = it },
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                label = { Text("XT API Secret") }
-            )
-            Button(
+                Button(
                 onClick = {
-                    if (!XtCredentialVault.hasCredentials(context)) {
-                        XtLiveTradingEngine.setEnabled(context, false)
-                        runCatching { XtCredentialVault.save(context, appKey, secret) }
-                            .onSuccess {
-                                appKey = ""
+                    busy = true
+                    XtLiveTradingEngine.setEnabled(context, false)
+                    XtLiveTradingEngine.setAutoEnabled(context, false)
+                    status = "کلیدها به‌صورت رمزگذاری‌شده ذخیره می‌شوند؛ سپس اتصال XT و مجوزهای Futures به‌صورت خواندنی آزمایش خواهد شد..."
+                    scope.launch {
+                        try {
+                            if (XtLiveTradingEngine.hasManagedSymbols(context) &&
+                                !XtLiveTradingEngine.canClearCredentials(context)) {
+                                error("تعویض کلید تا زمان تعیین تکلیف تمام پوزیشن‌ها و طرح‌های حفاظتی فعال XT مجاز نیست.")
+                            }
+                            XtCredentialVault.save(context, appKey, secret)
+                            appKey = ""
+                            secret = ""
+                            accountLine = ""
+                            verifyAndArmAfterCredentialSave()
+                        } catch (error: Exception) {
+                            XtCredentialVault.markConnectionVerified(context, false)
+                            XtLiveTradingEngine.setAutoEnabled(context, false)
+                            XtLiveTradingEngine.setEnabled(context, false)
+                            accountLine = ""
+                            status = "کلید ذخیره شد اما فعال‌سازی خودکار انجام نشد: ${error.message ?: error.javaClass.simpleName}"
+                        } finally {
+                            busy = false
+                        }
+                    }
+                },
+                enabled = !busy && appKey.isNotBlank() && secret.isNotBlank(),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (busy) "در حال اتصال و راه‌اندازی..." else "ذخیره کلید و راه‌اندازی خودکار TENAXIS") }
+                               appKey = ""
                                 secret = ""
                                 status = "کلیدها با AES-GCM و Android Keystore روی همین گوشی ذخیره شدند."
                             }
@@ -292,7 +318,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 }
             }
             Text(
-                "مدیریت سرمایه ZORO موجودی آزاد را مبنای تخصیص می‌گیرد، نه کل Wallet. نرخ پایه محافظه‌کارانه کارمزد Futures برابر Maker=0.04% و Taker=0.06% است؛ نرخ واقعی VIP باید با کارمزد ثبت‌شده هر Fill تطبیق داده شود. مجوز Futures Trade برای سفارش‌گذاری لازم است؛ Withdrawal باید خاموش بماند و IP whitelist فعال باشد.",
+                "مدیریت سرمایه TENAXIS موجودی آزاد را مبنای تخصیص می‌گیرد، نه کل Wallet. نرخ پایه محافظه‌کارانه کارمزد Futures برابر Maker=0.04% و Taker=0.06% است؛ نرخ واقعی VIP باید با کارمزد ثبت‌شده هر Fill تطبیق داده شود. مجوز Futures Trade برای سفارش‌گذاری لازم است؛ Withdrawal باید خاموش بماند و IP whitelist فعال باشد. برنامه از پاسخ account/info نمی‌تواند مجوز برداشت را مستقلاً تشخیص دهد؛ پیش از ذخیره کلید، برداشت را در پنل XT خاموش کن.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
             )
             TextButton(
@@ -326,7 +352,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 modifier = Modifier.align(Alignment.End)
             ) { Text("پاک‌کردن کلیدهای ذخیره‌شده", color = gold, fontSize = 10.sp) }
             Text(
-                "ترتیب فعال‌سازی: ۱) ذخیره امن کلید ۲) آزمایش موفق اتصال ۳) روشن‌کردن LIVE در پنل اجرای XT ۴) روشن‌کردن معامله‌گر خودکار. ورود خودکار فقط پس از تأیید سیگنال، تازگی داده، موجودی و همه کنترل‌های ریسک مجاز است.",
+                "ترتیب فعال‌سازی جدید: با ذخیره کلید، TENAXIS ابتدا فقط account/info را می‌خواند؛ اگر مجوز Futures تأیید شود، LIVE و معامله‌گر خودکار را بدون درخواست تأیید دوم مسلح و سرویس پایش را اجرا می‌کند. ذخیره کلید به‌تنهایی سفارش نمی‌فرستد؛ هر ورود همچنان باید از فیلتر سیگنال، تازگی داده، موجودی، ریسک و حفاظت صرافی عبور کند.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
             )
         }
