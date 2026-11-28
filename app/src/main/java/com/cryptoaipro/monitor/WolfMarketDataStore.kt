@@ -92,7 +92,7 @@ internal object WolfMarketDataStore {
             }
             val sources = manifest.optJSONArray("source_exchanges") ?: error("فهرست منابع داده موجود نیست.")
             require(sources.length() == 1 && sources.optString(0).equals("XT", ignoreCase = true) &&
-                manifest.optString("data_source_policy") == "XT_USDT_M_ONLY" &&
+                manifest.optString("data_source_policy") == "XT_USDT_M_CRYPTO_ONLY" &&
                 manifest.optInt("synthetic_rows", -1) == 0) {
                 "فقط داده واقعی قراردادهای XT USDT-M مجاز است."
             }
