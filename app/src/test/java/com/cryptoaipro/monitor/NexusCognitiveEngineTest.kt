@@ -47,7 +47,7 @@ class NexusCognitiveEngineTest {
     private fun risingCandles(count: Int, intervalMs: Long): List<DoubleArray> {
         val now = System.currentTimeMillis()
         return (0 until count).map { i ->
-            val base = 100.0 + i * 0.25 + kotlin.math.sin(i / 5.0) * 0.03
+            val base = 100.0 + i * 0.25 + kotlin.math.sin(i / 5.0) * 1.5
             val close = base + 0.12
             doubleArrayOf(
                 base, maxOf(base, close) + 0.20, minOf(base, close) - 0.10,
