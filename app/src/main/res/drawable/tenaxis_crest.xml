@@ -2,25 +2,16 @@
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
     <path android:fillColor="#030303" android:pathData="M0,0h108v108h-108z"/>
-    <path android:fillColor="#090806" android:strokeColor="#B89445" android:strokeWidth="1.7"
-        android:pathData="M54,4 L96,20 L100,55 L84,85 L54,104 L24,85 L8,55 L12,20 Z"/>
-    <path android:fillColor="#050505" android:strokeColor="#D9B65F" android:strokeWidth="1.2"
-        android:pathData="M54,10 L88,23 L91,52 L78,79 L54,97 L30,79 L17,52 L20,23 Z"/>
-    <!-- One unified geometric wolf head: pointed ears, brow, muzzle and jaw -->
-    <path android:fillColor="#D8B96E"
-        android:pathData="M17,36 L22,13 L42,29 L54,24 L66,29 L86,13 L91,36 L84,61 L73,76 L54,91 L35,76 L24,61 Z"/>
+    <path android:fillColor="#F2B52B" android:pathData="M54,5 A49,49 0,1 1,53.9 5 Z"/>
+    <path android:fillColor="#D58A12" android:pathData="M54,11 A43,43 0,1 1,53.9 11 Z"/>
+    <path android:fillColor="#F5C64D" android:pathData="M54,14 A40,40 0,1 0,54 94 A40,40 0,0 0,54 14 Z"/>
+    <!-- Side-profile howling wolf silhouette, based on the supplied moon-and-wolf emblem -->
     <path android:fillColor="#050505"
-        android:pathData="M23,35 L26,21 L42,36 L54,31 L66,36 L82,21 L85,35 L78,57 L68,70 L54,82 L40,70 L30,57 Z"/>
-    <path android:fillColor="#D8B96E"
-        android:pathData="M29,43 L43,39 L51,46 L43,51 L30,49 Z M79,43 L65,39 L57,46 L65,51 L78,49 Z"/>
-    <path android:fillColor="#050505"
-        android:pathData="M34,44 L44,43 L39,47 Z M74,44 L64,43 L69,47 Z"/>
-    <path android:fillColor="#D8B96E"
-        android:pathData="M47,54 L54,49 L61,54 L58,64 L54,68 L50,64 Z"/>
-    <path android:strokeColor="#D8B96E" android:strokeWidth="2" android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M35,60 L44,66 L54,69 L64,66 L73,60 M43,72 L54,78 L65,72"/>
-    <path android:fillColor="#D8B96E" android:pathData="M49,69 L54,66 L59,69 L54,74 Z"/>
-    <path android:strokeColor="#8C6B32" android:strokeWidth="1.1" android:fillColor="#00000000"
-        android:pathData="M15,27 L10,54 L24,83 L54,101 L84,83 L98,54 L93,27"/>
+        android:pathData="M24,72 L28,62 L31,52 L29,39 L34,27 L39,39 L45,43 L51,49 L61,52 L73,54 L82,59 L88,66 L83,68 L77,66 L72,63 L68,65 L68,76 L73,88 L68,91 L62,77 L57,69 L45,69 L41,82 L37,88 L32,87 L35,76 L35,67 L29,73 Z"/>
+    <path android:fillColor="#050505" android:pathData="M25,72 L17,78 L21,84 L32,82 Z"/>
+    <path android:fillColor="#050505" android:pathData="M35,27 L31,16 L43,25 L39,39 Z"/>
+    <path android:fillColor="#050505" android:pathData="M39,39 L43,25 L50,35 L48,45 Z"/>
+    <path android:fillColor="#050505" android:pathData="M12,88 L96,88 L89,96 L20,96 Z"/>
+    <path android:strokeColor="#F5C64D" android:strokeWidth="1.3" android:fillColor="#00000000"
+        android:pathData="M54,3 A51,51 0,1 1,53.9 3 Z"/>
 </vector>
