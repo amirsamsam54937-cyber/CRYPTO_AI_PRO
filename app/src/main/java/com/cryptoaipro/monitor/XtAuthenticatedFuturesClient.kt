@@ -100,6 +100,9 @@ internal class XtAuthenticatedFuturesClient(
             connection.setRequestProperty("validate-appkey", appKey)
             connection.setRequestProperty("validate-timestamp", timestamp)
             connection.setRequestProperty("validate-signature", sig)
+            // XT Futures v1 account-info examples also show this legacy misspelled header.
+            // Send the canonical header above and this compatibility alias with the same HMAC.
+            connection.setRequestProperty("validate-singature", sig)
             connection.setRequestProperty("validate-recvwindow", "5000")
             connection.setRequestProperty("validate-algorithms", "HmacSHA256")
             if (method != "GET") {
