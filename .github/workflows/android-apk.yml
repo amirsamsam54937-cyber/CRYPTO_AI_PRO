@@ -354,8 +354,9 @@ jobs:
               manifest=json.loads(z.read(required[1]))
               assert len(model.get("members",[]))==10
               assert manifest.get("rows",0)>=898920 and manifest.get("source_exchanges")==["XT"]
-              info=z.getinfo("assets/market_seed.csv")
-              assert info.compress_type == zipfile.ZIP_STORED, "Market corpus must remain uncompressed inside APK"
+              packaged_assets=[name for name in names if name.startswith("assets/")]
+              compressed=[name for name in packaged_assets if z.getinfo(name).compress_type != zipfile.ZIP_STORED]
+              assert not compressed, f"Assets must remain uncompressed inside APK: {compressed}"
               with z.open("assets/market_seed.csv") as stream:
                   rows=sum(1 for _ in stream)-1
               assert rows >= 898920, f"APK contains only {rows} market rows"
@@ -365,7 +366,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: TENAXIS-1.0.3-build-diagnostics
+          name: TENAXIS-1.0.4-build-diagnostics
           path: |
             build.log
             apk-metadata.txt
@@ -374,7 +375,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: TENAXIS-1.0.3-APK
+          name: TENAXIS-1.0.4-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
