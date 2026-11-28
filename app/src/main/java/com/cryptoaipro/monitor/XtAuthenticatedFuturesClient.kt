@@ -51,20 +51,20 @@ internal class XtAuthenticatedFuturesClient(
     // XT rejects signed requests when the handset clock is outside its timestamp window.
     @Volatile private var serverTimeOffsetMs: Long = 0L
 
-    private fun learnServerClock(serverDate: String, requestStartedAtMs: Long, responseAtMs: Long): Long? =
+    private fun learnServerClock(serverDate: String, responseAtMs: Long): Long? =
         runCatching {
             val parser = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US).apply {
                 timeZone = TimeZone.getTimeZone("GMT")
                 isLenient = false
             }
-            // HTTP Date is second-granularity (fractional milliseconds are omitted).
-            // Estimate the center of that one-second interval before comparing clocks.
-            // Do not cap the correction at 60 seconds: a handset clock can be minutes
-            // wrong, and XT may report that skew as an invalid signature (403).
+            // HTTP Date is rounded down to whole seconds and describes response time.
+            // Estimate 250ms into that second (intentionally biased slightly behind the
+            // server) and compare it with the local response timestamp. Using the request
+            // midpoint would incorrectly add half the network RTT to the clock offset.
+            // Do not cap the correction: handset clocks can be minutes wrong.
             val serverSecond = parser.parse(serverDate)?.time ?: return@runCatching null
-            val serverMidpointEstimate = serverSecond + 500L
-            val requestMidpoint = requestStartedAtMs + (responseAtMs - requestStartedAtMs) / 2L
-            serverMidpointEstimate - requestMidpoint
+            val serverTimeEstimate = serverSecond + 250L
+            serverTimeEstimate - responseAtMs
         }.getOrNull()
 
     private fun normalizeSymbol(value: String): String {
@@ -150,7 +150,7 @@ internal class XtAuthenticatedFuturesClient(
                 val serverDate = connection.getHeaderField("Date")?.take(64) ?: "ناموجود"
                 val responseAtMs = System.currentTimeMillis()
                 val learnedOffset = if (serverDate != "ناموجود")
-                    learnServerClock(serverDate, requestStartedAtMs, responseAtMs) else null
+                    learnServerClock(serverDate, responseAtMs) else null
                 // The HMAC includes the millisecond timestamp. Some XT gateways report
                 // clock-skewed signed GETs as AUTH/signature failures rather than a distinct
                 // timestamp error. Learn the server offset from Date and retry read-only GETs
