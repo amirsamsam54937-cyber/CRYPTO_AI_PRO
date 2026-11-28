@@ -209,10 +209,11 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                     scope.launch {
                         try {
                             val client = XtAuthenticatedFuturesClient(context)
-                            val wallet = client.futuresWallet()
+                            // One authenticated account snapshot is enough for the connection
+                            // test; avoid calling account/info twice through two wallet readers.
                             val account = client.accountSnapshot()
                             XtCredentialVault.markConnectionVerified(context, account.canTrade && account.canOpenPosition)
-                            accountLine = "Wallet: ${String.format(java.util.Locale.US, "%.4f", wallet.walletBalance)} USDT • Equity: ${String.format(java.util.Locale.US, "%.4f", wallet.equity)} USDT • Free margin: ${String.format(java.util.Locale.US, "%.4f", wallet.availableMargin)} USDT • Margin used: ${String.format(java.util.Locale.US, "%.4f", wallet.usedMargin)} USDT"
+                            accountLine = "Wallet: ${String.format(java.util.Locale.US, "%.4f", account.walletBalanceUsdt)} USDT • Equity: ${String.format(java.util.Locale.US, "%.4f", account.equityUsdt)} USDT • Free margin: ${String.format(java.util.Locale.US, "%.4f", account.availableBalanceUsdt)} USDT"
                             status = if (account.canTrade && account.canOpenPosition)
                                 "اتصال خصوصی خواندنی موفق شد و مجوزهای Futures تأیید شدند. اکنون می‌توانی LIVE را روشن کنی. هیچ سفارشی ارسال نشد."
                             else
