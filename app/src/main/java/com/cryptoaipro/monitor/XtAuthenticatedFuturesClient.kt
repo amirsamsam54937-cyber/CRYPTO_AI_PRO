@@ -57,9 +57,14 @@ internal class XtAuthenticatedFuturesClient(
                 timeZone = TimeZone.getTimeZone("GMT")
                 isLenient = false
             }
-            val serverMs = parser.parse(serverDate)?.time ?: return@runCatching null
-            val midpoint = requestStartedAtMs + (responseAtMs - requestStartedAtMs) / 2L
-            (serverMs - midpoint).coerceIn(-60_000L, 60_000L)
+            // HTTP Date is second-granularity (fractional milliseconds are omitted).
+            // Estimate the center of that one-second interval before comparing clocks.
+            // Do not cap the correction at 60 seconds: a handset clock can be minutes
+            // wrong, and XT may report that skew as an invalid signature (403).
+            val serverSecond = parser.parse(serverDate)?.time ?: return@runCatching null
+            val serverMidpointEstimate = serverSecond + 500L
+            val requestMidpoint = requestStartedAtMs + (responseAtMs - requestStartedAtMs) / 2L
+            serverMidpointEstimate - requestMidpoint
         }.getOrNull()
 
     private fun normalizeSymbol(value: String): String {
