@@ -153,8 +153,8 @@ internal fun HopeCommanderScreen(
             Image(painter = painterResource(id = R.drawable.tenaxis_hero),
                 contentDescription = "TENAXIS gold wolf hero artwork",
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().height(132.dp)
-                    .border(1.dp, HGold.copy(alpha = .75f), RoundedCornerShape(16.dp)))
+                modifier = Modifier.fillMaxWidth().height(156.dp)
+                    .border(1.5.dp, HGold.copy(alpha = .9f), RoundedCornerShape(16.dp)))
         }
         item {
             Row(Modifier.fillMaxWidth().background(
@@ -164,11 +164,11 @@ internal fun HopeCommanderScreen(
                 verticalAlignment = Alignment.CenterVertically) {
                 Image(painter = painterResource(id = R.drawable.tenaxis_crest),
                     contentDescription = "TENAXIS wolf crest",
-                    modifier = Modifier.size(58.dp))
+                    modifier = Modifier.size(76.dp))
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("TENAXIS", color = HGoldBright, fontSize = 22.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
-                    Text("AI TRADING TERMINAL", color = HGold, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                    Text("TENAXIS", color = HGoldBright, fontSize = 25.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                    Text("AI TRADING TERMINAL", color = HGold, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
                     Text("MARKET INTELLIGENCE  •  XT FUTURES", color = HMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                     Text("مغز تحلیل، سیگنال و اجرای معاملات", color = Color.White, fontSize = 10.sp)
                 }
