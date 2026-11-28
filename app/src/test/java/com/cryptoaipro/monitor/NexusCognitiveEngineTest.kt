@@ -47,10 +47,10 @@ class NexusCognitiveEngineTest {
     private fun risingCandles(count: Int, intervalMs: Long): List<DoubleArray> {
         val now = System.currentTimeMillis()
         return (0 until count).map { i ->
-            val base = 100.0 + i * 0.08 + kotlin.math.sin(i / 5.0) * 0.12
-            val close = base + 0.05
+            val base = 100.0 + i * 0.25 + kotlin.math.sin(i / 5.0) * 0.03
+            val close = base + 0.12
             doubleArrayOf(
-                base, maxOf(base, close) + 0.12, minOf(base, close) - 0.12,
+                base, maxOf(base, close) + 0.20, minOf(base, close) - 0.10,
                 close, 1000.0 + (i % 7) * 45.0,
                 (now - (count - i) * intervalMs).toDouble()
             )
@@ -64,7 +64,14 @@ class NexusCognitiveEngineTest {
             "1h" to risingCandles(120, 60L * 60_000L),
             "4h" to risingCandles(120, 4L * 60L * 60_000L)
         )
+        val referencePrice = frames.getValue("15m").last()[3]
         val input = sampleSignal().copy(
+            price = referencePrice,
+            entry = referencePrice,
+            stop = referencePrice * 0.99,
+            tp1 = referencePrice * 1.02,
+            tp2 = referencePrice * 1.025,
+            tp3 = referencePrice * 1.03,
             candles = frames.getValue("15m"),
             timeframeCandles = frames,
             timeframeAnalysis = ZoroTimeframeAnalysisEngine.analyze(frames),
