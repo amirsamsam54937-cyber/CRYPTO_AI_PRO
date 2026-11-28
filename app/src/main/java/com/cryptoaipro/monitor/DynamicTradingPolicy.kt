@@ -29,7 +29,9 @@ internal object DynamicTradingPolicy {
         val dailyEntries: Int = 0,
         val consecutiveLosses: Int = 0,
         val peakDrawdownPercent: Double = 0.0,
-        val neuralDisagreement: Double = 0.0
+        val neuralDisagreement: Double = 0.0,
+        /** False only for isolated paper simulation; live authorization always requires a validated model. */
+        val useNeuralEvidence: Boolean = true
     )
 
     data class Plan(
@@ -64,9 +66,9 @@ internal object DynamicTradingPolicy {
         estimatedRoundTripCostPercent: Double = 0.12
     ): Plan? {
         if (input.direction !in setOf("LONG_BIAS", "SHORT_BIAS")) return null
-        if (!input.neuralValidated || !input.neuralUpProbability.isFinite() ||
-            input.neuralUpProbability !in 0.0..1.0) return null
-        if (!input.neuralDisagreement.isFinite() || input.neuralDisagreement !in 0.0..0.18) return null
+        if (input.useNeuralEvidence && (!input.neuralValidated || !input.neuralUpProbability.isFinite() ||
+            input.neuralUpProbability !in 0.0..1.0)) return null
+        if (input.useNeuralEvidence && (!input.neuralDisagreement.isFinite() || input.neuralDisagreement !in 0.0..0.18)) return null
         if (input.confidence !in 70..100 || input.consensusAgreement !in 62..100) return null
         if (input.consensusDirection != input.direction) return null
         if (!input.riskReward.isFinite() || input.riskReward < 1.8) return null
@@ -83,22 +85,26 @@ internal object DynamicTradingPolicy {
             !entry.isFinite() || entry <= 0.0 || !stop.isFinite() || stop <= 0.0 || entry == stop) return null
         if (estimatedRoundTripCostPercent !in 0.0..1.0) return null
 
-        val neuralAligned = if (input.direction == "LONG_BIAS") {
-            input.neuralUpProbability >= 0.56
-        } else {
-            input.neuralUpProbability <= 0.44
+        if (input.useNeuralEvidence) {
+            val neuralAligned = if (input.direction == "LONG_BIAS")
+                input.neuralUpProbability >= 0.56 else input.neuralUpProbability <= 0.44
+            if (!neuralAligned) return null
         }
-        if (!neuralAligned) return null
         if (input.direction == "LONG_BIAS" && stop >= entry) return null
         if (input.direction == "SHORT_BIAS" && stop <= entry) return null
 
-        val neuralEdge = if (input.direction == "LONG_BIAS")
-            input.neuralUpProbability - 0.5 else 0.5 - input.neuralUpProbability
         val confidenceQuality = ((input.confidence - 70.0) / 20.0).coerceIn(0.0, 1.0)
         val consensusQuality = ((input.consensusAgreement - 62.0) / 28.0).coerceIn(0.0, 1.0)
-        val neuralQuality = ((neuralEdge - 0.06) / 0.20).coerceIn(0.0, 1.0)
-        val quality = (confidenceQuality * 0.40 + consensusQuality * 0.35 + neuralQuality * 0.25)
-            .coerceIn(0.0, 1.0)
+        val quality = if (input.useNeuralEvidence) {
+            val neuralEdge = if (input.direction == "LONG_BIAS")
+                input.neuralUpProbability - 0.5 else 0.5 - input.neuralUpProbability
+            val neuralQuality = ((neuralEdge - 0.06) / 0.20).coerceIn(0.0, 1.0)
+            (confidenceQuality * 0.40 + consensusQuality * 0.35 + neuralQuality * 0.25)
+        } else {
+            // Paper-only fallback: score technical confidence and independent consensus;
+            // never manufacture a neural vote or allow this path to authorize live orders.
+            confidenceQuality * 0.53 + consensusQuality * 0.47
+        }.coerceIn(0.0, 1.0)
 
         // Dynamic risk stays within 0.15%-0.50% of equity, independent of leverage.
         val riskFraction = 0.0015 + quality * 0.0035

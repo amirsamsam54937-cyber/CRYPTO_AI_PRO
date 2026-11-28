@@ -201,24 +201,14 @@ internal object XtFuturesMonitor {
                                 val macro = async { runCatching { candles(item.first,"1d") }.getOrNull() }
                                 listOf(micro.await(), a.await(), b.await(), d.await()) to macro.await()
                             }
-                            // XT REST exposes 1m, 5m, 15m, 30m, 1h, 4h, 1d and 1w.
-                            // Extra frames are optional so sparse weekly history cannot discard a valid intraday candidate.
-                            val extraFrames = coroutineScope {
-                                val oneMinute = async { runCatching { candles(item.first,"1m",80) }.getOrNull() }
-                                val thirtyMinute = async { runCatching { candles(item.first,"30m",80) }.getOrNull() }
-                                val oneWeek = async { runCatching { candles(item.first,"1w",80) }.getOrNull() }
-                                buildMap {
-                                    oneMinute.await()?.let { put("1m", it) }
-                                    thirtyMinute.await()?.let { put("30m", it) }
-                                    oneWeek.await()?.let { put("1w", it) }
-                                }
-                            }
+                            // First pass scans the complete USDT-M universe with the four
+                            // decision frames plus optional daily context. Expensive 1m/30m/1w
+                            // confirmation is fetched only for the strongest shortlist below.
                             val allTimeframes = linkedMapOf(
                                 "5m" to f.first[0], "15m" to f.first[1],
                                 "1h" to f.first[2], "4h" to f.first[3]
                             ).apply {
                                 f.second?.let { put("1d", it) }
-                                putAll(extraFrames)
                             }
                             MarketAnalysisEngine.analyzeWithCandles(
                                 item.second, price, change, volume,
@@ -240,10 +230,48 @@ internal object XtFuturesMonitor {
             }
             if (results.isEmpty()) throw IllegalStateException("اسکن XT هیچ کندل معتبر دریافت نکرد؛ تعداد نمادهای ناموفق: $failed")
 
+            // Two-stage scan: cover every valid XT USDT-M contract with the core frames,
+            // then spend the extra REST budget on the 25 strongest first-pass candidates.
+            // This preserves broad coverage while giving the best candidates deeper context.
+            val deepCandidates = results.sortedWith(
+                compareByDescending<MarketSignal> { abs(it.score) }
+                    .thenByDescending { it.volume }
+            ).take(25)
+            val deepBySymbol = coroutineScope {
+                deepCandidates.map { signal -> async {
+                    val extra = coroutineScope {
+                        val oneMinute = async { runCatching { candles(signal.symbol.lowercase().replace("-", "_"), "1m", 80) }.getOrNull() }
+                        val thirtyMinute = async { runCatching { candles(signal.symbol.lowercase().replace("-", "_"), "30m", 80) }.getOrNull() }
+                        val oneWeek = async { runCatching { candles(signal.symbol.lowercase().replace("-", "_"), "1w", 80) }.getOrNull() }
+                        buildMap {
+                            oneMinute.await()?.let { put("1m", it) }
+                            thirtyMinute.await()?.let { put("30m", it) }
+                            oneWeek.await()?.let { put("1w", it) }
+                        }
+                    }
+                    signal.symbol to extra
+                } }.awaitAll().toMap()
+            }
+            val deepenedResults = results.map { signal ->
+                val extra = deepBySymbol[signal.symbol].orEmpty()
+                if (extra.isEmpty()) signal else {
+                    val merged = signal.timeframeCandles + extra
+                    val extraFrames = ZoroTimeframeAnalysisEngine.analyze(extra)
+                    val mergedFrames = (signal.timeframeAnalysis + extraFrames)
+                        .distinctBy { it.timeframe }
+                        .sortedBy { listOf("1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w").indexOf(it.timeframe) }
+                    signal.copy(
+                        timeframeCandles = merged,
+                        timeframeAnalysis = mergedFrames,
+                        timeframeCoverage = merged.keys.joinToString(" / ")
+                    )
+                }
+            }
+
             // Expensive microstructure sampling is restricted to the 20 most liquid valid
             // contracts, while the main XT candle scan still covers the full USDT-M universe.
             // All raw observations remain hidden; only a bounded signed score reaches the brain.
-            val flowCandidates = results.sortedByDescending { it.volume }.take(20)
+            val flowCandidates = deepenedResults.sortedByDescending { it.volume }.take(20)
             val flowSnapshots = coroutineScope {
                 flowCandidates.map { signal -> async {
                     signal.symbol to HopeHiddenFlowEngine.fetch(
@@ -251,7 +279,7 @@ internal object XtFuturesMonitor {
                     )
                 } }.awaitAll().toMap()
             }
-            val enriched = results.map { signal ->
+            val enriched = deepenedResults.map { signal ->
                 val flow = flowSnapshots[signal.symbol]
                 if (flow?.fresh == true) signal.copy(
                     hiddenFlowScore = flow.directionalScore.coerceIn(-25, 25),

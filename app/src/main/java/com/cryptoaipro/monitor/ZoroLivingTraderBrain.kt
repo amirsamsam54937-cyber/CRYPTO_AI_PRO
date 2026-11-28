@@ -31,7 +31,7 @@ internal object ZoroLivingTraderBrain {
     fun evaluate(context: Context, signal: MarketSignal): Decision {
         val reasons = mutableListOf<String>()
         val neuralValidatedAtEntry = WolfPretrainedEnsemble.status().validatedForScoring
-        val thought = NexusCognitiveEngine.think(signal, neuralValidatedAtEntry)
+        val thought = NexusCognitiveEngine.think(signal, neuralValidatedAtEntry, context)
         reasons += thought.reasons
         val side = thought.side.uppercase()
         if (side != "LONG_BIAS" && side != "SHORT_BIAS") {
@@ -52,6 +52,28 @@ internal object ZoroLivingTraderBrain {
         // compression/expansion and an approximate volume-at-price profile.
         // These are measured proxies, not proof of hidden orders or true exchange delta.
         val chart = ZoroHumanMarketReader.analyze(signal.candles)
+        val trapDefense = WolfTrapDefenseEngine.analyze(signal.candles)
+        val trapBlocksCandidate = trapDefense.available && when (side) {
+            "LONG_BIAS" -> trapDefense.blocksLong
+            "SHORT_BIAS" -> trapDefense.blocksShort
+            else -> true
+        }
+        if (trapDefense.available) {
+            if (trapBlocksCandidate) {
+                score -= 24
+                reasons += "دفاع ضدتله بازار: ${trapDefense.explanation}"
+            } else if (trapDefense.severity >= 25) {
+                score -= 5
+                reasons += "هشدار ساختاری بازار: ${trapDefense.explanation}"
+            } else {
+                reasons += "دفاع ضدتله: ${trapDefense.explanation}"
+            }
+            reasons += trapDefense.evidence.take(3)
+        } else {
+            score -= 5
+            reasons += "دفاع ضدتله به‌دلیل ناکافی‌بودن کندل‌ها سکوت کرد"
+        }
+
         val timeframeFrames = signal.timeframeAnalysis.filter { it.available }
         val timeframeScore = ZoroTimeframeAnalysisEngine.consensusScore(timeframeFrames)
         val combinedChartScore = if (timeframeFrames.size >= 3)
@@ -172,7 +194,7 @@ internal object ZoroLivingTraderBrain {
             !signal.neuralUncertainty.highDisagreement &&
             signal.confidence >= 70
         )
-        val hardGates = thought.allowed && neuralGate &&
+        val hardGates = thought.allowed && neuralGate && !trapBlocksCandidate &&
             chartSupportsSide && !chart.blocks(side) && !timeframeConflict &&
             adx >= 18.0 && relativeVolume >= 0.75 &&
             atrPct.isFinite() && atrPct in 0.2..6.0 &&
@@ -292,7 +314,7 @@ internal fun ZoroLivingTraderBrainPanel(context: Context) {
             androidx.compose.ui.Modifier.padding(14.dp),
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp)
         ) {
-            androidx.compose.material3.Text("مغز شناختی NEXUS QUANT", color = gold, fontSize = 14.sp)
+            androidx.compose.material3.Text("مغز شناختی TENAXIS QUANT", color = gold, fontSize = 14.sp)
             androidx.compose.material3.Text(
                 "چرخه فکر: مشاهده ← فرضیه ← سناریو ← آزمون هزینه ← تصمیم ← یادگیری • حافظه کوتاه‌مدت: ${memory.shortTerm} • اپیزودها: ${memory.episodes} • الگوهای میان‌مدت: ${memory.mediumPatterns} • دانش بلندمدت معتبر: ${memory.deepCheckpoints}",
                 color = muted, fontSize = 9.sp, lineHeight = 13.sp

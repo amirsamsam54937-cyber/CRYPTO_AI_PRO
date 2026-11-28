@@ -111,6 +111,33 @@ internal object WolfSignalQualityEngine {
             }
         }
 
+        // Fee-aware expectancy check: TP1 must remain attractive after XT taker fees,
+        // estimated slippage and a conservative funding reserve. Leverage is sized elsewhere.
+        val netEdge = if (validGeometry) runCatching {
+            WolfNetEdgeGate.assess(
+                entry = signal.entry,
+                stop = signal.stop,
+                target = signal.tp1,
+                isLong = isLong,
+                atrPercent = t.atrPercent,
+                relativeVolume = t.relativeVolume,
+                liquidityStrength = t.liquidityStrength,
+                expectedHoldingHours = if (signal.tradeTimeframe.startsWith("5m")) 1.0 else 2.0,
+                minimumNetRewardRisk = if (signal.tradeTimeframe.startsWith("5m")) 1.25 else 1.50
+            )
+        }.getOrNull() else null
+        if (netEdge == null || !netEdge.valid) {
+            penalty += 18
+            veto = true
+            notes += "برآورد بازده خالص پس از هزینه‌های XT معتبر نیست"
+        } else if (!netEdge.accepted) {
+            penalty += 18
+            veto = true
+            notes += "لبه خالص پس از کارمزد، لغزش و ذخیره فاندینگ کافی نیست (" + netEdge.explanation + ")"
+        } else {
+            notes += "لبه خالص تأیید شد (" + netEdge.explanation + ")"
+        }
+
         val confidence = (signal.confidence - penalty.coerceAtMost(28)).coerceIn(0, 95)
         val note = if (notes.isEmpty()) {
             " | کنترل کیفیت نهایی: مانع عمده‌ای در داده‌های در دسترس دیده نشد"

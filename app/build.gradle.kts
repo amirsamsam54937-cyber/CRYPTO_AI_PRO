@@ -10,12 +10,14 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 105
-  versionName = "1.0.0"
-  // wolfblack branded Android application.
+  versionCode = 109
+  versionName = "1.0.4"
+  // TENAXIS branded Android application.
  }
  buildFeatures { compose = true }
- // CSV is compressed in the APK to keep the one-million-candle corpus practical to install.
+ // Keep every packaged model and market-data asset uncompressed inside the APK.
+ androidResources { noCompress += listOf("csv", "json") }
+ // Preserve the complete market corpus and all model features; do not prune training rows or inputs.
  compileOptions {
   sourceCompatibility = JavaVersion.VERSION_17
   targetCompatibility = JavaVersion.VERSION_17

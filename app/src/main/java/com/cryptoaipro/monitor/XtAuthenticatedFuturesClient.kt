@@ -13,7 +13,10 @@ import java.net.UnknownHostException
 import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.abs
 
 /**
@@ -45,6 +48,25 @@ internal class XtAuthenticatedFuturesClient(
 ) {
     private val baseUrl = "https://fapi.xt.com"
 
+    // XT rejects signed requests when the handset clock is outside its timestamp window.
+    @Volatile private var serverTimeOffsetMs: Long = 0L
+
+    private fun learnServerClock(serverDate: String, responseAtMs: Long): Long? =
+        runCatching {
+            val parser = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("GMT")
+                isLenient = false
+            }
+            // HTTP Date is rounded down to whole seconds and describes response time.
+            // Estimate 250ms into that second (intentionally biased slightly behind the
+            // server) and compare it with the local response timestamp. Using the request
+            // midpoint would incorrectly add half the network RTT to the clock offset.
+            // Do not cap the correction: handset clocks can be minutes wrong.
+            val serverSecond = parser.parse(serverDate)?.time ?: return@runCatching null
+            val serverTimeEstimate = serverSecond + 250L
+            serverTimeEstimate - responseAtMs
+        }.getOrNull()
+
     private fun normalizeSymbol(value: String): String {
         val compact = value.lowercase().filter(Char::isLetterOrDigit)
         require(compact.endsWith("usdt") && compact.length > 4) { "نماد قرارداد USDT نامعتبر است." }
@@ -65,14 +87,16 @@ internal class XtAuthenticatedFuturesClient(
         path: String,
         query: Map<String, String> = emptyMap(),
         body: JSONObject? = null,
-        formBody: Map<String, String>? = null
+        formBody: Map<String, String>? = null,
+        allowClockRetry: Boolean = true
     ): JSONObject = withContext(Dispatchers.IO) {
         require(body == null || formBody == null) { "XT request cannot contain both JSON and form bodies." }
         require(method == "POST" || formBody == null) { "Form body is only valid for POST." }
         val (appKey, secret) = XtCredentialVault.load(context)
             ?: throw IllegalStateException("اتصال امن XT تنظیم نشده است.")
         require(path.startsWith("/future/") && !path.contains("..")) { "XT endpoint نامعتبر است." }
-        val timestamp = System.currentTimeMillis().toString()
+        val requestStartedAtMs = System.currentTimeMillis()
+        val timestamp = (requestStartedAtMs + serverTimeOffsetMs).toString()
         val queryString = canonicalQuery(query)
         val bodyText = formBody?.let { XtRequestSigner.canonicalQuery(it) } ?: body?.toString().orEmpty()
         require(queryString.isEmpty() || bodyText.isEmpty()) {
@@ -99,9 +123,13 @@ internal class XtAuthenticatedFuturesClient(
             )
             connection.setRequestProperty("validate-appkey", appKey)
             connection.setRequestProperty("validate-timestamp", timestamp)
+            // Current XT Futures documentation specifies validate-signature.
+            // Do not send the historical misspelled alias simultaneously: gateways may
+            // normalize or prioritize duplicate semantic headers differently.
             connection.setRequestProperty("validate-signature", sig)
-            connection.setRequestProperty("validate-recvwindow", "5000")
-            connection.setRequestProperty("validate-algorithms", "HmacSHA256")
+            // Keep the Futures v1 request headers minimal: XT documents the
+            // recv-window and algorithm headers as optional; omit them unless
+            // they are explicitly included in the canonical signature payload.
             if (method != "GET") {
                 connection.doOutput = true
                 connection.outputStream.use { it.write(bodyText.toByteArray(StandardCharsets.UTF_8)) }
@@ -120,6 +148,20 @@ internal class XtAuthenticatedFuturesClient(
                 }.getOrDefault("")
                 val detail = parsed.ifBlank { raw.replace(Regex("\\s+"), " ").take(260).ifBlank { "پاسخ خالی از سرور" } }
                 val serverDate = connection.getHeaderField("Date")?.take(64) ?: "ناموجود"
+                val responseAtMs = System.currentTimeMillis()
+                val learnedOffset = if (serverDate != "ناموجود")
+                    learnServerClock(serverDate, responseAtMs) else null
+                // The HMAC includes the millisecond timestamp. Some XT gateways report
+                // clock-skewed signed GETs as AUTH/signature failures rather than a distinct
+                // timestamp error. Learn the server offset from Date and retry read-only GETs
+                // once; never replay POST/DELETE requests.
+                if (method == "GET" && code in setOf(400, 401, 403) && allowClockRetry &&
+                    learnedOffset != null &&
+                    kotlin.math.abs(learnedOffset - serverTimeOffsetMs) >= 250L) {
+                    serverTimeOffsetMs = learnedOffset
+                    connection.disconnect()
+                    return@withContext request(method, path, query, body, formBody, allowClockRetry = false)
+                }
                 val requestId = connection.getHeaderField("X-Request-Id")
                     ?: connection.getHeaderField("X-Trace-Id") ?: "ناموجود"
                 val contentType = connection.contentType?.take(80) ?: "نامشخص"

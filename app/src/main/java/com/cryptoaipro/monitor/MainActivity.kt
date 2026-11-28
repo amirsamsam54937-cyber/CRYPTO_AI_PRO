@@ -78,15 +78,15 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
-// wolfblack visual system: obsidian graphite, champagne metal and emerald signal accents.
-private val Navy = Color(0xFF050505)
-private val Panel = Color(0xFF101112)
-private val Muted = Color(0xFF96928A)
-val Green = Color(0xFF39D98A)
-private val Red = Color(0xFFFF5364)
-private val Blue = Color(0xFFD8B878)
-private val Purple = Color(0xFFB9954B)
-private val Gold = Color(0xFFE2C477)
+// TENAXIS visual system: graphite forest, warm copper, mint execution accents; no layout compression.
+private val Navy = Color(0xFF070707)
+private val Panel = Color(0xFF121212)
+private val Muted = Color(0xFFAAA49A)
+val Green = Color(0xFF39D6A0)
+private val Red = Color(0xFFFF626F)
+private val Blue = Color(0xFFE4D5B5)
+private val Purple = Color(0xFFC8A66A)
+private val Gold = Color(0xFFE2B65C)
 
 data class MarketSignal(
     val symbol: String, val price: Double, val change: Double, val volume: Double,
@@ -127,6 +127,7 @@ data class MarketSignal(
     val advancedTechnical: ZoroAdvancedTechnicalEngine.Report? = null,
     // Human-style chart reading from OHLCV structure/auction/volume context; not image vision.
     val humanChartReadout: ZoroHumanMarketReader.Readout? = null,
+    val scenarioForecast: HopeScenarioForecast? = null,
     val cognitiveRiskMultiplier: Double = 1.0
 )
 
@@ -159,13 +160,10 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
     // Member-level outcomes are tracked for diagnostics; weights stay equal until separately calibrated.
     return signals.map { signal ->
-        val candidate = when {
-            signal.direction != "NEUTRAL" -> signal
-            signal.score > 0 -> signal.copy(direction = "LONG_BIAS")
-            signal.score < 0 -> signal.copy(direction = "SHORT_BIAS")
-            else -> signal.copy(direction = "LONG_BIAS")
-        }
-        if (candidate == null) signal.copy(neuralScore = 50, neuralDirection = "NEUTRAL",
+        // Never fabricate a LONG side when a technical candidate is neutral.
+        // The pretrained ensemble can read the chart independently without changing the source signal.
+        val candidate = signal
+        if (!candidate.price.isFinite() || candidate.price <= 0.0) signal.copy(neuralScore = 50, neuralDirection = "NEUTRAL",
             neuralModelSource = if (pretrainedStatus.validatedForScoring) "۱۰ مدل • چارت ۱ساعته OHLCV + اندیکاتورها • افق ۶ساعت • معتبر" else "۱۰ مدل • در انتظار اعتبارسنجی")
         else {
             // Always expose all ten chart-conditioned specialist outputs. Unvalidated outputs
@@ -364,13 +362,13 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
             advancedTechnical = ZoroAdvancedTechnicalEngine.analyze(reviewed.candles, reviewed.price, reviewed.neuralCandles),
             humanChartReadout = humanChart
         )
-        val thought = NexusCognitiveEngine.think(finalSignal, neuralValidated)
+        val thought = NexusCognitiveEngine.think(finalSignal, neuralValidated, context)
         val cognitiveSignal = finalSignal.copy(
             direction = if (promoted && thought.allowed) finalSignal.direction else "NEUTRAL",
             score = if (promoted && thought.allowed) finalSignal.score else 0,
             confidence = if (promoted && thought.allowed) finalSignal.confidence else minOf(finalSignal.confidence, 45),
             cognitiveRiskMultiplier = thought.riskMultiplier,
-            agreementStatus = finalSignal.agreementStatus + " • wolfblack " + thought.phase +
+            agreementStatus = finalSignal.agreementStatus + " • TENAXIS " + thought.phase +
                 " • اجماع " + thought.neuralAgreement + "/10 • RR خالص " +
                 String.format(java.util.Locale.US, "%.2f", thought.netRewardRisk) +
                 " • هزینه تخمینی " + String.format(java.util.Locale.US, "%.3f", thought.estimatedRoundTripCostPct) + "%"
@@ -420,6 +418,7 @@ fun CryptoMonitorScreen() {
     var scannedCount by remember { mutableIntStateOf(0) }
     var totalContracts by remember { mutableIntStateOf(0) }
     var selectedTab by remember { mutableStateOf("فرمانده") }
+    var settingsSection by remember { mutableStateOf("اتصال") }
     var selectedSymbol by remember { mutableStateOf("") }
     var chartInterval by remember { mutableStateOf("15") }
     var voiceTranscript by remember { mutableStateOf("") }
@@ -538,7 +537,10 @@ fun CryptoMonitorScreen() {
         try {
             val progress: suspend (List<MarketSignal>, Int, Int, Int) -> Unit = { partial, completed, total, failed ->
                 val reviewedPartial = withContext(Dispatchers.Default) {
-                    ZoroSignalIntelligence.enrich(applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial)))
+                    val reviewed = ZoroSignalIntelligence.enrich(
+                        applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, partial))
+                    )
+                    WolfStrategicBrain.enrich(context, reviewed, WolfSignalOutcomeJournal.snapshot(context))
                 }
                 withContext(Dispatchers.Main) {
                     rows = reviewedPartial
@@ -551,7 +553,9 @@ fun CryptoMonitorScreen() {
             appSettings.edit().putString("market_exchange", selectedExchange).apply()
             val scanned = XtFuturesMonitor.scan(progress)
             researchStats = WolfMarketDataStore.recordLiveScan(context, selectedExchange, scanned)
-            val scoredRows = ZoroSignalIntelligence.enrich(applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned)))
+            val scoredRows = ZoroSignalIntelligence.enrich(
+                applyWolfNeuralScoring(context, WolfFlowNewsRepository.enrichSignals(context, scanned))
+            )
             val publishedCount = scoredRows.count { it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS" }
             val blockedCount = scoredRows.size - publishedCount
             val blockReasons = scoredRows.filter { it.direction == "NEUTRAL" }
@@ -561,11 +565,23 @@ fun CryptoMonitorScreen() {
             ZoroDiagnostics.record(context, "اسکن", "INFO", "داده تحلیل‌شده=${scanned.size}؛ منتشرشده=${publishedCount}؛ متوقف‌شده=${blockedCount}")
             ZoroDiagnostics.record(context, "شبکه عصبی", if (neuralStatus.validatedForScoring) "INFO" else "WARN", "معتبر=${neuralStatus.validatedForScoring}؛ اعضا=${neuralStatus.members}/10؛ corpus=${neuralStatus.corpusRows}")
             if (blockReasons.isNotBlank()) ZoroDiagnostics.record(context, "فیلتر سیگنال", "WARN", blockReasons)
-            rows = withContext(Dispatchers.Default) { HopeScenarioLab.applySignalImpact(scoredRows) }
+            rows = withContext(Dispatchers.Default) {
+                val scenarioReviewed = HopeScenarioLab.applySignalImpact(scoredRows)
+                WolfStrategicBrain.enrich(context, scenarioReviewed, WolfSignalOutcomeJournal.snapshot(context))
+            }
             scannedCount = totalContracts
             scanProgress = "پایان اسکن • " + scanned.size + " نتیجه از " + totalContracts + " قرارداد"
             scope.launch { runCatching { WolfFlowNewsRepository.refreshForEngine(context, scanned, selectedExchange) } }
             outcomeSnapshot = WolfSignalOutcomeJournal.processScan(context, rows)
+            // Teach the chart curriculum from each newly closed candle window. Duplicate
+            // candle timestamps are ignored by the durable journal, so repeated scans do not
+            // inflate the learning corpus with identical observations.
+            rows.forEach { signal ->
+                val chartBars = signal.timeframeCandles["15m"]?.takeIf { it.size >= 80 } ?: signal.candles
+                WolfChartLearningMemory.study(signal.symbol, "15m", chartBars)?.let {
+                    WolfChartLearningMemory.remember(context, it)
+                }
+            }
             WolfNeuralForecastJournal.processScan(context, rows)
             paperSnapshot = withContext(Dispatchers.Default) {
                 HopePaperTradingEngine.processScan(context, rows)
@@ -663,12 +679,6 @@ fun CryptoMonitorScreen() {
             }
         ) { innerPadding ->
             Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                Image(
-                    painter = painterResource(id = R.drawable.hope_hunter_hero),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(230.dp).align(Alignment.TopCenter).graphicsLayer { alpha = 0.22f }
-                )
                 Box(Modifier.fillMaxSize().background(
                     Brush.verticalGradient(listOf(Color(0xF2050505), Color(0xFF080808), Color(0xFF050505)))
                 ))
@@ -679,26 +689,15 @@ fun CryptoMonitorScreen() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (selectedTab != "خانه") TextButton(onClick = { selectedTab = "خانه" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("‹ بازگشت", color = Blue, fontSize = 11.sp) }
-                        Surface(
-                            color = Color(0xFF17130A),
-                            shape = RoundedCornerShape(18.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.62f)),
-                            modifier = Modifier.size(54.dp),
-                            shadowElevation = 12.dp
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_crypto_ai_logo),
-                                contentDescription = "نشان wolfblack",
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
+                        Text("T", color = Gold, fontSize = 36.sp, fontWeight = FontWeight.Black,
+                            modifier = Modifier.width(44.dp), textAlign = TextAlign.Center)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("wolfblack", color = Color(0xFFF5E7C2), fontSize = 17.sp, fontWeight = FontWeight.Black, letterSpacing = 1.1.sp)
+                            Text("TENAXIS", color = Color(0xFFF5E7C2), fontSize = 17.sp, fontWeight = FontWeight.Black, letterSpacing = 1.1.sp)
                             Text("AI TRADING TERMINAL", color = Gold, fontSize = 8.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold)
                         }
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("wolfblack", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("TENAXIS", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             Surface(color = Color(0xFF17130A),
                                 shape = RoundedCornerShape(20.dp),
                                 border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.38f))) {
@@ -727,7 +726,7 @@ fun CryptoMonitorScreen() {
                             onToggleBackground = {
                                 val enabled = !backgroundMonitoring
                                 if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
-                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط wolfblack متوقف نمی‌شود."
+                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط TENAXIS متوقف نمی‌شود."
                                 } else {
                                     val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
                                     if (enabled) {
@@ -764,7 +763,7 @@ fun CryptoMonitorScreen() {
                             onToggleBackground = {
                                 val enabled = !backgroundMonitoring
                                 if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
-                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط wolfblack متوقف نمی‌شود."
+                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط TENAXIS متوقف نمی‌شود."
                                 } else {
                                     val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
                                     if (enabled) {
@@ -905,80 +904,100 @@ fun CryptoMonitorScreen() {
                     }
 
                                         else -> {
-                        Column(
-                            Modifier.fillMaxSize().padding(horizontal = 14.dp)
-                                .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text("تنظیمات و پایش پس‌زمینه", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
-                            OutlinedButton(onClick = { selectedTab = "عیب‌یابی" }, modifier = Modifier.fillMaxWidth()) { Text("مرکز عیب‌یابی و گزارش خطاهای wolfblack", color = Blue) }
-                            HopeAnimatedBrainBanner()
-                            XtConnectionAndExecutionScreen(context, rows) { backgroundMonitoring = true; appSettings.edit().putBoolean("background_monitoring", true).apply() }
-                            Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            Text("پایش زنده بازار", color = Color.White, fontWeight = FontWeight.Bold)
-                                            Text(if (backgroundMonitoring) "سرویس پایش پس‌زمینه فعال است" else "سرویس پایش پس‌زمینه متوقف است", color = if (backgroundMonitoring) Green else Muted, fontSize = 10.sp)
-                                        }
-                                        Switch(
-                                            checked = backgroundMonitoring,
-                                            onCheckedChange = { enabled ->
-                                                if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
-                                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط wolfblack متوقف نمی‌شود."
-                                                } else {
-                                                    val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
-                                                    if (enabled) {
-                                                        if (Build.VERSION.SDK_INT >= 33 &&
-                                                            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                                                            (context as? ComponentActivity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 501)
-                                                        }
-                                                        serviceIntent.action = HopeHunterMonitorService.ACTION_START
-                                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent) else context.startService(serviceIntent)
+                        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("مرکز کنترل TENAXIS", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Black)
+                            Text("تنظیمات در سه فضای مستقل؛ اتصال و اجرای معامله، هوش و یادگیری، و پایش سیستم.",
+                                color = Muted, fontSize = 11.sp, lineHeight = 17.sp)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("اتصال", "هوش", "سیستم").forEach { section ->
+                                    FilterChip(selected = settingsSection == section,
+                                        onClick = { settingsSection = section },
+                                        label = { Text(section, fontSize = 11.sp) })
+                                }
+                            }
+                            when (settingsSection) {
+                                "اتصال" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    OutlinedButton(onClick = { selectedTab = "عیب‌یابی" }, modifier = Modifier.fillMaxWidth()) {
+                                        Text("گزارش خطا و عیب‌یابی اتصال", color = Blue)
+                                    }
+                                    XtConnectionAndExecutionScreen(context, rows) {
+                                        backgroundMonitoring = true
+                                        appSettings.edit().putBoolean("background_monitoring", true).apply()
+                                    }
+                                    XtLiveManualExecutionPanel(context, rows)
+                                }
+                                "هوش" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    HopeAnimatedBrainBanner()
+                                    HopeLivingBrainPanel(context) { scanIntervalMinutes = it }
+                                    ZoroLivingTraderBrainPanel(context)
+                                    ZoroTraderResearchPanel(context, rows.map { it.symbol })
+                                    ZoroTraderEvidenceCapturePanel(context)
+                                }
+                                else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Surface(color = Panel, shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Text("پایش زنده بازار", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                                    Text(if (backgroundMonitoring) "سرویس پس‌زمینه فعال است" else "سرویس پس‌زمینه متوقف است",
+                                                        color = if (backgroundMonitoring) Green else Muted, fontSize = 11.sp)
+                                                }
+                                                Switch(checked = backgroundMonitoring, onCheckedChange = { enabled ->
+                                                    if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
+                                                        scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط TENAXIS متوقف نمی‌شود."
                                                     } else {
-                                                        serviceIntent.action = HopeHunterMonitorService.ACTION_STOP
-                                                        context.startService(serviceIntent)
+                                                        val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
+                                                        if (enabled) {
+                                                            if (Build.VERSION.SDK_INT >= 33 &&
+                                                                context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                                                (context as? ComponentActivity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 501)
+                                                            }
+                                                            serviceIntent.action = HopeHunterMonitorService.ACTION_START
+                                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent)
+                                                            else context.startService(serviceIntent)
+                                                        } else {
+                                                            serviceIntent.action = HopeHunterMonitorService.ACTION_STOP
+                                                            context.startService(serviceIntent)
+                                                        }
+                                                        backgroundMonitoring = enabled
+                                                        appSettings.edit().putBoolean("background_monitoring", enabled).apply()
                                                     }
-                                                    backgroundMonitoring = enabled
-                                                    appSettings.edit().putBoolean("background_monitoring", enabled).apply()
+                                                })
+                                            }
+                                            Text("پایش پس‌زمینه داده‌های بازار و معاملات ثبت‌شده را بررسی می‌کند. اجرای پیوسته به اینترنت، مجوز اعلان و تنظیمات باتری گوشی وابسته است.",
+                                                color = Muted, fontSize = 11.sp, lineHeight = 17.sp)
+                                        }
+                                    }
+                                    Surface(color = Panel, shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Text("تنظیمات اسکن", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                            Text("فاصله مکث پس از پایان هر دور اسکن", color = Muted, fontSize = 11.sp)
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                listOf(1, 3, 5, 10).forEach { minutes ->
+                                                    FilterChip(selected = scanIntervalMinutes == minutes,
+                                                        onClick = {
+                                                            scanIntervalMinutes = minutes
+                                                            appSettings.edit().putInt("scan_interval_minutes", minutes).apply()
+                                                        }, label = { Text("$minutes دقیقه", fontSize = 10.sp) })
                                                 }
                                             }
-                                        )
-                                    }
-                                    Text("با فعال‌سازی، سرویس پس‌زمینه wolfblack داده‌های XT را پایش می‌کند، تحلیل چندتایم‌فریمی و شبکه‌های عصبی را اجرا می‌کند و معاملات PAPER را به‌روزرسانی می‌کند. فقط اگر LIVE و معامله‌گر خودکار را جداگانه فعال کرده باشی، مدل از اعتبارسنجی عبور کند، اتصال API تأیید باشد و همه فیلترهای حساب و ریسک پاس شوند، امکان ارسال سفارش واقعی وجود دارد؛ پوزیشن‌های ثبت‌شده نیز با TP/SL صرافی و حدضرر شناور پویا پایش می‌شوند. توقف اجباری برنامه، قطع اینترنت یا محدودیت باتری می‌تواند سرویس را مختل کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                                }
-                            }
-                            HopeLivingBrainPanel(context) { scanIntervalMinutes = it }
-                            ZoroLivingTraderBrainPanel(context)
-                            ZoroTraderResearchPanel(context, rows.map { it.symbol })
-                            ZoroTraderEvidenceCapturePanel(context)
-                            // News and sentiment remain internal decision features; no user-facing feed.
-                                                                                    Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
-                                    Text("بازار: XT USDT-M Futures", color = Muted, fontSize = 11.sp)
-                                    Text("اسکن چندتایم‌فریمی: ۵ دقیقه، ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • زمینه روزانه و جریان سفارش برای نامزدهای نقدشونده", color = Muted, fontSize = 11.sp)
-                                    Text("ابزارها: ۱۰ متخصص تحلیلی، شبکه عصبی اعتبارسنجی‌شده، چندتایم‌فریم، مدیریت ریسک و دفترچه سوابق", color = Muted, fontSize = 11.sp)
-                                    Text("دامنه اسکن: تمام قراردادهای دائمی USDT فعال؛ مرتب‌شده بر اساس حجم معاملات", color = Muted, fontSize = 11.sp)
-                                    Text("فاصله مکث بین دورهای اسکن (پس از پایان هر دور):", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        listOf(1, 3, 5, 10).forEach { minutes ->
-                                            FilterChip(
-                                                selected = scanIntervalMinutes == minutes,
-                                                onClick = {
-                                                    scanIntervalMinutes = minutes
-                                                    appSettings.edit().putInt("scan_interval_minutes", minutes).apply()
-                                                },
-                                                label = { Text("$minutes دقیقه", fontSize = 9.sp) }
-                                            )
+                                            Text("زمان خود اسکن و محدودیت نرخ API به این فاصله اضافه می‌شود.",
+                                                color = Muted, fontSize = 10.sp)
+                                            Text("بازار: XT USDT-M Futures • تایم‌فریم‌ها: ۵د، ۱۵د، ۱س، ۴س و زمینه روزانه",
+                                                color = Blue, fontSize = 11.sp)
+                                            Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 11.sp)
                                         }
                                     }
-                                    Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("wolfblack • XT USDT-M • شبکه عصبی چندمتخصصی • تحلیل چندلایه", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                                    Text("برای پایداری بیشتر در گوشی سامسونگ: تنظیمات ← برنامه‌ها ← TENAXIS ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.",
+                                        color = Muted, fontSize = 10.sp, lineHeight = 16.sp)
                                 }
                             }
-                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← wolfblack ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                         }
                     }
                 }
@@ -1385,7 +1404,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
         "SHORT_BIAS" -> "SHORT"
         else -> "NO TRADE"
     }
-    Surface(color = Color(0xFF101010), shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.30f)), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(0xFF121212), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF5A4729)), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(item.symbol, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
@@ -1473,7 +1492,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                         if (item.deepNeuralSuccessProbability != null)
                             "شبکه زمینه‌ای ۱۳ ویژگی (خبر، احساسات، فاندینگ، جریان/دفتر سفارش و تکنیکال): احتمال موفقیت سمت عصبی ${String.format(Locale.US, "%.1f", item.deepNeuralSuccessProbability * 100.0)}٪ • سوابق یادگیری ${item.deepNeuralReviewedSamples}"
                         else
-                            "شبکه زمینه‌ای ۱۳ ویژگی در حال یادگیری از نتایج ثبت‌شده است • سوابق ${item.deepNeuralReviewedSamples}",
+                            "شبکه چنددامنه ۳۶ ویژگی در حال یادگیری از نتایج ثبت‌شده است • سوابق ${item.deepNeuralReviewedSamples}",
                         color = Gold, fontSize = 9.sp, lineHeight = 13.sp
                     )
                     if (item.neuralMemberVotes.isNotEmpty()) {
@@ -1501,7 +1520,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                     )
                     if (!neuralValidated) {
                         Text(
-                            "شبکه عصبی در حال محاسبه است؛ چون هنوز اعتبارسنجی زمانی مستقل را نگذرانده، جهت سیگنال و معامله خودکار مسدود است. امتیاز خام، احتمال برد نیست.",
+                            "رأی این مدل هنوز پژوهشی است و به‌تنهایی مجوز معامله نمی‌دهد. تصمیم سیستم جداگانه نمایش داده شده و سفارش فقط با عبور از کنترل‌های ریسک و تأیید لازم امکان‌پذیر است.",
                             color = Gold, fontSize = 9.sp, lineHeight = 14.sp
                         )
                     }
@@ -1519,7 +1538,7 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
             )
             if (item.direction != "NEUTRAL") {
                 Spacer(Modifier.height(8.dp))
-                Surface(color = Color(0xFF10283A), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.22f)), modifier = Modifier.fillMaxWidth()) {
+                Surface(color = Color(0xFF1B1710), shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF355848)), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("ENTRY: " + formatPrice(item.entry) + "   |   SMART LEVERAGE: " + item.leverage + "x", color = Blue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1530,6 +1549,25 @@ private fun SignalCard(item: MarketSignal, onSelect: () -> Unit = {}) {
                             SmallStat("TP2 • 2R", formatPrice(item.tp2), Green)
                             SmallStat("TP3 • 3R / ساختاری", formatPrice(item.tp3), Gold)
                         }
+                        val riskDistance = abs(item.entry - item.stop)
+                        val riskPct = if (item.entry > 0.0) riskDistance / item.entry * 100.0 else 0.0
+                        val rr1 = if (riskDistance > 0.0) abs(item.tp1 - item.entry) / riskDistance else 0.0
+                        val rr2 = if (riskDistance > 0.0) abs(item.tp2 - item.entry) / riskDistance else 0.0
+                        val rr3 = if (riskDistance > 0.0) abs(item.tp3 - item.entry) / riskDistance else 0.0
+                        Divider(color = Gold.copy(alpha = 0.22f))
+                        Text(
+                            "ممیزی ریسک معامله • فاصله استاپ ${String.format(Locale.US, "%.2f", riskPct)}٪ از ورود",
+                            color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            SmallStat("بازده/ریسک TP1", String.format(Locale.US, "%.2fR", rr1), Green)
+                            SmallStat("TP2", String.format(Locale.US, "%.2fR", rr2), Green)
+                            SmallStat("TP3", String.format(Locale.US, "%.2fR", rr3), Gold)
+                        }
+                        Text(
+                            "این نسبت‌ها از قیمت‌های واقعی همین سیگنال محاسبه شده‌اند؛ کارمزد، فاندینگ، لغزش و اندازه قرارداد در آن‌ها لحاظ نشده و سود خالص محسوب نمی‌شوند.",
+                            color = Muted, fontSize = 9.sp, lineHeight = 13.sp
+                        )
                         Text("سه پله هدف بر اساس فاصله ریسک: ۱R، ۲R و ۳R؛ هدف سوم در صورت وجود مانع ساختاری معتبر نزدیک، با آن تطبیق داده می‌شود. برخورد قیمت تضمین‌شده نیست.", color = Muted, fontSize = 9.sp)
                     }
                 }
@@ -2148,7 +2186,7 @@ private fun ZoroNativeSignalChart(signal: MarketSignal, interval: String) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(signal.symbol, color = Color(0xFFF4E7C8), fontSize = 15.sp, fontWeight = FontWeight.Black)
-                    Text("نمودار اختصاصی wolfblack • $timeframeKey", color = Muted, fontSize = 9.sp)
+                    Text("نمودار اختصاصی TENAXIS • $timeframeKey", color = Muted, fontSize = 9.sp)
                 }
                 Text(if (signal.direction == "LONG_BIAS") "صعودی" else "نزولی",
                     color = if (signal.direction == "LONG_BIAS") Green else Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)

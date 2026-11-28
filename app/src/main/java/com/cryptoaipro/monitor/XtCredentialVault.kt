@@ -63,10 +63,14 @@ internal object XtCredentialVault {
 
     @Synchronized
     fun save(context: Context, appKey: String, secret: String) {
-        require(appKey.isNotBlank() && secret.isNotBlank()) { "هر دو فیلد کلید لازم‌اند." }
+        // Clipboard managers and line-wrapped key dialogs can insert invisible whitespace.
+        // Remove whitespace only; never change case or otherwise rewrite the secret bytes.
+        val normalizedAppKey = appKey.filterNot(Char::isWhitespace)
+        val normalizedSecret = secret.filterNot(Char::isWhitespace)
+        require(normalizedAppKey.isNotBlank() && normalizedSecret.isNotBlank()) { "هر دو فیلد کلید لازم‌اند." }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, secretKey())
-        val plain = appKey.trim() + "\n" + secret.trim()
+        val plain = normalizedAppKey + "\n" + normalizedSecret
         val encrypted = cipher.doFinal(plain.toByteArray(StandardCharsets.UTF_8))
         val packed = cipher.iv + encrypted
         val encoded = Base64.encodeToString(packed, Base64.NO_WRAP)
@@ -139,7 +143,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("ZORO • XT FUTURES", color = gold, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                    Text("TENAXIS • XT FUTURES", color = gold, fontSize = 10.sp, fontWeight = FontWeight.Black)
                     Text("مرکز اتصال و اجرای معاملات", color = ivory,
                         fontSize = 17.sp, fontWeight = FontWeight.Black)
                 }
@@ -151,7 +155,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
             Text("اتصال امن حساب و مجوزها", color = ivory,
                 fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text(
-                "آزمایش اتصال فقط وضعیت حساب USDT-M Futures، موجودی، Equity، مارجین آزاد و مجوزهای حساب را می‌خواند و هیچ سفارشی ارسال نمی‌کند. پس از ذخیره کلید و موفقیت این آزمون، LIVE را در پنل پایین روشن کن؛ سپس کلید معامله‌گر خودکار فعال می‌شود.",
+                "پس از ذخیره کلید، TENAXIS فقط account/info را به‌صورت خواندنی بررسی می‌کند؛ اگر مجوز Futures Trade و امکان بازکردن پوزیشن تأیید شوند، LIVE و معامله‌گر خودکار را فعال می‌کند. ذخیره کلید به‌تنهایی هیچ سفارشی ارسال نمی‌کند؛ ورود فقط در صورت عبور سیگنال از تمام دروازه‌های ریسک انجام می‌شود.",
                 color = muted, fontSize = 10.sp, lineHeight = 15.sp
             )
             OutlinedTextField(
@@ -167,41 +171,62 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
             )
             Button(
                 onClick = {
-                    if (!XtCredentialVault.hasCredentials(context)) {
-                        XtLiveTradingEngine.setEnabled(context, false)
-                        runCatching { XtCredentialVault.save(context, appKey, secret) }
-                            .onSuccess {
-                                appKey = ""
-                                secret = ""
-                                status = "کلیدها با AES-GCM و Android Keystore روی همین گوشی ذخیره شدند."
+                    busy = true
+                    status = "کلیدها به‌صورت رمزگذاری‌شده ذخیره می‌شوند؛ سپس اتصال XT و مجوزهای Futures به‌صورت خواندنی بررسی می‌شود..."
+                    scope.launch {
+                        try {
+                            if (XtCredentialVault.hasCredentials(context) &&
+                                !XtLiveTradingEngine.canClearCredentials(context)) {
+                                error("تعویض کلید تا تعیین تکلیف تمام پوزیشن‌ها، سفارش‌ها و طرح‌های حفاظتی فعال XT مجاز نیست.")
                             }
-                            .onFailure { status = "ذخیره امن انجام نشد: ${it.message ?: "خطای رمزنگاری"}" }
-                    } else {
-                        busy = true
-                        status = "در حال بررسی پوزیشن‌ها و سفارش‌های باز پیش از تعویض کلید..."
-                        scope.launch {
+                            XtLiveTradingEngine.setEnabled(context, false)
+                            XtLiveTradingEngine.setAutoEnabled(context, false)
+                            XtCredentialVault.save(context, appKey, secret)
+                            appKey = ""
+                            secret = ""
+                            accountLine = ""
+                            val account = XtAuthenticatedFuturesClient(context).accountSnapshot()
+                            val verified = account.canTrade && account.canOpenPosition
+                            XtCredentialVault.markConnectionVerified(context, verified)
+                            accountLine = "Wallet: ${String.format(java.util.Locale.US, "%.4f", account.walletBalanceUsdt)} USDT • Equity: ${String.format(java.util.Locale.US, "%.4f", account.equityUsdt)} USDT • Free margin: ${String.format(java.util.Locale.US, "%.4f", account.availableBalanceUsdt)} USDT"
+                            check(verified) {
+                                "اتصال برقرار شد، اما مجوز Futures Trade یا امکان بازکردن پوزیشن فعال نیست؛ معامله واقعی مسلح نشد."
+                            }
+                            XtLiveTradingEngine.setEnabled(context, true)
+                            XtLiveTradingEngine.setAutoEnabled(context, true)
+                            check(XtLiveTradingEngine.isAutoEnabled(context)) {
+                                "دروازه‌های LIVE و معامله‌گر خودکار اجازه فعال‌سازی ندادند."
+                            }
                             try {
-                                if (!XtLiveTradingEngine.canClearCredentials(context)) {
-                                    status = "تعویض کلید مسدود شد؛ ابتدا تمام پوزیشن‌ها، سفارش‌ها و طرح‌های TP/SL فعال را در XT تعیین تکلیف کن."
-                                } else {
-                                    XtLiveTradingEngine.setEnabled(context, false)
-                                    XtCredentialVault.save(context, appKey, secret)
-                                    appKey = ""
-                                    secret = ""
-                                    accountLine = ""
-                                    status = "کلید جدید با AES-GCM و Android Keystore روی همین گوشی ذخیره شد؛ حالت LIVE خاموش است."
+                                val serviceIntent = Intent(context, HopeHunterMonitorService::class.java).apply {
+                                    action = HopeHunterMonitorService.ACTION_START
                                 }
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    context.startForegroundService(serviceIntent)
+                                } else {
+                                    context.startService(serviceIntent)
+                                }
+                                onBackgroundStarted()
                             } catch (error: Exception) {
-                                status = "تعویض کلید انجام نشد: ${error.message ?: error.javaClass.simpleName}"
-                            } finally {
-                                busy = false
+                                XtLiveTradingEngine.setAutoEnabled(context, false)
+                                XtLiveTradingEngine.setEnabled(context, false)
+                                throw error
                             }
+                            status = "اتصال خصوصی XT و مجوزهای Futures تأیید شدند؛ LIVE و معامله‌گر خودکار فعال شد. ذخیره کلید هیچ سفارشی ارسال نکرد؛ ورود فقط پس از سیگنال واجد شرایط و عبور از تمام کنترل‌های ریسک انجام می‌شود."
+                        } catch (error: Exception) {
+                            XtCredentialVault.markConnectionVerified(context, false)
+                            XtLiveTradingEngine.setAutoEnabled(context, false)
+                            XtLiveTradingEngine.setEnabled(context, false)
+                            accountLine = ""
+                            status = "کلید ذخیره شد اما فعال‌سازی خودکار انجام نشد: ${error.message ?: error.javaClass.simpleName}"
+                        } finally {
+                            busy = false
                         }
                     }
                 },
                 enabled = !busy && appKey.isNotBlank() && secret.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("ذخیره امن کلید API فیوچرز") }
+            ) { Text(if (busy) "در حال اتصال و راه‌اندازی..." else "ذخیره کلید و راه‌اندازی خودکار TENAXIS") }
             Button(
                 onClick = {
                     busy = true
@@ -209,10 +234,11 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                     scope.launch {
                         try {
                             val client = XtAuthenticatedFuturesClient(context)
-                            val wallet = client.futuresWallet()
+                            // One authenticated account snapshot is enough for the connection
+                            // test; avoid calling account/info twice through two wallet readers.
                             val account = client.accountSnapshot()
                             XtCredentialVault.markConnectionVerified(context, account.canTrade && account.canOpenPosition)
-                            accountLine = "Wallet: ${String.format(java.util.Locale.US, "%.4f", wallet.walletBalance)} USDT • Equity: ${String.format(java.util.Locale.US, "%.4f", wallet.equity)} USDT • Free margin: ${String.format(java.util.Locale.US, "%.4f", wallet.availableMargin)} USDT • Margin used: ${String.format(java.util.Locale.US, "%.4f", wallet.usedMargin)} USDT"
+                            accountLine = "Wallet: ${String.format(java.util.Locale.US, "%.4f", account.walletBalanceUsdt)} USDT • Equity: ${String.format(java.util.Locale.US, "%.4f", account.equityUsdt)} USDT • Free margin: ${String.format(java.util.Locale.US, "%.4f", account.availableBalanceUsdt)} USDT"
                             status = if (account.canTrade && account.canOpenPosition)
                                 "اتصال خصوصی خواندنی موفق شد و مجوزهای Futures تأیید شدند. اکنون می‌توانی LIVE را روشن کنی. هیچ سفارشی ارسال نشد."
                             else
@@ -259,7 +285,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
             val readiness = when {
                 !XtCredentialVault.hasCredentials(context) -> "مسدود: کلید API هنوز ذخیره نشده است."
                 !XtCredentialVault.isConnectionVerified(context) -> "مسدود: اتصال خصوصی و مجوزهای Futures هنوز تأیید نشده‌اند."
-                !neuralStatus.validatedForScoring -> "مسدود: مدل عصبی هنوز اعتبارسنجی مستقل لازم برای امتیازدهی زنده را نگرفته است."
+                !neuralStatus.validatedForScoring -> "مدل عصبی فعلی پژوهشی است؛ معامله خودکار فقط از مسیر مغز راهبردی مستقل و کنترل‌های سخت ریسک انجام می‌شود. سفارش دستی نیز پیش‌نمایش و تأیید نهایی جداگانه دارد."
                 !liveReady -> "آماده‌سازی ناقص: اتصال تأیید شده، اما LIVE عمداً خاموش است."
                 !autoReady -> "LIVE فعال است؛ معامله‌گر خودکار هنوز مسلح نیست."
                 else -> "دروازه‌های اولیه فعال‌اند؛ پیش‌بررسی هر سفارش و حفاظت صرافی همچنان اجباری است."
@@ -287,7 +313,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 }
             }
             Text(
-                "مدیریت سرمایه ZORO موجودی آزاد را مبنای تخصیص می‌گیرد، نه کل Wallet. نرخ پایه محافظه‌کارانه کارمزد Futures برابر Maker=0.04% و Taker=0.06% است؛ نرخ واقعی VIP باید با کارمزد ثبت‌شده هر Fill تطبیق داده شود. مجوز Futures Trade برای سفارش‌گذاری لازم است؛ Withdrawal باید خاموش بماند و IP whitelist فعال باشد.",
+                "مدیریت سرمایه TENAXIS موجودی آزاد را مبنای تخصیص می‌گیرد، نه کل Wallet. نرخ پایه محافظه‌کارانه کارمزد Futures برابر Maker=0.04% و Taker=0.06% است؛ نرخ واقعی VIP باید با کارمزد ثبت‌شده هر Fill تطبیق داده شود. مجوز Futures Trade برای سفارش‌گذاری لازم است؛ Withdrawal باید خاموش بماند و IP whitelist فعال باشد. برنامه از پاسخ account/info نمی‌تواند مجوز برداشت را مستقلاً تشخیص دهد؛ پیش از ذخیره کلید، برداشت را در پنل XT خاموش کن.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
             )
             TextButton(
@@ -302,7 +328,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                         scope.launch {
                             try {
                                 if (!XtLiveTradingEngine.canClearCredentials(context)) {
-                                    status = "تا وقتی پوزیشن باز یا پوزیشن تحت نظارت ZORO وجود دارد، پاک‌کردن کلیدها مسدود است تا پایش حفاظت صرافی قطع نشود."
+                                    status = "تا وقتی پوزیشن باز یا پوزیشن تحت نظارت TENAXIS وجود دارد، پاک‌کردن کلیدها مسدود است تا پایش حفاظت صرافی قطع نشود."
                                 } else {
                                     XtLiveTradingEngine.setEnabled(context, false)
                                     XtCredentialVault.clear(context)
@@ -321,9 +347,211 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                 modifier = Modifier.align(Alignment.End)
             ) { Text("پاک‌کردن کلیدهای ذخیره‌شده", color = gold, fontSize = 10.sp) }
             Text(
-                "ترتیب فعال‌سازی: ۱) ذخیره امن کلید ۲) آزمایش موفق اتصال ۳) روشن‌کردن LIVE در پنل اجرای XT ۴) روشن‌کردن معامله‌گر خودکار. ورود خودکار فقط پس از تأیید سیگنال، تازگی داده، موجودی و همه کنترل‌های ریسک مجاز است.",
+                "با ذخیره کلید، TENAXIS ابتدا فقط account/info را می‌خواند؛ اگر مجوز Futures تأیید شود، LIVE و معامله‌گر خودکار را بدون تأیید دوم مسلح و سرویس پایش را اجرا می‌کند. ذخیره کلید به‌تنهایی سفارش نمی‌فرستد؛ هر ورود باید از فیلتر سیگنال، تازگی داده، موجودی، ریسک و حفاظت صرافی عبور کند.",
                 color = muted, fontSize = 9.sp, lineHeight = 14.sp
             )
+        }
+    }
+}
+
+
+/**
+ * Human-confirmed XT live execution surface. This is deliberately separate from unattended
+ * auto trading: every order requires a fresh preflight preview and a second explicit submit.
+ */
+@Composable
+internal fun XtLiveManualExecutionPanel(context: Context, signals: List<MarketSignal>) {
+    var selectedSymbol by remember { mutableStateOf("") }
+    var preview by remember { mutableStateOf<XtLiveTradingEngine.ManualPreview?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var liveEnabled by remember { mutableStateOf(XtLiveTradingEngine.isEnabled(context)) }
+    var autoEnabled by remember { mutableStateOf(XtLiveTradingEngine.isAutoEnabled(context)) }
+    var emergency by remember { mutableStateOf(XtLiveTradingEngine.isEmergencyStopped(context)) }
+    var status by remember { mutableStateOf("برای ارسال سفارش واقعی، اتصال XT را آزمایش و LIVE را جداگانه فعال کن.") }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val selected = signals.firstOrNull { it.symbol == selectedSymbol }
+    val connected = XtCredentialVault.hasCredentials(context) &&
+        XtCredentialVault.isConnectionVerified(context)
+    val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
+    val candidates = signals.filter {
+        (it.direction == "LONG_BIAS" || it.direction == "SHORT_BIAS") &&
+            it.signalTier.isNotBlank() && it.signalTier != "بدون رتبه"
+    }.take(12)
+
+    Surface(
+        color = Color(0xFF101010),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color(0xFFE2C477).copy(alpha = 0.42f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Text("XT • اجرای واقعی با تأیید دستی", color = Color(0xFFE2C477),
+                fontSize = 14.sp, fontWeight = FontWeight.Black)
+            Text(
+                "این بخش سفارش واقعی USDT-M می‌فرستد؛ هر سفارش ابتدا پیش‌نمایش تازه می‌گیرد و فقط با لمس دکمه تأیید نهایی ارسال می‌شود. هیچ سفارشی با بازکردن صفحه ارسال نمی‌شود.",
+                color = Color(0xFFB8B0A0), fontSize = 10.sp, lineHeight = 15.sp
+            )
+            Text(
+                if (connected) "اتصال خصوصی XT: تأییدشده" else "اتصال خصوصی XT: تأیید نشده؛ ابتدا کلید را ذخیره و اتصال را آزمایش کن.",
+                color = if (connected) Color(0xFF39D98A) else Color(0xFFE2C477), fontSize = 10.sp
+            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("مجازکردن سفارش واقعی (LIVE)", color = Color(0xFFECE5D6),
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(if (liveEnabled) "LIVE روشن است؛ ارسال همچنان نیازمند تأیید نهایی است."
+                        else "خاموش؛ هیچ سفارش واقعی ارسال نمی‌شود.",
+                        color = Color(0xFFB8B0A0), fontSize = 9.sp)
+                }
+                Switch(
+                    checked = liveEnabled,
+                    enabled = connected && !busy && !emergency,
+                    onCheckedChange = { enabled ->
+                        XtLiveTradingEngine.setEnabled(context, enabled)
+                        liveEnabled = XtLiveTradingEngine.isEnabled(context)
+                        autoEnabled = XtLiveTradingEngine.isAutoEnabled(context)
+                        preview = null
+                        status = XtLiveTradingEngine.lastStatus(context)
+                    }
+                )
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("معامله‌گر خودکار", color = Color(0xFFECE5D6),
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(if (autoEnabled) "مسلح؛ پس از اسکن و تأیید مغز راهبردی امکان ارسال خودکار دارد."
+                        else "خاموش؛ برای فعال‌سازی، LIVE و سپس این کلید را روشن کن.",
+                        color = Color(0xFFB8B0A0), fontSize = 9.sp)
+                }
+                Switch(
+                    checked = autoEnabled,
+                    enabled = liveEnabled && connected && !busy && !emergency,
+                    onCheckedChange = { enabled ->
+                        XtLiveTradingEngine.setAutoEnabled(context, enabled)
+                        autoEnabled = XtLiveTradingEngine.isAutoEnabled(context)
+                        status = XtLiveTradingEngine.lastStatus(context)
+                    }
+                )
+            }
+            if (emergency) {
+                Text("توقف اضطراری فعال است؛ سفارش جدید مسدود شده.", color = Color(0xFFFF5364), fontSize = 10.sp)
+                Button(
+                    enabled = !busy,
+                    onClick = {
+                        busy = true
+                        scope.launch {
+                            try {
+                                val reset = XtLiveTradingEngine.resetEmergencyStopIfFlat(context)
+                                emergency = XtLiveTradingEngine.isEmergencyStopped(context)
+                                liveEnabled = XtLiveTradingEngine.isEnabled(context)
+                                status = if (reset) "توقف اضطراری بازنشانی شد؛ LIVE هنوز خاموش است."
+                                    else XtLiveTradingEngine.lastStatus(context)
+                            } catch (error: Exception) {
+                                status = "بازنشانی ایمن ممکن نشد: ${error.message ?: error.javaClass.simpleName}"
+                            } finally { busy = false }
+                        }
+                    }
+                ) { Text("بررسی حساب و بازنشانی توقف اضطراری") }
+            }
+            Text("نامزدهای سیگنال زنده", color = Color(0xFFECE5D6),
+                fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            if (candidates.isEmpty()) {
+                Text("در اسکن فعلی سیگنال جهت‌دار واجد رتبه وجود ندارد؛ ابتدا اسکن بازار را اجرا کن.",
+                    color = Color(0xFFB8B0A0), fontSize = 10.sp)
+            } else {
+                candidates.forEach { signal ->
+                    val side = if (signal.direction == "LONG_BIAS") "LONG" else "SHORT"
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("${signal.symbol} • $side • ${signal.signalTier}", color = Color(0xFFECE5D6),
+                                fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("قیمت ${"%.6f".format(java.util.Locale.US, signal.price)} • اطمینان ${signal.confidence}٪",
+                                color = Color(0xFFB8B0A0), fontSize = 9.sp)
+                        }
+                        Button(
+                            enabled = !busy,
+                            onClick = { selectedSymbol = signal.symbol; preview = null; status = "سیگنال ${signal.symbol} انتخاب شد؛ پیش‌نمایش تازه را محاسبه کن." }
+                        ) { Text(if (selectedSymbol == signal.symbol) "انتخاب شد" else "انتخاب", fontSize = 9.sp) }
+                    }
+                }
+            }
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !busy && liveEnabled && connected && !emergency && selected != null,
+                onClick = {
+                    val signal = selected ?: return@Button
+                    busy = true
+                    preview = null
+                    status = "در حال خواندن دوباره حساب، قرارداد، Funding، کارمزد و قیمت XT..."
+                    scope.launch {
+                        try {
+                            preview = XtLiveTradingEngine.prepareManual(context, signal)
+                            status = "پیش‌بررسی کامل شد. مقادیر زیر را بررسی کن؛ هنوز هیچ سفارشی ارسال نشده است."
+                        } catch (error: Exception) {
+                            status = "ارسال سفارش مجاز نشد: ${error.message ?: error.javaClass.simpleName}"
+                        } finally { busy = false }
+                    }
+                }
+            ) { Text(if (busy) "در حال بررسی..." else "محاسبه پیش‌نمایش سفارش واقعی") }
+
+            preview?.let { p ->
+                Surface(color = Color(0xFF1B1A16), shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2C477).copy(alpha = 0.35f))) {
+                    Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("پیش‌نمایش سفارش • ${p.symbol} • ${p.side}", color = Color(0xFFE2C477),
+                            fontSize = 11.sp, fontWeight = FontWeight.Black)
+                        Text("حجم: ${p.contracts} قرارداد • اهرم: ${p.leverage}x • مارجین تخمینی: ${"%.4f".format(java.util.Locale.US, p.marginRequiredUsdt)} USDT",
+                            color = Color(0xFFECE5D6), fontSize = 10.sp)
+                        Text("ورود مرجع: ${p.referencePrice} • SL: ${p.stop} • TP1: ${p.target}",
+                            color = Color(0xFFECE5D6), fontSize = 9.sp)
+                        Text("ریسک تخمینی تا SL: ${"%.4f".format(java.util.Locale.US, p.estimatedStopLossUsdt)} USDT • بودجه ریسک: ${"%.4f".format(java.util.Locale.US, p.riskBudgetUsdt)} USDT",
+                            color = Color(0xFFFF8A80), fontSize = 9.sp)
+                        Text("کارمزد ورود: ${"%.5f".format(java.util.Locale.US, p.estimatedEntryFeeUsdt)} • کارمزد خروج: ${"%.5f".format(java.util.Locale.US, p.estimatedStopExitFeeUsdt)} • Funding ذخیره: ${"%.5f".format(java.util.Locale.US, p.estimatedFundingCostUsdt)} USDT",
+                            color = Color(0xFFB8B0A0), fontSize = 9.sp)
+                        Text("سود خالص تخمینی تا TP1: ${"%.4f".format(java.util.Locale.US, p.estimatedNetTargetProfitUsdt)} USDT • نسبت خالص R/R: ${"%.2f".format(java.util.Locale.US, p.netRewardRisk)}",
+                            color = Color(0xFF39D98A), fontSize = 9.sp)
+                        Text("این محاسبه تضمین Fill یا سود نیست. قیمت ممکن است تغییر کند؛ پیش‌نمایش پس از ۴۵ ثانیه منقضی می‌شود.",
+                            color = Color(0xFFE2C477), fontSize = 9.sp, lineHeight = 14.sp)
+                        Button(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy && liveEnabled && !emergency && selected != null,
+                            onClick = {
+                                val signal = selected ?: return@Button
+                                busy = true
+                                status = "در حال ارسال سفارش به XT و راستی‌آزمایی Fill و طرح‌های TP/SL در صرافی..."
+                                scope.launch {
+                                    try {
+                                        val result = XtLiveTradingEngine.executeManual(context, signal, p)
+                                        status = (if (result.success) "اجرای واقعی تأیید شد: " else "نتیجه اجرا: ") +
+                                            result.message + if (result.orderId.isNotBlank()) " • Order ID: ${result.orderId}" else ""
+                                        preview = null
+                                    } catch (error: Exception) {
+                                        status = "اجرای سفارش متوقف شد: ${error.message ?: error.javaClass.simpleName}"
+                                        preview = null
+                                    } finally {
+                                        emergency = XtLiveTradingEngine.isEmergencyStopped(context)
+                                        liveEnabled = XtLiveTradingEngine.isEnabled(context)
+                                        autoEnabled = XtLiveTradingEngine.isAutoEnabled(context)
+                                        busy = false
+                                    }
+                                }
+                            }
+                        ) { Text("تأیید نهایی و ارسال سفارش واقعی به XT") }
+                    }
+                }
+            }
+            Text(
+                if (!neuralValidated)
+                    "وضعیت هوش مصنوعی: مدل عصبی فعلی هنوز اعتبارسنجی مستقل معاملاتی ندارد و در تصمیم اجرای خودکار دخالت داده نمی‌شود. معامله خودکار فقط با رأی مستقل مغز راهبردی، اسکن پس‌زمینه، تأیید LIVE و کنترل‌های سخت ریسک انجام می‌شود؛ سفارش دستی نیز تأیید نهایی جداگانه می‌خواهد."
+                else
+                    "وضعیت هوش مصنوعی: مدل عصبی اعتبارسنجی شده است؛ بااین‌حال هر سفارش دستی همچنان نیازمند تأیید صریح کاربر است.",
+                color = Color(0xFFE2C477), fontSize = 9.sp, lineHeight = 14.sp
+            )
+            Surface(color = Color(0xFF201B12), shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, Color(0xFFE2C477).copy(alpha = 0.28f))) {
+                Text(status, color = Color(0xFFE2C477), fontSize = 10.sp, lineHeight = 15.sp,
+                    modifier = Modifier.fillMaxWidth().padding(10.dp))
+            }
         }
     }
 }

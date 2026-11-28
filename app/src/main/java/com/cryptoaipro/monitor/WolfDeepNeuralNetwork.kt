@@ -9,14 +9,18 @@ import kotlin.math.tanh
 
 /**
  * Small on-device deep feed-forward neural network.
- * Architecture: 13 normalized market/context features -> 16 tanh -> 8 tanh -> 1 sigmoid.
- * Online fine-tuned from measured paper-signal outcomes; not pretrained and not a guaranteed predictor.
+ * Architecture: 36 normalized multi-domain features -> 32 tanh -> 16 tanh -> 1 sigmoid.
+ * Inputs include OHLCV shape, market structure, multi-timeframe auction context, volatility,
+ * volume participation, news/sentiment, macro sentiment, order-book/trade-flow imbalance and funding.
+ * Online learning uses only completed, fee-aware journal outcomes; it is not a calibrated win probability.
  */
 internal object WolfDeepNeuralNetwork {
-    private const val INPUTS = 13
-    private const val H1 = 16
-    private const val H2 = 8
-    private const val KEY = "wolf_dnn_v1"
+    internal const val FEATURE_COUNT = 36
+    private const val INPUTS = FEATURE_COUNT
+    private const val H1 = 32
+    private const val H2 = 16
+    private const val KEY = "wolf_dnn_v2"
+    private const val LEGACY_DEEP_KEY = "wolf_dnn_v1"
     private const val LEGACY_KEY = "wolf_model_weights"
     private const val SAMPLE_COUNT_KEY = "wolf_dnn_reviewed_samples"
 
@@ -43,7 +47,6 @@ internal object WolfDeepNeuralNetwork {
             else -> 0.0
         }
         val volatility = ((s.technical.atrPercent - 2.0) / 5.0).coerceIn(-1.0, 1.0)
-        // Fresh public context is a neural input, never an independent signal generator.
         var news = 0.0
         var marketSentiment = 0.0
         var fearGreed = 0.0
@@ -88,12 +91,105 @@ internal object WolfDeepNeuralNetwork {
                 }
             }
         }
+
+        // Non-indicator market cognition: auction/structure reading and weighted timeframe context.
+        val bars = s.candles.filter { it.size >= 6 && it.take(6).all(Double::isFinite) &&
+            it[0] > 0.0 && it[1] >= maxOf(it[0], it[3]) && it[2] <= minOf(it[0], it[3]) &&
+            it[2] > 0.0 && it[4] >= 0.0 }.takeLast(96)
+        val last = bars.lastOrNull()
+        val chartRead = runCatching { ZoroHumanMarketReader.analyze(bars) }.getOrNull()
+        val chartStructure = ((chartRead?.score ?: 0) / 100.0).coerceIn(-1.0, 1.0)
+        val frames = s.timeframeAnalysis.filter { it.available }
+        val timeframeConsensus = if (frames.isEmpty()) 0.0 else
+            (ZoroTimeframeAnalysisEngine.consensusScore(frames) / 100.0).coerceIn(-1.0, 1.0)
+        val timeframeCoverage = (frames.size / 8.0).coerceIn(0.0, 1.0)
+        val atrPrice = (s.technical.atrPercent / 100.0 * s.price).coerceAtLeast(s.price * 0.001)
+        fun distance(level: Double): Double = if (level.isFinite() && level > 0.0 && atrPrice > 0.0)
+            ((s.price - level) / atrPrice).coerceIn(-5.0, 5.0) / 5.0 else 0.0
+        val supportDistance = distance(s.technical.support)
+        val resistanceDistance = distance(s.technical.resistance)
+        val vwapDistance = distance(s.technical.vwap)
+        val obv = (s.technical.obvTrend / 5.0).coerceIn(-1.0, 1.0)
+        val mfi = ((s.technical.mfi - 50.0) / 50.0).coerceIn(-1.0, 1.0)
+        val cci = (s.technical.cci / 200.0).coerceIn(-1.0, 1.0)
+        val roc = (s.technical.rocPercent / 5.0).coerceIn(-1.0, 1.0)
+        val sweepText = s.technical.liquiditySweep
+        val sweep = when {
+            sweepText.contains("صعودی") || sweepText.contains("کف") || sweepText.contains("پایین") -> 1.0
+            sweepText.contains("نزولی") || sweepText.contains("سقف") || sweepText.contains("بالا") -> -1.0
+            else -> 0.0
+        }
+        val fvgText = s.technical.fairValueGap
+        val fvg = when {
+            fvgText.contains("صعودی") || fvgText.contains("Bull", true) -> 1.0
+            fvgText.contains("نزولی") || fvgText.contains("Bear", true) -> -1.0
+            else -> 0.0
+        }
+        val macd = if (s.technical.macdLine.isFinite() && s.technical.macdSignalLine.isFinite())
+            if (s.technical.macdLine >= s.technical.macdSignalLine) 1.0 else -1.0 else 0.0
+        val bodyPressure = last?.let {
+            ((it[3] - it[0]) / (it[1] - it[2]).coerceAtLeast(1e-12)).coerceIn(-1.0, 1.0)
+        } ?: 0.0
+        val wickImbalance = last?.let {
+            val range = (it[1] - it[2]).coerceAtLeast(1e-12)
+            val upper = it[1] - maxOf(it[0], it[3])
+            val lower = minOf(it[0], it[3]) - it[2]
+            ((lower - upper) / range).coerceIn(-1.0, 1.0)
+        } ?: 0.0
+        val volumeZ = if (bars.size >= 12) {
+            val prior = bars.dropLast(1).takeLast(30).map { it[4] }
+            val avg = prior.average()
+            val variance = prior.map { (it - avg) * (it - avg) }.average()
+            ((last?.get(4) ?: avg) - avg) / kotlin.math.sqrt(variance.coerceAtLeast(1e-12))
+        } else 0.0
+        val volumeSurprise = (volumeZ / 3.0).coerceIn(-1.0, 1.0)
+        val rangePosition = if (bars.size >= 20 && s.price.isFinite()) {
+            val recent = bars.takeLast(20)
+            val lo = recent.minOf { it[2] }; val hi = recent.maxOf { it[1] }
+            if (hi > lo) (((s.price - lo) / (hi - lo)) * 2.0 - 1.0).coerceIn(-1.0, 1.0) else 0.0
+        } else 0.0
+        fun returnFeature(lookback: Int): Double {
+            if (bars.size <= lookback) return 0.0
+            val old = bars[bars.lastIndex - lookback][3]
+            return if (old > 0.0) ((s.price / old - 1.0) * 100.0 / 5.0).coerceIn(-1.0, 1.0) else 0.0
+        }
+        val return3 = returnFeature(3)
+        val return12 = returnFeature(12)
+        val returns = bars.zipWithNext().mapNotNull { (a, b) ->
+            if (a[3] > 0.0) (b[3] / a[3] - 1.0) else null
+        }
+        val volRatio = if (returns.size >= 20) {
+            val short = returns.takeLast(5).map { it * it }.average()
+            val long = returns.takeLast(20).map { it * it }.average()
+            (kotlin.math.sqrt(short / long.coerceAtLeast(1e-12)) - 1.0).coerceIn(-1.0, 1.0)
+        } else 0.0
+        val utcHour = last?.getOrNull(5)?.takeIf { it > 0.0 }?.let {
+            java.time.Instant.ofEpochMilli(it.toLong()).atZone(java.time.ZoneOffset.UTC).hour
+        } ?: 0
+        val hourAngle = 2.0 * Math.PI * utcHour / 24.0
+        val sessionSin = kotlin.math.sin(hourAngle)
+        val sessionCos = kotlin.math.cos(hourAngle)
+        val regime = s.technical.regime.lowercase()
+        val regimeFeature = when {
+            regime.contains("trend") || regime.contains("روند") -> 0.75
+            regime.contains("range") || regime.contains("رنج") || regime.contains("خنثی") -> -0.25
+            regime.contains("high") || regime.contains("بالا") -> -0.75
+            else -> 0.0
+        }
+
         return doubleArrayOf(
             trend * direction, rsi * direction, adx, volume, pattern * direction, volatility,
             (s.score / 100.0).coerceIn(-1.0, 1.0), news * direction,
             marketSentiment * direction, fearGreed * direction, flow * direction,
-            book * direction, -funding * direction
-        )
+            book * direction, -funding * direction,
+            chartStructure * direction, timeframeConsensus * direction, timeframeCoverage,
+            supportDistance * direction, resistanceDistance * direction, vwapDistance * direction,
+            obv * direction, mfi * direction, cci * direction, roc * direction,
+            sweep * direction, fvg * direction, macd * direction,
+            bodyPressure * direction, wickImbalance * direction, volumeSurprise,
+            rangePosition * direction, return3 * direction, return12 * direction,
+            volRatio, sessionSin, sessionCos, regimeFeature
+        ).map { it.takeIf(Double::isFinite)?.coerceIn(-1.0, 1.0) ?: 0.0 }.toDoubleArray()
     }
 
     private fun fresh(): Model {
@@ -120,26 +216,19 @@ internal object WolfDeepNeuralNetwork {
         val j = JSONObject(raw)
         fun vector(key: String, size: Int): DoubleArray {
             val a = j.getJSONArray(key)
-            require(a.length() == size)
-            return DoubleArray(size) { a.getDouble(it).coerceIn(-8.0, 8.0) }
+            require(a.length() <= size)
+            return DoubleArray(size) { i -> if (i < a.length()) a.getDouble(i).coerceIn(-8.0, 8.0) else 0.0 }
         }
         fun matrix(key: String, rows: Int, cols: Int): Array<DoubleArray> {
             val a = j.getJSONArray(key)
-            require(a.length() == rows)
+            require(a.length() <= rows)
             return Array(rows) { r ->
-                val row = a.getJSONArray(r)
-                require(row.length() == cols)
-                DoubleArray(cols) { c -> row.getDouble(c).coerceIn(-8.0, 8.0) }
+                val old = if (r < a.length()) a.getJSONArray(r) else org.json.JSONArray()
+                require(old.length() <= cols)
+                DoubleArray(cols) { c -> if (c < old.length()) old.getDouble(c).coerceIn(-8.0, 8.0) else 0.0 }
             }
         }
-        val oldW1 = j.getJSONArray("w1")
-        require(oldW1.length() == H1)
-        val migratedW1 = Array(H1) { rowIndex ->
-            val row = oldW1.getJSONArray(rowIndex)
-            require(row.length() == INPUTS || row.length() == 7)
-            DoubleArray(INPUTS) { col -> if (col < row.length()) row.getDouble(col).coerceIn(-8.0, 8.0) else 0.0 }
-        }
-        Model(migratedW1, vector("b1", H1),
+        Model(matrix("w1", H1, INPUTS), vector("b1", H1),
             matrix("w2", H2, H1), vector("b2", H2),
             vector("w3", H2), j.optDouble("b3", 0.0).coerceIn(-8.0, 8.0))
     }.getOrNull()
@@ -147,6 +236,13 @@ internal object WolfDeepNeuralNetwork {
     private fun load(p: SharedPreferences): Model {
         val saved = p.getString(KEY, null)?.let(::decode)
         if (saved != null) return saved
+        // Migrate the existing 13-feature learner into the richer model. New non-indicator
+        // inputs start at zero weight and are learned only from subsequently closed outcomes.
+        val legacyDeep = p.getString(LEGACY_DEEP_KEY, null)?.let(::decode)
+        if (legacyDeep != null) {
+            p.edit().putString(KEY, encode(legacyDeep)).apply()
+            return legacyDeep
+        }
         // One-time migration from the earlier linear learner.
         val m = fresh()
         val old = p.getString(LEGACY_KEY, null)
@@ -175,9 +271,9 @@ internal object WolfDeepNeuralNetwork {
         learn(prefs, features(signal), outcome)
     @Synchronized
     fun learn(prefs: SharedPreferences, xInput: DoubleArray, outcome: Double) {
-        require(xInput.size == INPUTS && xInput.all { it.isFinite() })
+        require(xInput.size in 13..INPUTS && xInput.all { it.isFinite() })
         val m = load(prefs)
-        val x = xInput.map { it.coerceIn(-1.0, 1.0) }.toDoubleArray()
+        val x = DoubleArray(INPUTS) { i -> if (i < xInput.size) xInput[i].coerceIn(-1.0, 1.0) else 0.0 }
         val target = outcome.coerceIn(0.0, 1.0)
         // A few conservative passes over the newly reviewed example.
         repeat(4) {

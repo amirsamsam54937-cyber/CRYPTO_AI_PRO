@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Foreground XT futures intelligence loop for NEXUS QUANT.
+ * Foreground XT futures intelligence loop for TENAXIS.
  * Analysis, signal publication, paper simulation, outcome learning and explicitly armed automatic execution.
  */
 class HopeHunterMonitorService : Service() {
@@ -36,7 +36,7 @@ class HopeHunterMonitorService : Service() {
         super.onCreate()
         voiceAnnouncer = NexusVoiceAnnouncer(this)
         createChannel()
-        startForeground(notificationId, notification("در حال آماده‌سازی موتور تحلیل بازار NEXUS QUANT"))
+        startForeground(notificationId, notification("در حال آماده‌سازی موتور تحلیل بازار TENAXIS"))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -284,7 +284,7 @@ class HopeHunterMonitorService : Service() {
                 Notification.Builder(this, signalChannelId) else Notification.Builder(this)
             val notification = builder
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
-                .setContentTitle("NEXUS QUANT • سیگنال جدید " + signal.symbol + " • " + side)
+                .setContentTitle("TENAXIS • سیگنال جدید " + signal.symbol + " • " + side)
                 .setContentText(details)
                 .setStyle(Notification.BigTextStyle().bigText(details + " • قدرت: " + signal.confidence + "٪ • تایم‌فریم: " + signal.tradeTimeframe))
                 .setAutoCancel(true)
@@ -308,13 +308,13 @@ class HopeHunterMonitorService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(
-                NotificationChannel(channelId, "پایش بازار NEXUS QUANT", NotificationManager.IMPORTANCE_LOW).apply {
+                NotificationChannel(channelId, "پایش بازار TENAXIS", NotificationManager.IMPORTANCE_LOW).apply {
                     description = "وضعیت پایش پیوسته و تحلیل قراردادهای XT"
                     setShowBadge(false)
                 }
             )
             manager.createNotificationChannel(
-                NotificationChannel(signalChannelId, "سیگنال‌های جدید NEXUS QUANT", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                NotificationChannel(signalChannelId, "سیگنال‌های جدید TENAXIS", NotificationManager.IMPORTANCE_DEFAULT).apply {
                     description = "اعلان فرصت‌های تازه و تأییدشده تحلیل بازار XT"
                     setShowBadge(true)
                 }
@@ -326,7 +326,7 @@ class HopeHunterMonitorService : Service() {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             Notification.Builder(this, channelId) else Notification.Builder(this)
         return builder.setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setContentTitle("NEXUS QUANT • XT Futures Intelligence")
+            .setContentTitle("TENAXIS • XT Futures Intelligence")
             .setContentText(message)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

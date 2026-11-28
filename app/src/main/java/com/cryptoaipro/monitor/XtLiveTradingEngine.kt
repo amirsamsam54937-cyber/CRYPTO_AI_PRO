@@ -83,7 +83,7 @@ internal object XtLiveTradingEngine {
             .putBoolean(KEY_AUTO_ENABLED, allowed)
             .putString(
                 KEY_STATUS,
-                if (allowed) "معامله‌گر خودکار مسلح شد؛ فقط اجماع عصبی اعتبارسنجی‌شده همراه با آزمون سناریو و اقتصاد خالص معامله مجاز است."
+                if (allowed) "معامله‌گر خودکار مسلح شد؛ فقط نامزد تأییدشده مغز راهبردی مستقل، همراه با آزمون سناریو، پیش‌بررسی XT و اقتصاد خالص معامله مجاز است."
                 else if (enabled) "فعال‌سازی خودکار رد شد؛ LIVE، کلید API و وضعیت توقف اضطراری را بررسی کن."
                 else "معامله‌گر خودکار خاموش شد؛ پایش و تحلیل ادامه دارد."
             )
@@ -206,12 +206,11 @@ internal object XtLiveTradingEngine {
 
         val side = signalSide(signal)
         require(side.isNotBlank()) { "این سیگنال جهت قطعی LONG یا SHORT ندارد." }
-        require(WolfPretrainedEnsemble.status().validatedForScoring &&
-            signal.neuralDirection.equals(side + "_BIAS", true) &&
-            signal.neuralMemberProbabilities.size >= 7 &&
-            !signal.neuralUncertainty.highDisagreement) {
-            "معامله واقعی فقط با اجماع شبکه عصبی اعتبارسنجی‌شده مجاز است؛ رأی تکنیکال به‌تنهایی مجوز ورود نیست."
-        }
+        // Manual LIVE orders are explicitly human-confirmed. The pretrained ensemble is
+        // currently research-only, so its unvalidated vote must not silently become an
+        // execution gate that makes the real-order path permanently unreachable. The
+        // independent technical-quality, account, contract, fee, freshness and risk checks
+        // below remain mandatory. Automatic execution has a separate strict validation gate.
         require(signal.confidence >= 70 && signal.signalTier.isNotBlank() && signal.signalTier != "بدون رتبه") {
             "قدرت یا رتبه سیگنال برای بررسی سفارش واقعی کافی نیست."
         }
@@ -220,9 +219,8 @@ internal object XtLiveTradingEngine {
             "امتیاز کیفیت شواهد برای معامله واقعی کافی نیست (" + qualityReview.quality + "/100): " +
                 qualityReview.warnings.take(3).joinToString("، ")
         }
-        require(signal.neuralDirection.equals(side + "_BIAS", true)) {
-            "جهت سفارش باید مستقیماً از خروجی شبکه عصبی اعتبارسنجی‌شده آمده باشد."
-        }
+        // Direction is taken from the selected signal and shown in the mandatory order
+        // preview. The user must explicitly confirm the exact side, size and risk before POST.
         require(signal.technical.adx >= 16.0 && signal.technical.relativeVolume >= 0.65 &&
             (signal.consensus?.agreement ?: 0) >= 58) {
             "قدرت روند، حجم نسبی یا اجماع تکنیکال برای ورود واقعی کافی نیست."
@@ -687,6 +685,11 @@ internal object XtLiveTradingEngine {
      */
     suspend fun processScan(context: Context, signals: List<MarketSignal>): ExecutionResult? =
         autoScanMutex.withLock {
+            // Unvalidated neural probabilities are never treated as an execution signal.
+            // The independent ZoroLivingTraderBrain must nominate and approve the exact
+            // chart direction; the full XT account, freshness, quality, fee and risk
+            // preflight below still applies. Auto mode requires the user to arm both LIVE
+            // and the separate automatic switch in the app.
             if (!XtAutomaticTradingPolicy.mayRun(
                     liveArmed = isEnabled(context),
                     automaticEnabled = isAutoEnabled(context),

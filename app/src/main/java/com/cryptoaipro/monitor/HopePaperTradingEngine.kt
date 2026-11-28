@@ -183,11 +183,14 @@ internal object HopePaperTradingEngine {
 
         val neuralValidated = WolfPretrainedEnsemble.status().validatedForScoring
         if (enabled && !neuralValidated) {
-            lastAction = "ورود خودکار متوقف است: مدل عصبی هنوز اعتبارسنجی نشده است؛ هیچ سیگنال تأییدنشده‌ای معامله نمی‌شود."
+            // Research-only fallback: paper mode may evaluate technical/consensus evidence
+            // while explicitly excluding the unvalidated neural ensemble. Live execution
+            // remains fail-closed in XtLiveTradingEngine and LiveTradingSafetyGate.
+            lastAction = "دموی پژوهشی: رأی شبکه عصبی تا زمان اعتبارسنجی در امتیازدهی دخالت ندارد."
         } else if (enabled && peakDrawdownPct >= 8.0) {
             lastAction = "مدار قطع ریسک فعال شد: افت سرمایه از اوج به ۸٪ رسیده است؛ ورود جدید ممنوع است."
         }
-        if (enabled && neuralValidated && peakDrawdownPct < 8.0 && dailyLossPct < 2.0 &&
+        if (enabled && peakDrawdownPct < 8.0 && dailyLossPct < 2.0 &&
             consecutiveDailyLosses < MAX_CONSECUTIVE_DAILY_LOSSES &&
             dailyEntries < MAX_DAILY_ENTRIES && survivors.size < 3 && openRiskPct < 2.5) {
             val activeSymbols = survivors.map { it.symbol }.toSet()
@@ -235,7 +238,7 @@ internal object HopePaperTradingEngine {
                         DynamicTradingPolicy.Input(
                             direction = s.direction,
                             confidence = s.confidence,
-                            neuralUpProbability = s.neuralScore.coerceIn(1, 99) / 100.0,
+                            neuralUpProbability = if (neuralValidated) s.neuralScore.coerceIn(1, 99) / 100.0 else 0.5,
                             neuralValidated = neuralValidated,
                             consensusDirection = s.consensus?.direction ?: "NEUTRAL",
                             consensusAgreement = s.consensus?.agreement ?: 0,
@@ -250,7 +253,8 @@ internal object HopePaperTradingEngine {
                             dailyEntries = dailyEntries,
                             consecutiveLosses = consecutiveDailyLosses,
                             peakDrawdownPercent = peakDrawdownPct,
-                            neuralDisagreement = neuralDisagreement
+                            neuralDisagreement = if (neuralValidated) neuralDisagreement else 0.0,
+                            useNeuralEvidence = neuralValidated
                         ),
                         equityUsdt = currentEquity,
                         availableUsdt = currentEquity,

@@ -1,5 +1,6 @@
 package com.cryptoaipro.monitor
 
+import android.content.Context
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -24,7 +25,11 @@ internal object NexusCognitiveEngine {
         val reasons: List<String>
     )
 
-    fun think(signal: MarketSignal, modelValidated: Boolean = WolfPretrainedEnsemble.status().validatedForScoring): Thought {
+    fun think(
+        signal: MarketSignal,
+        modelValidated: Boolean = WolfPretrainedEnsemble.status().validatedForScoring,
+        context: Context? = null
+    ): Thought {
         val reasons = mutableListOf<String>()
         val neuralSide = signal.neuralDirection.uppercase()
         val chart = ZoroHumanMarketReader.analyze(signal.candles)
@@ -39,6 +44,17 @@ internal object NexusCognitiveEngine {
             else -> "NEUTRAL"
         }
         val side = if (modelValidated) neuralSide else chartSide
+        // The chart-cognition network is part of the NEXUS decision boundary, not a detached panel.
+        // Its unvalidated probabilities can only raise a contradiction warning / reduce risk.
+        val chartBrain = context?.let { runCatching { TenaxisChartCognition.analyze(it, signal) }.getOrNull() }
+        val chartBrainConflict = chartBrain?.let { brain ->
+            (side == "LONG_BIAS" && brain.score <= -35) ||
+                (side == "SHORT_BIAS" && brain.score >= 35)
+        } ?: false
+        val chartNeuralConflict = chartBrain?.prediction?.let { prediction ->
+            (side == "LONG_BIAS" && prediction.direction == "DOWN" ||
+                side == "SHORT_BIAS" && prediction.direction == "UP") && prediction.confidencePct >= 60
+        } ?: false
         val timeframeOpposition = ZoroTimeframeAnalysisEngine.opposingCount(timeframeFrames, side)
         val timeframeConflict = timeframeFrames.size >= 4 && timeframeOpposition >= 4 &&
             (if (side == "LONG_BIAS") timeframeScore <= -20 else if (side == "SHORT_BIAS") timeframeScore >= 20 else true)
@@ -75,6 +91,13 @@ internal object NexusCognitiveEngine {
             if (timeframeConflict) reasons += "تعارض غالب تایم‌فریم‌ها؛ ورود مسدود"
         }
         if (side != "LONG_BIAS" && side != "SHORT_BIAS") reasons += "شواهد جهت‌دار برای ورود کافی نیست"
+        if (chartBrain != null) {
+            reasons += "شبکه شناخت چارت TENAXIS: امتیاز ساختار ${chartBrain.score}/100؛ ${chartBrain.regime}؛ ${chartBrain.structure}"
+            if (chartBrain.prediction != null) reasons += "خروجی پژوهشی شبکه چارت DOWN/NEUTRAL/UP: " +
+                "${(chartBrain.prediction.down * 100).toInt()}/${(chartBrain.prediction.neutral * 100).toInt()}/${(chartBrain.prediction.up * 100).toInt()}٪ از ${chartBrain.reviewedSamples} نمونه"
+        }
+        if (chartBrainConflict) reasons += "تعارض قوی تحلیل ساختاری چارت با جهت نامزد؛ ورود متوقف"
+        if (chartNeuralConflict) reasons += "شبکه عصبی چارت با جهت نامزد تعارض دارد؛ ریسک کاهش می‌یابد"
 
         val candleTime = signal.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L
         val age = System.currentTimeMillis() - candleTime
@@ -100,7 +123,10 @@ internal object NexusCognitiveEngine {
         if (scenario?.available == true && scenario.dataQuality >= 65 && opposition >= 3)
             reasons += "حداقل ۳ سناریوی چندافقی با جهت عصبی تعارض دارند"
         if (scenario == null || !scenario.available || scenario.dataQuality < 65)
-            reasons += "سناریوهای چندافقی کیفیت کافی ندارند"
+            // Missing optional forecast data is an advisory, not an automatic veto.
+            // The independent chart + timeframe, freshness, trend, risk and net-cost
+            // gates below still have to pass before a signal can be published.
+            reasons += "داده چندافقی کافی نیست؛ این عامل از تصمیم حذف شد"
 
         val riskDistance = abs(signal.entry - signal.stop) / signal.entry.coerceAtLeast(1e-12)
         val rewardDistance = abs(signal.tp1 - signal.entry) / signal.entry.coerceAtLeast(1e-12)
@@ -122,6 +148,7 @@ internal object NexusCognitiveEngine {
             reasons += "نسبت سود به زیان خالص پس از هزینه‌ها کمتر از ۱٫۳۵ است"
 
         val riskMultiplier = when {
+            chartBrainConflict -> 0.0
             !atr.isFinite() || atr >= 5.0 -> 0.0
             atr >= 3.5 || adx < 20.0 -> 0.50
             atr >= 2.5 || volume < 1.0 -> 0.75
@@ -130,18 +157,19 @@ internal object NexusCognitiveEngine {
         if (riskMultiplier == 0.0) reasons += "رژیم پرنوسان؛ معامله جدید مسدود است"
         else if (riskMultiplier < 1.0) reasons += "اندازه ریسک به " + (riskMultiplier * 100).toInt() + "٪ کاهش می‌یابد"
 
-        val blockingReason = reasons.any {
+        val blockingReason = side == "NEUTRAL" || reasons.any {
             (modelValidated && (it.contains("۱۰ خروجی") ||
                 it.contains("اختلاف یا آنتروپی") || it.contains("اجماع"))) ||
                 it.contains("خنثی") || it.contains("داده کافی برای خوانش مستقل") || it.contains("کندل مرجع") ||
                 it.contains("قیمت از نقطه") || it.contains("نوسان خارج") ||
                 it.contains("قدرت روند") || it.contains("حجم نسبی پایین") ||
-                it.contains("حداقل ۳ سناریو") || it.contains("سناریوهای چندافقی") ||
+                it.contains("حداقل ۳ سناریو") ||
                 it.contains("تعارض غالب تایم‌فریم‌ها") ||
+                it.contains("تعارض قوی تحلیل ساختاری چارت") ||
                 it.contains("نسبت سود") || it.contains("مسدود")
         }
         val allowed = !blockingReason
-        return Thought(
+        val thought = Thought(
             allowed = allowed,
             side = if (allowed) side else "NEUTRAL",
             regime = regime,
@@ -153,5 +181,24 @@ internal object NexusCognitiveEngine {
             phase = if (allowed) "DECISION_READY" else "ABSTAIN",
             reasons = reasons.distinct()
         )
+        if (context != null) {
+            val candleAt = signal.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L
+            val eventId = "${signal.symbol}|${candleAt}|nexus_decision"
+            val payload = org.json.JSONObject()
+                .put("symbol", signal.symbol)
+                .put("candleAt", candleAt)
+                .put("candidateSide", side)
+                .put("finalSide", thought.side)
+                .put("allowed", thought.allowed)
+                .put("regime", thought.regime)
+                .put("riskMultiplier", thought.riskMultiplier)
+                .put("netRewardRisk", thought.netRewardRisk)
+                .put("chartScore", chartBrain?.score)
+                .put("chartReviewedSamples", chartBrain?.reviewedSamples ?: 0)
+                .put("reasons", org.json.JSONArray(thought.reasons))
+                .toString()
+            TenaxisChartCognition.recordMemoryEvent(context, "nexus_decision", eventId, payload)
+        }
+        return thought
     }
 }

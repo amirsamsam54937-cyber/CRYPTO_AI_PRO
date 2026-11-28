@@ -146,8 +146,8 @@ internal object WolfSignalOutcomeJournal {
         rows.filter { it.optBoolean("closed") && !it.optBoolean("learningApplied") }.forEach { record ->
             val savedFeatures = record.optJSONArray("neuralFeatures")
             val pnl = record.optDouble("pnlPct", Double.NaN)
-            if (savedFeatures != null && savedFeatures.length() == 13 && pnl.isFinite()) {
-                val vector = DoubleArray(13) { savedFeatures.optDouble(it, Double.NaN) }
+            if (savedFeatures != null && savedFeatures.length() in 13..WolfDeepNeuralNetwork.FEATURE_COUNT && pnl.isFinite()) {
+                val vector = DoubleArray(savedFeatures.length()) { savedFeatures.optDouble(it, Double.NaN) }
                 if (vector.all { it.isFinite() }) {
                     WolfDeepNeuralNetwork.learn(prefs, vector, if (pnl > 0.0) 1.0 else 0.0)
                     record.put("learningApplied", true)

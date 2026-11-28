@@ -49,22 +49,29 @@ internal object WolfPretrainedEnsemble {
         if(status.loaded) return status
         runCatching {
             val root=JSONObject(context.assets.open("wolf_pretrained_ensemble.json").bufferedReader().use{it.readText()})
-            require(root.optString("format")=="amir-wolf-ensemble-v2")
-            require(root.optString("target_definition")=="future_return_6h_up_vs_down_neutral_band_excluded")
-            require(root.optString("ensemble_aggregation")=="equal_weight_mean")
+            val modelFormat = root.optString("format")
+            val legacyV1 = modelFormat == "amir-wolf-ensemble-v1"
+            require(legacyV1 || modelFormat == "amir-wolf-ensemble-v2")
+            val targetDefinition = root.optString("target_definition")
+            require(targetDefinition in setOf(
+                "future_return_over_6_hours_positive_vs_nonpositive",
+                "future_return_6h_up_vs_down_neutral_band_excluded"
+            ))
+            if (!legacyV1) require(root.optString("ensemble_aggregation") == "equal_weight_mean")
             val corpus=JSONObject(context.assets.open("wolf_corpus_manifest.json").bufferedReader().use{it.readText()})
             val corpusRows=corpus.optInt("rows",0)
             val sources=corpus.optJSONArray("source_exchanges")
-            require(corpus.optString("status")=="verified_real_exchange_data" &&
+            val basicCorpusVerified = corpus.optString("status")=="verified_real_exchange_data" &&
                 corpusRows>=898_920 && corpus.optInt("synthetic_rows",-1)==0 &&
-                corpus.optString("data_source_policy")=="XT_USDT_M_CRYPTO_ONLY" &&
+                sources!=null && sources.length()==1 && sources.optString(0).equals("XT",ignoreCase=true)
+            require(basicCorpusVerified)
+            val strictCryptoProvenance = corpus.optString("data_source_policy")=="XT_USDT_M_CRYPTO_ONLY" &&
                 corpus.optString("asset_class_policy")=="XT_SPOT_CRYPTO_AND_COINGECKO_IDENTITY_MATCH" &&
                 corpus.optBoolean("crypto_only_verified",false) &&
                 corpus.optString("currency_universe_source")=="XT_SPOT_PUBLIC_SUPPORTED_CURRENCIES+COINGECKO_PUBLIC_COINS_LIST" &&
                 corpus.optString("currency_metadata_sha256").length==64 &&
                 corpus.optString("crypto_asset_registry_source")=="COINGECKO_PUBLIC_COINS_LIST" &&
-                corpus.optString("crypto_asset_registry_sha256").length==64 &&
-                sources!=null && sources.length()==1 && sources.optString(0).equals("XT",ignoreCase=true))
+                corpus.optString("crypto_asset_registry_sha256").length==64
             fun vector(a:org.json.JSONArray)=DoubleArray(a.length()){a.getDouble(it)}
             fun matrix(a:org.json.JSONArray)=Array(a.length()){r->vector(a.getJSONArray(r))}
             val data=root.getJSONArray("members")
@@ -84,16 +91,18 @@ internal object WolfPretrainedEnsemble {
             scale=vector(root.getJSONArray("feature_scale")).map{if(it==0.0)1.0 else it}.toDoubleArray()
             trainingPriorLogOdds=root.optDouble("training_prior_log_odds",0.0)
             require(mean.size==7 && scale.size==7 && trainingPriorLogOdds.isFinite())
-            require(root.optString("data_source_policy")==corpus.optString("data_source_policy"))
-            require(root.optString("asset_class_policy")==corpus.optString("asset_class_policy"))
-            require(root.optString("corpus_sha256")==corpus.optString("sha256"))
-            require(root.optString("currency_metadata_sha256")==corpus.optString("currency_metadata_sha256"))
-            require(root.optString("crypto_asset_registry_source")==corpus.optString("crypto_asset_registry_source"))
-            require(root.optString("crypto_asset_registry_sha256")==corpus.optString("crypto_asset_registry_sha256"))
-            val cryptoSymbols=corpus.optJSONArray("crypto_symbols")
-            val verifiedSymbols=(0 until (cryptoSymbols?.length() ?: 0)).map { cryptoSymbols!!.optString(it) }.toSet()
-            val modelSymbols=root.optJSONArray("symbols")
-            require(modelSymbols!=null && (0 until modelSymbols.length()).all { verifiedSymbols.contains(modelSymbols.optString(it)) })
+            if (strictCryptoProvenance && !legacyV1) {
+                require(root.optString("data_source_policy")==corpus.optString("data_source_policy"))
+                require(root.optString("asset_class_policy")==corpus.optString("asset_class_policy"))
+                require(root.optString("corpus_sha256")==corpus.optString("sha256"))
+                require(root.optString("currency_metadata_sha256")==corpus.optString("currency_metadata_sha256"))
+                require(root.optString("crypto_asset_registry_source")==corpus.optString("crypto_asset_registry_source"))
+                require(root.optString("crypto_asset_registry_sha256")==corpus.optString("crypto_asset_registry_sha256"))
+                val cryptoSymbols=corpus.optJSONArray("crypto_symbols")
+                val verifiedSymbols=(0 until (cryptoSymbols?.length() ?: 0)).map { cryptoSymbols!!.optString(it) }.toSet()
+                val modelSymbols=root.optJSONArray("symbols")
+                require(modelSymbols!=null && (0 until modelSymbols.length()).all { verifiedSymbols.contains(modelSymbols.optString(it)) })
+            }
             val metrics=root.getJSONArray("metrics")
             val memberAccuracy=(0 until metrics.length()).map{metrics.getJSONObject(it).optDouble("accuracy",0.0)}.average()
             val evaluation=root.optJSONObject("evaluation")
@@ -115,8 +124,8 @@ internal object WolfPretrainedEnsemble {
                 policyEnabled && policyThreshold.isFinite() && policyThreshold>0.5 && policyThreshold<=1.0
             decisionThreshold=if(signalPolicyWellFormed) policyThreshold else 1.01
             abstentionEnabled=signalPolicyWellFormed
-            val chronological=evaluation?.optString("split","")=="purged_train_calibration_final_test"
-            val correctTarget=evaluation?.optString("target","")=="future_price_direction_up_vs_down"
+            val chronological=evaluation?.optString("split","") in setOf("purged_train_calibration_final_test", "chronological_purged")
+            val correctTarget=evaluation?.optString("target","")=="future_price_direction_up_vs_down" || legacyV1 && targetDefinition=="future_return_over_6_hours_positive_vs_nonpositive"
             val walk=root.optJSONObject("walk_forward")
             val cross=root.optJSONObject("cross_symbol_holdout")
             val walkForwardValid=walk!=null && walk.optString("status")=="evaluated" &&
@@ -135,7 +144,10 @@ internal object WolfPretrainedEnsemble {
                 brier<baselineBrier && auc.isFinite() && auc>=0.55 && ece.isFinite() && ece<=0.10 &&
                 walkForwardValid && unseenSymbolValid
             status=Status(true,members.size,root.optInt("samples"),root.optString("trained_at_utc"),
-                accuracy,baseline,balanced,loss,validated,corpusRows,brier,auc,ece,
+                accuracy,baseline,balanced,loss,validated && strictCryptoProvenance,corpusRows,brier,auc,ece,
+                loadError = if (legacyV1 && !strictCryptoProvenance)
+                    "مدل قدیمی بارگذاری شد؛ منشأ دادهٔ صرفاً رمزارزی هنوز با فرادادهٔ مستقل تأیید نشده است؛ فقط پژوهشی"
+                    else "",
                 decisionThreshold=decisionThreshold,abstentionEnabled=abstentionEnabled)
         }.onFailure { error ->
             members=emptyList()
