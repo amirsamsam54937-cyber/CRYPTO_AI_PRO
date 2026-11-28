@@ -122,8 +122,9 @@ internal class XtAuthenticatedFuturesClient(
             // Do not send the historical misspelled alias simultaneously: gateways may
             // normalize or prioritize duplicate semantic headers differently.
             connection.setRequestProperty("validate-signature", sig)
-            connection.setRequestProperty("validate-recvwindow", "5000")
-            connection.setRequestProperty("validate-algorithms", "HmacSHA256")
+            // Keep the Futures v1 request headers minimal: XT documents the
+            // recv-window and algorithm headers as optional; omit them unless
+            // they are explicitly included in the canonical signature payload.
             if (method != "GET") {
                 connection.doOutput = true
                 connection.outputStream.use { it.write(bodyText.toByteArray(StandardCharsets.UTF_8)) }
