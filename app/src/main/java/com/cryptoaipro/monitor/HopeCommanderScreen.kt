@@ -66,7 +66,7 @@ fun HopeCommanderBrain(modifier: Modifier = Modifier) {
             val x2 = cx + kotlin.math.cos(a + 1.05).toFloat() * r * .82f
             val y2 = cy + kotlin.math.sin(a + 1.05).toFloat() * r * .82f
             drawLine(HGold.copy(alpha = .42f), Offset(x, y), Offset(x2, y2), 1.dp.toPx())
-            drawCircle(HMint.copy(alpha = .9f), 2.5.dp.toPx() * pulse, Offset(x, y))
+            drawCircle(HGold.copy(alpha = .9f), 2.5.dp.toPx() * pulse, Offset(x, y))
         }
         // Neural hemispheres: a native vector treatment, not a wolf or imported mascot.
         for (side in listOf(-1f, 1f)) {
@@ -169,7 +169,7 @@ internal fun HopeCommanderScreen(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("TENAXIS", color = HGoldBright, fontSize = 22.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
                     Text("AI TRADING TERMINAL", color = HGold, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
-                    Text("MULTI-DOMAIN INTELLIGENCE  •  XT FUTURES", color = HMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                    Text("MARKET INTELLIGENCE  •  XT FUTURES", color = HMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                     Text("مغز تحلیل، سیگنال و اجرای معاملات", color = Color.White, fontSize = 10.sp)
                 }
                 IconButton(onClick = onOpenSettings) { Icon(Icons.Outlined.Settings, "تنظیمات", tint = HGold) }
@@ -671,14 +671,14 @@ private fun TenaxisSignalCommandCard(best: MarketSignal?, neuralValidated: Boole
             return@HPanelCard
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.weight(1f).background(Color(0xFF101B15), RoundedCornerShape(11.dp)).padding(10.dp)) {
+            Column(Modifier.weight(1f).background(Color(0xFF17130D), RoundedCornerShape(11.dp)).padding(10.dp)) {
                 Text("نظر شبکه عصبی", color = HMuted, fontSize = 8.sp)
                 Text(neuralLabel, color = neuralColor, fontSize = 13.sp, fontWeight = FontWeight.Black)
                 Text("امتیاز جهت خام ${best.neuralScore}/100", color = Color.White, fontSize = 9.sp)
                 Text(if (neuralValidated) "مدل اعتبارسنجی‌شده" else "مدل پژوهشی • بدون ادعای احتمال برد",
                     color = if (neuralValidated) HMint else HGold, fontSize = 8.sp)
             }
-            Column(Modifier.weight(1f).background(Color(0xFF101B15), RoundedCornerShape(11.dp)).padding(10.dp)) {
+            Column(Modifier.weight(1f).background(Color(0xFF17130D), RoundedCornerShape(11.dp)).padding(10.dp)) {
                 Text("تصمیم نهایی سیستم", color = HMuted, fontSize = 8.sp)
                 Text(systemLabel, color = systemColor, fontSize = 12.sp, fontWeight = FontWeight.Black)
                 Text("قدرت شواهد ${best.confidence}٪ • ${best.signalTier}", color = Color.White, fontSize = 9.sp)
@@ -802,8 +802,8 @@ private fun NeuralEnsemblePulse(
 
 @Composable
 private fun HPanelCard(modifier: Modifier, title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.background(Brush.verticalGradient(listOf(Color(0xFF19251F), Color(0xFF0D1410))), RoundedCornerShape(15.dp))
-        .border(1.dp, Color(0xFF2B4539), RoundedCornerShape(15.dp)).padding(11.dp),
+    Column(modifier.background(Brush.verticalGradient(listOf(Color(0xFF19251F), Color(0xFF0B0906))), RoundedCornerShape(15.dp))
+        .border(1.dp, Color(0xFF59421F), RoundedCornerShape(15.dp)).padding(11.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp)) {
         if (title.isNotBlank()) Text(title, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         content()
@@ -832,7 +832,7 @@ private fun StatusLine(label: String, value: String, good: Boolean) {
 
 @Composable
 private fun MetricTile(label: String, value: String, color: Color, modifier: Modifier) {
-    Column(modifier.background(Brush.verticalGradient(listOf(Color(0xFF1B2821), Color(0xFF101713))), RoundedCornerShape(11.dp)).border(1.dp, Color(0xFF355848), RoundedCornerShape(11.dp)).padding(10.dp)) {
+    Column(modifier.background(Brush.verticalGradient(listOf(Color(0xFF211A0E), Color(0xFF100D08))), RoundedCornerShape(11.dp)).border(1.dp, Color(0xFF59421F), RoundedCornerShape(11.dp)).padding(10.dp)) {
         Text(value, color = color, fontSize = 20.sp, fontWeight = FontWeight.Black)
         Text(label, color = HMuted, fontSize = 8.sp, maxLines = 1)
     }
@@ -854,7 +854,7 @@ private fun ScoreRing(score: Int, label: String) {
 
 @Composable
 private fun PriceTag(label: String, value: Double, color: Color, modifier: Modifier) {
-    Column(modifier.background(Color(0xFF14221B), RoundedCornerShape(7.dp)).padding(6.dp)) {
+    Column(modifier.background(Color(0xFF171208), RoundedCornerShape(7.dp)).padding(6.dp)) {
         Text(label, color = color, fontSize = 7.sp, fontWeight = FontWeight.Bold)
         Text(if (value.isFinite() && value > 0) String.format(java.util.Locale.US, "%.5f", value) else "—", color = Color.White, fontSize = 7.sp, maxLines = 1)
     }
@@ -874,7 +874,7 @@ private fun CommanderCandlestickChart(signal: MarketSignal) {
     val low = min(candles.minOf { it[2] }, levels.minOrNull() ?: candles.minOf { it[2] })
     val high = max(candles.maxOf { it[1] }, levels.maxOrNull() ?: candles.maxOf { it[1] })
     val span = (high-low).takeIf { it > 0 } ?: 1.0
-    Canvas(Modifier.fillMaxWidth().height(160.dp).background(Color(0xFF101B15), RoundedCornerShape(9.dp))) {
+    Canvas(Modifier.fillMaxWidth().height(160.dp).background(Color(0xFF17130D), RoundedCornerShape(9.dp))) {
         val left = 5.dp.toPx()
         val right = size.width-5.dp.toPx()
         val top = 8.dp.toPx()
