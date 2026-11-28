@@ -157,7 +157,7 @@ internal object NexusCognitiveEngine {
         if (riskMultiplier == 0.0) reasons += "رژیم پرنوسان؛ معامله جدید مسدود است"
         else if (riskMultiplier < 1.0) reasons += "اندازه ریسک به " + (riskMultiplier * 100).toInt() + "٪ کاهش می‌یابد"
 
-        val blockingReason = reasons.any {
+        val blockingReason = side == "NEUTRAL" || reasons.any {
             (modelValidated && (it.contains("۱۰ خروجی") ||
                 it.contains("اختلاف یا آنتروپی") || it.contains("اجماع"))) ||
                 it.contains("خنثی") || it.contains("داده کافی برای خوانش مستقل") || it.contains("کندل مرجع") ||
