@@ -118,10 +118,10 @@ internal class XtAuthenticatedFuturesClient(
             )
             connection.setRequestProperty("validate-appkey", appKey)
             connection.setRequestProperty("validate-timestamp", timestamp)
+            // Current XT Futures documentation specifies validate-signature.
+            // Do not send the historical misspelled alias simultaneously: gateways may
+            // normalize or prioritize duplicate semantic headers differently.
             connection.setRequestProperty("validate-signature", sig)
-            // XT Futures v1 account-info examples also show this legacy misspelled header.
-            // Send the canonical header above and this compatibility alias with the same HMAC.
-            connection.setRequestProperty("validate-singature", sig)
             connection.setRequestProperty("validate-recvwindow", "5000")
             connection.setRequestProperty("validate-algorithms", "HmacSHA256")
             if (method != "GET") {
@@ -145,9 +145,12 @@ internal class XtAuthenticatedFuturesClient(
                 val responseAtMs = System.currentTimeMillis()
                 val learnedOffset = if (serverDate != "ناموجود")
                     learnServerClock(serverDate, requestStartedAtMs, responseAtMs) else null
-                // Retry once only when XT supplies a usable Date header and a material
-                // clock correction is learned; never loop on ordinary parameter/auth errors.
-                if (code == 400 && allowClockRetry && learnedOffset != null &&
+                // The HMAC includes the millisecond timestamp. Some XT gateways report
+                // clock-skewed signed GETs as AUTH/signature failures rather than a distinct
+                // timestamp error. Learn the server offset from Date and retry read-only GETs
+                // once; never replay POST/DELETE requests.
+                if (method == "GET" && code in setOf(400, 401, 403) && allowClockRetry &&
+                    learnedOffset != null &&
                     kotlin.math.abs(learnedOffset - serverTimeOffsetMs) >= 250L) {
                     serverTimeOffsetMs = learnedOffset
                     connection.disconnect()
