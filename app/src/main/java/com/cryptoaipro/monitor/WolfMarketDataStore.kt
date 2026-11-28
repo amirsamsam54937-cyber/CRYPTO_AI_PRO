@@ -28,7 +28,7 @@ internal object WolfMarketDataStore {
 
     private const val DB_NAME = "hope_hunter_market_research.db"
     private const val DB_VERSION = 1
-    private const val MINIMUM_SEED_ROWS = 1_000_000
+    private const val MINIMUM_SEED_ROWS = 898_920
 
     private fun canonicalSymbol(raw: String): String {
         val compact = raw.uppercase(java.util.Locale.US).replace(Regex("[^A-Z0-9]"), "")
@@ -107,8 +107,12 @@ internal object WolfMarketDataStore {
             }
             require(existing <= expectedRows) { "نسخه پایگاه داده از بذر جدید بزرگ‌تر است؛ واردسازی امن متوقف شد." }
 
+            // Release builds package the full CSV uncompressed to preserve every byte
+            // and avoid runtime decompression. Keep a gzip fallback for older bundles.
+            val seedStream = runCatching { context.assets.open("market_seed.csv") }
+                .getOrElse { GZIPInputStream(context.assets.open("market_seed.csv.gz")) }
             val input = BufferedReader(
-                InputStreamReader(GZIPInputStream(context.assets.open("market_seed.csv.gz")), Charsets.UTF_8),
+                InputStreamReader(seedStream, Charsets.UTF_8),
                 1024 * 1024
             )
             db.beginTransaction()
