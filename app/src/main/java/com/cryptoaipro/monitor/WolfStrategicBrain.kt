@@ -53,6 +53,7 @@ internal object WolfStrategicBrain {
         val objectiveScore: Int,
         val vetoes: List<String>,
         val chartCognition: TenaxisChartCognition.Report,
+        val trapReports: Map<String, WolfTrapDefenseEngine.Report>,
         val explanation: String
     )
 
@@ -66,6 +67,24 @@ internal object WolfStrategicBrain {
         val persistentMemoryStats = TenaxisChartCognition.memoryStats(context)
         val price = signal.price
         val candles = signal.candles
+        // Trap analysis is performed independently on closed 15m/1h/4h bars.
+        // An unfinished candle must never create a live veto or a false clearance.
+        fun closedForTrap(rows: List<DoubleArray>, intervalMs: Long): List<DoubleArray> {
+            val now = System.currentTimeMillis()
+            return rows.filter { row ->
+                row.size >= 6 && row[5].isFinite() && row[5].toLong() > 0L &&
+                    now - row[5].toLong() >= intervalMs
+            }
+        }
+        val trapInputs = listOf(
+            "15m" to ((signal.timeframeCandles["15m"] ?: candles) to (15L * 60L * 1000L)),
+            "1h" to ((signal.timeframeCandles["1h"] ?: signal.neuralCandles) to (60L * 60L * 1000L)),
+            "4h" to ((signal.timeframeCandles["4h"] ?: emptyList()) to (4L * 60L * 60L * 1000L))
+        )
+        val trapReports = trapInputs.mapNotNull { (timeframe, input) ->
+            val closed = closedForTrap(input.first, input.second)
+            if (closed.size < 22) null else timeframe to WolfTrapDefenseEngine.analyze(closed)
+        }.toMap()
         val liquidity = candles.mapNotNull { r ->
             if (r.size < 6) null else runCatching {
                 ZoroLiquidityMapEngine.Candle(r[5].toLong(), r[0], r[1], r[2], r[3], r[4])
@@ -182,6 +201,13 @@ internal object WolfStrategicBrain {
             (short && sentiment == Sentiment.RISK_ON)
         val chartConflict = (long && chartCognition.score <= -35) ||
             (short && chartCognition.score >= 35)
+        val trapBlocksLong = trapReports.any { (tf, report) ->
+            report.available && report.blocksLong && report.severity >= (if (tf == "4h") 80 else 58)
+        }
+        val trapBlocksShort = trapReports.any { (tf, report) ->
+            report.available && report.blocksShort && report.severity >= (if (tf == "4h") 80 else 58)
+        }
+        val trapConflict = (long && trapBlocksLong) || (short && trapBlocksShort)
         val chartNeuralConflict = chartCognition.prediction?.let { prediction ->
             (long && prediction.direction == "DOWN" && prediction.confidencePct >= 60) ||
                 (short && prediction.direction == "UP" && prediction.confidencePct >= 60)
@@ -219,6 +245,7 @@ internal object WolfStrategicBrain {
             if (selected.robustScore < 35) add("سناریو در پاسخ بدبینانه امتیاز کافی ندارد")
             if (sentimentConflict) add("احساسات قابل مشاهده خلاف جهت سیگنال است")
             if (chartConflict) add("خوانش چندعاملی چارت خلاف جهت سیگنال است")
+            if (trapConflict) add("هشدار تله بازار در کندل‌های بسته با جهت سیگنال تعارض دارد")
             if (liquidity.pools.isEmpty()) add("استخر نقدینگی معتبر از کندل‌ها استخراج نشد")
             if (t.atrPercent > 8.0) add("ریسک نوسان شدید")
             if (rr == null || rr < 1.2) add("نسبت سود به زیان خام ناکافی")
@@ -231,6 +258,12 @@ internal object WolfStrategicBrain {
             append(" • هدف بقا/بازده خالص: ").append(objective).append("/100")
             append(" • TENAXIS Chart Cognition: ").append(chartCognition.score).append("/100؛ ")
                 .append(chartCognition.regime).append("؛ ").append(chartCognition.structure)
+            if (trapReports.isNotEmpty()) {
+                append(" • ممیزی تله بازار: ")
+                append(trapReports.entries.joinToString(" | ") { entry ->
+                    entry.key + " " + entry.value.trap.name + " شدت " + entry.value.severity + "/100"
+                })
+            } else append(" • ممیزی تله بازار: داده کندل بسته کافی نیست")
                 .append(" • حافظه آموزش چارت: ").append(chartCognition.reviewedSamples)
                 .append(" نمونه حل‌شده؛ برچسب‌گذاری پس از ۱۲ کندل بسته")
                 .append(" • حافظه پایدار دستگاه: ").append(persistentMemoryStats.first)
@@ -247,7 +280,7 @@ internal object WolfStrategicBrain {
         }
         val report = Report(liquidity, sentiment, sentimentScore, sentimentBasis, recognized,
             baseCandidates.sortedByDescending { it.robustScore }, selected, trustScore, n,
-            selected.neuralAdvisoryPct, objective, vetoes, chartCognition, explanation)
+            selected.neuralAdvisoryPct, objective, vetoes, chartCognition, trapReports, explanation)
         val candleAt = signal.candles.lastOrNull()?.getOrNull(5)?.toLong() ?: 0L
         val candidateLedger = org.json.JSONArray().also { array ->
             report.scenarios.forEach { candidate ->
@@ -296,6 +329,7 @@ internal object WolfStrategicBrain {
                     it == "سناریو در پاسخ بدبینانه امتیاز کافی ندارد" ||
                     it == "احساسات قابل مشاهده خلاف جهت سیگنال است" ||
                     it == "خوانش چندعاملی چارت خلاف جهت سیگنال است" ||
+                    it == "هشدار تله بازار در کندل‌های بسته با جهت سیگنال تعارض دارد" ||
                     it == "ریسک نوسان شدید" ||
                     it == "نسبت سود به زیان خام ناکافی"
             }
