@@ -10,12 +10,13 @@ android {
   applicationId = "com.cryptoaipro.monitor"
   minSdk = 26
   targetSdk = 35
-  versionCode = 108
-  versionName = "1.0.3"
+  versionCode = 109
+  versionName = "1.0.4"
   // TENAXIS branded Android application.
  }
  buildFeatures { compose = true }
- androidResources { noCompress += "csv" }
+ // Keep every packaged model and market-data asset uncompressed inside the APK.
+ androidResources { noCompress += listOf("csv", "json") }
  // Preserve the complete market corpus and all model features; do not prune training rows or inputs.
  compileOptions {
   sourceCompatibility = JavaVersion.VERSION_17
