@@ -123,7 +123,10 @@ internal object NexusCognitiveEngine {
         if (scenario?.available == true && scenario.dataQuality >= 65 && opposition >= 3)
             reasons += "حداقل ۳ سناریوی چندافقی با جهت عصبی تعارض دارند"
         if (scenario == null || !scenario.available || scenario.dataQuality < 65)
-            reasons += "سناریوهای چندافقی کیفیت کافی ندارند"
+            // Missing optional forecast data is an advisory, not an automatic veto.
+            // The independent chart + timeframe, freshness, trend, risk and net-cost
+            // gates below still have to pass before a signal can be published.
+            reasons += "داده چندافقی کافی نیست؛ این عامل از تصمیم حذف شد"
 
         val riskDistance = abs(signal.entry - signal.stop) / signal.entry.coerceAtLeast(1e-12)
         val rewardDistance = abs(signal.tp1 - signal.entry) / signal.entry.coerceAtLeast(1e-12)
