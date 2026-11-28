@@ -49,14 +49,14 @@ jobs:
           assert rows == 500000, rows
           print(f"Verified {rows:,} real exchange candle rows and {len(report['metrics'])} trained ensemble members")
           PY
-      - name: Build installable APK (no extra test stage)
-        run: gradle --no-daemon :app:assembleDebug
+      - name: Run Android unit tests and build installable APK
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
       - name: Verify APK file exists
         run: test -s app/build/outputs/apk/debug/app-debug.apk
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: HOPE-HUNTER-2.33.3-APK
+          name: HOPE-HUNTER-2.33.4-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30

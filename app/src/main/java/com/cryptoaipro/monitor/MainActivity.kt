@@ -515,7 +515,7 @@ fun CryptoMonitorScreen() {
                                         }
                                     }
                                     Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("HOPE HUNTER • نسخه 2.33.3 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("HOPE HUNTER • نسخه 2.33.4 • Binance / XT • تحلیل و سیگنال فقط", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
@@ -1060,6 +1060,10 @@ private fun formatPrice(value: Double): String = when {
 }
 
 
+/** Return indices for klines whose exchange close timestamp is strictly in the past. */
+internal fun completedBinanceKlineIndices(closeTimesMs: List<Long>, nowMs: Long): List<Int> =
+    closeTimesMs.indices.filter { closeTimesMs[it] < nowMs }
+
 /** Binance USDⓈ-M public futures scanner; public endpoints only. */
 
 internal object BinanceMonitor {
@@ -1269,9 +1273,23 @@ internal object BinanceMonitor {
             "1d" -> 24L * 60L * 60_000L
             else -> throw IllegalArgumentException("Unsupported Binance interval: $interval")
         }
-        val closed = (0 until (raw.length() - 1).coerceAtLeast(0)).map { i ->
-            val row = raw.getJSONArray(i)
-            // Index 5 stores the candle open timestamp; analysis fields remain at indexes 0..4.
+        val rows = (0 until raw.length()).map { i ->
+            raw.getJSONArray(i).also { row ->
+                require(row.length() >= 7) { "Malformed Binance kline row" }
+            }
+        }
+        val closeTimes = rows.map { row ->
+            val openTime = row.getLong(0)
+            val closeTime = row.getLong(6)
+            require(closeTime >= openTime && closeTime < openTime + intervalMs) {
+                "Invalid Binance kline close timestamp"
+            }
+            closeTime
+        }
+        val closedIndices = completedBinanceKlineIndices(closeTimes, System.currentTimeMillis())
+        val closed = closedIndices.map { i ->
+            val row = rows[i]
+            // Keep OHLCV at indexes 0..4 and the candle open timestamp at index 5.
             doubleArrayOf(row.getString(1).toDouble(), row.getString(2).toDouble(), row.getString(3).toDouble(),
                 row.getString(4).toDouble(), row.getString(5).toDouble(), row.getLong(0).toDouble())
         }
