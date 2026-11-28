@@ -13,7 +13,10 @@ import java.net.UnknownHostException
 import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.abs
 
 /**
@@ -45,6 +48,20 @@ internal class XtAuthenticatedFuturesClient(
 ) {
     private val baseUrl = "https://fapi.xt.com"
 
+    // XT rejects signed requests when the handset clock is outside its timestamp window.
+    @Volatile private var serverTimeOffsetMs: Long = 0L
+
+    private fun learnServerClock(serverDate: String, requestStartedAtMs: Long, responseAtMs: Long): Long? =
+        runCatching {
+            val parser = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("GMT")
+                isLenient = false
+            }
+            val serverMs = parser.parse(serverDate)?.time ?: return@runCatching null
+            val midpoint = requestStartedAtMs + (responseAtMs - requestStartedAtMs) / 2L
+            (serverMs - midpoint).coerceIn(-60_000L, 60_000L)
+        }.getOrNull()
+
     private fun normalizeSymbol(value: String): String {
         val compact = value.lowercase().filter(Char::isLetterOrDigit)
         require(compact.endsWith("usdt") && compact.length > 4) { "نماد قرارداد USDT نامعتبر است." }
@@ -65,14 +82,16 @@ internal class XtAuthenticatedFuturesClient(
         path: String,
         query: Map<String, String> = emptyMap(),
         body: JSONObject? = null,
-        formBody: Map<String, String>? = null
+        formBody: Map<String, String>? = null,
+        allowClockRetry: Boolean = true
     ): JSONObject = withContext(Dispatchers.IO) {
         require(body == null || formBody == null) { "XT request cannot contain both JSON and form bodies." }
         require(method == "POST" || formBody == null) { "Form body is only valid for POST." }
         val (appKey, secret) = XtCredentialVault.load(context)
             ?: throw IllegalStateException("اتصال امن XT تنظیم نشده است.")
         require(path.startsWith("/future/") && !path.contains("..")) { "XT endpoint نامعتبر است." }
-        val timestamp = System.currentTimeMillis().toString()
+        val requestStartedAtMs = System.currentTimeMillis()
+        val timestamp = (requestStartedAtMs + serverTimeOffsetMs).toString()
         val queryString = canonicalQuery(query)
         val bodyText = formBody?.let { XtRequestSigner.canonicalQuery(it) } ?: body?.toString().orEmpty()
         require(queryString.isEmpty() || bodyText.isEmpty()) {
@@ -123,6 +142,17 @@ internal class XtAuthenticatedFuturesClient(
                 }.getOrDefault("")
                 val detail = parsed.ifBlank { raw.replace(Regex("\\s+"), " ").take(260).ifBlank { "پاسخ خالی از سرور" } }
                 val serverDate = connection.getHeaderField("Date")?.take(64) ?: "ناموجود"
+                val responseAtMs = System.currentTimeMillis()
+                val learnedOffset = if (serverDate != "ناموجود")
+                    learnServerClock(serverDate, requestStartedAtMs, responseAtMs) else null
+                // Retry once only when XT supplies a usable Date header and a material
+                // clock correction is learned; never loop on ordinary parameter/auth errors.
+                if (code == 400 && allowClockRetry && learnedOffset != null &&
+                    kotlin.math.abs(learnedOffset - serverTimeOffsetMs) >= 250L) {
+                    serverTimeOffsetMs = learnedOffset
+                    connection.disconnect()
+                    return@withContext request(method, path, query, body, formBody, allowClockRetry = false)
+                }
                 val requestId = connection.getHeaderField("X-Request-Id")
                     ?: connection.getHeaderField("X-Trace-Id") ?: "ناموجود"
                 val contentType = connection.contentType?.take(80) ?: "نامشخص"
