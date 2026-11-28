@@ -139,7 +139,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("ZORO • XT FUTURES", color = gold, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                    Text("TENAXIS • XT FUTURES", color = gold, fontSize = 10.sp, fontWeight = FontWeight.Black)
                     Text("مرکز اتصال و اجرای معاملات", color = ivory,
                         fontSize = 17.sp, fontWeight = FontWeight.Black)
                 }
