@@ -314,7 +314,7 @@ internal fun ZoroLivingTraderBrainPanel(context: Context) {
             androidx.compose.ui.Modifier.padding(14.dp),
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp)
         ) {
-            androidx.compose.material3.Text("مغز شناختی NEXUS QUANT", color = gold, fontSize = 14.sp)
+            androidx.compose.material3.Text("مغز شناختی TENAXIS QUANT", color = gold, fontSize = 14.sp)
             androidx.compose.material3.Text(
                 "چرخه فکر: مشاهده ← فرضیه ← سناریو ← آزمون هزینه ← تصمیم ← یادگیری • حافظه کوتاه‌مدت: ${memory.shortTerm} • اپیزودها: ${memory.episodes} • الگوهای میان‌مدت: ${memory.mediumPatterns} • دانش بلندمدت معتبر: ${memory.deepCheckpoints}",
                 color = muted, fontSize = 9.sp, lineHeight = 13.sp
