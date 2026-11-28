@@ -68,17 +68,17 @@ class NexusCognitiveEngineTest {
         val input = sampleSignal().copy(
             price = referencePrice,
             entry = referencePrice,
-            stop = referencePrice * 0.99,
-            tp1 = referencePrice * 1.02,
-            tp2 = referencePrice * 1.025,
-            tp3 = referencePrice * 1.03,
+            stop = referencePrice * 0.995,
+            tp1 = referencePrice * 1.025,
+            tp2 = referencePrice * 1.03,
+            tp3 = referencePrice * 1.035,
             candles = frames.getValue("15m"),
             timeframeCandles = frames,
             timeframeAnalysis = ZoroTimeframeAnalysisEngine.analyze(frames),
             multiHorizonOutlook = null
         )
         val thought = NexusCognitiveEngine.think(input, modelValidated = false)
-        assertTrue("chart and four timeframe frames should independently qualify", thought.allowed)
+        assertTrue("chart and four timeframe frames should independently qualify: ${thought.reasons.joinToString(" | ")}", thought.allowed)
         assertEquals("LONG_BIAS", thought.side)
         assertTrue(thought.netRewardRisk >= 1.35)
     }
