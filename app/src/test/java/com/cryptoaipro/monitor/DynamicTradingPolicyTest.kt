@@ -50,6 +50,16 @@ class DynamicTradingPolicyTest {
         assertNull(DynamicTradingPolicy.evaluate(strongLong().copy(neuralValidated = false), 1_000.0, 900.0, 100.0, 98.0))
     }
 
+    @Test fun paperOnlyModeCanUseTechnicalConsensusWithoutUnvalidatedNeuralVote() {
+        val input = strongLong().copy(
+            neuralValidated = false,
+            neuralUpProbability = 0.5,
+            neuralDisagreement = 0.0,
+            useNeuralEvidence = false
+        )
+        assertNotNull(DynamicTradingPolicy.evaluate(input, 10.0, 10.0, 100.0, 98.0))
+    }
+
     @Test fun neuralContradictionBlocksLongAndShort() {
         assertNull(DynamicTradingPolicy.evaluate(strongLong().copy(neuralUpProbability = 0.43), 1_000.0, 900.0, 100.0, 98.0))
         val short = strongLong().copy(direction = "SHORT_BIAS", consensusDirection = "SHORT_BIAS",
