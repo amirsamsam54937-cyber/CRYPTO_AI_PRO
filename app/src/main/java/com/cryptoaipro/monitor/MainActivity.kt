@@ -160,13 +160,10 @@ internal fun applyWolfNeuralScoring(context: Context, signals: List<MarketSignal
     val pretrainedStatus = WolfPretrainedEnsemble.initialize(context)
     // Member-level outcomes are tracked for diagnostics; weights stay equal until separately calibrated.
     return signals.map { signal ->
-        val candidate = when {
-            signal.direction != "NEUTRAL" -> signal
-            signal.score > 0 -> signal.copy(direction = "LONG_BIAS")
-            signal.score < 0 -> signal.copy(direction = "SHORT_BIAS")
-            else -> signal.copy(direction = "LONG_BIAS")
-        }
-        if (candidate == null) signal.copy(neuralScore = 50, neuralDirection = "NEUTRAL",
+        // Never fabricate a LONG side when a technical candidate is neutral.
+        // The pretrained ensemble can read the chart independently without changing the source signal.
+        val candidate = signal
+        if (!candidate.price.isFinite() || candidate.price <= 0.0) signal.copy(neuralScore = 50, neuralDirection = "NEUTRAL",
             neuralModelSource = if (pretrainedStatus.validatedForScoring) "۱۰ مدل • چارت ۱ساعته OHLCV + اندیکاتورها • افق ۶ساعت • معتبر" else "۱۰ مدل • در انتظار اعتبارسنجی")
         else {
             // Always expose all ten chart-conditioned specialist outputs. Unvalidated outputs
