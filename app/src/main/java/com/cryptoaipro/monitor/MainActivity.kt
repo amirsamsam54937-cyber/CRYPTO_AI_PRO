@@ -421,6 +421,7 @@ fun CryptoMonitorScreen() {
     var scannedCount by remember { mutableIntStateOf(0) }
     var totalContracts by remember { mutableIntStateOf(0) }
     var selectedTab by remember { mutableStateOf("فرمانده") }
+    var settingsSection by remember { mutableStateOf("اتصال") }
     var selectedSymbol by remember { mutableStateOf("") }
     var chartInterval by remember { mutableStateOf("15") }
     var voiceTranscript by remember { mutableStateOf("") }
@@ -923,81 +924,100 @@ fun CryptoMonitorScreen() {
                     }
 
                                         else -> {
-                        Column(
-                            Modifier.fillMaxSize().padding(horizontal = 14.dp)
-                                .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text("تنظیمات و پایش پس‌زمینه", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
-                            OutlinedButton(onClick = { selectedTab = "عیب‌یابی" }, modifier = Modifier.fillMaxWidth()) { Text("مرکز عیب‌یابی و گزارش خطاهای TENAXIS", color = Blue) }
-                            HopeAnimatedBrainBanner()
-                            XtConnectionAndExecutionScreen(context, rows) { backgroundMonitoring = true; appSettings.edit().putBoolean("background_monitoring", true).apply() }
-                            XtLiveManualExecutionPanel(context, rows)
-                            Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            Text("پایش زنده بازار", color = Color.White, fontWeight = FontWeight.Bold)
-                                            Text(if (backgroundMonitoring) "سرویس پایش پس‌زمینه فعال است" else "سرویس پایش پس‌زمینه متوقف است", color = if (backgroundMonitoring) Green else Muted, fontSize = 10.sp)
-                                        }
-                                        Switch(
-                                            checked = backgroundMonitoring,
-                                            onCheckedChange = { enabled ->
-                                                if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
-                                                    scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط TENAXIS متوقف نمی‌شود."
-                                                } else {
-                                                    val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
-                                                    if (enabled) {
-                                                        if (Build.VERSION.SDK_INT >= 33 &&
-                                                            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                                                            (context as? ComponentActivity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 501)
-                                                        }
-                                                        serviceIntent.action = HopeHunterMonitorService.ACTION_START
-                                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent) else context.startService(serviceIntent)
+                        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("مرکز کنترل TENAXIS", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Black)
+                            Text("تنظیمات در سه فضای مستقل؛ اتصال و اجرای معامله، هوش و یادگیری، و پایش سیستم.",
+                                color = Muted, fontSize = 11.sp, lineHeight = 17.sp)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("اتصال", "هوش", "سیستم").forEach { section ->
+                                    FilterChip(selected = settingsSection == section,
+                                        onClick = { settingsSection = section },
+                                        label = { Text(section, fontSize = 11.sp) })
+                                }
+                            }
+                            when (settingsSection) {
+                                "اتصال" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    OutlinedButton(onClick = { selectedTab = "عیب‌یابی" }, modifier = Modifier.fillMaxWidth()) {
+                                        Text("گزارش خطا و عیب‌یابی اتصال", color = Blue)
+                                    }
+                                    XtConnectionAndExecutionScreen(context, rows) {
+                                        backgroundMonitoring = true
+                                        appSettings.edit().putBoolean("background_monitoring", true).apply()
+                                    }
+                                    XtLiveManualExecutionPanel(context, rows)
+                                }
+                                "هوش" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    HopeAnimatedBrainBanner()
+                                    HopeLivingBrainPanel(context) { scanIntervalMinutes = it }
+                                    ZoroLivingTraderBrainPanel(context)
+                                    ZoroTraderResearchPanel(context, rows.map { it.symbol })
+                                    ZoroTraderEvidenceCapturePanel(context)
+                                }
+                                else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Surface(color = Panel, shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Text("پایش زنده بازار", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                                    Text(if (backgroundMonitoring) "سرویس پس‌زمینه فعال است" else "سرویس پس‌زمینه متوقف است",
+                                                        color = if (backgroundMonitoring) Green else Muted, fontSize = 11.sp)
+                                                }
+                                                Switch(checked = backgroundMonitoring, onCheckedChange = { enabled ->
+                                                    if (!enabled && XtLiveTradingEngine.hasManagedSymbols(context)) {
+                                                        scanProgress = "پایش پس‌زمینه تا زمان بسته‌شدن پوزیشن‌های ثبت‌شده توسط TENAXIS متوقف نمی‌شود."
                                                     } else {
-                                                        serviceIntent.action = HopeHunterMonitorService.ACTION_STOP
-                                                        context.startService(serviceIntent)
+                                                        val serviceIntent = Intent(context, HopeHunterMonitorService::class.java)
+                                                        if (enabled) {
+                                                            if (Build.VERSION.SDK_INT >= 33 &&
+                                                                context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                                                (context as? ComponentActivity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 501)
+                                                            }
+                                                            serviceIntent.action = HopeHunterMonitorService.ACTION_START
+                                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent)
+                                                            else context.startService(serviceIntent)
+                                                        } else {
+                                                            serviceIntent.action = HopeHunterMonitorService.ACTION_STOP
+                                                            context.startService(serviceIntent)
+                                                        }
+                                                        backgroundMonitoring = enabled
+                                                        appSettings.edit().putBoolean("background_monitoring", enabled).apply()
                                                     }
-                                                    backgroundMonitoring = enabled
-                                                    appSettings.edit().putBoolean("background_monitoring", enabled).apply()
+                                                })
+                                            }
+                                            Text("پایش پس‌زمینه داده‌های بازار و معاملات ثبت‌شده را بررسی می‌کند. اجرای پیوسته به اینترنت، مجوز اعلان و تنظیمات باتری گوشی وابسته است.",
+                                                color = Muted, fontSize = 11.sp, lineHeight = 17.sp)
+                                        }
+                                    }
+                                    Surface(color = Panel, shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Text("تنظیمات اسکن", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                            Text("فاصله مکث پس از پایان هر دور اسکن", color = Muted, fontSize = 11.sp)
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                listOf(1, 3, 5, 10).forEach { minutes ->
+                                                    FilterChip(selected = scanIntervalMinutes == minutes,
+                                                        onClick = {
+                                                            scanIntervalMinutes = minutes
+                                                            appSettings.edit().putInt("scan_interval_minutes", minutes).apply()
+                                                        }, label = { Text("$minutes دقیقه", fontSize = 10.sp) })
                                                 }
                                             }
-                                        )
-                                    }
-                                    Text("با فعال‌سازی، سرویس پس‌زمینه TENAXIS داده‌های XT را پایش می‌کند، تحلیل چندتایم‌فریمی و شبکه‌های عصبی را اجرا می‌کند و معاملات PAPER را به‌روزرسانی می‌کند. فقط اگر LIVE و معامله‌گر خودکار را جداگانه فعال کرده باشی، مغز راهبردی مستقل فرصت را تأیید کند، داده تازه باشد، اتصال API تأیید شود و همه فیلترهای حساب و ریسک پاس شوند، امکان ارسال سفارش واقعی وجود دارد؛ پوزیشن‌های ثبت‌شده نیز با TP/SL صرافی و حدضرر شناور پویا پایش می‌شوند. توقف اجباری برنامه، قطع اینترنت یا محدودیت باتری می‌تواند سرویس را مختل کند.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                                }
-                            }
-                            HopeLivingBrainPanel(context) { scanIntervalMinutes = it }
-                            ZoroLivingTraderBrainPanel(context)
-                            ZoroTraderResearchPanel(context, rows.map { it.symbol })
-                            ZoroTraderEvidenceCapturePanel(context)
-                            // News and sentiment remain internal decision features; no user-facing feed.
-                                                                                    Surface(color = Panel, shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("پروفایل تحلیل", color = Color.White, fontWeight = FontWeight.Bold)
-                                    Text("بازار: XT USDT-M Futures", color = Muted, fontSize = 11.sp)
-                                    Text("اسکن چندتایم‌فریمی: ۵ دقیقه، ۱۵ دقیقه، ۱ ساعت و ۴ ساعت • زمینه روزانه و جریان سفارش برای نامزدهای نقدشونده", color = Muted, fontSize = 11.sp)
-                                    Text("ابزارها: ۱۰ متخصص تحلیلی، شبکه عصبی اعتبارسنجی‌شده، چندتایم‌فریم، مدیریت ریسک و دفترچه سوابق", color = Muted, fontSize = 11.sp)
-                                    Text("دامنه اسکن: تمام قراردادهای دائمی USDT فعال؛ مرتب‌شده بر اساس حجم معاملات", color = Muted, fontSize = 11.sp)
-                                    Text("فاصله مکث بین دورهای اسکن (پس از پایان هر دور):", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        listOf(1, 3, 5, 10).forEach { minutes ->
-                                            FilterChip(
-                                                selected = scanIntervalMinutes == minutes,
-                                                onClick = {
-                                                    scanIntervalMinutes = minutes
-                                                    appSettings.edit().putInt("scan_interval_minutes", minutes).apply()
-                                                },
-                                                label = { Text("$minutes دقیقه", fontSize = 9.sp) }
-                                            )
+                                            Text("زمان خود اسکن و محدودیت نرخ API به این فاصله اضافه می‌شود.",
+                                                color = Muted, fontSize = 10.sp)
+                                            Text("بازار: XT USDT-M Futures • تایم‌فریم‌ها: ۵د، ۱۵د، ۱س، ۴س و زمینه روزانه",
+                                                color = Blue, fontSize = 11.sp)
+                                            Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 11.sp)
                                         }
                                     }
-                                    Text("اسکن پیوسته پس از پایان هر دور، به‌اندازه فاصله انتخابی مکث می‌کند؛ زمان خود اسکن و محدودیت API به آن اضافه می‌شود.", color = Muted, fontSize = 10.sp)
-                                    Text("TENAXIS • XT USDT-M • شبکه عصبی چندمتخصصی • تحلیل چندلایه", color = Blue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Text("سازنده: amir arsalan samsami", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                                    Text("برای پایداری بیشتر در گوشی سامسونگ: تنظیمات ← برنامه‌ها ← TENAXIS ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.",
+                                        color = Muted, fontSize = 10.sp, lineHeight = 16.sp)
                                 }
                             }
-                            Text("پیشنهاد برای گوشی سامسونگ: تنظیمات ← برنامه‌ها ← TENAXIS ← باتری ← بدون محدودیت. این تنظیم تضمین اجرای ۲۴ ساعته نیست.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                         }
                     }
                 }
