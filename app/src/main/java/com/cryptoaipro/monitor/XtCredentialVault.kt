@@ -328,7 +328,7 @@ internal fun XtApiCredentialPanel(context: Context, onBackgroundStarted: () -> U
                         scope.launch {
                             try {
                                 if (!XtLiveTradingEngine.canClearCredentials(context)) {
-                                    status = "تا وقتی پوزیشن باز یا پوزیشن تحت نظارت ZORO وجود دارد، پاک‌کردن کلیدها مسدود است تا پایش حفاظت صرافی قطع نشود."
+                                    status = "تا وقتی پوزیشن باز یا پوزیشن تحت نظارت TENAXIS وجود دارد، پاک‌کردن کلیدها مسدود است تا پایش حفاظت صرافی قطع نشود."
                                 } else {
                                     XtLiveTradingEngine.setEnabled(context, false)
                                     XtCredentialVault.clear(context)
