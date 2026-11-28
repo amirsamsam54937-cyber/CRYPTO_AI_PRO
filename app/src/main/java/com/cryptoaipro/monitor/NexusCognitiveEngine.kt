@@ -163,7 +163,7 @@ internal object NexusCognitiveEngine {
                 it.contains("خنثی") || it.contains("داده کافی برای خوانش مستقل") || it.contains("کندل مرجع") ||
                 it.contains("قیمت از نقطه") || it.contains("نوسان خارج") ||
                 it.contains("قدرت روند") || it.contains("حجم نسبی پایین") ||
-                it.contains("حداقل ۳ سناریو") || it.contains("سناریوهای چندافقی") ||
+                it.contains("حداقل ۳ سناریو") ||
                 it.contains("تعارض غالب تایم‌فریم‌ها") ||
                 it.contains("تعارض قوی تحلیل ساختاری چارت") ||
                 it.contains("نسبت سود") || it.contains("مسدود")
