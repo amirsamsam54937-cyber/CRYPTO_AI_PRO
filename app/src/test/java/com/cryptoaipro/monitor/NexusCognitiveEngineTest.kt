@@ -44,6 +44,38 @@ class NexusCognitiveEngineTest {
         assertEquals("ABSTAIN", thought.phase)
     }
 
+    private fun risingCandles(count: Int, intervalMs: Long): List<DoubleArray> {
+        val now = System.currentTimeMillis()
+        return (0 until count).map { i ->
+            val base = 100.0 + i * 0.08 + kotlin.math.sin(i / 5.0) * 0.12
+            val close = base + 0.05
+            doubleArrayOf(
+                base, maxOf(base, close) + 0.12, minOf(base, close) - 0.12,
+                close, 1000.0 + (i % 7) * 45.0,
+                (now - (count - i) * intervalMs).toDouble()
+            )
+        }
+    }
+
+    @Test fun independentChartCanPassWithoutOptionalMultiHorizonForecast() {
+        val frames = linkedMapOf(
+            "5m" to risingCandles(120, 5L * 60_000L),
+            "15m" to risingCandles(120, 15L * 60_000L),
+            "1h" to risingCandles(120, 60L * 60_000L),
+            "4h" to risingCandles(120, 4L * 60L * 60_000L)
+        )
+        val input = sampleSignal().copy(
+            candles = frames.getValue("15m"),
+            timeframeCandles = frames,
+            timeframeAnalysis = ZoroTimeframeAnalysisEngine.analyze(frames),
+            multiHorizonOutlook = null
+        )
+        val thought = NexusCognitiveEngine.think(input, modelValidated = false)
+        assertTrue("chart and four timeframe frames should independently qualify", thought.allowed)
+        assertEquals("LONG_BIAS", thought.side)
+        assertTrue(thought.netRewardRisk >= 1.35)
+    }
+
     @Test fun validatedTenMemberConsensusCanPassWhenScenariosAndNetEconomicsAgree() {
         val thought = NexusCognitiveEngine.think(sampleSignal(), modelValidated = true)
         assertTrue(thought.allowed)
