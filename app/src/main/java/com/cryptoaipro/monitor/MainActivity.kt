@@ -682,12 +682,6 @@ fun CryptoMonitorScreen() {
             }
         ) { innerPadding ->
             Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                Image(
-                    painter = painterResource(id = R.drawable.tenaxis_hero),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(230.dp).align(Alignment.TopCenter).graphicsLayer { alpha = 0.22f }
-                )
                 Box(Modifier.fillMaxSize().background(
                     Brush.verticalGradient(listOf(Color(0xF2050505), Color(0xFF080808), Color(0xFF050505)))
                 ))
@@ -698,19 +692,8 @@ fun CryptoMonitorScreen() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (selectedTab != "خانه") TextButton(onClick = { selectedTab = "خانه" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("‹ بازگشت", color = Blue, fontSize = 11.sp) }
-                        Surface(
-                            color = Color(0xFF17231C),
-                            shape = RoundedCornerShape(18.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.62f)),
-                            modifier = Modifier.size(54.dp),
-                            shadowElevation = 12.dp
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.tenaxis_crest),
-                                contentDescription = "نشان TENAXIS",
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
+                        Text("T", color = Gold, fontSize = 36.sp, fontWeight = FontWeight.Black,
+                            modifier = Modifier.width(44.dp), textAlign = TextAlign.Center)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text("TENAXIS", color = Color(0xFFF5E7C2), fontSize = 17.sp, fontWeight = FontWeight.Black, letterSpacing = 1.1.sp)
