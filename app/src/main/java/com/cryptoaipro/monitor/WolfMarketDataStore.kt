@@ -13,7 +13,7 @@ import org.json.JSONObject
 
 /**
  * On-device durable market research store.
- * Imports the verified one-million-row XT-only real-candle seed once, then appends live 15m candles
+ * Imports the verified 898,920-row XT-only real-candle seed once, then appends live 15m candles
  * and signal snapshots. This is a data store, not a claim that the seed itself
  * retrains the bundled neural ensemble.
  */
@@ -98,7 +98,7 @@ internal object WolfMarketDataStore {
             }
             val expectedRows = manifest.optInt("rows", 0)
             require(expectedRows >= MINIMUM_SEED_ROWS) {
-                "داده تاریخی باید حداقل یک میلیون کندل واقعی داشته باشد."
+                "داده تاریخی کمتر از حداقل بذر معتبر ۸۹۸٬۹۲۰ کندل واقعی است."
             }
             val existing = count(db, "market_candles", "source='seed'")
             if (existing == expectedRows) {
