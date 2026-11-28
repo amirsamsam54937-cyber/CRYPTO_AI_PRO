@@ -63,10 +63,14 @@ internal object XtCredentialVault {
 
     @Synchronized
     fun save(context: Context, appKey: String, secret: String) {
-        require(appKey.isNotBlank() && secret.isNotBlank()) { "هر دو فیلد کلید لازم‌اند." }
+        // Clipboard managers and line-wrapped key dialogs can insert invisible whitespace.
+        // Remove whitespace only; never change case or otherwise rewrite the secret bytes.
+        val normalizedAppKey = appKey.filterNot(Char::isWhitespace)
+        val normalizedSecret = secret.filterNot(Char::isWhitespace)
+        require(normalizedAppKey.isNotBlank() && normalizedSecret.isNotBlank()) { "هر دو فیلد کلید لازم‌اند." }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, secretKey())
-        val plain = appKey.trim() + "\n" + secret.trim()
+        val plain = normalizedAppKey + "\n" + normalizedSecret
         val encrypted = cipher.doFinal(plain.toByteArray(StandardCharsets.UTF_8))
         val packed = cipher.iv + encrypted
         val encoded = Base64.encodeToString(packed, Base64.NO_WRAP)
